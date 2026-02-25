@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  
+  /* Corporate Roman Palette */
+  --color-roman-bg: #FBFaf8; /* Marble 50 */
+  --color-roman-surface: #FFFFFF;
+  --color-roman-border: #E8E3DB; /* Marble 200 */
+  --color-roman-border-light: #F4F1EB; /* Marble 100 */
+  
+  --color-roman-text-main: #1A1918; /* Stone 900 */
+  --color-roman-text-sub: #68737d; /* Muted stone */
+  
+  --color-roman-primary: #B08D57; /* Bronze */
+  --color-roman-primary-hover: #8C7045;
+  
+  --color-roman-sidebar: #2C2A29; /* Dark stone */
+  --color-roman-sidebar-light: #4A4745;
+  
+  --color-roman-parchment: #FDFBF7; /* For internal notes */
+  --color-roman-parchment-border: #D4C4A8;
+}
+
+body {
+  background-color: var(--color-roman-bg);
+  color: var(--color-roman-text-main);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
