@@ -1,5 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell } from 'lucide-react';
+import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell, AlertCircle } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 import { SidebarIcon } from './components/ui/SidebarIcon';
 import { UsersView } from './views/UsersView';
@@ -11,11 +13,15 @@ import { FinanceView } from './views/FinanceView';
 import { HomeView } from './views/HomeView';
 import { InboxView } from './views/InboxView';
 import { SplitLoginView } from './views/SplitLoginView';
+import { LandingView } from './views/LandingView';
+import { PublicFormView } from './views/PublicFormView';
 import { ViewState } from './types';
 import { useApp } from './context/AppContext';
 
 export const VIEWS = {
+  LANDING: 'landing',
   LOGIN: 'login',
+  PUBLIC_FORM: 'public-form',
   HOME: 'home',
   INBOX: 'inbox',
   USERS: 'users',
@@ -27,14 +33,20 @@ export const VIEWS = {
 } as const;
 
 export default function App() {
-  const { 
-    currentView, 
-    navigateTo, 
-    trackingTicketId, 
-    showNotifications, 
+  const {
+    currentView,
+    navigateTo,
+    trackingTicketId,
+    showNotifications,
     setShowNotifications,
     attachmentPreview,
-    closeAttachment
+    closeAttachment,
+    notifications,
+    unreadCount,
+    markNotificationRead,
+    dismissNotification,
+    markAllNotificationsRead,
+    setActiveTicketId
   } = useApp();
   
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -76,8 +88,26 @@ export default function App() {
     };
   }, [showNotifications, setShowNotifications]);
 
+  if (currentView === VIEWS.LANDING) {
+    return (
+      <LandingView
+        onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)}
+        onLogin={() => navigateTo(VIEWS.LOGIN)}
+      />
+    );
+  }
+
+  if (currentView === VIEWS.PUBLIC_FORM) {
+    return <PublicFormView onBack={() => navigateTo(VIEWS.LANDING)} />;
+  }
+
   if (currentView === VIEWS.LOGIN) {
-    return <SplitLoginView onLogin={() => navigateTo(VIEWS.HOME)} />;
+    return (
+      <SplitLoginView
+        onLogin={() => navigateTo(VIEWS.HOME)}
+        onBack={() => navigateTo(VIEWS.LANDING)}
+      />
+    );
   }
 
   if (currentView === VIEWS.TRACKING) {
@@ -102,19 +132,24 @@ export default function App() {
         </nav>
         <div className="mt-auto flex flex-col gap-4 items-center">
           <div className="relative">
-            <button 
+            <button
               onClick={(e) => {
-                e.stopPropagation(); // Prevent immediate close from document click
+                e.stopPropagation();
                 setShowNotifications(!showNotifications);
-              }} 
-              className={`transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/40 hover:text-white/80'}`} 
+              }}
+              className={`transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/40 hover:text-white/80'}`}
               title="Notificações"
+              aria-label="Notificações"
             >
               <Bell size={18} />
             </button>
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-roman-primary rounded-full"></span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] bg-roman-primary rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </div>
-          <button onClick={() => navigateTo('login')} className="text-white/40 hover:text-white/80 transition-colors" title="Sair">
+          <button onClick={() => navigateTo(VIEWS.LANDING)} className="text-white/40 hover:text-white/80 transition-colors" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
           <div className="w-8 h-8 rounded-full bg-roman-sidebar-light border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs" title="Logado como: Rafael">
@@ -127,79 +162,85 @@ export default function App() {
       {showNotifications && (
         <div ref={notificationRef} className="absolute left-14 top-0 bottom-0 w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-30 animate-in slide-in-from-left-4 flex flex-col">
           <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
-            <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>
-            <button onClick={() => setShowNotifications(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={18}/></button>
+            <div className="flex items-center gap-2">
+              <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>
+              {unreadCount > 0 && (
+                <span className="bg-roman-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+              )}
+            </div>
+            <button onClick={() => setShowNotifications(false)} className="text-roman-text-sub hover:text-roman-text-main" aria-label="Fechar notificações"><X size={18}/></button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            
-            {/* Notification 1: Actionable */}
-            <div className="p-4 bg-roman-surface border border-roman-primary/30 rounded-sm shadow-sm relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-1 h-full bg-roman-primary"></div>
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span>
-                  <span className="text-xs font-serif italic text-roman-text-sub">Agora mesmo</span>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {notifications.length === 0 && (
+              <div className="py-12 text-center text-roman-text-sub font-serif italic">
+                Nenhuma notificação.
+              </div>
+            )}
+            {notifications.map(n => {
+              const isAlert = n.type === 'alert';
+              const isActionable = n.type === 'actionable';
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => markNotificationRead(n.id)}
+                  className={`p-4 rounded-sm relative overflow-hidden transition-opacity ${
+                    isAlert
+                      ? 'bg-red-50 border border-red-200'
+                      : isActionable
+                      ? 'bg-roman-surface border border-roman-primary/30 shadow-sm'
+                      : 'bg-roman-bg border border-roman-border'
+                  } ${n.read ? 'opacity-60 hover:opacity-90' : ''}`}
+                >
+                  {isActionable && <div className="absolute top-0 left-0 w-1 h-full bg-roman-primary"></div>}
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      {!n.read && (
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>
+                      )}
+                      <span className={`text-xs font-serif italic ${isAlert ? 'text-red-700' : 'text-roman-text-sub'}`}>
+                        {formatDistanceToNow(n.time, { addSuffix: true, locale: ptBR })}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
+                      className={`transition-colors ${isAlert ? 'text-red-400 hover:text-red-700' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+                      aria-label="Dispensar notificação"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <p className={`text-sm font-medium mb-1 ${isAlert ? 'text-red-900' : 'text-roman-text-main'}`}>{n.title}</p>
+                  <p className={`text-xs ${isAlert ? 'text-red-700' : 'text-roman-text-sub'} ${n.action ? 'mb-3' : ''}`}>{n.body}</p>
+                  {n.action && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markNotificationRead(n.id);
+                        if (n.action!.ticketId) setActiveTicketId(n.action!.ticketId);
+                        navigateTo(VIEWS[n.action!.view.toUpperCase() as keyof typeof VIEWS]);
+                        setShowNotifications(false);
+                      }}
+                      className={`w-full py-1.5 text-xs font-medium rounded-sm transition-colors border ${
+                        isAlert
+                          ? 'bg-white hover:bg-red-100 text-red-700 border-red-200'
+                          : 'bg-roman-primary/10 hover:bg-roman-primary/20 text-roman-primary border-roman-primary/20'
+                      }`}
+                    >
+                      {n.action.label}
+                    </button>
+                  )}
                 </div>
-                <button className="text-roman-text-sub hover:text-roman-text-main"><X size={14} /></button>
-              </div>
-              <p className="text-sm text-roman-text-main font-medium mb-1">Aprovação Necessária</p>
-              <p className="text-xs text-roman-text-sub mb-3">Orçamento da OS-0048 excede o limite automático. Requer sua validação.</p>
-              <button 
-                onClick={() => {
-                  navigateTo(VIEWS.APPROVALS);
-                  setShowNotifications(false);
-                }}
-                className="w-full py-1.5 bg-roman-primary/10 hover:bg-roman-primary/20 text-roman-primary text-xs font-medium rounded-sm transition-colors border border-roman-primary/20"
-              >
-                Revisar Orçamento
-              </button>
-            </div>
-
-            {/* Notification 2: Info */}
-            <div className="p-4 bg-roman-bg border border-roman-border rounded-sm">
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-xs font-serif italic text-roman-text-sub">Há 2 horas</span>
-                <button className="text-roman-text-sub hover:text-roman-text-main"><X size={14} /></button>
-              </div>
-              <p className="text-sm text-roman-text-main font-medium mb-1">OS-0045 Validada</p>
-              <p className="text-xs text-roman-text-sub">O solicitante aprovou a manutenção dos geradores. Pronta para pagamento.</p>
-            </div>
-
-            {/* Notification 3: Alert (SLA) */}
-            <div className="p-4 bg-red-50 border border-red-200 rounded-sm">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                  <span className="text-xs font-serif italic text-red-700">Há 4 horas</span>
-                </div>
-                <button className="text-red-400 hover:text-red-700"><X size={14} /></button>
-              </div>
-              <p className="text-sm text-red-900 font-medium mb-1">SLA Vencido: OS-0044</p>
-              <p className="text-xs text-red-700 mb-3">O prazo de resolução para esta OS crítica expirou.</p>
-              <button 
-                onClick={() => {
-                  navigateTo(VIEWS.INBOX);
-                  setShowNotifications(false);
-                }}
-                className="w-full py-1.5 bg-white hover:bg-red-100 text-red-700 text-xs font-medium rounded-sm transition-colors border border-red-200"
-              >
-                Ver OS Atrasada
-              </button>
-            </div>
-
-            {/* Notification 4: Info */}
-            <div className="p-4 bg-roman-bg border border-roman-border rounded-sm opacity-70 hover:opacity-100 transition-opacity">
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-xs font-serif italic text-roman-text-sub">Ontem</span>
-                <button className="text-roman-text-sub hover:text-roman-text-main"><X size={14} /></button>
-              </div>
-              <p className="text-sm text-roman-text-main font-medium mb-1">Nova OS Registrada</p>
-              <p className="text-xs text-roman-text-sub">Infiltração Crítica no Teto do Refeitório (OS-0050).</p>
-            </div>
-
+              );
+            })}
           </div>
           <div className="p-3 border-t border-roman-border bg-roman-bg text-center">
-            <button className="text-xs text-roman-primary hover:underline font-medium">Marcar todas como lidas</button>
+            <button
+              onClick={markAllNotificationsRead}
+              disabled={unreadCount === 0}
+              className="text-xs text-roman-primary hover:underline font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Marcar todas como lidas {unreadCount > 0 ? `(${unreadCount})` : ''}
+            </button>
           </div>
         </div>
       )}
@@ -228,7 +269,11 @@ export default function App() {
             </div>
             <div className="flex-1 bg-stone-100 flex items-center justify-center p-8 overflow-auto">
               {attachmentPreview.type === 'image' ? (
-                <img src="https://picsum.photos/seed/facilities/800/600" alt="Anexo" className="max-w-full max-h-full object-contain shadow-md border border-stone-300" referrerPolicy="no-referrer" />
+                <div className="flex flex-col items-center justify-center gap-4 text-stone-400">
+                  <ImageIcon size={64} strokeWidth={1} />
+                  <p className="font-serif italic text-sm">Pré-visualização indisponível offline</p>
+                  <p className="text-xs opacity-60">{attachmentPreview.title}</p>
+                </div>
               ) : (
                 <div className="w-full max-w-2xl h-full bg-white shadow-lg border border-stone-300 p-12 flex flex-col">
                   <div className="border-b-2 border-stone-800 pb-4 mb-8 flex justify-between items-end">

@@ -44,7 +44,7 @@ export function KpiView() {
     { name: 'ALD', custo: 9100 },
   ];
 
-  const COLORS = ['#1a1a1a', '#525252', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5'];
+  const COLORS = ['#b45309', '#2563eb', '#16a34a', '#9333ea', '#dc2626', '#0891b2'];
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">

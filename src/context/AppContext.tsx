@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { ViewState, Ticket, InboxFilter } from '../types';
+import { ViewState, Ticket, InboxFilter, AppNotification } from '../types';
 import { MOCK_TICKETS } from '../data/mockTickets';
+import { subHours, subDays } from 'date-fns';
 
 interface AppContextType {
   // Navigation
@@ -12,14 +13,14 @@ interface AppContextType {
   setActiveTicketId: (id: string) => void;
   trackingTicketId: string | null;
   setTrackingTicketId: (id: string | null) => void;
-  
+
   // UI State
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   attachmentPreview: { title: string; type: 'image' | 'pdf' } | null;
   openAttachment: (title: string, type: 'image' | 'pdf') => void;
   closeAttachment: () => void;
-  
+
   // Data Persistence
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
@@ -27,7 +28,14 @@ interface AppContextType {
   setCompletedApprovalIds: React.Dispatch<React.SetStateAction<string[]>>;
   completedFinanceIds: string[];
   setCompletedFinanceIds: React.Dispatch<React.SetStateAction<string[]>>;
-  
+
+  // Z4: Notifications
+  notifications: AppNotification[];
+  unreadCount: number;
+  markNotificationRead: (id: string) => void;
+  dismissNotification: (id: string) => void;
+  markAllNotificationsRead: () => void;
+
   // Data
   tickets: Ticket[];
 }
@@ -41,9 +49,48 @@ const DEFAULT_FILTER: InboxFilter = {
   type: []
 };
 
+const INITIAL_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: 'n1',
+    type: 'actionable',
+    title: 'Aprovação Necessária',
+    body: 'Orçamento da OS-0048 excede o limite automático. Requer sua validação.',
+    time: new Date(),
+    read: false,
+    action: { label: 'Revisar Orçamento', view: 'approvals' }
+  },
+  {
+    id: 'n2',
+    type: 'info',
+    title: 'OS-0045 Validada',
+    body: 'O solicitante aprovou a manutenção dos geradores. Pronta para pagamento.',
+    time: subHours(new Date(), 2),
+    read: false,
+    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0045' }
+  },
+  {
+    id: 'n3',
+    type: 'alert',
+    title: 'SLA Vencido: OS-0044',
+    body: 'O prazo de resolução para esta OS crítica expirou.',
+    time: subHours(new Date(), 4),
+    read: false,
+    action: { label: 'Ver OS Atrasada', view: 'inbox', ticketId: 'OS-0044' }
+  },
+  {
+    id: 'n4',
+    type: 'info',
+    title: 'Nova OS Registrada',
+    body: 'Infiltração Crítica no Teto do Refeitório (OS-0050).',
+    time: subDays(new Date(), 1),
+    read: true,
+    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0050' }
+  }
+];
+
 export function AppProvider({ children }: { children: ReactNode }) {
   // Navigation
-  const [currentView, setCurrentView] = useState<ViewState>('home');
+  const [currentView, setCurrentView] = useState<ViewState>('landing');
 
   // Global State
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
@@ -57,6 +104,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [completedApprovalIds, setCompletedApprovalIds] = useState<string[]>([]);
   const [completedFinanceIds, setCompletedFinanceIds] = useState<string[]>([]);
+
+  // Z4: Notifications
+  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const dismissNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
 
   // Z1 & Z2: Automations Simulation (SLA, Notifications, Alerts)
   useEffect(() => {
@@ -153,6 +216,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCompletedApprovalIds,
       completedFinanceIds,
       setCompletedFinanceIds,
+      notifications,
+      unreadCount,
+      markNotificationRead,
+      dismissNotification,
+      markAllNotificationsRead,
       tickets: MOCK_TICKETS
     }}>
       {children}

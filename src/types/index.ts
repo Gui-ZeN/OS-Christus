@@ -1,4 +1,4 @@
-export type ViewState = 'login' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance';
+export type ViewState = 'landing' | 'login' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance';
 
 export interface InboxFilter {
   status: string[];
@@ -53,4 +53,18 @@ export interface User {
   role: string;
   email: string;
   status: 'Ativo' | 'Inativo';
+}
+
+export interface AppNotification {
+  id: string;
+  type: 'info' | 'actionable' | 'alert';
+  title: string;
+  body: string;
+  time: Date;
+  read: boolean;
+  action?: {
+    label: string;
+    view: ViewState;
+    ticketId?: string;
+  };
 }
