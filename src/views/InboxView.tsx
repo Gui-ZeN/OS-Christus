@@ -613,35 +613,37 @@ export function InboxView() {
                 </div>
               )}
 
-              {/* EXECUTION CONTROL */}
-              <div className="pt-4 border-t border-roman-border">
-                <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
-                <div className="space-y-2">
-                  {activeTicket.status.includes('Aguardando Ações Preliminares') && (
-                    <button className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
-                      <List size={14} /> Ações Preliminares (Compras)
-                    </button>
-                  )}
-                  
-                  {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento')) && (
-                    <button className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
-                      <Play size={14} /> Iniciar Execução da Obra
-                    </button>
-                  )}
+              {/* EXECUTION CONTROL - só exibe quando há ações disponíveis para o status atual */}
+              {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento') || activeTicket.status.includes('pagamento')) && (
+                <div className="pt-4 border-t border-roman-border">
+                  <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
+                  <div className="space-y-2">
+                    {activeTicket.status.includes('Aguardando Ações Preliminares') && (
+                      <button className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                        <List size={14} /> Ações Preliminares (Compras)
+                      </button>
+                    )}
 
-                  {activeTicket.status.includes('Em andamento') && (
-                     <button className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
-                      <CheckSquare size={14} /> Enviar para Validação (Solicitante)
-                    </button>
-                  )}
-                 
-                  {activeTicket.status.includes('pagamento') && (
-                    <button className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 mt-4">
-                      <CheckCircle size={14} /> Encerrar OS (Paga)
-                    </button>
-                  )}
+                    {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento')) && (
+                      <button className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                        <Play size={14} /> Iniciar Execução da Obra
+                      </button>
+                    )}
+
+                    {activeTicket.status.includes('Em andamento') && (
+                      <button className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                        <CheckSquare size={14} /> Enviar para Validação (Solicitante)
+                      </button>
+                    )}
+
+                    {activeTicket.status.includes('pagamento') && (
+                      <button className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 mt-4">
+                        <CheckCircle size={14} /> Encerrar OS (Paga)
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </aside>
