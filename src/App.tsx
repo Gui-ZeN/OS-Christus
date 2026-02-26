@@ -13,11 +13,15 @@ import { FinanceView } from './views/FinanceView';
 import { HomeView } from './views/HomeView';
 import { InboxView } from './views/InboxView';
 import { SplitLoginView } from './views/SplitLoginView';
+import { LandingView } from './views/LandingView';
+import { PublicFormView } from './views/PublicFormView';
 import { ViewState } from './types';
 import { useApp } from './context/AppContext';
 
 export const VIEWS = {
+  LANDING: 'landing',
   LOGIN: 'login',
+  PUBLIC_FORM: 'public-form',
   HOME: 'home',
   INBOX: 'inbox',
   USERS: 'users',
@@ -84,8 +88,26 @@ export default function App() {
     };
   }, [showNotifications, setShowNotifications]);
 
+  if (currentView === VIEWS.LANDING) {
+    return (
+      <LandingView
+        onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)}
+        onLogin={() => navigateTo(VIEWS.LOGIN)}
+      />
+    );
+  }
+
+  if (currentView === VIEWS.PUBLIC_FORM) {
+    return <PublicFormView onBack={() => navigateTo(VIEWS.LANDING)} />;
+  }
+
   if (currentView === VIEWS.LOGIN) {
-    return <SplitLoginView onLogin={() => navigateTo(VIEWS.HOME)} />;
+    return (
+      <SplitLoginView
+        onLogin={() => navigateTo(VIEWS.HOME)}
+        onBack={() => navigateTo(VIEWS.LANDING)}
+      />
+    );
   }
 
   if (currentView === VIEWS.TRACKING) {
@@ -127,7 +149,7 @@ export default function App() {
               </span>
             )}
           </div>
-          <button onClick={() => navigateTo('login')} className="text-white/40 hover:text-white/80 transition-colors" title="Sair">
+          <button onClick={() => navigateTo(VIEWS.LANDING)} className="text-white/40 hover:text-white/80 transition-colors" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
           <div className="w-8 h-8 rounded-full bg-roman-sidebar-light border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs" title="Logado como: Rafael">

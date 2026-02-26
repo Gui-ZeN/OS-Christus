@@ -90,7 +90,7 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
 
 export function AppProvider({ children }: { children: ReactNode }) {
   // Navigation
-  const [currentView, setCurrentView] = useState<ViewState>('home');
+  const [currentView, setCurrentView] = useState<ViewState>('landing');
 
   // Global State
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
