@@ -7,6 +7,48 @@ import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
+import { InboxFilter } from '../types';
+
+// Z7: Renders a filter section with checkboxes for a given dimension
+function renderFilterSection(
+  label: string,
+  dim: keyof InboxFilter,
+  options: string[],
+  inboxFilter: InboxFilter,
+  setInboxFilter: (f: InboxFilter) => void
+) {
+  return (
+    <div>
+      <div className="px-4 py-2 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub border-b border-roman-border bg-roman-bg/50 flex justify-between items-center">
+        <span>{label}</span>
+        {inboxFilter[dim].length > 0 && (
+          <button
+            onClick={() => setInboxFilter({ ...inboxFilter, [dim]: [] })}
+            className="text-roman-primary hover:underline normal-case tracking-normal font-sans text-[11px]"
+          >
+            Limpar
+          </button>
+        )}
+      </div>
+      {options.map(opt => (
+        <button
+          key={opt}
+          onClick={() => {
+            const current = inboxFilter[dim];
+            const next = current.includes(opt) ? current.filter(v => v !== opt) : [...current, opt];
+            setInboxFilter({ ...inboxFilter, [dim]: next });
+          }}
+          className={`w-full text-left px-4 py-2 text-[12px] hover:bg-roman-bg transition-colors flex items-center gap-2 ${inboxFilter[dim].includes(opt) ? 'text-roman-primary font-medium' : 'text-roman-text-main'}`}
+        >
+          <div className={`w-3 h-3 border rounded-sm flex items-center justify-center flex-shrink-0 ${inboxFilter[dim].includes(opt) ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
+            {inboxFilter[dim].includes(opt) && <CheckSquare size={9} className="text-white" />}
+          </div>
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function InboxView() {
   const { 
@@ -159,6 +201,15 @@ export function InboxView() {
     navigateTo('tracking');
   };
 
+  // Z7: active chips (all filter dimensions except empty)
+  const activeChips: { dim: keyof typeof inboxFilter; value: string }[] = (
+    ['status', 'priority', 'region', 'type'] as (keyof typeof inboxFilter)[]
+  ).flatMap(dim => inboxFilter[dim].map(value => ({ dim, value })));
+
+  const removeChip = (dim: keyof typeof inboxFilter, value: string) => {
+    setInboxFilter({ ...inboxFilter, [dim]: inboxFilter[dim].filter(v => v !== value) });
+  };
+
   return (
     <div className="flex-1 flex overflow-hidden relative">
       {/* Toast Notification */}
@@ -196,18 +247,39 @@ export function InboxView() {
           </button>
         </div>
 
+        {/* Z7: Active Filter Chips */}
+        {activeChips.length > 0 && (
+          <div className="px-2 py-2 border-b border-roman-border flex flex-wrap gap-1.5 bg-roman-bg/70">
+            {activeChips.map(chip => (
+              <span
+                key={`${String(chip.dim)}-${chip.value}`}
+                className="inline-flex items-center gap-1 bg-roman-primary/10 text-roman-primary border border-roman-primary/30 rounded-sm px-2 py-0.5 text-[11px] font-medium"
+              >
+                {chip.value}
+                <button
+                  onClick={() => removeChip(chip.dim, chip.value)}
+                  className="hover:text-red-600 transition-colors ml-0.5"
+                  aria-label={`Remover filtro ${chip.value}`}
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Ticket List */}
         <div className="flex-1 overflow-y-auto">
           {filteredTickets.length === 0 ? (
             <div className="p-8 text-center text-roman-text-sub font-serif italic">Nenhuma OS encontrada para este filtro.</div>
           ) : (
             filteredTickets.map(ticket => (
-              <TicketListItem 
+              <TicketListItem
                 key={ticket.id}
-                id={ticket.id} 
-                subject={ticket.subject} 
-                requester={ticket.requester} 
-                time={ticket.time} 
+                id={ticket.id}
+                subject={ticket.subject}
+                requester={ticket.requester}
+                time={ticket.time}
                 status={ticket.status}
                 priority={ticket.priority}
                 viewingBy={ticket.viewingBy}
@@ -238,34 +310,45 @@ export function InboxView() {
               <User size={14} />
               <span>Visualizando como: <strong>Rafael (Gestor)</strong></span>
             </div>
-            <button onClick={() => setShowFilterMenu(!showFilterMenu)} className={`transition-colors ${showFilterMenu || inboxFilter.status.length > 0 ? 'text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`} title="Filtrar">
+            <button
+              onClick={() => setShowFilterMenu(!showFilterMenu)}
+              className={`transition-colors ${showFilterMenu || Object.values(inboxFilter).some(arr => (arr as string[]).length > 0) ? 'text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+              title="Filtros compostos"
+              aria-label="Filtros compostos"
+            >
               <Filter size={18} />
             </button>
             {showFilterMenu && (
-              <div ref={filterMenuRef} className="absolute top-8 right-10 w-64 bg-roman-surface border border-roman-border shadow-xl rounded-sm z-20 py-2 max-h-[400px] overflow-y-auto">
-                <div className="px-4 py-2 text-xs font-serif italic text-roman-text-sub border-b border-roman-border mb-1 flex justify-between items-center">
-                  <span>Filtrar por Status</span>
-                  {inboxFilter.status.length > 0 && (
-                    <button onClick={() => setInboxFilter({ ...inboxFilter, status: [] })} className="text-roman-primary hover:underline">Limpar</button>
-                  )}
-                </div>
-                {['Nova OS', 'Aguardando Parecer Técnico', 'Aguardando Aprovação da Solução', 'Aguardando Orçamento', 'Aguardando Aprovação do Orçamento', 'Aguardando aprovação do contrato', 'Aguardando Ações Preliminares', 'Em andamento', 'Aguardando aprovação da manutenção', 'Aguardando pagamento', 'Encerrada'].map(status => (
-                  <button 
-                    key={status}
-                    onClick={() => {
-                      const newStatus = inboxFilter.status.includes(status)
-                        ? inboxFilter.status.filter(s => s !== status)
-                        : [...inboxFilter.status, status];
-                      setInboxFilter({ ...inboxFilter, status: newStatus });
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-roman-bg transition-colors flex items-center gap-2 ${inboxFilter.status.includes(status) ? 'text-roman-primary font-medium' : 'text-roman-text-main'}`}
+              <div ref={filterMenuRef} className="absolute top-8 right-10 w-72 bg-roman-surface border border-roman-border shadow-xl rounded-sm z-20 max-h-[500px] overflow-y-auto">
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-roman-border flex justify-between items-center bg-roman-bg sticky top-0">
+                  <span className="text-xs font-serif font-semibold text-roman-text-main">Filtros Compostos</span>
+                  <button
+                    onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })}
+                    className="text-[11px] text-roman-primary hover:underline font-medium"
                   >
-                    <div className={`w-3 h-3 border rounded-sm flex items-center justify-center ${inboxFilter.status.includes(status) ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
-                      {inboxFilter.status.includes(status) && <CheckSquare size={10} className="text-white" />}
-                    </div>
-                    {status}
+                    Limpar todos
                   </button>
-                ))}
+                </div>
+
+                {/* Status */}
+                {renderFilterSection('Status', 'status', [
+                  'Nova OS', 'Aguardando Parecer Técnico', 'Aguardando Aprovação da Solução',
+                  'Aguardando Orçamento', 'Aguardando Aprovação do Orçamento',
+                  'Aguardando aprovação do contrato', 'Aguardando Ações Preliminares',
+                  'Em andamento', 'Aguardando aprovação da manutenção', 'Aguardando pagamento', 'Encerrada'
+                ], inboxFilter, setInboxFilter)}
+
+                {/* Priority */}
+                {renderFilterSection('Prioridade', 'priority', ['Urgente', 'Alta', 'Normal', 'Trivial'], inboxFilter, setInboxFilter)}
+
+                {/* Region */}
+                {renderFilterSection('Região', 'region', [
+                  'Dionísio Torres', 'Aldeota', 'Parquelândia', 'Sul', 'Benfica', 'Universidade'
+                ], inboxFilter, setInboxFilter)}
+
+                {/* Type */}
+                {renderFilterSection('Tipo', 'type', ['Corretiva', 'Preventiva', 'Melhoria'], inboxFilter, setInboxFilter)}
               </div>
             )}
             <Search size={18} className="text-roman-text-sub" />

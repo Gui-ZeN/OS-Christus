@@ -54,3 +54,17 @@ export interface User {
   email: string;
   status: 'Ativo' | 'Inativo';
 }
+
+export interface AppNotification {
+  id: string;
+  type: 'info' | 'actionable' | 'alert';
+  title: string;
+  body: string;
+  time: Date;
+  read: boolean;
+  action?: {
+    label: string;
+    view: ViewState;
+    ticketId?: string;
+  };
+}

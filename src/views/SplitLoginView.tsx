@@ -5,7 +5,11 @@ export function SplitLoginView({ onLogin }: { onLogin: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
+  // Login Form State
+  const [loginEmail, setLoginEmail] = useState('rafael@empresa.com');
+  const [loginPassword, setLoginPassword] = useState('12345678');
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -309,11 +313,11 @@ export function SplitLoginView({ onLogin }: { onLogin: () => void }) {
           <div className="space-y-5">
             <div>
               <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Identificação (E-mail)</label>
-              <input type="email" defaultValue="rafael@empresa.com" className="w-full border border-roman-border rounded-sm px-4 py-3 bg-roman-bg text-[14px] font-medium text-roman-text-main outline-none focus:border-roman-primary transition-colors" />
+              <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="w-full border border-roman-border rounded-sm px-4 py-3 bg-roman-bg text-[14px] font-medium text-roman-text-main outline-none focus:border-roman-primary transition-colors" />
             </div>
             <div>
               <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Código de Acesso (Senha)</label>
-              <input type="password" defaultValue="••••••••" className="w-full border border-roman-border rounded-sm px-4 py-3 bg-roman-bg text-[14px] font-medium text-roman-text-main outline-none focus:border-roman-primary transition-colors" />
+              <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full border border-roman-border rounded-sm px-4 py-3 bg-roman-bg text-[14px] font-medium text-roman-text-main outline-none focus:border-roman-primary transition-colors" />
             </div>
             <button onClick={handleLogin} disabled={isLoading} className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-sm font-serif tracking-wide text-base transition-colors flex items-center justify-center gap-2 mt-4 disabled:opacity-70">
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <>Acessar o Sistema <ArrowRight size={18} /></>}
