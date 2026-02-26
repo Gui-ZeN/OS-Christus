@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { MOCK_TICKETS } from '../data/mockTickets';
 
 interface TrackingViewProps {
@@ -82,7 +84,7 @@ export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
                   <div className="w-full md:w-[calc(50%-2.5rem)] bg-roman-surface border border-roman-border p-4 rounded-sm shadow-sm md:group-odd:text-right">
                     <div className="flex items-center justify-between md:group-odd:flex-row-reverse mb-1">
                       <div className="font-serif font-medium text-roman-text-main">{item.sender || 'Sistema'}</div>
-                      {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{item.time}</div>}
+                      {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}</div>}
                     </div>
                     <div className="text-sm text-roman-text-main leading-relaxed">{item.text}</div>
                   </div>
