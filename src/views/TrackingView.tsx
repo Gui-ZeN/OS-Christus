@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MOCK_TICKETS } from '../data/mockTickets';
+import { useApp } from '../context/AppContext';
 
 interface TrackingViewProps {
   ticketId: string;
@@ -10,7 +10,8 @@ interface TrackingViewProps {
 }
 
 export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
-  const ticket = MOCK_TICKETS.find(t => t.id === ticketId) || MOCK_TICKETS[0];
+  const { tickets } = useApp();
+  const ticket = tickets.find(t => t.id === ticketId) ?? tickets[0];
   const [status, setStatus] = useState(ticket.status);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -76,7 +77,7 @@ export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
           <div>
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
             <div className="space-y-6 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
-              {ticket.history.map((item, index) => (
+              {ticket.history.filter(item => item.type !== 'field_change' && item.text).map((item, index) => (
                 <div key={index} className="relative flex flex-col md:flex-row items-start md:items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active gap-4 md:gap-0">
                   <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-roman-surface text-roman-primary shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 self-start md:self-center">
                     {item.type === 'customer' ? <Users size={16} /> : item.type === 'tech' ? <Activity size={16} /> : <CheckCircle size={16} />}

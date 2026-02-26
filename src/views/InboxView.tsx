@@ -1,13 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, MessageSquare, Send, Paperclip, Search, Filter, Clock, AlertCircle, Building, Wrench, User, Calendar, Tag, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Search, Filter, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MOCK_TICKETS } from '../data/mockTickets';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
-import { InboxFilter } from '../types';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { InboxFilter, HistoryItem } from '../types';
 
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
@@ -51,120 +51,185 @@ function renderFilterSection(
 }
 
 export function InboxView() {
-  const { 
-    navigateTo, 
-    openAttachment, 
-    setTrackingTicketId, 
-    activeTicketId, 
+  const {
+    navigateTo,
+    openAttachment,
+    setTrackingTicketId,
+    activeTicketId,
     setActiveTicketId,
     inboxFilter,
-    setInboxFilter
+    setInboxFilter,
+    tickets,
+    updateTicket,
   } = useApp();
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal'>('internal');
+  const [replyText, setReplyText] = useState('');
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
-  
-  // Z5: Simulate History State (Local to component for demo)
-  const [localHistory, setLocalHistory] = useState<any[]>([]);
 
+  const replyFileRef = useRef<HTMLInputElement>(null);
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+
+  // Derived state — usa tickets do contexto (mutável)
+  const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0];
+  const isClosed = activeTicket.status === 'Encerrada';
+
+  // Reseta campos ao trocar de ticket
   useEffect(() => {
-    // Reset local history when active ticket changes
-    setLocalHistory([]);
-    // Initialize tech team from ticket if available (mock logic)
-    setTechTeam(''); 
+    setReplyText('');
+    setTechTeam('');
+    setCustomEmail('');
+    setReplyFiles([]);
+    if (replyFileRef.current) replyFileRef.current.value = '';
   }, [activeTicketId]);
 
+  // Z5: Registra mudança de equipe técnica direto no histórico do ticket
   const handleTechTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value;
     const oldValue = techTeam || 'Não atribuído';
     setTechTeam(newValue);
 
-    // Z5: Log field change
-    const newHistoryItem = {
-      id: Math.random().toString(36).substr(2, 9),
+    const item: HistoryItem = {
+      id: crypto.randomUUID(),
       type: 'field_change',
       sender: 'Rafael (Gestor)',
       time: new Date(),
       field: 'Equipe Técnica',
       from: oldValue,
-      to: newValue
+      to: newValue,
     };
-    setLocalHistory(prev => [newHistoryItem, ...prev]);
+    updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
+  };
+
+  // Botão principal de ação: transição de status + registro no histórico
+  const handleSend = () => {
+    const now = new Date();
+    const sender = 'Rafael (Gestor)';
+
+    if (replyMode === 'internal') {
+      const items: HistoryItem[] = [];
+      let newStatus = activeTicket.status;
+
+      if (activeTicket.status === 'Nova OS' || activeTicket.status.includes('Aprovada na Triagem')) {
+        newStatus = 'Aguardando Parecer Técnico';
+        const target =
+          techTeam === 'Terceirizada' && customEmail
+            ? customEmail
+            : techTeam || 'Equipe Técnica';
+
+        if (replyText.trim()) {
+          items.push({ id: crypto.randomUUID(), type: 'system', sender, time: now, text: replyText.trim() });
+        }
+        items.push({
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender,
+          time: new Date(now.getTime() + 1),
+          text: `Parecer técnico solicitado para ${target}.`,
+        });
+      } else if (replyText.trim()) {
+        items.push({ id: crypto.randomUUID(), type: 'system', sender, time: now, text: replyText.trim() });
+      }
+
+      if (items.length > 0 || newStatus !== activeTicket.status) {
+        updateTicket(activeTicket.id, { status: newStatus, history: [...activeTicket.history, ...items] });
+      }
+    } else {
+      if (!replyText.trim()) return;
+      const item: HistoryItem = { id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() };
+      updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
+    }
+
+    setReplyText('');
+    setReplyFiles([]);
+    if (replyFileRef.current) replyFileRef.current.value = '';
+  };
+
+  // Controle de Execução
+  const handleStartExecution = () => {
+    const item: HistoryItem = {
+      id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
+      time: new Date(), text: 'Execução da obra iniciada.',
+    };
+    updateTicket(activeTicket.id, { status: 'Em andamento', history: [...activeTicket.history, item] });
+  };
+
+  const handleSendForValidation = () => {
+    const item: HistoryItem = {
+      id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
+      time: new Date(), text: 'Serviço concluído. Aguardando validação do solicitante.',
+    };
+    updateTicket(activeTicket.id, { status: 'Aguardando aprovação da manutenção', history: [...activeTicket.history, item] });
+  };
+
+  const handleCloseTicket = () => {
+    const item: HistoryItem = {
+      id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
+      time: new Date(), text: 'OS encerrada após confirmação de pagamento.',
+    };
+    updateTicket(activeTicket.id, { status: 'Encerrada', history: [...activeTicket.history, item] });
   };
 
   const [isSending, setIsSending] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showQuotesModal, setShowQuotesModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const filterMenuRef = useRef<HTMLDivElement>(null);
-  const replyFileRef = useRef<HTMLInputElement>(null);
-  const [replyFiles, setReplyFiles] = useState<File[]>([]);
-  
+
+  // useClickOutside substitui o useEffect manual anterior
+  const filterMenuRef = useClickOutside<HTMLDivElement>(() => setShowFilterMenu(false));
+
   const [quotes, setQuotes] = useState([
     { vendor: '', value: '' },
     { vendor: '', value: '' },
-    { vendor: '', value: '' }
+    { vendor: '', value: '' },
   ]);
 
-  const filteredTickets = MOCK_TICKETS.filter(t => {
+  // Reseta cotações ao trocar de ticket
+  useEffect(() => {
+    setQuotes([{ vendor: '', value: '' }, { vendor: '', value: '' }, { vendor: '', value: '' }]);
+  }, [activeTicketId]);
+
+  // useMemo evita recalcular em todo re-render
+  const filteredTickets = useMemo(() => tickets.filter(t => {
     if (inboxFilter.status.length > 0 && !inboxFilter.status.includes(t.status)) return false;
     if (inboxFilter.priority.length > 0 && t.priority && !inboxFilter.priority.includes(t.priority)) return false;
     if (inboxFilter.region.length > 0 && !inboxFilter.region.includes(t.region)) return false;
     if (inboxFilter.type.length > 0 && !inboxFilter.type.includes(t.type)) return false;
     return true;
   }).sort((a, b) => {
-    // Z2: OS Corretiva + Urgente sobe ao topo
     const isAUrgentCorrective = a.type === 'Corretiva' && a.priority === 'Urgente';
     const isBUrgentCorrective = b.type === 'Corretiva' && b.priority === 'Urgente';
-    
     if (isAUrgentCorrective && !isBUrgentCorrective) return -1;
     if (!isAUrgentCorrective && isBUrgentCorrective) return 1;
-    
     return b.time.getTime() - a.time.getTime();
-  });
-
-  const activeTicket = MOCK_TICKETS.find(t => t.id === activeTicketId) || MOCK_TICKETS[0];
-  const isClosed = activeTicket.status === 'Encerrada';
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
-        setShowFilterMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  }), [tickets, inboxFilter]);
 
   const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setReplyFiles(Array.from(e.target.files));
-    }
+    if (e.target.files) setReplyFiles(Array.from(e.target.files));
   };
 
-  let internalTabLabel = "Nota Interna";
-  let internalPlaceholder = "Adicione uma nota interna...";
-  let internalButtonText = "Salvar Nota";
-  let internalActionText = "Ação: Registrar nota no histórico";
+  // Labels dinâmicos do reply box conforme status
+  let internalTabLabel = 'Nota Interna';
+  let internalPlaceholder = 'Adicione uma nota interna...';
+  let internalButtonText = 'Salvar Nota';
+  let internalActionText = 'Ação: Registrar nota no histórico';
 
   if (activeTicket.status === 'Nova OS' || activeTicket.status.includes('Aprovada na Triagem')) {
-    internalTabLabel = "Solicitar Parecer Técnico";
-    internalPlaceholder = "Descreva a solicitação para a equipe técnica...";
-    internalButtonText = "Avançar: Aguardando Parecer";
-    internalActionText = `Ação: Disparar e-mail para ${techTeam === 'Terceirizada' && customEmail ? customEmail : (techTeam || 'Equipe Técnica')}`;
+    internalTabLabel = 'Solicitar Parecer Técnico';
+    internalPlaceholder = 'Descreva a solicitação para a equipe técnica...';
+    internalButtonText = 'Avançar: Aguardando Parecer';
+    internalActionText = `Ação: Disparar e-mail para ${techTeam === 'Terceirizada' && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
   } else if (activeTicket.status.includes('Cotação')) {
-    internalTabLabel = "Anotação de Cotação";
-    internalPlaceholder = "Registre detalhes das negociações com fornecedores...";
-    internalButtonText = "Salvar Anotação";
-    internalActionText = "Ação: Registrar no histórico interno";
+    internalTabLabel = 'Anotação de Cotação';
+    internalPlaceholder = 'Registre detalhes das negociações com fornecedores...';
+    internalButtonText = 'Salvar Anotação';
+    internalActionText = 'Ação: Registrar no histórico interno';
   } else if (activeTicket.status.includes('Validação') || activeTicket.status.includes('Execução')) {
-    internalTabLabel = "Diário de Obra";
-    internalPlaceholder = "Registre o andamento da execução...";
-    internalButtonText = "Salvar Registro";
-    internalActionText = "Ação: Registrar no histórico interno";
+    internalTabLabel = 'Diário de Obra';
+    internalPlaceholder = 'Registre o andamento da execução...';
+    internalButtonText = 'Salvar Registro';
+    internalActionText = 'Ação: Registrar no histórico interno';
   }
 
   const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: string) => {
@@ -174,14 +239,12 @@ export function InboxView() {
   };
 
   const handleSendToDirector = () => {
-    const filledQuotes = quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '');
-    
-    if (filledQuotes.length < 3) {
+    const filled = quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '');
+    if (filled.length < 3) {
       setToast('Erro: Preencha os 3 orçamentos antes de enviar.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
-
     setIsSending(true);
     setTimeout(() => {
       setIsSending(false);
@@ -190,8 +253,17 @@ export function InboxView() {
     }, 1500);
   };
 
+  // Usa trackingToken (opaco) em vez do ID sequencial
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/tracking/${activeTicket.id}`);
+    const url = `${window.location.origin}/tracking/${activeTicket.trackingToken}`;
+    navigator.clipboard.writeText(url).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
     setToast('Link copiado para a área de transferência!');
     setTimeout(() => setToast(null), 3000);
   };
@@ -201,7 +273,7 @@ export function InboxView() {
     navigateTo('tracking');
   };
 
-  // Z7: active chips (all filter dimensions except empty)
+  // Z7: active chips
   const activeChips: { dim: keyof typeof inboxFilter; value: string }[] = (
     ['status', 'priority', 'region', 'type'] as (keyof typeof inboxFilter)[]
   ).flatMap(dim => inboxFilter[dim].map(value => ({ dim, value })));
@@ -212,7 +284,7 @@ export function InboxView() {
 
   return (
     <div className="flex-1 flex overflow-hidden relative">
-      {/* Toast Notification */}
+      {/* Toast */}
       {toast && (
         <div className={`absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in ${toast.includes('Erro') ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}`}>
           {toast.includes('Erro') ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
@@ -220,27 +292,26 @@ export function InboxView() {
         </div>
       )}
 
-      {/* Ticket List Pane (Views) */}
+      {/* Ticket List Pane */}
       <div className="w-80 bg-roman-surface border-r border-roman-border flex flex-col z-10 shadow-[1px_0_5px_rgba(0,0,0,0.02)]">
-        {/* View Header */}
         <div className="h-14 border-b border-roman-border flex items-center justify-between px-4 hover:bg-roman-bg cursor-pointer">
           <div className="flex items-center gap-2">
             <h2 className="font-serif text-[16px] font-semibold tracking-wide">Minhas Filas (Rafael)</h2>
             <ChevronDown size={16} className="text-roman-text-sub" />
           </div>
-          <span className="text-roman-text-sub font-serif italic text-sm">14</span>
+          <span className="text-roman-text-sub font-serif italic text-sm">{tickets.length}</span>
         </div>
-        
+
         {/* Toolbar */}
         <div className="p-2 border-b border-roman-border flex gap-2 bg-roman-bg/50 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           <button onClick={() => setInboxFilter({ ...inboxFilter, status: ['Nova OS'] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes('Nova OS') && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Novas OS ({MOCK_TICKETS.filter(t => t.status === 'Nova OS').length})
+            Novas OS ({tickets.filter(t => t.status === 'Nova OS').length})
           </button>
           <button onClick={() => setInboxFilter({ ...inboxFilter, status: ['Aguardando Orçamento'] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes('Aguardando Orçamento') && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Aguard. Orçamento ({MOCK_TICKETS.filter(t => t.status === 'Aguardando Orçamento').length})
+            Aguard. Orçamento ({tickets.filter(t => t.status === 'Aguardando Orçamento').length})
           </button>
           <button onClick={() => setInboxFilter({ ...inboxFilter, status: ['Em andamento'] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes('Em andamento') && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Em Execução ({MOCK_TICKETS.filter(t => t.status === 'Em andamento').length})
+            Em Execução ({tickets.filter(t => t.status === 'Em andamento').length})
           </button>
           <button onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.length === 0 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
             Limpar Filtros
@@ -293,12 +364,15 @@ export function InboxView() {
 
       {/* Main Ticket Workspace */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Navigation / Tabs */}
+        {/* Top Navigation */}
         <header className="h-12 bg-roman-surface border-b border-roman-border flex items-center px-2">
           <div className="flex h-full">
             <div className="h-full px-4 border-r border-roman-border flex items-center gap-2 bg-roman-bg border-t-2 border-t-roman-primary font-medium">
               <span className="w-2 h-2 rounded-full bg-roman-primary"></span>
-              <span className="font-serif italic text-roman-text-sub mr-1">#{activeTicket.id}</span> {activeTicket.subject.substring(0, 20)}...
+              <span className="font-serif italic text-roman-text-sub mr-1">#{activeTicket.id}</span>
+              {activeTicket.subject.length > 20
+                ? `${activeTicket.subject.substring(0, 20)}…`
+                : activeTicket.subject}
             </div>
             <div className="h-full px-4 border-r border-roman-border flex items-center gap-2 hover:bg-roman-bg cursor-pointer text-roman-text-sub">
               <Plus size={16} />
@@ -320,7 +394,6 @@ export function InboxView() {
             </button>
             {showFilterMenu && (
               <div ref={filterMenuRef} className="absolute top-8 right-10 w-72 bg-roman-surface border border-roman-border shadow-xl rounded-sm z-20 max-h-[500px] overflow-y-auto">
-                {/* Header */}
                 <div className="px-4 py-3 border-b border-roman-border flex justify-between items-center bg-roman-bg sticky top-0">
                   <span className="text-xs font-serif font-semibold text-roman-text-main">Filtros Compostos</span>
                   <button
@@ -330,24 +403,16 @@ export function InboxView() {
                     Limpar todos
                   </button>
                 </div>
-
-                {/* Status */}
                 {renderFilterSection('Status', 'status', [
                   'Nova OS', 'Aguardando Parecer Técnico', 'Aguardando Aprovação da Solução',
                   'Aguardando Orçamento', 'Aguardando Aprovação do Orçamento',
                   'Aguardando aprovação do contrato', 'Aguardando Ações Preliminares',
-                  'Em andamento', 'Aguardando aprovação da manutenção', 'Aguardando pagamento', 'Encerrada'
+                  'Em andamento', 'Aguardando aprovação da manutenção', 'Aguardando pagamento', 'Encerrada',
                 ], inboxFilter, setInboxFilter)}
-
-                {/* Priority */}
                 {renderFilterSection('Prioridade', 'priority', ['Urgente', 'Alta', 'Normal', 'Trivial'], inboxFilter, setInboxFilter)}
-
-                {/* Region */}
                 {renderFilterSection('Região', 'region', [
-                  'Dionísio Torres', 'Aldeota', 'Parquelândia', 'Sul', 'Benfica', 'Universidade'
+                  'Dionísio Torres', 'Aldeota', 'Parquelândia', 'Sul', 'Benfica', 'Universidade',
                 ], inboxFilter, setInboxFilter)}
-
-                {/* Type */}
                 {renderFilterSection('Tipo', 'type', ['Corretiva', 'Preventiva', 'Melhoria'], inboxFilter, setInboxFilter)}
               </div>
             )}
@@ -357,10 +422,10 @@ export function InboxView() {
 
         {/* Ticket Content Area */}
         <div className="flex-1 flex overflow-hidden">
-          
+
           {/* Conversation Thread */}
           <div className="flex-1 flex flex-col bg-roman-bg overflow-y-auto">
-            
+
             {/* Ticket Header */}
             <div className="bg-roman-surface p-6 border-b border-roman-border">
               <div className="flex items-start justify-between mb-4">
@@ -377,80 +442,82 @@ export function InboxView() {
               </div>
             </div>
 
-            {/* Messages */}
+            {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
             <div className="p-6 space-y-6 flex-1">
-              {[...activeTicket.history, ...localHistory].sort((a, b) => b.time.getTime() - a.time.getTime()).map((item, index) => {
-                if (item.type === 'system') {
-                  return (
-                    <div key={index} className="flex gap-4 justify-center">
-                      <div className="bg-roman-border-light/50 border border-roman-border rounded-full px-4 py-1 text-xs text-roman-text-sub font-serif italic flex items-center gap-2">
-                        <Clock size={12} /> {item.text}
+              {[...activeTicket.history]
+                .sort((a, b) => a.time.getTime() - b.time.getTime())
+                .map((item, index) => {
+                  if (item.type === 'system') {
+                    return (
+                      <div key={index} className="flex gap-4 justify-center">
+                        <div className="bg-roman-border-light/50 border border-roman-border rounded-full px-4 py-1 text-xs text-roman-text-sub font-serif italic flex items-center gap-2">
+                          <Clock size={12} /> {item.text}
+                        </div>
                       </div>
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                if (item.type === 'field_change') {
+                  if (item.type === 'field_change') {
+                    return (
+                      <div key={index} className="flex gap-4 justify-center">
+                        <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1 text-[11px] text-roman-text-sub font-mono flex items-center gap-2">
+                          <span className="font-semibold">{item.sender}</span> alterou
+                          <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
+                          de <span className="line-through opacity-70">{item.from}</span>
+                          para <span className="font-medium text-roman-text-main">{item.to}</span>
+                          <span className="text-[10px] opacity-50 ml-1">{formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div key={index} className="flex gap-4 justify-center">
-                      <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1 text-[11px] text-roman-text-sub font-mono flex items-center gap-2">
-                        <span className="font-semibold">{item.sender}</span> alterou 
-                        <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span> 
-                        de <span className="line-through opacity-70">{item.from}</span> 
-                        para <span className="font-medium text-roman-text-main">{item.to}</span>
-                        <span className="text-[10px] opacity-50 ml-1">{formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}</span>
+                    <div key={index} className="flex gap-4">
+                      <div className="w-10 h-10 rounded-sm bg-roman-border-light text-roman-text-main border border-roman-border flex items-center justify-center font-serif text-lg shrink-0">
+                        {item.sender?.charAt(0) || 'U'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="font-semibold text-[14px]">{item.sender}</span>
+                          <span className="text-roman-text-sub text-xs font-serif italic">
+                            {formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}
+                          </span>
+                        </div>
+                        <div className="bg-roman-surface border border-roman-border rounded-sm p-5 text-[14px] leading-relaxed shadow-sm">
+                          {item.text}
+                        </div>
                       </div>
                     </div>
                   );
-                }
-                
-                return (
-                  <div key={index} className="flex gap-4">
-                    <div className="w-10 h-10 rounded-sm bg-roman-border-light text-roman-text-main border border-roman-border flex items-center justify-center font-serif text-lg shrink-0">
-                      {item.sender?.charAt(0) || 'U'}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="font-semibold text-[14px]">{item.sender}</span>
-                        <span className="text-roman-text-sub text-xs font-serif italic">
-                          {formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}
-                        </span>
-                      </div>
-                      <div className="bg-roman-surface border border-roman-border rounded-sm p-5 text-[14px] leading-relaxed shadow-sm">
-                        {item.text}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                })}
             </div>
 
-            {/* Reply Box (Ação do Rafael) */}
+            {/* Reply Box */}
             <div className="p-6 pt-0 mt-auto">
               <div className={`border rounded-sm overflow-hidden shadow-sm transition-colors ${replyMode === 'internal' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
-                {/* Reply Tabs */}
+                {/* Tabs */}
                 <div className="flex border-b border-roman-border bg-roman-bg/50">
-                  <button 
+                  <button
                     onClick={() => setReplyMode('internal')}
                     className={`px-4 py-2 font-serif text-base tracking-wide flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     <Lock size={14} /> {internalTabLabel}
                   </button>
-                  <button 
+                  <button
                     onClick={() => setReplyMode('public')}
                     className={`px-4 py-2 font-serif text-base tracking-wide ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     Mensagem ao Solicitante
                   </button>
                 </div>
-                
+
                 {/* Formatting Toolbar */}
                 <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
                   <button className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Bold size={16} /></button>
                   <button className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Italic size={16} /></button>
                   <button className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><List size={16} /></button>
                   <div className="w-px h-4 bg-roman-border mx-1"></div>
-                  <button 
+                  <button
                     onClick={() => replyFileRef.current?.click()}
                     className={`p-1 hover:bg-black/5 rounded relative ${replyFiles.length > 0 ? 'text-roman-primary' : ''}`}
                     title="Anexar arquivos"
@@ -461,10 +528,10 @@ export function InboxView() {
                       <span className="absolute -top-1 -right-1 w-2 h-2 bg-roman-primary rounded-full"></span>
                     )}
                   </button>
-                  <input 
-                    type="file" 
-                    multiple 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
                     ref={replyFileRef}
                     onChange={handleReplyFileChange}
                     disabled={isClosed}
@@ -472,11 +539,13 @@ export function InboxView() {
                 </div>
 
                 {/* Textarea */}
-                <textarea 
+                <textarea
                   className="w-full h-24 p-4 outline-none resize-none bg-transparent font-sans disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder={isClosed ? "Esta OS está encerrada e não aceita novos comentários." : (replyMode === 'internal' ? internalPlaceholder : "Mensagem para o solicitante...")}
+                  placeholder={isClosed ? 'Esta OS está encerrada e não aceita novos comentários.' : (replyMode === 'internal' ? internalPlaceholder : 'Mensagem para o solicitante...')}
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
                   disabled={isClosed}
-                ></textarea>
+                />
 
                 {/* File Preview */}
                 {replyFiles.length > 0 && (
@@ -491,14 +560,15 @@ export function InboxView() {
                   </div>
                 )}
 
-                {/* Footer Actions */}
+                {/* Footer */}
                 <div className="p-3 border-t border-roman-border/50 flex justify-between items-center bg-black/5">
                   <div className="text-xs text-roman-text-sub font-serif italic">
-                    {replyMode === 'internal' ? internalActionText : "Ação: Notificar solicitante por e-mail"}
+                    {replyMode === 'internal' ? internalActionText : 'Ação: Notificar solicitante por e-mail'}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
                       onClick={() => {
+                        setReplyText('');
                         setReplyFiles([]);
                         if (replyFileRef.current) replyFileRef.current.value = '';
                       }}
@@ -508,19 +578,19 @@ export function InboxView() {
                       Cancelar
                     </button>
                     <div className="flex rounded-sm overflow-hidden shadow-sm">
-                      <button 
+                      <button
+                        onClick={handleSend}
                         className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-1.5 font-medium transition-colors tracking-wide flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={isClosed}
                       >
                         <CheckCircle size={16} />
-                        {replyMode === 'internal' ? internalButtonText : "Enviar Mensagem"}
+                        {replyMode === 'internal' ? internalButtonText : 'Enviar Mensagem'}
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* Context Panel (Right Sidebar) */}
@@ -530,10 +600,10 @@ export function InboxView() {
             </div>
             <div className="p-4 space-y-5 overflow-y-auto">
               <PropertyField label="Status Atual" value={activeTicket.status} highlight />
-              
+
               {/* PUBLIC LINK BUTTON */}
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={handleCopyLink}
                   className="flex-1 flex items-center justify-center px-3 py-2 bg-roman-bg border border-roman-border rounded-sm hover:border-roman-primary/50 transition-colors group gap-2 text-roman-text-main font-medium text-[13px]"
                   title="Copiar link seguro para o solicitante"
@@ -541,7 +611,7 @@ export function InboxView() {
                   <Copy size={14} className="text-roman-text-sub group-hover:text-roman-primary" />
                   Copiar Link
                 </button>
-                <button 
+                <button
                   onClick={handleOpenTracking}
                   className="px-3 py-2 bg-roman-bg border border-roman-border rounded-sm hover:border-roman-primary/50 transition-colors group text-roman-text-sub hover:text-roman-primary"
                   title="Visualizar como solicitante"
@@ -554,11 +624,11 @@ export function InboxView() {
               <PropertyField label="Região" value={activeTicket.region} />
               <PropertyField label="Sede" value={activeTicket.sede} />
               <PropertyField label="Setor" value={activeTicket.sector} />
-              
+
               <div className="pt-4 border-t border-roman-border">
                 <div className="mb-4">
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Responsável (Técnico)</label>
-                  <select 
+                  <select
                     value={techTeam}
                     onChange={handleTechTeamChange}
                     className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -583,27 +653,26 @@ export function InboxView() {
                 {techTeam === 'Terceirizada' && (
                   <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail do Fornecedor</label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       value={customEmail}
-                      onChange={(e) => setCustomEmail(e.target.value)}
-                      placeholder="fornecedor@email.com" 
-                      className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed" 
+                      onChange={e => setCustomEmail(e.target.value)}
+                      placeholder="fornecedor@email.com"
+                      className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isClosed}
                     />
                   </div>
                 )}
               </div>
 
-              {/* BUDGETS SECTION (3 QUOTES) */}
+              {/* BUDGETS SECTION */}
               {activeTicket.status.includes('Cotação') && (
                 <div className="pt-4 border-t border-roman-border">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
                     <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">Rodada 1</span>
                   </div>
-
-                  <button 
+                  <button
                     onClick={() => setShowQuotesModal(true)}
                     className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
                   >
@@ -613,7 +682,7 @@ export function InboxView() {
                 </div>
               )}
 
-              {/* EXECUTION CONTROL - só exibe quando há ações disponíveis para o status atual */}
+              {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
               {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento') || activeTicket.status.includes('pagamento')) && (
                 <div className="pt-4 border-t border-roman-border">
                   <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
@@ -625,19 +694,28 @@ export function InboxView() {
                     )}
 
                     {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento')) && (
-                      <button className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                      <button
+                        onClick={handleStartExecution}
+                        className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                      >
                         <Play size={14} /> Iniciar Execução da Obra
                       </button>
                     )}
 
                     {activeTicket.status.includes('Em andamento') && (
-                      <button className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                      <button
+                        onClick={handleSendForValidation}
+                        className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                      >
                         <CheckSquare size={14} /> Enviar para Validação (Solicitante)
                       </button>
                     )}
 
                     {activeTicket.status.includes('pagamento') && (
-                      <button className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 mt-4">
+                      <button
+                        onClick={handleCloseTicket}
+                        className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 mt-4"
+                      >
                         <CheckCircle size={14} /> Encerrar OS (Paga)
                       </button>
                     )}
@@ -647,9 +725,9 @@ export function InboxView() {
 
             </div>
           </aside>
-
         </div>
       </div>
+
       {/* Quotes Modal */}
       {showQuotesModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
@@ -665,7 +743,7 @@ export function InboxView() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {[0, 1, 2].map((i) => (
+                {[0, 1, 2].map(i => (
                   <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
                       <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
@@ -676,22 +754,22 @@ export function InboxView() {
                     <div className="space-y-3 flex-1">
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Fornecedor</label>
-                        <input 
-                          type="text" 
-                          placeholder="Nome da Empresa" 
+                        <input
+                          type="text"
+                          placeholder="Nome da Empresa"
                           value={quotes[i].vendor}
-                          onChange={(e) => handleQuoteChange(i, 'vendor', e.target.value)}
-                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary" 
+                          onChange={e => handleQuoteChange(i, 'vendor', e.target.value)}
+                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
                       </div>
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor Total</label>
-                        <input 
-                          type="text" 
-                          placeholder="R$ 0,00" 
+                        <input
+                          type="text"
+                          placeholder="R$ 0,00"
                           value={quotes[i].value}
-                          onChange={(e) => handleQuoteChange(i, 'value', e.target.value)}
-                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary" 
+                          onChange={e => handleQuoteChange(i, 'value', e.target.value)}
+                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
                       </div>
                     </div>
@@ -703,7 +781,7 @@ export function InboxView() {
                 <button onClick={() => setShowQuotesModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
                   Salvar Rascunho
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     handleSendToDirector();
                     if (quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '').length >= 3) {

@@ -38,6 +38,7 @@ interface AppContextType {
 
   // Data
   tickets: Ticket[];
+  updateTicket: (id: string, updates: Partial<Ticket>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -105,6 +106,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [completedApprovalIds, setCompletedApprovalIds] = useState<string[]>([]);
   const [completedFinanceIds, setCompletedFinanceIds] = useState<string[]>([]);
 
+  // Mutable tickets state
+  const [tickets, setTickets] = useState<Ticket[]>([...MOCK_TICKETS]);
+
+  const updateTicket = (id: string, updates: Partial<Ticket>) => {
+    setTickets(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
   // Z4: Notifications
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -125,34 +133,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const runAutomations = () => {
       const now = new Date();
-      
-      MOCK_TICKETS.forEach(ticket => {
-        // Z1: SLA Check
+
+      setTickets(prev => prev.map(ticket => {
+        let updated = ticket;
+
+        // Z1: SLA Check — atualiza via estado, sem mutação direta
         if (ticket.sla && ticket.status !== 'Encerrada') {
           if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
-            ticket.sla.status = 'overdue';
-            console.log(`[Z1 SLA] Email sent to Rafael + Director: Ticket ${ticket.id} is OVERDUE.`);
-          } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - (1000 * 60 * 60 * 2)) {
-             ticket.sla.status = 'at_risk';
+            updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
+            console.log(`[Z1 SLA] Ticket ${ticket.id} VENCIDO.`);
+          } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
+            updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
           }
         }
 
         // Z2: Unassigned Ticket Alert (48h)
-        // Assuming 'Nova OS' means unassigned/unacknowledged
-        if (ticket.status === 'Nova OS' && (now.getTime() - ticket.time.getTime()) > (48 * 60 * 60 * 1000)) {
-          console.log(`[Z2 Automation] Alert: Ticket ${ticket.id} unassigned for > 48h. Notifying Rafael.`);
+        if (ticket.status === 'Nova OS' && now.getTime() - ticket.time.getTime() > 48 * 3600000) {
+          console.log(`[Z2] Ticket ${ticket.id} sem atribuição há >48h.`);
         }
 
-        // Z2: Long Running Execution Alert (e.g., > 7 days in 'Em andamento')
+        // Z2: Long Running Execution Alert (>7 days)
         if (ticket.status === 'Em andamento') {
-          // Find when it entered 'Em andamento' (mock logic: use ticket time for simplicity or last history item)
-          // Real app would check history log
-          const daysRunning = (now.getTime() - ticket.time.getTime()) / (1000 * 60 * 60 * 24);
-          if (daysRunning > 7) {
-             console.log(`[Z2 Automation] Alert: Ticket ${ticket.id} running for ${daysRunning.toFixed(1)} days.`);
-          }
+          const days = (now.getTime() - ticket.time.getTime()) / 86400000;
+          if (days > 7) console.log(`[Z2] Ticket ${ticket.id} em execução há ${days.toFixed(1)} dias.`);
         }
-      });
+
+        return updated;
+      }));
     };
 
     runAutomations();
@@ -221,7 +228,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markNotificationRead,
       dismissNotification,
       markAllNotificationsRead,
-      tickets: MOCK_TICKETS
+      tickets,
+      updateTicket,
     }}>
       {children}
     </AppContext.Provider>
