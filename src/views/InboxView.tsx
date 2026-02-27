@@ -174,6 +174,8 @@ export function InboxView() {
   const [isSending, setIsSending] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showQuotesModal, setShowQuotesModal] = useState(false);
+  const [showPrelimModal, setShowPrelimModal] = useState(false);
+  const [prelimChecked, setPrelimsChecked] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
 
   // useClickOutside substitui o useEffect manual anterior
@@ -688,7 +690,7 @@ export function InboxView() {
                   <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
                   <div className="space-y-2">
                     {activeTicket.status.includes('Aguardando Ações Preliminares') && (
-                      <button className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                      <button onClick={() => { setPrelimsChecked({}); setShowPrelimModal(true); }} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
                         <List size={14} /> Ações Preliminares (Compras)
                       </button>
                     )}
@@ -779,7 +781,7 @@ export function InboxView() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-roman-border">
                 <button onClick={() => setShowQuotesModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                  Salvar Rascunho
+                  Fechar
                 </button>
                 <button
                   onClick={() => {
@@ -793,6 +795,69 @@ export function InboxView() {
                 >
                   {isSending ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
                   {isSending ? 'Enviando...' : 'Enviar para Diretoria'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ações Preliminares Modal */}
+      {showPrelimModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
+              <h3 className="font-serif text-lg text-roman-text-main font-medium">Ações Preliminares</h3>
+              <button onClick={() => setShowPrelimModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-roman-text-sub mb-4 font-serif italic">Confirme cada item antes de liberar a execução do serviço.</p>
+              <div className="space-y-2 mb-6">
+                {[
+                  { id: 'materiais', label: 'Materiais solicitados ao almoxarifado' },
+                  { id: 'equipe', label: 'Disponibilidade da equipe confirmada' },
+                  { id: 'cronograma', label: 'Cronograma de execução definido' },
+                  { id: 'acesso', label: 'Acesso ao local liberado com o solicitante' },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setPrelimsChecked(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                    className={`w-full flex items-center gap-3 p-3 border rounded-sm text-left transition-colors ${
+                      prelimChecked[item.id]
+                        ? 'border-roman-primary bg-roman-primary/5 text-roman-primary'
+                        : 'border-roman-border text-roman-text-main hover:border-roman-primary/50'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 border rounded-sm flex items-center justify-center flex-shrink-0 ${prelimChecked[item.id] ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
+                      {prelimChecked[item.id] && <CheckSquare size={10} className="text-white" />}
+                    </div>
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowPrelimModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                  Cancelar
+                </button>
+                <button
+                  disabled={!['materiais', 'equipe', 'cronograma', 'acesso'].every(id => prelimChecked[id])}
+                  onClick={() => {
+                    const item: HistoryItem = {
+                      id: crypto.randomUUID(),
+                      type: 'system',
+                      sender: 'Rafael (Gestor)',
+                      time: new Date(),
+                      text: 'Ações preliminares concluídas. Materiais solicitados, equipe escalada e cronograma definido.',
+                    };
+                    updateTicket(activeTicket.id, {
+                      status: 'Em andamento',
+                      history: [...activeTicket.history, item],
+                    });
+                    setShowPrelimModal(false);
+                  }}
+                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Concluir e Iniciar Execução
                 </button>
               </div>
             </div>

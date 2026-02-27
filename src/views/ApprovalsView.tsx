@@ -336,7 +336,7 @@ export function ApprovalsView() {
                   <div className="text-2xl font-serif text-stone-900">{c.value}</div>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                  <button className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
+                  <button onClick={() => openAttachment(`Minuta: ${c.vendor}`, 'pdf')} className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
                     Revisar
                   </button>
                   <button onClick={() => setAttachContractModalId(c.id)} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2">

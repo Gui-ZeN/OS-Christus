@@ -141,22 +141,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (ticket.sla && ticket.status !== 'Encerrada') {
           if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
             updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
-            console.log(`[Z1 SLA] Ticket ${ticket.id} VENCIDO.`);
           } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
             updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
           }
         }
 
-        // Z2: Unassigned Ticket Alert (48h)
-        if (ticket.status === 'Nova OS' && now.getTime() - ticket.time.getTime() > 48 * 3600000) {
-          console.log(`[Z2] Ticket ${ticket.id} sem atribuição há >48h.`);
-        }
-
-        // Z2: Long Running Execution Alert (>7 days)
-        if (ticket.status === 'Em andamento') {
-          const days = (now.getTime() - ticket.time.getTime()) / 86400000;
-          if (days > 7) console.log(`[Z2] Ticket ${ticket.id} em execução há ${days.toFixed(1)} dias.`);
-        }
+        // Z2: Unassigned Ticket Alert (48h) — lógica preservada para futura integração de notificações
+        // Z2: Long Running Execution Alert (>7 days) — idem
 
         return updated;
       }));
