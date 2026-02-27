@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
+import { HistoryItem } from '../types';
 
 interface TrackingViewProps {
   ticketId: string;
@@ -10,18 +12,28 @@ interface TrackingViewProps {
 }
 
 export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
-  const { tickets } = useApp();
+  const { tickets, updateTicket } = useApp();
   const ticket = tickets.find(t => t.id === ticketId) ?? tickets[0];
-  const [status, setStatus] = useState(ticket.status);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleValidate = (approved: boolean) => {
     setIsProcessing(true);
     setTimeout(() => {
       setIsProcessing(false);
-      setStatus(approved ? 'Aguardando pagamento' : 'Em andamento');
-      if(approved) alert("Obrigado! A OS foi aprovada e seguirá para pagamento/encerramento.");
-      else alert("A equipe técnica foi notificada para revisar o serviço.");
+      const newStatus = approved ? 'Aguardando pagamento' : 'Em andamento';
+      const newHistoryItem: HistoryItem = {
+        id: uuidv4(),
+        type: 'customer',
+        sender: ticket.requester,
+        time: new Date(),
+        text: approved
+          ? 'Manutenção aprovada pelo solicitante. Aguardando Geovana realizar o pagamento.'
+          : 'Solicitante reportou pendências. Equipe técnica notificada para revisão.',
+      };
+      updateTicket(ticket.id, {
+        status: newStatus,
+        history: [...ticket.history, newHistoryItem],
+      });
     }, 1500);
   };
 
@@ -44,7 +56,7 @@ export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
             <div className="text-right">
               <div className="text-2xl font-serif text-roman-text-main font-medium">#{ticket.id}</div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-roman-primary/10 text-roman-primary border border-roman-primary/20 rounded-sm text-sm font-medium mt-2">
-                <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span> {status}
+                <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span> {ticket.status}
               </div>
             </div>
           </div>
@@ -55,7 +67,7 @@ export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
           </div>
 
           {/* Validation Call to Action */}
-          {status === 'Aguardando aprovação da manutenção' && (
+          {ticket.status === 'Aguardando aprovação da manutenção' && (
             <div className="bg-roman-primary/10 border border-roman-primary/30 p-6 rounded-sm shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
               <h3 className="font-serif text-lg font-medium text-roman-primary mb-2 flex items-center gap-2">
                 <CheckSquare size={20} /> Validação da Manutenção

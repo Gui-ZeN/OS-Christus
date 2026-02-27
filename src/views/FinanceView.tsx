@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 
 export function FinanceView() {
-  const { openAttachment, completedFinanceIds, setCompletedFinanceIds } = useApp();
+  const { openAttachment, completedFinanceIds, setCompletedFinanceIds, updateTicket } = useApp();
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const payments = [
@@ -17,6 +17,7 @@ export function FinanceView() {
     setProcessingId(id);
     setTimeout(() => {
       setProcessingId(null);
+      updateTicket(id, { status: 'Encerrada' });
       setCompletedFinanceIds(prev => [...prev, id]);
     }, 1500);
   };

@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Plus, Users, BarChart2 } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { ActivityItem } from '../components/ui/ActivityItem';
 import { useApp } from '../context/AppContext';
 
 export function HomeView() {
-  const { navigateTo } = useApp();
+  const { navigateTo, tickets } = useApp();
+
+  const stats = useMemo(() => ({
+    novas: tickets.filter(t => t.status === 'Nova OS').length,
+    aguardandoOrcamento: tickets.filter(t => t.status === 'Aguardando Orçamento').length,
+    aguardandoAprovacao: tickets.filter(t => t.status.toLowerCase().includes('aguardando aprovação')).length,
+    encerradas: tickets.filter(t => t.status === 'Encerrada').length,
+  }), [tickets]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
@@ -17,10 +24,10 @@ export function HomeView() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <StatCard title="Novas OS" value="3" highlight onClick={() => navigateTo('inbox')} />
-          <StatCard title="Aguardando Orçamento" value="5" />
-          <StatCard title="Aguardando Aprovação" value="2" />
-          <StatCard title="OS Concluídas (Mês)" value="42" />
+          <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => navigateTo('inbox')} />
+          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} />
+          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} />
+          <StatCard title="OS Concluídas (Mês)" value={String(stats.encerradas)} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

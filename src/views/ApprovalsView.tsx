@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 
 export function ApprovalsView() {
-  const { openAttachment, completedApprovalIds, setCompletedApprovalIds } = useApp();
+  const { openAttachment, completedApprovalIds, setCompletedApprovalIds, updateTicket } = useApp();
   const [activeTab, setActiveTab] = useState<'new_os' | 'solutions' | 'budgets' | 'contracts'>('new_os');
   const [processingId, setProcessingId] = useState<string | null>(null);
   
@@ -17,18 +17,28 @@ export function ApprovalsView() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const handleApprove = (id: string) => {
+  const APPROVAL_STATUS: Record<string, string> = {
+    new_os: 'Aguardando Parecer Técnico',
+    solutions: 'Aguardando Orçamento',
+    budgets: 'Aguardando aprovação do contrato',
+    contracts: 'Aguardando Ações Preliminares',
+  };
+
+  const handleApprove = (id: string, tab: 'new_os' | 'solutions' | 'budgets' | 'contracts') => {
     setProcessingId(id);
     setTimeout(() => {
       setProcessingId(null);
+      updateTicket(id, { status: APPROVAL_STATUS[tab] });
       setCompletedApprovalIds(prev => [...prev, id]);
-      
+
       // Z2: Automation - Email to Vendor on Budget Approval
-      const approvedBudget = budgets.find(b => b.id === id);
-      if (approvedBudget) {
-        const winner = approvedBudget.quotes.find(q => q.recommended)?.vendor || 'Fornecedor Vencedor';
-        setToast(`Automação: E-mail de aprovação enviado para ${winner}.`);
-        setTimeout(() => setToast(null), 4000);
+      if (tab === 'budgets') {
+        const approvedBudget = budgets.find(b => b.id === id);
+        if (approvedBudget) {
+          const winner = approvedBudget.quotes.find(q => q.recommended)?.vendor || 'Fornecedor Vencedor';
+          setToast(`Automação: E-mail de aprovação enviado para ${winner}.`);
+          setTimeout(() => setToast(null), 4000);
+        }
       }
     }, 1500);
   };
@@ -42,9 +52,10 @@ export function ApprovalsView() {
     if (!rejectTargetId) return;
     setProcessingId(rejectTargetId);
     setRejectModalOpen(false);
-    
+
     setTimeout(() => {
       setProcessingId(null);
+      updateTicket(rejectTargetId, { status: 'Cancelada' });
       setCompletedApprovalIds(prev => [...prev, rejectTargetId]);
       setRejectTargetId(null);
     }, 1500);
@@ -56,6 +67,7 @@ export function ApprovalsView() {
     setAttachContractModalId(null);
     setTimeout(() => {
       setProcessingId(null);
+      updateTicket(attachContractModalId, { status: 'Aguardando Ações Preliminares' });
       setCompletedApprovalIds(prev => [...prev, attachContractModalId]);
       setAttachedFile(null);
     }, 1500);
@@ -183,7 +195,7 @@ export function ApprovalsView() {
                   <button onClick={() => openRejectModal(os.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
                     Reprovar (Cancelar OS)
                   </button>
-                  <button onClick={() => handleApprove(os.id)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
+                  <button onClick={() => handleApprove(os.id, 'new_os')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
                     <CheckCircle size={16} /> Aprovar (Enviar para Rafael)
                   </button>
                 </div>
@@ -227,7 +239,7 @@ export function ApprovalsView() {
                   <button onClick={() => openRejectModal(s.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
                     Reprovar Solução (Arquivar)
                   </button>
-                  <button onClick={() => handleApprove(s.id)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
+                  <button onClick={() => handleApprove(s.id, 'solutions')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
                     <CheckCircle size={16} /> Aprovar (Ir para Cotação)
                   </button>
                 </div>
@@ -284,7 +296,7 @@ export function ApprovalsView() {
                       <button onClick={() => openAttachment(`Orçamento: ${q.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
                         <FileText size={14} /> Ver PDF
                       </button>
-                      <button onClick={() => handleApprove(b.id)} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm">
+                      <button onClick={() => handleApprove(b.id, 'budgets')} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm">
                         Aprovar Esta Opção
                       </button>
                     </div>
