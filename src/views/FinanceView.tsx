@@ -1,29 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CheckCircle, Loader2, FileText, DollarSign } from 'lucide-react';
-import { formatDistanceToNow, subHours, subDays } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 
-export function FinanceView() {
-  const { openAttachment, completedFinanceIds, setCompletedFinanceIds, updateTicket } = useApp();
-  const [processingId, setProcessingId] = useState<string | null>(null);
+const PAYMENT_DATA: Record<string, { vendor: string; value: string }> = {
+  'OS-0041': { vendor: 'Limpeza das Alturas Ltda.', value: 'R$ 3.200,00' },
+  'OS-0042': { vendor: 'Serralheria Forte', value: 'R$ 480,00' },
+};
 
-  const payments = [
-    { id: 'OS-0040', subject: 'Troca do Carpete (Sala de Reuniões)', vendor: 'Decor Interiores', value: 'R$ 12.400,00', date: subHours(new Date(), 3) },
-    { id: 'OS-0039', subject: 'Pintura Epóxi do Estacionamento Subsolo', vendor: 'Tintas Industriais S.A.', value: 'R$ 38.500,00', date: subDays(new Date(), 1) }
-  ];
+export function FinanceView() {
+  const { openAttachment, updateTicket, tickets } = useApp();
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const payments = useMemo(() =>
+    tickets
+      .filter(t => t.status === 'Aguardando pagamento')
+      .map(t => ({
+        id: t.id,
+        subject: t.subject,
+        vendor: PAYMENT_DATA[t.id]?.vendor ?? 'Fornecedor a confirmar',
+        value: PAYMENT_DATA[t.id]?.value ?? 'Valor a confirmar',
+        date: [...t.history].reverse().find(h => h.type === 'system' || h.type === 'customer')?.time ?? t.time,
+      })),
+  [tickets]);
 
   const handlePay = (id: string) => {
     setProcessingId(id);
     setTimeout(() => {
       setProcessingId(null);
       updateTicket(id, { status: 'Encerrada' });
-      setCompletedFinanceIds(prev => [...prev, id]);
+      setToast(`Pagamento confirmado. OS ${id} encerrada com sucesso.`);
+      setTimeout(() => setToast(null), 3000);
     }, 1500);
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
+      {toast && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in bg-green-800 text-white">
+          <CheckCircle size={18} />
+          <span className="font-medium text-sm">{toast}</span>
+        </div>
+      )}
       <div className="max-w-5xl mx-auto">
         <header className="mb-8 border-b border-roman-border pb-4">
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel Financeiro</h1>
@@ -32,15 +52,6 @@ export function FinanceView() {
 
         <div className="space-y-4">
           {payments.map(p => {
-            if (completedFinanceIds.includes(p.id)) {
-              return (
-                <div key={p.id} className="bg-green-50 border border-green-200 rounded-sm p-6 flex items-center justify-center gap-3 text-green-700 shadow-sm animate-in fade-in duration-500">
-                  <CheckCircle size={24} />
-                  <span className="font-medium text-lg font-serif">Pagamento confirmado para a {p.id}</span>
-                </div>
-              );
-            }
-
             return (
               <div key={p.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 flex flex-col md:flex-row gap-6 items-start md:items-center shadow-sm relative overflow-hidden hover:border-roman-primary/30 transition-colors">
                 {processingId === p.id && (
