@@ -1,13 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { Landmark, ArrowRight, ArrowLeft, Loader2, CheckCircle, FileText, ImageIcon } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { Ticket, HistoryItem } from '../types';
 
 interface PublicFormViewProps {
   onBack: () => void;
 }
 
 export function PublicFormView({ onBack }: PublicFormViewProps) {
+  const { tickets, addTicket } = useApp();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdId, setCreatedId] = useState('');
+  const [createdToken, setCreatedToken] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -42,6 +47,34 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!validateForm()) return;
     setIsSubmitting(true);
     setTimeout(() => {
+      const maxNum = tickets.reduce((max, t) => {
+        const n = parseInt(t.id.replace('OS-', ''), 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const nextNum = maxNum + 1;
+      const newId = `OS-${String(nextNum).padStart(4, '0')}`;
+      const newToken = `trk-${String(nextNum).padStart(4, '0')}`;
+      const now = new Date();
+      const newTicket: Ticket = {
+        id: newId,
+        trackingToken: newToken,
+        subject: formData.subject,
+        requester: formData.name,
+        time: now,
+        status: 'Nova OS',
+        type: formData.type,
+        region: formData.region,
+        sede: formData.sede,
+        sector: formData.sector,
+        priority: 'Normal',
+        history: [
+          { id: `${newId}-c1`, type: 'customer', sender: formData.name, time: now, text: formData.description },
+          { id: `${newId}-s1`, type: 'system', sender: 'Sistema', time: now, text: `${newId} registrada via formulário público. Aguardando triagem.` },
+        ] as HistoryItem[],
+      };
+      addTicket(newTicket);
+      setCreatedId(newId);
+      setCreatedToken(newToken);
       setIsSubmitting(false);
       setIsSubmitted(true);
       setFormData({ name: '', email: '', subject: '', description: '', type: '', sector: '', region: '', sede: '' });
@@ -90,19 +123,19 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             <h2 className="text-2xl font-serif text-roman-text-main mb-2">OS Registrada com Sucesso!</h2>
             <p className="text-roman-text-sub mb-6 leading-relaxed">
               Sua solicitação foi enviada para a equipe de triagem. O número da sua OS é{' '}
-              <strong className="text-roman-text-main">#OS-0051</strong>.
+              <strong className="text-roman-text-main">#{createdId}</strong>.
             </p>
             <div className="bg-roman-surface border border-roman-border p-4 rounded-sm mb-8 text-left">
               <p className="text-xs text-roman-text-sub font-serif italic mb-2">
                 Enviamos um link de acompanhamento para o seu e-mail. Você também pode acessar por aqui:
               </p>
               <div className="text-roman-primary font-mono text-xs break-all bg-roman-primary/5 p-2 border border-roman-primary/20 rounded-sm">
-                sistema.com/acompanhar/a7b2c9...
+                sistema.com/acompanhar/{createdToken}
               </div>
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => setIsSubmitted(false)}
+                onClick={() => { setIsSubmitted(false); setCreatedId(''); setCreatedToken(''); }}
                 className="flex-1 bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-sm font-medium transition-colors"
               >
                 Abrir Nova OS

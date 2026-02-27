@@ -24,10 +24,6 @@ interface AppContextType {
   // Data Persistence
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
-  completedApprovalIds: string[];
-  setCompletedApprovalIds: React.Dispatch<React.SetStateAction<string[]>>;
-  completedFinanceIds: string[];
-  setCompletedFinanceIds: React.Dispatch<React.SetStateAction<string[]>>;
 
   // Z4: Notifications
   notifications: AppNotification[];
@@ -39,6 +35,7 @@ interface AppContextType {
   // Data
   tickets: Ticket[];
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
+  addTicket: (ticket: Ticket) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -103,14 +100,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
   // Data Persistence
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
-  const [completedApprovalIds, setCompletedApprovalIds] = useState<string[]>([]);
-  const [completedFinanceIds, setCompletedFinanceIds] = useState<string[]>([]);
 
   // Mutable tickets state
   const [tickets, setTickets] = useState<Ticket[]>([...MOCK_TICKETS]);
 
   const updateTicket = (id: string, updates: Partial<Ticket>) => {
     setTickets(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
+  const addTicket = (ticket: Ticket) => {
+    setTickets(prev => [ticket, ...prev]);
   };
 
   // Z4: Notifications
@@ -210,10 +209,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       closeAttachment,
       inboxFilter,
       setInboxFilter,
-      completedApprovalIds,
-      setCompletedApprovalIds,
-      completedFinanceIds,
-      setCompletedFinanceIds,
       notifications,
       unreadCount,
       markNotificationRead,
@@ -221,6 +216,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markAllNotificationsRead,
       tickets,
       updateTicket,
+      addTicket,
     }}>
       {children}
     </AppContext.Provider>

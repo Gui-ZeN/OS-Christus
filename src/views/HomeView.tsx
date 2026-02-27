@@ -4,6 +4,28 @@ import { StatCard } from '../components/ui/StatCard';
 import { ActivityItem } from '../components/ui/ActivityItem';
 import { useApp } from '../context/AppContext';
 
+const ACTIVITY_TITLES: Record<string, string> = {
+  customer: 'Mensagem do Solicitante',
+  tech: 'Parecer Técnico Recebido',
+  system: 'Atualização de Status',
+};
+
+function formatActivityTime(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return 'agora';
+  if (diffMins < 60) return `${diffMins}min`;
+  if (diffHours < 24) {
+    const h = date.getHours().toString().padStart(2, '0');
+    const m = date.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  if (diffDays === 1) return 'Ontem';
+  return `${diffDays}d`;
+}
+
 export function HomeView() {
   const { navigateTo, tickets } = useApp();
 
@@ -13,6 +35,16 @@ export function HomeView() {
     aguardandoAprovacao: tickets.filter(t => t.status.toLowerCase().includes('aguardando aprovação')).length,
     encerradas: tickets.filter(t => t.status === 'Encerrada').length,
   }), [tickets]);
+
+  const recentActivity = useMemo(() => {
+    return tickets
+      .flatMap(t => t.history
+        .filter(h => h.type !== 'field_change')
+        .map(h => ({ ...h, ticketId: t.id }))
+      )
+      .sort((a, b) => b.time.getTime() - a.time.getTime())
+      .slice(0, 4);
+  }, [tickets]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
@@ -35,10 +67,16 @@ export function HomeView() {
           <div className="lg:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-6">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Atividade Recente</h2>
             <div className="space-y-4">
-              <ActivityItem time="10:42" title="Nova OS Registrada" desc="Vazamento no Ar Condicionado (João)" />
-              <ActivityItem time="09:15" title="Orçamento Aprovado" desc="Diretor Leonardo aprovou orçamento da OS-0038" />
-              <ActivityItem time="Ontem" title="Parecer Técnico Recebido" desc="Equipe Elétrica respondeu sobre a OS-0041" />
-              <ActivityItem time="Ontem" title="Pagamento Confirmado" desc="Geovana confirmou pagamento da OS-0035" />
+              {recentActivity.length === 0 ? (
+                <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma atividade registrada.</p>
+              ) : recentActivity.map(item => (
+                <ActivityItem
+                  key={item.id}
+                  time={formatActivityTime(item.time)}
+                  title={ACTIVITY_TITLES[item.type] ?? 'Atualização'}
+                  desc={`${item.text ? item.text.slice(0, 60) + (item.text.length > 60 ? '…' : '') : '—'} (${item.ticketId})`}
+                />
+              ))}
             </div>
           </div>
 
