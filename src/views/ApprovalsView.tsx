@@ -1,12 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CheckCircle, Loader2, FileText, Image as ImageIcon, Shield, X } from 'lucide-react';
-import { formatDistanceToNow, subHours, subDays } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 
+const APPROVAL_STATUS: Record<string, string> = {
+  new_os: 'Aguardando Parecer Técnico',
+  solutions: 'Aguardando Orçamento',
+  budgets: 'Aguardando aprovação do contrato',
+  contracts: 'Aguardando Ações Preliminares',
+};
+
+const QUOTES_MAP: Record<string, { id: number; vendor: string; value: string; recommended: boolean }[]> = {
+  'OS-0046': [
+    { id: 1, vendor: 'Decor Interiores', value: 'R$ 12.400,00', recommended: true },
+    { id: 2, vendor: 'Ambientes & Cia', value: 'R$ 14.200,00', recommended: false },
+    { id: 3, vendor: 'Reforma Fácil LTDA', value: 'R$ 15.800,00', recommended: false },
+  ],
+};
+
+const CONTRACT_MAP: Record<string, { value: string; vendor: string; viewingBy?: string }> = {
+  'OS-0045': { value: 'R$ 8.500,00', vendor: 'PowerTech Geradores', viewingBy: 'Diretor Pedro' },
+};
+
 export function ApprovalsView() {
-  const { openAttachment, completedApprovalIds, setCompletedApprovalIds } = useApp();
+  const { openAttachment, updateTicket, tickets } = useApp();
   const [activeTab, setActiveTab] = useState<'new_os' | 'solutions' | 'budgets' | 'contracts'>('new_os');
   const [processingId, setProcessingId] = useState<string | null>(null);
   
@@ -17,16 +36,16 @@ export function ApprovalsView() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const handleApprove = (id: string) => {
+  const handleApprove = (id: string, tab: 'new_os' | 'solutions' | 'budgets' | 'contracts') => {
     setProcessingId(id);
     setTimeout(() => {
       setProcessingId(null);
-      setCompletedApprovalIds(prev => [...prev, id]);
-      
+      updateTicket(id, { status: APPROVAL_STATUS[tab] });
+
       // Z2: Automation - Email to Vendor on Budget Approval
-      const approvedBudget = budgets.find(b => b.id === id);
-      if (approvedBudget) {
-        const winner = approvedBudget.quotes.find(q => q.recommended)?.vendor || 'Fornecedor Vencedor';
+      if (tab === 'budgets') {
+        const quotes = QUOTES_MAP[id] ?? [];
+        const winner = quotes.find(q => q.recommended)?.vendor || 'Fornecedor Vencedor';
         setToast(`Automação: E-mail de aprovação enviado para ${winner}.`);
         setTimeout(() => setToast(null), 4000);
       }
@@ -42,10 +61,10 @@ export function ApprovalsView() {
     if (!rejectTargetId) return;
     setProcessingId(rejectTargetId);
     setRejectModalOpen(false);
-    
+
     setTimeout(() => {
       setProcessingId(null);
-      setCompletedApprovalIds(prev => [...prev, rejectTargetId]);
+      updateTicket(rejectTargetId, { status: 'Cancelada' });
       setRejectTargetId(null);
     }, 1500);
   };
@@ -56,49 +75,61 @@ export function ApprovalsView() {
     setAttachContractModalId(null);
     setTimeout(() => {
       setProcessingId(null);
-      setCompletedApprovalIds(prev => [...prev, attachContractModalId]);
+      updateTicket(attachContractModalId, { status: 'Aguardando Ações Preliminares' });
       setAttachedFile(null);
     }, 1500);
   };
 
-  const newOSList = [
-    { id: 'OS-0050', subject: 'Infiltração Crítica no Teto do Refeitório', requester: 'Marcos Silva (Facilities)', date: subHours(new Date(), 2), description: 'Identificamos uma infiltração severa no teto do refeitório, próximo à área de cocção. Há risco de gotejamento nos equipamentos elétricos. Solicitamos intervenção imediata para evitar curtos-circuitos.', viewingBy: null }
-  ];
+  const newOSList = useMemo(() =>
+    tickets
+      .filter(t => t.status === 'Nova OS')
+      .map(t => ({
+        id: t.id,
+        subject: t.subject,
+        requester: t.requester,
+        date: t.time,
+        description: t.history.find(h => h.type === 'customer')?.text ?? 'Sem descrição.',
+      })),
+  [tickets]);
 
-  const solutions = [
-    { id: 'OS-0049', subject: 'Substituição do No-Break Principal (Data Center)', requester: 'Ana Paula (TI)', date: subHours(new Date(), 4), technicalOpinion: 'Análise Técnica: As baterias do banco principal esgotaram sua vida útil (5 anos). O equipamento atual está descontinuado pelo fabricante. Recomendamos a substituição completa por um modelo modular de 40kVA. Risco de indisponibilidade em caso de queda de energia.', viewingBy: null }
-  ];
+  const solutions = useMemo(() =>
+    tickets
+      .filter(t => t.status === 'Aguardando Aprovação da Solução')
+      .map(t => ({
+        id: t.id,
+        subject: t.subject,
+        requester: t.requester,
+        date: t.time,
+        technicalOpinion: [...t.history].reverse().find(h => h.type === 'tech')?.text ?? 'Parecer não disponível.',
+      })),
+  [tickets]);
 
-  const budgets = [
-    { 
-      id: 'OS-0048', 
-      subject: 'Modernização do Controle de Acesso (Catracas)', 
-      requester: 'Carlos (Segurança Corporativa)', 
-      date: subDays(new Date(), 1),
-      viewingBy: null,
-      quotes: [
-        { id: 1, vendor: 'SecureTech Soluções', value: 'R$ 42.500,00', recommended: true },
-        { id: 2, vendor: 'Acesso Fácil LTDA', value: 'R$ 45.100,00', recommended: false },
-        { id: 3, vendor: 'Gama Security', value: 'R$ 48.200,00', recommended: false },
-      ]
-    },
-    { 
-      id: 'OS-0047', 
-      subject: 'Impermeabilização da Laje Superior', 
-      requester: 'Engenharia Predial', 
-      date: subDays(new Date(), 1),
-      viewingBy: 'Diretor Murilo',
-      quotes: [
-        { id: 1, vendor: 'Vedação & Cia', value: 'R$ 28.200,00', recommended: true },
-        { id: 2, vendor: 'Construtora Alfa', value: 'R$ 31.500,00', recommended: false },
-        { id: 3, vendor: 'Impermeabiliza Brasil', value: 'R$ 33.000,00', recommended: false },
-      ]
-    },
-  ];
+  const budgets = useMemo(() =>
+    tickets
+      .filter(t => t.status === 'Aguardando Aprovação do Orçamento')
+      .map(t => ({
+        id: t.id,
+        subject: t.subject,
+        requester: t.requester,
+        date: t.time,
+        viewingBy: t.viewingBy?.name ?? null,
+        quotes: QUOTES_MAP[t.id] ?? [],
+      })),
+  [tickets]);
 
-  const contracts = [
-    { id: 'OS-0043', subject: 'Modernização dos Elevadores (Torre A)', requester: 'Administração', value: 'R$ 245.000,00', vendor: 'Atlas Schindler', date: subDays(new Date(), 5), viewingBy: 'Diretor Pedro' },
-  ];
+  const contracts = useMemo(() =>
+    tickets
+      .filter(t => t.status === 'Aguardando aprovação do contrato')
+      .map(t => ({
+        id: t.id,
+        subject: t.subject,
+        requester: t.requester,
+        date: t.time,
+        value: CONTRACT_MAP[t.id]?.value ?? 'A confirmar',
+        vendor: CONTRACT_MAP[t.id]?.vendor ?? 'A confirmar',
+        viewingBy: CONTRACT_MAP[t.id]?.viewingBy ?? t.viewingBy?.name ?? null,
+      })),
+  [tickets]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
@@ -145,15 +176,6 @@ export function ApprovalsView() {
 
         <div className="space-y-6">
           {activeTab === 'new_os' && newOSList.map((os) => {
-            if (completedApprovalIds.includes(os.id)) {
-              return (
-                <div key={os.id} className="bg-green-50 border border-green-200 rounded-sm p-6 flex items-center justify-center gap-3 text-green-700 shadow-sm animate-in fade-in duration-500">
-                  <CheckCircle size={24} />
-                  <span className="font-medium text-lg font-serif">Ação concluída para a {os.id}</span>
-                </div>
-              );
-            }
-
             return (
               <div key={os.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
                 {processingId === os.id && (
@@ -183,7 +205,7 @@ export function ApprovalsView() {
                   <button onClick={() => openRejectModal(os.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
                     Reprovar (Cancelar OS)
                   </button>
-                  <button onClick={() => handleApprove(os.id)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
+                  <button onClick={() => handleApprove(os.id, 'new_os')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
                     <CheckCircle size={16} /> Aprovar (Enviar para Rafael)
                   </button>
                 </div>
@@ -192,15 +214,6 @@ export function ApprovalsView() {
           })}
 
           {activeTab === 'solutions' && solutions.map((s) => {
-            if (completedApprovalIds.includes(s.id)) {
-              return (
-                <div key={s.id} className="bg-green-50 border border-green-200 rounded-sm p-6 flex items-center justify-center gap-3 text-green-700 shadow-sm animate-in fade-in duration-500">
-                  <CheckCircle size={24} />
-                  <span className="font-medium text-lg font-serif">Solução aprovada para a {s.id}</span>
-                </div>
-              );
-            }
-
             return (
               <div key={s.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
                 {processingId === s.id && (
@@ -227,7 +240,7 @@ export function ApprovalsView() {
                   <button onClick={() => openRejectModal(s.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
                     Reprovar Solução (Arquivar)
                   </button>
-                  <button onClick={() => handleApprove(s.id)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
+                  <button onClick={() => handleApprove(s.id, 'solutions')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
                     <CheckCircle size={16} /> Aprovar (Ir para Cotação)
                   </button>
                 </div>
@@ -236,15 +249,6 @@ export function ApprovalsView() {
           })}
 
           {activeTab === 'budgets' && budgets.map((b) => {
-            if (completedApprovalIds.includes(b.id)) {
-              return (
-                <div key={b.id} className="bg-green-50 border border-green-200 rounded-sm p-6 flex items-center justify-center gap-3 text-green-700 shadow-sm animate-in fade-in duration-500">
-                  <CheckCircle size={24} />
-                  <span className="font-medium text-lg font-serif">Ação concluída para a {b.id}</span>
-                </div>
-              );
-            }
-
             return (
             <div key={b.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
               {processingId === b.id && (
@@ -284,7 +288,7 @@ export function ApprovalsView() {
                       <button onClick={() => openAttachment(`Orçamento: ${q.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
                         <FileText size={14} /> Ver PDF
                       </button>
-                      <button onClick={() => handleApprove(b.id)} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm">
+                      <button onClick={() => handleApprove(b.id, 'budgets')} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm">
                         Aprovar Esta Opção
                       </button>
                     </div>
@@ -295,14 +299,6 @@ export function ApprovalsView() {
           )})}
 
           {activeTab === 'contracts' && contracts.map((c) => {
-            if (completedApprovalIds.includes(c.id)) {
-              return (
-                <div key={c.id} className="bg-green-50 border border-green-200 rounded-sm p-6 flex items-center justify-center gap-3 text-green-700 shadow-sm animate-in fade-in duration-500">
-                  <CheckCircle size={24} />
-                  <span className="font-medium text-lg font-serif">Contrato assinado e anexado com sucesso para a {c.id}</span>
-                </div>
-              );
-            }
             return (
             <div key={c.id} className="bg-roman-parchment border border-roman-parchment-border rounded-sm p-6 flex flex-col md:flex-row gap-6 items-start md:items-center shadow-sm relative overflow-hidden">
               {processingId === c.id && (
@@ -340,7 +336,7 @@ export function ApprovalsView() {
                   <div className="text-2xl font-serif text-stone-900">{c.value}</div>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                  <button className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
+                  <button onClick={() => openAttachment(`Minuta: ${c.vendor}`, 'pdf')} className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
                     Revisar
                   </button>
                   <button onClick={() => setAttachContractModalId(c.id)} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2">

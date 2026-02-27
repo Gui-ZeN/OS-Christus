@@ -9,6 +9,16 @@ export function SettingsView() {
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [digestTime, setDigestTime] = useState('08:00');
   const [digestRecipients, setDigestRecipients] = useState('rafael@empresa.com, diretoria@empresa.com');
+  const [digestSubjectText, setDigestSubjectText] = useState('[Resumo Diário] Manutenção — {{data}} | {{novas_os_ontem}} novas OS · {{slas_vencendo_hoje}} SLAs hoje');
+
+  const [templateSaved, setTemplateSaved] = useState(false);
+  const [templateSubject, setTemplateSubject] = useState('[Nova OS] {{ticket.id}} - {{ticket.subject}}');
+  const [templateBody, setTemplateBody] = useState('Olá {{requester.name}},\n\nSua Ordem de Serviço foi registrada com sucesso.\n\nNúmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe fará a triagem em breve.\n\nAtenciosamente,\nGestão de Manutenção');
+
+  const handleSaveTemplate = () => {
+    setTemplateSaved(true);
+    setTimeout(() => setTemplateSaved(false), 3000);
+  };
 
   const handleSaveDigest = () => {
     setDigestSaved(true);
@@ -69,7 +79,8 @@ export function SettingsView() {
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto do E-mail</label>
                     <input
                       type="text"
-                      defaultValue="[Nova OS] {{ticket.id}} - {{ticket.subject}}"
+                      value={templateSubject}
+                      onChange={e => setTemplateSubject(e.target.value)}
                       className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                     />
                   </div>
@@ -77,12 +88,13 @@ export function SettingsView() {
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Corpo do E-mail (HTML/Texto)</label>
                     <textarea
                       className="w-full h-40 border border-roman-border rounded-sm p-3 bg-roman-bg text-[13px] font-mono text-roman-text-sub outline-none focus:border-roman-primary"
-                      defaultValue={`Olá {{requester.name}},\n\nSua Ordem de Serviço foi registrada com sucesso.\n\nNúmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe fará a triagem em breve.\n\nAtenciosamente,\nGestão de Manutenção`}
+                      value={templateBody}
+                      onChange={e => setTemplateBody(e.target.value)}
                     />
                   </div>
                   <div className="flex justify-end">
-                    <button className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors">
-                      Salvar Template
+                    <button onClick={handleSaveTemplate} className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2">
+                      {templateSaved ? <><CheckCircle size={15} /> Salvo!</> : 'Salvar Template'}
                     </button>
                   </div>
                 </div>
@@ -186,7 +198,8 @@ export function SettingsView() {
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto do E-mail</label>
                     <input
                       type="text"
-                      defaultValue="[Resumo Diário] Manutenção — {{data}} | {{novas_os_ontem}} novas OS · {{slas_vencendo_hoje}} SLAs hoje"
+                      value={digestSubjectText}
+                      onChange={e => setDigestSubjectText(e.target.value)}
                       className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-mono text-roman-text-sub outline-none focus:border-roman-primary"
                     />
                   </div>

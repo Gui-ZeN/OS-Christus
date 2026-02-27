@@ -24,10 +24,6 @@ interface AppContextType {
   // Data Persistence
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
-  completedApprovalIds: string[];
-  setCompletedApprovalIds: React.Dispatch<React.SetStateAction<string[]>>;
-  completedFinanceIds: string[];
-  setCompletedFinanceIds: React.Dispatch<React.SetStateAction<string[]>>;
 
   // Z4: Notifications
   notifications: AppNotification[];
@@ -39,6 +35,7 @@ interface AppContextType {
   // Data
   tickets: Ticket[];
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
+  addTicket: (ticket: Ticket) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -103,14 +100,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
   // Data Persistence
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
-  const [completedApprovalIds, setCompletedApprovalIds] = useState<string[]>([]);
-  const [completedFinanceIds, setCompletedFinanceIds] = useState<string[]>([]);
 
   // Mutable tickets state
   const [tickets, setTickets] = useState<Ticket[]>([...MOCK_TICKETS]);
 
   const updateTicket = (id: string, updates: Partial<Ticket>) => {
     setTickets(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
+  const addTicket = (ticket: Ticket) => {
+    setTickets(prev => [ticket, ...prev]);
   };
 
   // Z4: Notifications
@@ -141,22 +140,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (ticket.sla && ticket.status !== 'Encerrada') {
           if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
             updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
-            console.log(`[Z1 SLA] Ticket ${ticket.id} VENCIDO.`);
           } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
             updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
           }
         }
 
-        // Z2: Unassigned Ticket Alert (48h)
-        if (ticket.status === 'Nova OS' && now.getTime() - ticket.time.getTime() > 48 * 3600000) {
-          console.log(`[Z2] Ticket ${ticket.id} sem atribuição há >48h.`);
-        }
-
-        // Z2: Long Running Execution Alert (>7 days)
-        if (ticket.status === 'Em andamento') {
-          const days = (now.getTime() - ticket.time.getTime()) / 86400000;
-          if (days > 7) console.log(`[Z2] Ticket ${ticket.id} em execução há ${days.toFixed(1)} dias.`);
-        }
+        // Z2: Unassigned Ticket Alert (48h) — lógica preservada para futura integração de notificações
+        // Z2: Long Running Execution Alert (>7 days) — idem
 
         return updated;
       }));
@@ -219,10 +209,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       closeAttachment,
       inboxFilter,
       setInboxFilter,
-      completedApprovalIds,
-      setCompletedApprovalIds,
-      completedFinanceIds,
-      setCompletedFinanceIds,
       notifications,
       unreadCount,
       markNotificationRead,
@@ -230,6 +216,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markAllNotificationsRead,
       tickets,
       updateTicket,
+      addTicket,
     }}>
       {children}
     </AppContext.Provider>
