@@ -1,13 +1,47 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Landmark, ArrowRight, ArrowLeft, Loader2, CheckCircle, FileText, ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Ticket, HistoryItem } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketCreated } from '../services/ticketEmail';
+import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
 
 interface PublicFormViewProps {
   onBack: () => void;
 }
+
+const FALLBACK_REGIONS: CatalogRegion[] = [
+  { id: 'regiao-dionisio-torres', code: 'RDT', name: 'Região Dionísio Torres' },
+  { id: 'regiao-aldeota', code: 'RAL', name: 'Região Aldeota' },
+  { id: 'regiao-parquelandia', code: 'RPQ', name: 'Região Parquelândia' },
+  { id: 'regiao-sul', code: 'RSU', name: 'Região Sul' },
+  { id: 'regiao-benfica', code: 'RBN', name: 'Região Benfica' },
+  { id: 'universidade', code: 'UNI', name: 'Universidade' },
+];
+
+const FALLBACK_SITES: CatalogSite[] = [
+  { id: 'dt', code: 'DT', name: 'DT', regionId: 'regiao-dionisio-torres' },
+  { id: 'dt2', code: 'DT2', name: 'DT2', regionId: 'regiao-dionisio-torres' },
+  { id: 'pdt', code: 'PDT', name: 'PDT', regionId: 'regiao-dionisio-torres' },
+  { id: 'idiomas', code: 'IDIOMAS', name: 'IDIOMAS', regionId: 'regiao-dionisio-torres' },
+  { id: 'bs', code: 'BS', name: 'BS', regionId: 'regiao-aldeota' },
+  { id: 'sp', code: 'SP', name: 'SP', regionId: 'regiao-aldeota' },
+  { id: 'pnv', code: 'PNV', name: 'PNV', regionId: 'regiao-aldeota' },
+  { id: 'pql1', code: 'PQL1', name: 'PQL1', regionId: 'regiao-parquelandia' },
+  { id: 'pql2', code: 'PQL2', name: 'PQL2', regionId: 'regiao-parquelandia' },
+  { id: 'pjf', code: 'PJF', name: 'PJF', regionId: 'regiao-parquelandia' },
+  { id: 'sul1', code: 'SUL1', name: 'SUL1', regionId: 'regiao-sul' },
+  { id: 'sul2', code: 'SUL2', name: 'SUL2', regionId: 'regiao-sul' },
+  { id: 'sul3', code: 'SUL3', name: 'SUL3', regionId: 'regiao-sul' },
+  { id: 'psul', code: 'PSUL', name: 'PSUL', regionId: 'regiao-sul' },
+  { id: 'bn', code: 'BN', name: 'BN', regionId: 'regiao-benfica' },
+  { id: 'dl', code: 'DL', name: 'Dom Luís (DL)', regionId: 'universidade' },
+  { id: 'pe', code: 'PE', name: 'Parque Ecológico (PE)', regionId: 'universidade' },
+  { id: 'eus', code: 'EUS', name: 'Eusébio (EUS)', regionId: 'universidade' },
+  { id: 'pql3', code: 'PQL3', name: 'Parquelândia (PQL3)', regionId: 'universidade' },
+  { id: 'bn-uni', code: 'BN', name: 'Benfica (BN)', regionId: 'universidade' },
+  { id: 'ald', code: 'ALD', name: 'Aldeota (ALD)', regionId: 'universidade' },
+];
 
 export function PublicFormView({ onBack }: PublicFormViewProps) {
   const { tickets, addTicket } = useApp();
@@ -24,11 +58,45 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     type: '',
     sector: '',
     region: '',
-    sede: ''
+    sede: '',
   });
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
+  const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await fetchCatalog();
+        if (!cancelled) {
+          setCatalogRegions(catalog.regions);
+          setCatalogSites(catalog.sites);
+        }
+      } catch {
+        if (!cancelled) {
+          setCatalogRegions(FALLBACK_REGIONS);
+          setCatalogSites(FALLBACK_SITES);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedRegion = useMemo(
+    () => catalogRegions.find(region => region.name === formData.region),
+    [catalogRegions, formData.region]
+  );
+
+  const availableSites = useMemo(() => {
+    if (!selectedRegion) return [];
+    return catalogSites.filter(site => site.regionId === selectedRegion.id);
+  }, [catalogSites, selectedRegion]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -88,9 +156,18 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      if (name === 'region') {
+        return { ...prev, region: value, sede: '' };
+      }
+      return { ...prev, [name]: value };
+    });
     if (errors[name]) {
-      setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
+      setErrors(prev => {
+        const n = { ...prev };
+        delete n[name];
+        return n;
+      });
     }
   };
 
@@ -101,7 +178,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   return (
     <div className="h-screen w-full bg-roman-surface overflow-y-auto">
       <div className="max-w-2xl mx-auto px-6 py-12">
-        {/* Header */}
         <div className="mb-10">
           <button
             onClick={onBack}
@@ -139,7 +215,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => { setIsSubmitted(false); setCreatedId(''); setCreatedToken(''); }}
+                onClick={() => {
+                  setIsSubmitted(false);
+                  setCreatedId('');
+                  setCreatedToken('');
+                }}
                 className="flex-1 bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-sm font-medium transition-colors"
               >
                 Abrir Nova OS
@@ -154,7 +234,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Identificação */}
             <div className="pb-6 border-b border-roman-border">
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Sua Identificação</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,7 +264,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               </div>
             </div>
 
-            {/* Dados do Problema */}
             <div className="pb-6 border-b border-roman-border space-y-4">
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Dados do Problema</h3>
 
@@ -251,11 +329,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.region ? 'border-red-500' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
-                    <option value="Região Dionísio Torres">Região Dionísio Torres</option>
-                    <option value="Região Sul">Região Sul</option>
-                    <option value="Região Aldeota">Região Aldeota</option>
-                    <option value="Região Benfica">Região Benfica</option>
-                    <option value="Região Parquelândia">Região Parquelândia</option>
+                    {catalogRegions.map(region => (
+                      <option key={region.id} value={region.name}>{region.name}</option>
+                    ))}
                   </select>
                   {errors.region && <span className="text-xs text-red-500 mt-1 block">{errors.region}</span>}
                 </div>
@@ -265,21 +341,19 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     name="sede"
                     value={formData.sede}
                     onChange={handleInputChange}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sede ? 'border-red-500' : 'border-roman-border'}`}
+                    disabled={!formData.region}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.sede ? 'border-red-500' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
-                    <option value="DT1">DT1</option>
-                    <option value="SUL1">SUL1</option>
-                    <option value="BS">BS</option>
-                    <option value="BEN1">BEN1</option>
-                    <option value="PQL1">PQL1</option>
+                    {availableSites.map(site => (
+                      <option key={site.id} value={site.code}>{site.name}</option>
+                    ))}
                   </select>
                   {errors.sede && <span className="text-xs text-red-500 mt-1 block">{errors.sede}</span>}
                 </div>
               </div>
             </div>
 
-            {/* Fotos */}
             <div className="pb-6">
               <h3 className="font-serif text-lg text-roman-text-main mb-2">Fotos do Problema</h3>
               <p className="text-xs text-roman-text-sub mb-4">

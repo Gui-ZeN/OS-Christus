@@ -1,0 +1,32 @@
+export const DEFAULT_REGIONS = [
+  { id: 'regiao-dionisio-torres', code: 'RDT', name: 'Região Dionísio Torres', group: 'operacao', active: true },
+  { id: 'regiao-aldeota', code: 'RAL', name: 'Região Aldeota', group: 'operacao', active: true },
+  { id: 'regiao-parquelandia', code: 'RPQ', name: 'Região Parquelândia', group: 'operacao', active: true },
+  { id: 'regiao-sul', code: 'RSU', name: 'Região Sul', group: 'operacao', active: true },
+  { id: 'regiao-benfica', code: 'RBN', name: 'Região Benfica', group: 'operacao', active: true },
+  { id: 'universidade', code: 'UNI', name: 'Universidade', group: 'universidade', active: true },
+];
+
+export const DEFAULT_SITES = [
+  { id: 'dt', code: 'DT', name: 'DT', regionId: 'regiao-dionisio-torres', active: true },
+  { id: 'dt2', code: 'DT2', name: 'DT2', regionId: 'regiao-dionisio-torres', active: true },
+  { id: 'pdt', code: 'PDT', name: 'PDT', regionId: 'regiao-dionisio-torres', active: true },
+  { id: 'idiomas', code: 'IDIOMAS', name: 'IDIOMAS', regionId: 'regiao-dionisio-torres', active: true },
+  { id: 'bs', code: 'BS', name: 'BS', regionId: 'regiao-aldeota', active: true },
+  { id: 'sp', code: 'SP', name: 'SP', regionId: 'regiao-aldeota', active: true },
+  { id: 'pnv', code: 'PNV', name: 'PNV', regionId: 'regiao-aldeota', active: true },
+  { id: 'pql1', code: 'PQL1', name: 'PQL1', regionId: 'regiao-parquelandia', active: true },
+  { id: 'pql2', code: 'PQL2', name: 'PQL2', regionId: 'regiao-parquelandia', active: true },
+  { id: 'pjf', code: 'PJF', name: 'PJF', regionId: 'regiao-parquelandia', active: true },
+  { id: 'sul1', code: 'SUL1', name: 'SUL1', regionId: 'regiao-sul', active: true },
+  { id: 'sul2', code: 'SUL2', name: 'SUL2', regionId: 'regiao-sul', active: true },
+  { id: 'sul3', code: 'SUL3', name: 'SUL3', regionId: 'regiao-sul', active: true },
+  { id: 'psul', code: 'PSUL', name: 'PSUL', regionId: 'regiao-sul', active: true },
+  { id: 'bn', code: 'BN', name: 'BN', regionId: 'regiao-benfica', active: true },
+  { id: 'dl', code: 'DL', name: 'Dom Luís (DL)', regionId: 'universidade', active: true },
+  { id: 'pe', code: 'PE', name: 'Parque Ecológico (PE)', regionId: 'universidade', active: true },
+  { id: 'eus', code: 'EUS', name: 'Eusébio (EUS)', regionId: 'universidade', active: true },
+  { id: 'pql3', code: 'PQL3', name: 'Parquelândia (PQL3)', regionId: 'universidade', active: true },
+  { id: 'bn-uni', code: 'BN', name: 'Benfica (BN)', regionId: 'universidade', active: true },
+  { id: 'ald', code: 'ALD', name: 'Aldeota (ALD)', regionId: 'universidade', active: true },
+];
