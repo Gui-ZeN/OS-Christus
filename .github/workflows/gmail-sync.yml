@@ -21,6 +21,14 @@ jobs:
             exit 1
           fi
 
-          curl -fSs -X POST "$SYNC_URL" \
+          HTTP_CODE=$(curl -L -sS -o /tmp/sync-response.txt -w "%{http_code}" -X POST "$SYNC_URL" \
             -H "Authorization: Bearer $CRON_SECRET" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+
+          cat /tmp/sync-response.txt
+          echo "HTTP $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Sync endpoint returned non-success status"
+            exit 1
+          fi
