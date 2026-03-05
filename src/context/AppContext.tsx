@@ -1,41 +1,36 @@
-﻿import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { ViewState, Ticket, InboxFilter, AppNotification } from '../types';
-import { MOCK_TICKETS } from '../data/mockTickets';
-import { subHours, subDays } from 'date-fns';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { subDays, subHours } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { MOCK_TICKETS } from '../data/mockTickets';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
+import {
+  dismissNotificationRemote,
+  fetchNotifications,
+  markAllNotificationsReadRemote,
+  markNotificationReadRemote,
+} from '../services/notificationsApi';
 import { createTicketInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
+import { AppNotification, InboxFilter, Ticket, ViewState } from '../types';
 
 interface AppContextType {
-  // Navigation
   currentView: ViewState;
   navigateTo: (view: ViewState) => void;
-
-  // Global State
   activeTicketId: string;
   setActiveTicketId: (id: string) => void;
   trackingTicketToken: string | null;
   setTrackingTicketToken: (token: string | null) => void;
-
-  // UI State
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   attachmentPreview: { title: string; type: 'image' | 'pdf' } | null;
   openAttachment: (title: string, type: 'image' | 'pdf') => void;
   closeAttachment: () => void;
-
-  // Data Persistence
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
-
-  // Z4: Notifications
   notifications: AppNotification[];
   unreadCount: number;
   markNotificationRead: (id: string) => void;
   dismissNotification: (id: string) => void;
   markAllNotificationsRead: () => void;
-
-  // Data
   tickets: Ticket[];
   ticketsLoading: boolean;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
@@ -48,66 +43,58 @@ const DEFAULT_FILTER: InboxFilter = {
   status: [],
   priority: [],
   region: [],
-  type: []
+  type: [],
 };
 
 const INITIAL_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'n1',
     type: 'actionable',
-    title: 'AprovaÃ§Ã£o NecessÃ¡ria',
-    body: 'OrÃ§amento da OS-0048 excede o limite automÃ¡tico. Requer sua validaÃ§Ã£o.',
+    title: 'Aprovação Necessária',
+    body: 'Orçamento da OS-0048 excede o limite automático. Requer sua validação.',
     time: new Date(),
     read: false,
-    action: { label: 'Revisar OrÃ§amento', view: 'approvals' }
+    action: { label: 'Revisar Orçamento', view: 'approvals' },
   },
   {
     id: 'n2',
     type: 'info',
     title: 'OS-0045 Validada',
-    body: 'O solicitante aprovou a manutenÃ§Ã£o dos geradores. Pronta para pagamento.',
+    body: 'O solicitante aprovou a manutenção dos geradores. Pronta para pagamento.',
     time: subHours(new Date(), 2),
     read: false,
-    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0045' }
+    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0045' },
   },
   {
     id: 'n3',
     type: 'alert',
     title: 'SLA Vencido: OS-0044',
-    body: 'O prazo de resoluÃ§Ã£o para esta OS crÃ­tica expirou.',
+    body: 'O prazo de resolução para esta OS crítica expirou.',
     time: subHours(new Date(), 4),
     read: false,
-    action: { label: 'Ver OS Atrasada', view: 'inbox', ticketId: 'OS-0044' }
+    action: { label: 'Ver OS Atrasada', view: 'inbox', ticketId: 'OS-0044' },
   },
   {
     id: 'n4',
     type: 'info',
     title: 'Nova OS Registrada',
-    body: 'InfiltraÃ§Ã£o CrÃ­tica no Teto do RefeitÃ³rio (OS-0050).',
+    body: 'Infiltração crítica no teto do refeitório (OS-0050).',
     time: subDays(new Date(), 1),
     read: true,
-    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0050' }
-  }
+    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0050' },
+  },
 ];
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Navigation
   const [currentView, setCurrentView] = useState<ViewState>('landing');
-
-  // Global State
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
-  
-  // UI State
   const [showNotifications, setShowNotifications] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ title: string; type: 'image' | 'pdf' } | null>(null);
-  
-  // Data Persistence
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
-
-  // Mutable tickets state
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +103,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const remote = await fetchTicketsFromApi();
         if (!cancelled) {
           setTickets(remote);
-          if (remote.length > 0 && !remote.some(t => t.id === activeTicketId)) {
+          if (remote.length > 0 && !remote.some(ticket => ticket.id === activeTicketId)) {
             setActiveTicketId(remote[0].id);
           }
         }
@@ -130,6 +117,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await fetchNotifications();
+        if (!cancelled) {
+          setNotifications(remote);
+        }
+      } catch {
+        if (!cancelled) {
+          setNotifications(INITIAL_NOTIFICATIONS);
+        }
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -140,10 +148,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let nextTicket: Ticket | null = null;
 
     setTickets(prev =>
-      prev.map(t => {
-        if (t.id !== id) return t;
-        previousStatus = t.status;
-        nextTicket = { ...t, ...updates };
+      prev.map(ticket => {
+        if (ticket.id !== id) return ticket;
+        previousStatus = ticket.status;
+        nextTicket = { ...ticket, ...updates };
         return nextTicket;
       })
     );
@@ -153,55 +161,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     void patchTicketInApi(id, updates).catch(() => {
-      // PersistÃªncia remota falhou, mas nÃ£o bloqueia fluxo local.
+      // Persistência remota falhou, mas não bloqueia o fluxo local.
     });
   };
 
   const addTicket = (ticket: Ticket) => {
     setTickets(prev => [ticket, ...prev]);
     void createTicketInApi(ticket).catch(() => {
-      // PersistÃªncia remota falhou, mas nÃ£o bloqueia fluxo local.
+      // Persistência remota falhou, mas não bloqueia o fluxo local.
     });
   };
 
-  // Z4: Notifications
-  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(notification => !notification.read).length;
 
   const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setNotifications(prev => prev.map(notification => (notification.id === id ? { ...notification, read: true } : notification)));
+    void markNotificationReadRemote(id).catch(() => {
+      // Persistência remota falhou, mas não bloqueia o fluxo local.
+    });
   };
 
   const dismissNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+    void dismissNotificationRemote(id).catch(() => {
+      // Persistência remota falhou, mas não bloqueia o fluxo local.
+    });
   };
 
   const markAllNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications(prev => prev.map(notification => ({ ...notification, read: true })));
+    void markAllNotificationsReadRemote().catch(() => {
+      // Persistência remota falhou, mas não bloqueia o fluxo local.
+    });
   };
 
-  // Z1 & Z2: Automations Simulation (SLA, Notifications, Alerts)
   useEffect(() => {
     const runAutomations = () => {
       const now = new Date();
 
-      setTickets(prev => prev.map(ticket => {
-        let updated = ticket;
+      setTickets(prev =>
+        prev.map(ticket => {
+          let updated = ticket;
 
-        // Z1: SLA Check â€” atualiza via estado, sem mutaÃ§Ã£o direta
-        if (ticket.sla && ticket.status !== TICKET_STATUS.CLOSED) {
-          if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
-            updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
-          } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
-            updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
+          // Z1: atualiza o estado do SLA localmente para refletir risco e atraso.
+          if (ticket.sla && ticket.status !== TICKET_STATUS.CLOSED) {
+            if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
+              updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
+            } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
+              updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
+            }
           }
-        }
 
-        // Z2: Unassigned Ticket Alert (48h) â€” lÃ³gica preservada para futura integraÃ§Ã£o de notificaÃ§Ãµes
-        // Z2: Long Running Execution Alert (>7 days) â€” idem
-
-        return updated;
-      }));
+          return updated;
+        })
+      );
     };
 
     runAutomations();
@@ -235,25 +248,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const newFilter: InboxFilter = { ...DEFAULT_FILTER };
-    
+
     if (params.has('status')) newFilter.status = params.get('status')?.split(',') || [];
     if (params.has('priority')) newFilter.priority = params.get('priority')?.split(',') || [];
     if (params.has('region')) newFilter.region = params.get('region')?.split(',') || [];
     if (params.has('type')) newFilter.type = params.get('type')?.split(',') || [];
-    
+
     setInboxFilterState(newFilter);
   }, []);
 
   const setInboxFilter = (filter: InboxFilter) => {
     setInboxFilterState(filter);
     const params = new URLSearchParams();
-    
+
     if (filter.status.length > 0) params.set('status', filter.status.join(','));
     if (filter.priority.length > 0) params.set('priority', filter.priority.join(','));
     if (filter.region.length > 0) params.set('region', filter.region.join(','));
     if (filter.type.length > 0) params.set('type', filter.type.join(','));
-    
-    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+
+    const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
     window.history.replaceState({}, '', newUrl);
   };
 
@@ -290,40 +303,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentView, trackingTicketToken]);
 
   return (
-    <AppContext.Provider value={{
-      currentView,
-      navigateTo,
-      activeTicketId,
-      setActiveTicketId,
-      trackingTicketToken,
-      setTrackingTicketToken,
-      showNotifications,
-      setShowNotifications,
-      attachmentPreview,
-      openAttachment,
-      closeAttachment,
-      inboxFilter,
-      setInboxFilter,
-      notifications,
-      unreadCount,
-      markNotificationRead,
-      dismissNotification,
-      markAllNotificationsRead,
-      tickets,
-      ticketsLoading,
-      updateTicket,
-      addTicket,
-    }}>
+    <AppContext.Provider
+      value={{
+        currentView,
+        navigateTo,
+        activeTicketId,
+        setActiveTicketId,
+        trackingTicketToken,
+        setTrackingTicketToken,
+        showNotifications,
+        setShowNotifications,
+        attachmentPreview,
+        openAttachment,
+        closeAttachment,
+        inboxFilter,
+        setInboxFilter,
+        notifications,
+        unreadCount,
+        markNotificationRead,
+        dismissNotification,
+        markAllNotificationsRead,
+        tickets,
+        ticketsLoading,
+        updateTicket,
+        addTicket,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
 }
 
-export function useApp() {
+export function useAppContext() {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
+  if (!context) {
+    throw new Error('useAppContext must be used within an AppProvider');
   }
   return context;
 }
 
+export const useApp = useAppContext;
