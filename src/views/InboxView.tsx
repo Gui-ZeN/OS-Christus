@@ -7,10 +7,11 @@ import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { InboxFilter, HistoryItem, Ticket } from '../types';
+import { InboxFilter, HistoryItem, Quote, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
+import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'construtora', name: 'Construtora', type: 'internal' },
@@ -116,6 +117,26 @@ export function InboxView() {
       } catch {
         if (!cancelled) {
           setTeams(FALLBACK_TEAMS);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const procurement = await fetchProcurementData();
+        if (!cancelled) {
+          setStoredQuotesByTicket(procurement.quotesByTicket);
+        }
+      } catch {
+        if (!cancelled) {
+          setStoredQuotesByTicket({});
         }
       }
     })();
@@ -236,6 +257,7 @@ export function InboxView() {
   const [showQuotesModal, setShowQuotesModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
+  const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [prelimChecked, setPrelimsChecked] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
@@ -282,9 +304,18 @@ export function InboxView() {
 
   // Reseta cotações ao trocar de ticket
   useEffect(() => {
-    setQuotes([{ vendor: '', value: '' }, { vendor: '', value: '' }, { vendor: '', value: '' }]);
+    const currentQuotes = storedQuotesByTicket[activeTicketId] || [];
+    const fallbackQuotes = [{ vendor: '', value: '' }, { vendor: '', value: '' }, { vendor: '', value: '' }];
+    const nextQuotes =
+      currentQuotes.length > 0
+        ? [0, 1, 2].map(index => ({
+            vendor: currentQuotes[index]?.vendor || '',
+            value: currentQuotes[index]?.value || '',
+          }))
+        : fallbackQuotes;
+    setQuotes(nextQuotes);
     setQuoteAttachments([null, null, null]);
-  }, [activeTicketId]);
+  }, [activeTicketId, storedQuotesByTicket]);
 
   // useMemo evita recalcular em todo re-render
   const filteredTickets = useMemo(() => tickets.filter(t => {
@@ -369,7 +400,21 @@ export function InboxView() {
       return;
     }
     setIsSending(true);
-    setTimeout(() => {
+    setTimeout(async () => {
+      const nextQuotes: Quote[] = quotes.map((quote, index) => ({
+        id: `quote-${index + 1}`,
+        vendor: quote.vendor.trim(),
+        value: quote.value.trim(),
+        recommended: index === 0,
+        status: 'pending',
+        attachmentName: quoteAttachments[index]?.name || null,
+      }));
+      try {
+        await saveQuotes(activeTicket.id, nextQuotes);
+      } catch {
+        // Mantem o fluxo local mesmo se a API nao estiver disponivel no ambiente atual.
+      }
+      setStoredQuotesByTicket(prev => ({ ...prev, [activeTicket.id]: nextQuotes }));
       const historyItem: HistoryItem = {
         id: crypto.randomUUID(),
         type: 'system',

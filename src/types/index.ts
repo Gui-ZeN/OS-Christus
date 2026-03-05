@@ -45,10 +45,30 @@ export interface Ticket {
 }
 
 export interface Quote {
-  id: number;
+  id: number | string;
   vendor: string;
   value: string;
   recommended: boolean;
+  status?: string;
+  attachmentName?: string | null;
+}
+
+export interface ContractRecord {
+  id: string;
+  vendor: string;
+  value: string;
+  status: string;
+  viewingBy?: string | null;
+  signedFileName?: string | null;
+}
+
+export interface PaymentRecord {
+  id: string;
+  vendor: string;
+  value: string;
+  status: string;
+  receiptFileName?: string | null;
+  paidAt?: Date | null;
 }
 
 export interface User {
