@@ -24,9 +24,14 @@ export default async function handler(req, res) {
     }
 
     const syncSecret = process.env.GMAIL_SYNC_SECRET;
-    if (syncSecret) {
-      const provided = req.query?.secret || req.headers['x-sync-secret'];
-      if (provided !== syncSecret) {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = req.headers.authorization || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (syncSecret || cronSecret) {
+      const provided = req.query?.secret || req.headers['x-sync-secret'] || bearer;
+      const validSecrets = [syncSecret, cronSecret].filter(Boolean);
+      if (!provided || !validSecrets.includes(provided)) {
         return sendJson(res, 401, { ok: false, error: 'Segredo inválido.' });
       }
     }
