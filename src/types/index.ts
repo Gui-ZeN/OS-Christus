@@ -1,7 +1,7 @@
 import type { TicketStatus } from '../constants/ticketStatus';
 export type { TicketStatus } from '../constants/ticketStatus';
 
-export type ViewState = 'landing' | 'login' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance' | 'email-health';
+export type ViewState = 'landing' | 'login' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance' | 'email-health' | 'audit-logs';
 
 export interface InboxFilter {
   status: string[];

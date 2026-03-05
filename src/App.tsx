@@ -1,11 +1,27 @@
-import React, { lazy, Suspense, useRef, useEffect } from 'react';
-import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell, Mail } from 'lucide-react';
+import React, { lazy, Suspense, useEffect, useRef } from 'react';
+import {
+  BarChart2,
+  Bell,
+  DollarSign,
+  FileText,
+  Home,
+  Image as ImageIcon,
+  Inbox,
+  Landmark,
+  LogOut,
+  Mail,
+  ScrollText,
+  Settings,
+  Shield,
+  Users,
+  X,
+} from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import { SidebarIcon } from './components/ui/SidebarIcon';
-import { ViewState } from './types';
 import { useApp } from './context/AppContext';
+import { ViewState } from './types';
 
 const UsersView = lazy(async () => ({ default: (await import('./views/UsersView')).UsersView }));
 const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
@@ -19,6 +35,7 @@ const SplitLoginView = lazy(async () => ({ default: (await import('./views/Split
 const LandingView = lazy(async () => ({ default: (await import('./views/LandingView')).LandingView }));
 const PublicFormView = lazy(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
 const EmailHealthView = lazy(async () => ({ default: (await import('./views/EmailHealthView')).EmailHealthView }));
+const AuditLogsView = lazy(async () => ({ default: (await import('./views/AuditLogsView')).AuditLogsView }));
 
 export const VIEWS = {
   LANDING: 'landing',
@@ -32,7 +49,8 @@ export const VIEWS = {
   TRACKING: 'tracking',
   APPROVALS: 'approvals',
   FINANCE: 'finance',
-  EMAIL_HEALTH: 'email-health'
+  EMAIL_HEALTH: 'email-health',
+  AUDIT_LOGS: 'audit-logs',
 } as const;
 
 function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
@@ -65,9 +83,9 @@ export default function App() {
     markNotificationRead,
     dismissNotification,
     markAllNotificationsRead,
-    setActiveTicketId
+    setActiveTicketId,
   } = useApp();
-  
+
   const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,10 +96,10 @@ export default function App() {
     }
 
     if (showNotifications) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showNotifications, setShowNotifications]);
 
@@ -107,10 +125,7 @@ export default function App() {
   if (currentView === VIEWS.LANDING) {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
-        <LandingView
-          onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)}
-          onLogin={() => navigateTo(VIEWS.LOGIN)}
-        />
+        <LandingView onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)} onLogin={() => navigateTo(VIEWS.LOGIN)} />
       </Suspense>
     );
   }
@@ -126,10 +141,7 @@ export default function App() {
   if (currentView === VIEWS.LOGIN) {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
-        <SplitLoginView
-          onLogin={() => navigateTo(VIEWS.HOME)}
-          onBack={() => navigateTo(VIEWS.LANDING)}
-        />
+        <SplitLoginView onLogin={() => navigateTo(VIEWS.HOME)} onBack={() => navigateTo(VIEWS.LANDING)} />
       </Suspense>
     );
   }
@@ -144,7 +156,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-roman-bg text-roman-text-main font-sans text-[13px]">
-      {/* Narrow Sidebar (Dark Stone) */}
       <aside className="w-14 bg-roman-sidebar flex flex-col items-center py-4 z-20 border-r border-stone-900">
         <div className="w-8 h-8 flex items-center justify-center mb-6 text-roman-primary">
           <Landmark size={24} />
@@ -155,6 +166,7 @@ export default function App() {
           <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />
           <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />
           <SidebarIcon icon={<Mail size={20} />} active={currentView === VIEWS.EMAIL_HEALTH} onClick={() => navigateTo(VIEWS.EMAIL_HEALTH)} title="Saúde de E-mail" />
+          <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />
           <SidebarIcon icon={<Users size={20} />} active={currentView === VIEWS.USERS} onClick={() => navigateTo(VIEWS.USERS)} title="Usuários" />
           <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />
           <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />
@@ -162,8 +174,8 @@ export default function App() {
         <div className="mt-auto flex flex-col gap-4 items-center">
           <div className="relative">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={event => {
+                event.stopPropagation();
                 setShowNotifications(!showNotifications);
               }}
               className={`transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/40 hover:text-white/80'}`}
@@ -183,12 +195,11 @@ export default function App() {
             <LogOut size={18} />
           </button>
           <div className="w-8 h-8 rounded-full bg-roman-sidebar-light border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs" title="Logado como: Rafael">
-             RG
+            RG
           </div>
         </div>
       </aside>
 
-      {/* Notifications Panel */}
       {showNotifications && (
         <div ref={notificationRef} className="absolute left-14 top-0 bottom-0 w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-30 animate-in slide-in-from-left-4 flex flex-col">
           <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
@@ -198,7 +209,9 @@ export default function App() {
                 <span className="bg-roman-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
               )}
             </div>
-            <button onClick={() => setShowNotifications(false)} className="text-roman-text-sub hover:text-roman-text-main" aria-label="Fechar notificações"><X size={18}/></button>
+            <button onClick={() => setShowNotifications(false)} className="text-roman-text-sub hover:text-roman-text-main" aria-label="Fechar notificações">
+              <X size={18} />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {notifications.length === 0 && (
@@ -206,48 +219,51 @@ export default function App() {
                 Nenhuma notificação.
               </div>
             )}
-            {notifications.map(n => {
-              const isAlert = n.type === 'alert';
-              const isActionable = n.type === 'actionable';
+            {notifications.map(notification => {
+              const isAlert = notification.type === 'alert';
+              const isActionable = notification.type === 'actionable';
               return (
                 <div
-                  key={n.id}
-                  onClick={() => markNotificationRead(n.id)}
+                  key={notification.id}
+                  onClick={() => markNotificationRead(notification.id)}
                   className={`p-4 rounded-sm relative overflow-hidden transition-opacity ${
                     isAlert
                       ? 'bg-red-50 border border-red-200'
                       : isActionable
-                      ? 'bg-roman-surface border border-roman-primary/30 shadow-sm'
-                      : 'bg-roman-bg border border-roman-border'
-                  } ${n.read ? 'opacity-60 hover:opacity-90' : ''}`}
+                        ? 'bg-roman-surface border border-roman-primary/30 shadow-sm'
+                        : 'bg-roman-bg border border-roman-border'
+                  } ${notification.read ? 'opacity-60 hover:opacity-90' : ''}`}
                 >
                   {isActionable && <div className="absolute top-0 left-0 w-1 h-full bg-roman-primary"></div>}
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
-                      {!n.read && (
+                      {!notification.read && (
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>
                       )}
                       <span className={`text-xs font-serif italic ${isAlert ? 'text-red-700' : 'text-roman-text-sub'}`}>
-                        {formatDistanceToNow(n.time, { addSuffix: true, locale: ptBR })}
+                        {formatDistanceToNow(notification.time, { addSuffix: true, locale: ptBR })}
                       </span>
                     </div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
+                      onClick={event => {
+                        event.stopPropagation();
+                        dismissNotification(notification.id);
+                      }}
                       className={`transition-colors ${isAlert ? 'text-red-400 hover:text-red-700' : 'text-roman-text-sub hover:text-roman-text-main'}`}
                       aria-label="Dispensar notificação"
                     >
                       <X size={14} />
                     </button>
                   </div>
-                  <p className={`text-sm font-medium mb-1 ${isAlert ? 'text-red-900' : 'text-roman-text-main'}`}>{n.title}</p>
-                  <p className={`text-xs ${isAlert ? 'text-red-700' : 'text-roman-text-sub'} ${n.action ? 'mb-3' : ''}`}>{n.body}</p>
-                  {n.action && (
+                  <p className={`text-sm font-medium mb-1 ${isAlert ? 'text-red-900' : 'text-roman-text-main'}`}>{notification.title}</p>
+                  <p className={`text-xs ${isAlert ? 'text-red-700' : 'text-roman-text-sub'} ${notification.action ? 'mb-3' : ''}`}>{notification.body}</p>
+                  {notification.action && (
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        markNotificationRead(n.id);
-                        if (n.action!.ticketId) setActiveTicketId(n.action!.ticketId);
-                        navigateTo(n.action!.view);
+                      onClick={event => {
+                        event.stopPropagation();
+                        markNotificationRead(notification.id);
+                        if (notification.action?.ticketId) setActiveTicketId(notification.action.ticketId);
+                        navigateTo(notification.action.view);
                         setShowNotifications(false);
                       }}
                       className={`w-full py-1.5 text-xs font-medium rounded-sm transition-colors border ${
@@ -256,7 +272,7 @@ export default function App() {
                           : 'bg-roman-primary/10 hover:bg-roman-primary/20 text-roman-primary border-roman-primary/20'
                       }`}
                     >
-                      {n.action.label}
+                      {notification.action.label}
                     </button>
                   )}
                 </div>
@@ -275,7 +291,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Suspense fallback={<ViewLoader />}>
           {currentView === VIEWS.HOME && <HomeView />}
@@ -283,18 +298,18 @@ export default function App() {
           {currentView === VIEWS.APPROVALS && <ApprovalsView />}
           {currentView === VIEWS.FINANCE && <FinanceView />}
           {currentView === VIEWS.EMAIL_HEALTH && <EmailHealthView />}
+          {currentView === VIEWS.AUDIT_LOGS && <AuditLogsView />}
           {currentView === VIEWS.USERS && <UsersView />}
           {currentView === VIEWS.KPI && <KpiView />}
           {currentView === VIEWS.SETTINGS && <SettingsView />}
         </Suspense>
       </main>
 
-      {/* Attachment Modal */}
       {attachmentPreview && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeAttachment();
+          onClick={event => {
+            if (event.target === event.currentTarget) closeAttachment();
           }}
           role="dialog"
           aria-modal="true"
@@ -306,7 +321,9 @@ export default function App() {
                 {attachmentPreview.type === 'pdf' ? <FileText size={20} className="text-roman-primary" /> : <ImageIcon size={20} className="text-roman-primary" />}
                 <h3 className="font-serif text-lg font-medium">{attachmentPreview.title}</h3>
               </div>
-              <button onClick={closeAttachment} className="text-stone-400 hover:text-white transition-colors"><X size={24} /></button>
+              <button onClick={closeAttachment} className="text-stone-400 hover:text-white transition-colors">
+                <X size={24} />
+              </button>
             </div>
             <div className="flex-1 bg-stone-100 flex items-center justify-center p-8 overflow-auto">
               {attachmentPreview.type === 'image' ? (
@@ -326,10 +343,12 @@ export default function App() {
                     <div className="h-4 bg-stone-200 w-full rounded"></div>
                     <div className="h-4 bg-stone-200 w-5/6 rounded"></div>
                     <div className="h-4 bg-stone-200 w-full rounded mt-8"></div>
-                    <div className="h-32 bg-stone-100 border border-stone-200 w-full rounded mt-4 flex items-center justify-center text-stone-400 font-serif italic">Tabela de Custos Simulada</div>
+                    <div className="h-32 bg-stone-100 border border-stone-200 w-full rounded mt-4 flex items-center justify-center text-stone-400 font-serif italic">Tabela de custos simulada</div>
                   </div>
                   <div className="mt-8 pt-8 border-t border-stone-200 flex justify-between items-center">
-                    <div className="w-48 h-px bg-stone-800 relative"><span className="absolute -bottom-6 left-0 right-0 text-center text-xs text-stone-500">Assinatura do Fornecedor</span></div>
+                    <div className="w-48 h-px bg-stone-800 relative">
+                      <span className="absolute -bottom-6 left-0 right-0 text-center text-xs text-stone-500">Assinatura do fornecedor</span>
+                    </div>
                     <div className="text-2xl font-serif font-bold text-stone-800">R$ --.---,--</div>
                   </div>
                 </div>
@@ -341,14 +360,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
