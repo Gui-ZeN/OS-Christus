@@ -14,7 +14,8 @@
     "infra:firebase:setup": "node scripts/infra/setup-firebase.mjs",
     "infra:firebase:enable-apis": "node scripts/infra/enable-firebase-apis.mjs",
     "infra:storage:check": "node scripts/infra/check-storage.mjs",
-    "infra:storage:signed-url": "node scripts/infra/generate-signed-url.mjs"
+    "infra:storage:signed-url": "node scripts/infra/generate-signed-url.mjs",
+    "infra:sendgrid:test": "node scripts/infra/sendgrid-test.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
