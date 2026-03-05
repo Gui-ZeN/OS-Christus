@@ -16,7 +16,8 @@ Quando não for possível configurar DNS para inbound no SendGrid, use Gmail API
 - `GMAIL_FROM_EMAIL`
 - `GMAIL_SYNC_SECRET`
 - `CRON_SECRET` (recomendado para cron da Vercel)
-- `FIREBASE_SERVICE_ACCOUNT_JSON`
+- `FIREBASE_SERVICE_ACCOUNT_B64` (recomendado)
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (alternativo)
 - `FIREBASE_PROJECT_ID`
 
 ## Como funciona
@@ -45,3 +46,9 @@ O endpoint também aceita `GMAIL_SYNC_SECRET` via query/header para execução m
 ## Limitações
 - Solução de transição para baixo volume.
 - Menos robusta que inbound dedicado com DNS autenticado.
+
+## Gerar FIREBASE_SERVICE_ACCOUNT_B64 (PowerShell)
+```powershell
+$raw = Get-Content -Raw "C:\caminho\service-account.json"
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($raw))
+```
