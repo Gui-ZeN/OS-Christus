@@ -10,6 +10,22 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import { InboxFilter, HistoryItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
+import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
+
+const FALLBACK_TEAMS: DirectoryTeam[] = [
+  { id: 'construtora', name: 'Construtora', type: 'internal' },
+  { id: 'informatica', name: 'Informatica', type: 'internal' },
+  { id: 'infra-compras', name: 'Infra - Compras', type: 'internal' },
+  { id: 'infra-coordenacao', name: 'Infra - Coordenacao', type: 'internal' },
+  { id: 'infra-sede', name: 'Infra - Sede', type: 'internal' },
+  { id: 'jy', name: 'JY', type: 'internal' },
+  { id: 'marketing', name: 'Marketing', type: 'internal' },
+  { id: 'metalurgica', name: 'Metalurgica', type: 'internal' },
+  { id: 'nao-especificado', name: 'Nao especificado', type: 'internal' },
+  { id: 'redes', name: 'Redes', type: 'internal' },
+  { id: 'refrigeracao', name: 'Refrigeracao', type: 'internal' },
+  { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external' },
+];
 
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
@@ -70,6 +86,7 @@ export function InboxView() {
   const [replyText, setReplyText] = useState('');
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
+  const [teams, setTeams] = useState<DirectoryTeam[]>(FALLBACK_TEAMS);
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -87,6 +104,26 @@ export function InboxView() {
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
   }, [activeTicketId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const directory = await fetchDirectory();
+        if (!cancelled && directory.teams.length > 0) {
+          setTeams(directory.teams.filter(team => team.active !== false));
+        }
+      } catch {
+        if (!cancelled) {
+          setTeams(FALLBACK_TEAMS);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Z5: Registra mudança de equipe técnica direto no histórico do ticket
   const handleTechTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -106,6 +143,9 @@ export function InboxView() {
     updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
   };
 
+  const selectedTeam = teams.find(team => team.name === techTeam);
+  const isExternalTeam = selectedTeam?.type === 'external';
+
   // Botão principal de ação: transição de status + registro no histórico
   const handleSend = () => {
     const now = new Date();
@@ -118,7 +158,7 @@ export function InboxView() {
       if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
         newStatus = TICKET_STATUS.WAITING_TECH_OPINION;
         const target =
-          techTeam === 'Terceirizada' && customEmail
+          isExternalTeam && customEmail
             ? customEmail
             : techTeam || 'Equipe Técnica';
 
@@ -275,7 +315,7 @@ export function InboxView() {
     internalTabLabel = 'Solicitar Parecer Técnico';
     internalPlaceholder = 'Descreva a solicitação para a equipe técnica...';
     internalButtonText = 'Avançar: Aguardando Parecer';
-    internalActionText = `Ação: Disparar e-mail para ${techTeam === 'Terceirizada' && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
+    internalActionText = `Ação: Disparar e-mail para ${isExternalTeam && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
   } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
     internalTabLabel = 'Enviar Parecer à Diretoria';
     internalPlaceholder = 'Consolide o parecer técnico antes de enviar para aprovação...';
@@ -921,22 +961,13 @@ export function InboxView() {
                     disabled={isClosed}
                   >
                     <option value="">Selecione a Equipe...</option>
-                    <option value="Construtora">Construtora</option>
-                    <option value="Informática">Informática</option>
-                    <option value="Infra - Compras">Infra - Compras</option>
-                    <option value="Infra - Cordenação">Infra - Cordenação</option>
-                    <option value="Infra - Sede">Infra - Sede</option>
-                    <option value="JY">JY</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Metalúrgica">Metalúrgica</option>
-                    <option value="Não especificado">Não especificado</option>
-                    <option value="Redes">Redes</option>
-                    <option value="Refrigeração">Refrigeração</option>
-                    <option value="Terceirizada">Terceirizada</option>
+                    {teams.map(team => (
+                      <option key={team.id} value={team.name}>{team.name}</option>
+                    ))}
                   </select>
                 </div>
 
-                {techTeam === 'Terceirizada' && (
+                {isExternalTeam && (
                   <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail do Fornecedor</label>
                     <input
