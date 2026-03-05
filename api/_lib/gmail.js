@@ -31,18 +31,29 @@ function fromBase64Url(input) {
   return Buffer.from(normalized, 'base64').toString('utf8');
 }
 
-function buildRawMessage({ from, to, subject, text, inReplyTo, references, extraHeaders = {} }) {
+function buildRawMessage({ from, to, subject, text, html, inReplyTo, references, extraHeaders = {} }) {
+  const boundary = `oschristus_${Math.random().toString(16).slice(2)}`;
   const headers = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset="UTF-8"',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
     ...(references && references.length > 0 ? [`References: ${references.join(' ')}`] : []),
     ...Object.entries(extraHeaders).map(([k, v]) => `${k}: ${v}`),
     '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
     text || '',
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    '',
+    html || `<pre>${(text || '').replace(/[<>&]/g, '')}</pre>`,
+    '',
+    `--${boundary}--`,
   ];
   return toBase64Url(headers.join('\r\n'));
 }
@@ -64,7 +75,7 @@ function extractPlainText(payload) {
   return '';
 }
 
-export async function gmailSend({ toEmail, subject, text, inReplyTo, references, ticketId, trackingToken }) {
+export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken }) {
   const oauth2Client = createOAuthClient();
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
@@ -74,6 +85,7 @@ export async function gmailSend({ toEmail, subject, text, inReplyTo, references,
     to: toEmail,
     subject,
     text,
+    html,
     inReplyTo,
     references,
     extraHeaders: {

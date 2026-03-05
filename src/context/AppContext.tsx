@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { ViewState, Ticket, InboxFilter, AppNotification } from '../types';
 import { MOCK_TICKETS } from '../data/mockTickets';
 import { subHours, subDays } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
+import { createTicketInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
 
 interface AppContextType {
   // Navigation
@@ -36,6 +37,7 @@ interface AppContextType {
 
   // Data
   tickets: Ticket[];
+  ticketsLoading: boolean;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
   addTicket: (ticket: Ticket) => void;
 }
@@ -53,17 +55,17 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'n1',
     type: 'actionable',
-    title: 'Aprovação Necessária',
-    body: 'Orçamento da OS-0048 excede o limite automático. Requer sua validação.',
+    title: 'AprovaÃ§Ã£o NecessÃ¡ria',
+    body: 'OrÃ§amento da OS-0048 excede o limite automÃ¡tico. Requer sua validaÃ§Ã£o.',
     time: new Date(),
     read: false,
-    action: { label: 'Revisar Orçamento', view: 'approvals' }
+    action: { label: 'Revisar OrÃ§amento', view: 'approvals' }
   },
   {
     id: 'n2',
     type: 'info',
     title: 'OS-0045 Validada',
-    body: 'O solicitante aprovou a manutenção dos geradores. Pronta para pagamento.',
+    body: 'O solicitante aprovou a manutenÃ§Ã£o dos geradores. Pronta para pagamento.',
     time: subHours(new Date(), 2),
     read: false,
     action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0045' }
@@ -72,7 +74,7 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
     id: 'n3',
     type: 'alert',
     title: 'SLA Vencido: OS-0044',
-    body: 'O prazo de resolução para esta OS crítica expirou.',
+    body: 'O prazo de resoluÃ§Ã£o para esta OS crÃ­tica expirou.',
     time: subHours(new Date(), 4),
     read: false,
     action: { label: 'Ver OS Atrasada', view: 'inbox', ticketId: 'OS-0044' }
@@ -81,7 +83,7 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
     id: 'n4',
     type: 'info',
     title: 'Nova OS Registrada',
-    body: 'Infiltração Crítica no Teto do Refeitório (OS-0050).',
+    body: 'InfiltraÃ§Ã£o CrÃ­tica no Teto do RefeitÃ³rio (OS-0050).',
     time: subDays(new Date(), 1),
     read: true,
     action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0050' }
@@ -104,7 +106,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
 
   // Mutable tickets state
-  const [tickets, setTickets] = useState<Ticket[]>([...MOCK_TICKETS]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await fetchTicketsFromApi();
+        if (!cancelled) {
+          setTickets(remote);
+          if (remote.length > 0 && !remote.some(t => t.id === activeTicketId)) {
+            setActiveTicketId(remote[0].id);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setTickets([...MOCK_TICKETS]);
+        }
+      } finally {
+        if (!cancelled) {
+          setTicketsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const updateTicket = (id: string, updates: Partial<Ticket>) => {
     let previousStatus: string | null = null;
@@ -122,10 +151,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (previousStatus && nextTicket && updates.status && previousStatus !== nextTicket.status) {
       void notifyTicketStatusChange(nextTicket, previousStatus);
     }
+
+    void patchTicketInApi(id, updates).catch(() => {
+      // PersistÃªncia remota falhou, mas nÃ£o bloqueia fluxo local.
+    });
   };
 
   const addTicket = (ticket: Ticket) => {
     setTickets(prev => [ticket, ...prev]);
+    void createTicketInApi(ticket).catch(() => {
+      // PersistÃªncia remota falhou, mas nÃ£o bloqueia fluxo local.
+    });
   };
 
   // Z4: Notifications
@@ -152,7 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTickets(prev => prev.map(ticket => {
         let updated = ticket;
 
-        // Z1: SLA Check — atualiza via estado, sem mutação direta
+        // Z1: SLA Check â€” atualiza via estado, sem mutaÃ§Ã£o direta
         if (ticket.sla && ticket.status !== TICKET_STATUS.CLOSED) {
           if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
             updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
@@ -161,8 +197,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Z2: Unassigned Ticket Alert (48h) — lógica preservada para futura integração de notificações
-        // Z2: Long Running Execution Alert (>7 days) — idem
+        // Z2: Unassigned Ticket Alert (48h) â€” lÃ³gica preservada para futura integraÃ§Ã£o de notificaÃ§Ãµes
+        // Z2: Long Running Execution Alert (>7 days) â€” idem
 
         return updated;
       }));
@@ -274,6 +310,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dismissNotification,
       markAllNotificationsRead,
       tickets,
+      ticketsLoading,
       updateTicket,
       addTicket,
     }}>
@@ -289,3 +326,4 @@ export function useApp() {
   }
   return context;
 }
+

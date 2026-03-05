@@ -1,9 +1,10 @@
-import { FieldValue } from 'firebase-admin/firestore';
+﻿import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '../_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from '../_lib/http.js';
 import { sendWithSendGrid } from '../_lib/sendgrid.js';
 import { gmailSend } from '../_lib/gmail.js';
 import { logEmailEvent } from '../_lib/emailLogs.js';
+import { buildTicketEmailTemplate } from '../_lib/emailTemplates.js';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -13,7 +14,8 @@ function required(input, name) {
 export default async function handler(req, res) {
   let ticketIdForLog = null;
   let toEmailForLog = null;
-  let providerForLog = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+  const providerForLog = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
@@ -23,6 +25,7 @@ export default async function handler(req, res) {
     const body = await readJsonBody(req);
     const ticketId = required(body.ticketId, 'ticketId');
     ticketIdForLog = ticketId;
+
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
     const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
     const text = body.text ? String(body.text) : '';
@@ -34,6 +37,20 @@ export default async function handler(req, res) {
     if (!templateId && !text && !html) {
       throw new Error('Informe text/html ou templateId para envio.');
     }
+
+    const fallbackTemplate = buildTicketEmailTemplate({
+      title: templateData.title || `Atualização da OS ${ticketId}`,
+      intro: templateData.intro || 'Sua solicitação recebeu uma nova atualização.',
+      ticketId,
+      subject: templateData.ticketSubject || subject,
+      status: templateData.status || 'Atualizada',
+      ctaUrl: templateData.ctaUrl || null,
+      ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
+      bodyText: text || templateData.bodyText || '',
+    });
+
+    const finalText = text || fallbackTemplate.text;
+    const finalHtml = html || fallbackTemplate.html;
 
     const db = getAdminDb();
     const threadRef = db.collection('emailThreads').doc(ticketId);
@@ -65,7 +82,8 @@ export default async function handler(req, res) {
         ? await gmailSend({
             toEmail,
             subject,
-            text: text || html || '',
+            text: finalText,
+            html: finalHtml,
             inReplyTo: priorMessageId || undefined,
             references: nextReferences,
             ticketId,
@@ -74,8 +92,8 @@ export default async function handler(req, res) {
         : await sendWithSendGrid({
             toEmail,
             subject,
-            text,
-            html,
+            text: finalText,
+            html: finalHtml,
             templateId,
             templateData,
             headers,
@@ -83,10 +101,7 @@ export default async function handler(req, res) {
           });
 
     const now = new Date();
-    const messageId =
-      sendResult.messageId ||
-      sendResult.id ||
-      `<os-${ticketId}-${now.getTime()}@os-christus>`;
+    const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
     const mergedReferences = [...new Set([...nextReferences, messageId])].slice(-20);
 
     await threadRef.set(
@@ -107,7 +122,8 @@ export default async function handler(req, res) {
       direction: 'outbound',
       toEmail,
       subject,
-      text: text || null,
+      text: finalText || null,
+      html: finalHtml || null,
       templateId: templateId || null,
       messageId,
       inReplyTo: priorMessageId,

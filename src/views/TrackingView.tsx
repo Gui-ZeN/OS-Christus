@@ -13,9 +13,21 @@ interface TrackingViewProps {
 }
 
 export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
-  const { tickets, updateTicket } = useApp();
+  const { tickets, ticketsLoading, updateTicket } = useApp();
   const ticket = ticketToken ? tickets.find(t => t.trackingToken === ticketToken) : undefined;
   const [isProcessing, setIsProcessing] = useState(false);
+
+  if (ticketsLoading) {
+    return (
+      <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center justify-center px-4">
+        <div className="bg-roman-surface border border-roman-border p-8 rounded-sm shadow-sm text-center max-w-md w-full">
+          <Loader2 size={28} className="animate-spin mx-auto text-roman-primary mb-4" />
+          <h1 className="text-xl font-serif text-roman-text-main font-medium mb-2">Carregando acompanhamento</h1>
+          <p className="text-roman-text-sub">Estamos buscando sua OS no sistema.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!ticket) {
     return (

@@ -48,6 +48,14 @@ export async function notifyTicketCreated(ticket: Ticket) {
       `Status: ${ticket.status}`,
       `Acompanhe pelo link: ${link}`,
     ].join('\n'),
+    templateData: {
+      title: `OS ${ticket.id} registrada`,
+      intro: 'Recebemos sua solicitação e ela já está em análise pela equipe.',
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      ctaUrl: link,
+      ctaLabel: 'Acompanhar OS',
+    },
   });
 }
 
@@ -70,6 +78,14 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       `Para: ${ticket.status}`,
       `Acompanhe pelo link: ${link}`,
     ].join('\n'),
+    templateData: {
+      title: `Atualização da OS ${ticket.id}`,
+      intro: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      ctaUrl: link,
+      ctaLabel: 'Ver atualização',
+    },
   });
 }
 
@@ -83,5 +99,12 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
     toEmail,
     subject: `Nova mensagem na OS ${ticket.id}`,
     text: `${sender} enviou uma atualização:\n\n${message.trim()}`,
+    templateData: {
+      title: `Nova mensagem na OS ${ticket.id}`,
+      intro: `${sender} enviou uma nova mensagem no ticket.`,
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      bodyText: message.trim(),
+    },
   });
 }
