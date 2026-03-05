@@ -3,7 +3,9 @@ export interface DirectoryUser {
   name: string;
   role: string;
   email: string;
-  status: 'Ativo' | 'Pendente' | 'Inativo';
+  status: 'Ativo' | 'Inativo';
+  regionIds?: string[];
+  siteIds?: string[];
   active?: boolean;
 }
 

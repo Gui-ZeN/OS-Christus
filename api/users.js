@@ -3,11 +3,20 @@ import { readJsonBody, sendJson } from './_lib/http.js';
 import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
 
 function normalizeUser(input) {
+  const regionIds = Array.isArray(input?.regionIds)
+    ? input.regionIds.map(value => String(value || '').trim()).filter(Boolean)
+    : [];
+  const siteIds = Array.isArray(input?.siteIds)
+    ? input.siteIds.map(value => String(value || '').trim()).filter(Boolean)
+    : [];
+
   return {
     name: String(input?.name || '').trim(),
     role: String(input?.role || '').trim(),
     email: String(input?.email || '').trim().toLowerCase(),
     status: String(input?.status || 'Ativo').trim() || 'Ativo',
+    regionIds,
+    siteIds,
     active: input?.active !== false,
   };
 }
@@ -28,8 +37,8 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = await readJsonBody(req);
       const user = normalizeUser(body?.user);
-      if (!user.name || !user.email) {
-        return sendJson(res, 400, { ok: false, error: 'name e email sao obrigatorios.' });
+      if (!user.name || !user.email || !user.role) {
+        return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
       }
       const id =
         body?.user?.id ||
@@ -58,6 +67,9 @@ export default async function handler(req, res) {
       const user = normalizeUser(body?.updates);
       if (!id) {
         return sendJson(res, 400, { ok: false, error: 'id e obrigatorio.' });
+      }
+      if (!user.name || !user.email || !user.role) {
+        return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
       }
       await db.collection('users').doc(id).set({ ...user, id, updatedAt: new Date() }, { merge: true });
       return sendJson(res, 200, { ok: true, id });
