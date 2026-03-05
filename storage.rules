@@ -1,0 +1,52 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdminOrManager() {
+      return isAuthenticated() && request.auth.token.role in ["admin", "gestor"];
+    }
+
+    function isValidImage() {
+      return request.resource != null
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function isValidPdf() {
+      return request.resource != null
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // Imagens anexadas aos tickets.
+    match /attachments/tickets/images/{ticketId}/{fileName} {
+      allow read: if isAdminOrManager();
+      allow write: if isAdminOrManager() && isValidImage();
+    }
+
+    // PDFs anexados aos tickets.
+    match /attachments/tickets/pdfs/{ticketId}/{fileName} {
+      allow read: if isAdminOrManager();
+      allow write: if isAdminOrManager() && isValidPdf();
+    }
+
+    // Contratos assinados.
+    match /attachments/contracts/{ticketId}/{fileName} {
+      allow read: if isAdminOrManager();
+      allow write: if isAdminOrManager() && isValidPdf();
+    }
+
+    // Cotações e documentos de fornecedores.
+    match /attachments/quotes/{ticketId}/{fileName} {
+      allow read: if isAdminOrManager();
+      allow write: if isAdminOrManager() && (isValidPdf() || isValidImage());
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

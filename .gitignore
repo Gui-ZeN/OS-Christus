@@ -8,3 +8,5 @@ playwright-report/
 *.log
 .env*
 !.env.example
+.secrets/
+*.service-account.json

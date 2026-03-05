@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.role == "admin";
+    }
+
+    function isManager() {
+      return isAuthenticated() && request.auth.token.role in ["admin", "gestor"];
+    }
+
+    // Configurações internas: leitura por usuários logados, escrita só admin.
+    match /config/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Presença de visualização de ticket em tempo real.
+    match /ticketPresence/{ticketId}/viewers/{viewerId} {
+      allow read: if isManager();
+      allow create, update: if isAuthenticated() && request.auth.uid == viewerId;
+      allow delete: if isAuthenticated() && (request.auth.uid == viewerId || isManager());
+    }
+
+    // Metadados de anexos.
+    match /ticketAttachments/{attachmentId} {
+      allow read: if isManager();
+      allow create, update, delete: if isManager();
+    }
+
+    // Fallback: bloquear tudo que não foi explicitamente liberado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

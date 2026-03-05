@@ -10,12 +10,18 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "infra:firebase:setup": "node scripts/infra/setup-firebase.mjs",
+    "infra:firebase:enable-apis": "node scripts/infra/enable-firebase-apis.mjs",
+    "infra:storage:check": "node scripts/infra/check-storage.mjs",
+    "infra:storage:signed-url": "node scripts/infra/generate-signed-url.mjs"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.19.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "date-fns": "^4.1.0",
+    "firebase-admin": "^13.7.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",
