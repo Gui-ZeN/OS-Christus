@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '../_lib/firebaseAdmin.js';
 import { sendJson } from '../_lib/http.js';
 import { gmailGetMessage, gmailListRecentInbox } from '../_lib/gmail.js';
+import { logEmailEvent } from '../_lib/emailLogs.js';
 
 function parseTicketId(text) {
   if (!text) return null;
@@ -93,6 +94,16 @@ export default async function handler(req, res) {
         source: 'gmail-api-sync',
       });
 
+      await logEmailEvent({
+        type: 'inbound',
+        status: 'success',
+        provider: 'gmail',
+        ticketId,
+        fromEmail: fromEmail || null,
+        subject: msg.subject || '',
+        messageId: msg.messageId || msg.id || null,
+      });
+
       processed += 1;
       newSeen.push(ref.id);
       seenIds.add(ref.id);
@@ -106,8 +117,21 @@ export default async function handler(req, res) {
       { merge: true }
     );
 
+    await logEmailEvent({
+      type: 'sync',
+      status: 'success',
+      provider: 'gmail',
+      processed,
+    });
+
     return sendJson(res, 200, { ok: true, processed });
   } catch (error) {
+    await logEmailEvent({
+      type: 'sync',
+      status: 'error',
+      provider: 'gmail',
+      error: error.message || 'Falha no sync do Gmail.',
+    });
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no sync do Gmail.' });
   }
 }

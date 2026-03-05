@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '../_lib/firebaseAdmin.js';
 import { parseInboundBody, sendJson } from '../_lib/http.js';
+import { logEmailEvent } from '../_lib/emailLogs.js';
 
 function parseTicketIdFromSubject(subject) {
   if (!subject) return null;
@@ -125,8 +126,24 @@ export default async function handler(req, res) {
       source: 'sendgrid-inbound',
     });
 
+    await logEmailEvent({
+      type: 'inbound',
+      status: 'success',
+      provider: 'sendgrid',
+      ticketId,
+      fromEmail: fromEmail || null,
+      subject,
+      messageId,
+    });
+
     return sendJson(res, 200, { ok: true, ticketId, messageId });
   } catch (error) {
+    await logEmailEvent({
+      type: 'inbound',
+      status: 'error',
+      provider: 'sendgrid',
+      error: error.message || 'Falha no inbound.',
+    });
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no inbound.' });
   }
 }

@@ -5,6 +5,7 @@ Quando não for possível configurar DNS para inbound no SendGrid, use Gmail API
 ## Endpoints
 - `POST /api/email/send` com `EMAIL_PROVIDER=gmail`
 - `POST /api/email/gmail-sync?secret=...` para importar respostas da caixa
+- `GET /api/email/health` para monitoramento (últimas 24h)
 
 ## Variáveis necessárias (Vercel)
 - `EMAIL_PROVIDER=gmail`
@@ -23,6 +24,7 @@ Quando não for possível configurar DNS para inbound no SendGrid, use Gmail API
 3. Cada resposta é gravada em:
    - `emailThreads/{ticketId}/messages`
    - `ticketInbound`
+4. Eventos de saúde são gravados em `emailEvents`.
 
 ## Agendamento recomendado
 Na Vercel, crie um cron para chamar:

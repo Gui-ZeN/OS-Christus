@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useRef, useEffect } from 'react';
-import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell } from 'lucide-react';
+import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell, Mail } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -18,6 +18,7 @@ const InboxView = lazy(async () => ({ default: (await import('./views/InboxView'
 const SplitLoginView = lazy(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
 const LandingView = lazy(async () => ({ default: (await import('./views/LandingView')).LandingView }));
 const PublicFormView = lazy(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
+const EmailHealthView = lazy(async () => ({ default: (await import('./views/EmailHealthView')).EmailHealthView }));
 
 export const VIEWS = {
   LANDING: 'landing',
@@ -30,7 +31,8 @@ export const VIEWS = {
   SETTINGS: 'settings',
   TRACKING: 'tracking',
   APPROVALS: 'approvals',
-  FINANCE: 'finance'
+  FINANCE: 'finance',
+  EMAIL_HEALTH: 'email-health'
 } as const;
 
 function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
@@ -152,6 +154,7 @@ export default function App() {
           <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />
           <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />
+          <SidebarIcon icon={<Mail size={20} />} active={currentView === VIEWS.EMAIL_HEALTH} onClick={() => navigateTo(VIEWS.EMAIL_HEALTH)} title="Saúde de E-mail" />
           <SidebarIcon icon={<Users size={20} />} active={currentView === VIEWS.USERS} onClick={() => navigateTo(VIEWS.USERS)} title="Usuários" />
           <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />
           <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />
@@ -279,6 +282,7 @@ export default function App() {
           {currentView === VIEWS.INBOX && <InboxView />}
           {currentView === VIEWS.APPROVALS && <ApprovalsView />}
           {currentView === VIEWS.FINANCE && <FinanceView />}
+          {currentView === VIEWS.EMAIL_HEALTH && <EmailHealthView />}
           {currentView === VIEWS.USERS && <UsersView />}
           {currentView === VIEWS.KPI && <KpiView />}
           {currentView === VIEWS.SETTINGS && <SettingsView />}
@@ -337,7 +341,6 @@ export default function App() {
     </div>
   );
 }
-
 
 
 

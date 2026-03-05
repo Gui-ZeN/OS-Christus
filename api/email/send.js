@@ -3,6 +3,7 @@ import { getAdminDb } from '../_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from '../_lib/http.js';
 import { sendWithSendGrid } from '../_lib/sendgrid.js';
 import { gmailSend } from '../_lib/gmail.js';
+import { logEmailEvent } from '../_lib/emailLogs.js';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -10,6 +11,9 @@ function required(input, name) {
 }
 
 export default async function handler(req, res) {
+  let ticketIdForLog = null;
+  let toEmailForLog = null;
+  let providerForLog = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
@@ -18,6 +22,7 @@ export default async function handler(req, res) {
 
     const body = await readJsonBody(req);
     const ticketId = required(body.ticketId, 'ticketId');
+    ticketIdForLog = ticketId;
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
     const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
     const text = body.text ? String(body.text) : '';
@@ -36,6 +41,7 @@ export default async function handler(req, res) {
     const thread = threadSnap.exists ? threadSnap.data() : null;
 
     const toEmail = toEmailInput || thread?.toEmail || null;
+    toEmailForLog = toEmail;
     if (!toEmail) {
       throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
     }
@@ -53,7 +59,7 @@ export default async function handler(req, res) {
       ...(nextReferences.length > 0 ? { References: nextReferences.join(' ') } : {}),
     };
 
-    const provider = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+    const provider = providerForLog;
     const sendResult =
       provider === 'gmail'
         ? await gmailSend({
@@ -110,6 +116,16 @@ export default async function handler(req, res) {
       createdAt: now,
     });
 
+    await logEmailEvent({
+      type: 'outbound',
+      status: 'success',
+      provider,
+      ticketId,
+      toEmail,
+      subject,
+      messageId,
+    });
+
     return sendJson(res, 200, {
       ok: true,
       ticketId,
@@ -119,6 +135,14 @@ export default async function handler(req, res) {
       references: mergedReferences,
     });
   } catch (error) {
+    await logEmailEvent({
+      type: 'outbound',
+      status: 'error',
+      provider: providerForLog,
+      ticketId: ticketIdForLog,
+      toEmail: toEmailForLog,
+      error: error.message || 'Falha ao enviar e-mail.',
+    });
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao enviar e-mail.' });
   }
 }
