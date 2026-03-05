@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
     const body = await readJsonBody(req);
     const ticketId = required(body.ticketId, 'ticketId');
-    const toEmail = required(body.toEmail, 'toEmail');
+    const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
     const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
@@ -33,6 +33,11 @@ export default async function handler(req, res) {
     const threadRef = db.collection('emailThreads').doc(ticketId);
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
+
+    const toEmail = toEmailInput || thread?.toEmail || null;
+    if (!toEmail) {
+      throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
+    }
 
     const priorMessageId = thread?.lastMessageId || null;
     const references = thread?.references || [];

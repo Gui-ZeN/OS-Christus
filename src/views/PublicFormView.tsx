@@ -3,6 +3,7 @@ import { Landmark, ArrowRight, ArrowLeft, Loader2, CheckCircle, FileText, ImageI
 import { useApp } from '../context/AppContext';
 import { Ticket, HistoryItem } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { notifyTicketCreated } from '../services/ticketEmail';
 
 interface PublicFormViewProps {
   onBack: () => void;
@@ -61,6 +62,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         trackingToken: newToken,
         subject: formData.subject,
         requester: formData.name,
+        requesterEmail: formData.email,
         time: now,
         status: TICKET_STATUS.NEW,
         type: formData.type,
@@ -74,6 +76,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         ] as HistoryItem[],
       };
       addTicket(newTicket);
+      void notifyTicketCreated(newTicket);
       setCreatedId(newId);
       setCreatedToken(newToken);
       setIsSubmitting(false);

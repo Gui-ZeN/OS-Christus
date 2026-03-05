@@ -3,6 +3,7 @@ import { ViewState, Ticket, InboxFilter, AppNotification } from '../types';
 import { MOCK_TICKETS } from '../data/mockTickets';
 import { subHours, subDays } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { notifyTicketStatusChange } from '../services/ticketEmail';
 
 interface AppContextType {
   // Navigation
@@ -106,7 +107,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tickets, setTickets] = useState<Ticket[]>([...MOCK_TICKETS]);
 
   const updateTicket = (id: string, updates: Partial<Ticket>) => {
-    setTickets(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    let previousStatus: string | null = null;
+    let nextTicket: Ticket | null = null;
+
+    setTickets(prev =>
+      prev.map(t => {
+        if (t.id !== id) return t;
+        previousStatus = t.status;
+        nextTicket = { ...t, ...updates };
+        return nextTicket;
+      })
+    );
+
+    if (previousStatus && nextTicket && updates.status && previousStatus !== nextTicket.status) {
+      void notifyTicketStatusChange(nextTicket, previousStatus);
+    }
   };
 
   const addTicket = (ticket: Ticket) => {

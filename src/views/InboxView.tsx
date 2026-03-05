@@ -9,6 +9,7 @@ import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { InboxFilter, HistoryItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { notifyTicketPublicReply } from '../services/ticketEmail';
 
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
@@ -154,6 +155,7 @@ export function InboxView() {
       if (!replyText.trim()) return;
       const item: HistoryItem = { id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() };
       updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
+      void notifyTicketPublicReply(activeTicket, sender, replyText.trim());
     }
 
     setReplyText('');

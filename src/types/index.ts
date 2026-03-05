@@ -31,6 +31,7 @@ export interface Ticket {
   trackingToken: string;
   subject: string;
   requester: string;
+  requesterEmail?: string;
   time: Date;
   status: TicketStatus;
   type: string;
