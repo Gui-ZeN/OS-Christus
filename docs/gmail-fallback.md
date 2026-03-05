@@ -27,15 +27,20 @@ Quando não for possível configurar DNS para inbound no SendGrid, use Gmail API
    - `ticketInbound`
 4. Eventos de saúde são gravados em `emailEvents`.
 
-## Agendamento recomendado
-Cron já configurado em `vercel.json` para chamar:
+## Agendamento recomendado (sem Vercel Pro)
+Workflow do GitHub Actions em:
 
-`/api/email/gmail-sync` a cada 5 minutos.
+`.github/workflows/gmail-sync.yml`
 
-Proteção recomendada:
-- definir `CRON_SECRET` na Vercel;
-- o endpoint aceita `Authorization: Bearer <CRON_SECRET>`.
-- também aceita `GMAIL_SYNC_SECRET` via query/header para execução manual.
+Ele chama `POST /api/email/gmail-sync` a cada 5 minutos com:
+
+`Authorization: Bearer <CRON_SECRET>`
+
+Secrets necessários no GitHub:
+- `SYNC_URL` (ex.: `https://seu-app.vercel.app/api/email/gmail-sync`)
+- `CRON_SECRET` (mesmo segredo definido no projeto)
+
+O endpoint também aceita `GMAIL_SYNC_SECRET` via query/header para execução manual.
 
 ## Limitações
 - Solução de transição para baixo volume.
