@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '../_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from '../_lib/http.js';
 import { sendWithSendGrid } from '../_lib/sendgrid.js';
+import { gmailSend } from '../_lib/gmail.js';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -52,19 +53,34 @@ export default async function handler(req, res) {
       ...(nextReferences.length > 0 ? { References: nextReferences.join(' ') } : {}),
     };
 
-    const sendResult = await sendWithSendGrid({
-      toEmail,
-      subject,
-      text,
-      html,
-      templateId,
-      templateData,
-      headers,
-      replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
-    });
+    const provider = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+    const sendResult =
+      provider === 'gmail'
+        ? await gmailSend({
+            toEmail,
+            subject,
+            text: text || html || '',
+            inReplyTo: priorMessageId || undefined,
+            references: nextReferences,
+            ticketId,
+            trackingToken: trackingToken || undefined,
+          })
+        : await sendWithSendGrid({
+            toEmail,
+            subject,
+            text,
+            html,
+            templateId,
+            templateData,
+            headers,
+            replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+          });
 
     const now = new Date();
-    const messageId = sendResult.messageId || `<os-${ticketId}-${now.getTime()}@os-christus>`;
+    const messageId =
+      sendResult.messageId ||
+      sendResult.id ||
+      `<os-${ticketId}-${now.getTime()}@os-christus>`;
     const mergedReferences = [...new Set([...nextReferences, messageId])].slice(-20);
 
     await threadRef.set(
