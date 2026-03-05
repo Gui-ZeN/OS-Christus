@@ -3,6 +3,7 @@ import { Plus, Users, BarChart2 } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { ActivityItem } from '../components/ui/ActivityItem';
 import { useApp } from '../context/AppContext';
+import { TICKET_STATUS } from '../constants/ticketStatus';
 
 const ACTIVITY_TITLES: Record<string, string> = {
   customer: 'Mensagem do Solicitante',
@@ -30,10 +31,10 @@ export function HomeView() {
   const { navigateTo, tickets } = useApp();
 
   const stats = useMemo(() => ({
-    novas: tickets.filter(t => t.status === 'Nova OS').length,
-    aguardandoOrcamento: tickets.filter(t => t.status === 'Aguardando Orçamento').length,
+    novas: tickets.filter(t => t.status === TICKET_STATUS.NEW).length,
+    aguardandoOrcamento: tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length,
     aguardandoAprovacao: tickets.filter(t => t.status.toLowerCase().includes('aguardando aprovação')).length,
-    encerradas: tickets.filter(t => t.status === 'Encerrada').length,
+    encerradas: tickets.filter(t => t.status === TICKET_STATUS.CLOSED).length,
   }), [tickets]);
 
   const recentActivity = useMemo(() => {

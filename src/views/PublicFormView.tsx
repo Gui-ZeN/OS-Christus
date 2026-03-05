@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Landmark, ArrowRight, ArrowLeft, Loader2, CheckCircle, FileText, ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Ticket, HistoryItem } from '../types';
+import { TICKET_STATUS } from '../constants/ticketStatus';
 
 interface PublicFormViewProps {
   onBack: () => void;
@@ -53,7 +54,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       }, 0);
       const nextNum = maxNum + 1;
       const newId = `OS-${String(nextNum).padStart(4, '0')}`;
-      const newToken = `trk-${String(nextNum).padStart(4, '0')}`;
+      const newToken = `trk_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
       const now = new Date();
       const newTicket: Ticket = {
         id: newId,
@@ -61,7 +62,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         subject: formData.subject,
         requester: formData.name,
         time: now,
-        status: 'Nova OS',
+        status: TICKET_STATUS.NEW,
         type: formData.type,
         region: formData.region,
         sede: formData.sede,
@@ -130,7 +131,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                 Enviamos um link de acompanhamento para o seu e-mail. Você também pode acessar por aqui:
               </p>
               <div className="text-roman-primary font-mono text-xs break-all bg-roman-primary/5 p-2 border border-roman-primary/20 rounded-sm">
-                sistema.com/acompanhar/{createdToken}
+                {window.location.origin}/?tracking={createdToken}
               </div>
             </div>
             <div className="flex gap-3">

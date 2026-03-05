@@ -5,22 +5,39 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { HistoryItem } from '../types';
+import { TICKET_STATUS } from '../constants/ticketStatus';
 
 interface TrackingViewProps {
-  ticketId: string;
+  ticketToken: string | null;
   onBack: () => void;
 }
 
-export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
+export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const { tickets, updateTicket } = useApp();
-  const ticket = tickets.find(t => t.id === ticketId) ?? tickets[0];
+  const ticket = ticketToken ? tickets.find(t => t.trackingToken === ticketToken) : undefined;
   const [isProcessing, setIsProcessing] = useState(false);
+
+  if (!ticket) {
+    return (
+      <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center py-12 px-4 relative">
+        <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-roman-text-sub hover:text-roman-text-main font-medium transition-colors">
+          <ArrowRight size={16} className="rotate-180" /> Voltar
+        </button>
+        <div className="max-w-3xl w-full">
+          <div className="bg-roman-surface border border-roman-border p-8 rounded-sm shadow-sm mb-6 text-center">
+            <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-2">OS não encontrada</h1>
+            <p className="text-roman-text-sub">O link de acompanhamento é inválido ou expirou.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleValidate = (approved: boolean) => {
     setIsProcessing(true);
     setTimeout(() => {
       setIsProcessing(false);
-      const newStatus = approved ? 'Aguardando pagamento' : 'Em andamento';
+      const newStatus = approved ? TICKET_STATUS.WAITING_PAYMENT : TICKET_STATUS.IN_PROGRESS;
       const newHistoryItem: HistoryItem = {
         id: uuidv4(),
         type: 'customer',
@@ -67,7 +84,7 @@ export function TrackingView({ ticketId, onBack }: TrackingViewProps) {
           </div>
 
           {/* Validation Call to Action */}
-          {ticket.status === 'Aguardando aprovação da manutenção' && (
+          {ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
             <div className="bg-roman-primary/10 border border-roman-primary/30 p-6 rounded-sm shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
               <h3 className="font-serif text-lg font-medium text-roman-primary mb-2 flex items-center gap-2">
                 <CheckSquare size={20} /> Validação da Manutenção

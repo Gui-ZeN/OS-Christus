@@ -1,3 +1,6 @@
+import type { TicketStatus } from '../constants/ticketStatus';
+export type { TicketStatus } from '../constants/ticketStatus';
+
 export type ViewState = 'landing' | 'login' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance';
 
 export interface InboxFilter {
@@ -29,7 +32,7 @@ export interface Ticket {
   subject: string;
   requester: string;
   time: Date;
-  status: string;
+  status: TicketStatus;
   type: string;
   region: string;
   sede: string;

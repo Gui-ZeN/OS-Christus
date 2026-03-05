@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Search, Filter, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -7,7 +7,8 @@ import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { InboxFilter, HistoryItem } from '../types';
+import { InboxFilter, HistoryItem, Ticket } from '../types';
+import { TICKET_STATUS } from '../constants/ticketStatus';
 
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
@@ -54,13 +55,14 @@ export function InboxView() {
   const {
     navigateTo,
     openAttachment,
-    setTrackingTicketId,
+    setTrackingTicketToken,
     activeTicketId,
     setActiveTicketId,
     inboxFilter,
     setInboxFilter,
     tickets,
     updateTicket,
+    addTicket,
   } = useApp();
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal'>('internal');
@@ -69,11 +71,12 @@ export function InboxView() {
   const [customEmail, setCustomEmail] = useState('');
 
   const replyFileRef = useRef<HTMLInputElement>(null);
+  const replyTextRef = useRef<HTMLTextAreaElement>(null);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
   // Derived state — usa tickets do contexto (mutável)
   const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0];
-  const isClosed = activeTicket.status === 'Encerrada';
+  const isClosed = activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
 
   // Reseta campos ao trocar de ticket
   useEffect(() => {
@@ -111,8 +114,8 @@ export function InboxView() {
       const items: HistoryItem[] = [];
       let newStatus = activeTicket.status;
 
-      if (activeTicket.status === 'Nova OS' || activeTicket.status.includes('Aprovada na Triagem')) {
-        newStatus = 'Aguardando Parecer Técnico';
+      if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
+        newStatus = TICKET_STATUS.WAITING_TECH_OPINION;
         const target =
           techTeam === 'Terceirizada' && customEmail
             ? customEmail
@@ -127,6 +130,18 @@ export function InboxView() {
           sender,
           time: new Date(now.getTime() + 1),
           text: `Parecer técnico solicitado para ${target}.`,
+        });
+      } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+        newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
+        if (replyText.trim()) {
+          items.push({ id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() });
+        }
+        items.push({
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender,
+          time: new Date(now.getTime() + 1),
+          text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
         });
       } else if (replyText.trim()) {
         items.push({ id: crypto.randomUUID(), type: 'system', sender, time: now, text: replyText.trim() });
@@ -152,7 +167,7 @@ export function InboxView() {
       id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
       time: new Date(), text: 'Execução da obra iniciada.',
     };
-    updateTicket(activeTicket.id, { status: 'Em andamento', history: [...activeTicket.history, item] });
+    updateTicket(activeTicket.id, { status: TICKET_STATUS.IN_PROGRESS, history: [...activeTicket.history, item] });
   };
 
   const handleSendForValidation = () => {
@@ -160,7 +175,7 @@ export function InboxView() {
       id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
       time: new Date(), text: 'Serviço concluído. Aguardando validação do solicitante.',
     };
-    updateTicket(activeTicket.id, { status: 'Aguardando aprovação da manutenção', history: [...activeTicket.history, item] });
+    updateTicket(activeTicket.id, { status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL, history: [...activeTicket.history, item] });
   };
 
   const handleCloseTicket = () => {
@@ -168,18 +183,25 @@ export function InboxView() {
       id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
       time: new Date(), text: 'OS encerrada após confirmação de pagamento.',
     };
-    updateTicket(activeTicket.id, { status: 'Encerrada', history: [...activeTicket.history, item] });
+    updateTicket(activeTicket.id, { status: TICKET_STATUS.CLOSED, history: [...activeTicket.history, item] });
   };
 
   const [isSending, setIsSending] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showQuotesModal, setShowQuotesModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
+  const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
   const [prelimChecked, setPrelimsChecked] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    setShowActionsMenu(false);
+  }, [activeTicketId]);
+
   // useClickOutside substitui o useEffect manual anterior
   const filterMenuRef = useClickOutside<HTMLDivElement>(() => setShowFilterMenu(false));
+  const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
   const [quotes, setQuotes] = useState([
     { vendor: '', value: '' },
@@ -190,6 +212,7 @@ export function InboxView() {
   // Reseta cotações ao trocar de ticket
   useEffect(() => {
     setQuotes([{ vendor: '', value: '' }, { vendor: '', value: '' }, { vendor: '', value: '' }]);
+    setQuoteAttachments([null, null, null]);
   }, [activeTicketId]);
 
   // useMemo evita recalcular em todo re-render
@@ -217,12 +240,17 @@ export function InboxView() {
   let internalButtonText = 'Salvar Nota';
   let internalActionText = 'Ação: Registrar nota no histórico';
 
-  if (activeTicket.status === 'Nova OS' || activeTicket.status.includes('Aprovada na Triagem')) {
+  if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
     internalTabLabel = 'Solicitar Parecer Técnico';
     internalPlaceholder = 'Descreva a solicitação para a equipe técnica...';
     internalButtonText = 'Avançar: Aguardando Parecer';
     internalActionText = `Ação: Disparar e-mail para ${techTeam === 'Terceirizada' && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
-  } else if (activeTicket.status.includes('Cotação')) {
+  } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+    internalTabLabel = 'Enviar Parecer à Diretoria';
+    internalPlaceholder = 'Consolide o parecer técnico antes de enviar para aprovação...';
+    internalButtonText = 'Enviar para Aprovação';
+    internalActionText = 'Ação: Mover para Aguardando Aprovação da Solução';
+  } else if (activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) {
     internalTabLabel = 'Anotação de Cotação';
     internalPlaceholder = 'Registre detalhes das negociações com fornecedores...';
     internalButtonText = 'Salvar Anotação';
@@ -240,6 +268,28 @@ export function InboxView() {
     setQuotes(newQuotes);
   };
 
+  const handleQuoteAttachmentChange = (index: number, file: File | null) => {
+    setQuoteAttachments(prev => prev.map((item, i) => (i === index ? file : item)));
+  };
+
+  const applyFormatting = (type: 'bold' | 'italic' | 'list') => {
+    if (!replyTextRef.current) return;
+    const el = replyTextRef.current;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = replyText.slice(start, end);
+    const before = replyText.slice(0, start);
+    const after = replyText.slice(end);
+
+    let insertion = selected;
+    if (type === 'bold') insertion = `**${selected || 'texto'}**`;
+    if (type === 'italic') insertion = `*${selected || 'texto'}*`;
+    if (type === 'list') insertion = selected ? selected.split('\n').map(line => `- ${line}`).join('\n') : '- item';
+
+    const next = `${before}${insertion}${after}`;
+    setReplyText(next);
+  };
+
   const handleSendToDirector = () => {
     const filled = quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '');
     if (filled.length < 3) {
@@ -249,6 +299,17 @@ export function InboxView() {
     }
     setIsSending(true);
     setTimeout(() => {
+      const historyItem: HistoryItem = {
+        id: crypto.randomUUID(),
+        type: 'system',
+        sender: 'Rafael (Gestor)',
+        time: new Date(),
+        text: 'Orçamentos consolidados e enviados para aprovação da Diretoria.',
+      };
+      updateTicket(activeTicket.id, {
+        status: TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+        history: [...activeTicket.history, historyItem],
+      });
       setIsSending(false);
       setToast('Orçamentos enviados para a Diretoria com sucesso!');
       setTimeout(() => setToast(null), 3000);
@@ -257,7 +318,8 @@ export function InboxView() {
 
   // Usa trackingToken (opaco) em vez do ID sequencial
   const handleCopyLink = () => {
-    const url = `${window.location.origin}/tracking/${activeTicket.trackingToken}`;
+    const trackingToken = encodeURIComponent(activeTicket.trackingToken);
+    const url = `${window.location.origin}/?tracking=${trackingToken}`;
     navigator.clipboard.writeText(url).catch(() => {
       const ta = document.createElement('textarea');
       ta.value = url;
@@ -268,11 +330,103 @@ export function InboxView() {
     });
     setToast('Link copiado para a área de transferência!');
     setTimeout(() => setToast(null), 3000);
+    setShowActionsMenu(false);
   };
 
   const handleOpenTracking = () => {
-    setTrackingTicketId(activeTicket.id);
+    setTrackingTicketToken(activeTicket.trackingToken);
     navigateTo('tracking');
+    setShowActionsMenu(false);
+  };
+
+  const getNextTicketNumber = () => {
+    return tickets.reduce((max, t) => {
+      const n = parseInt(t.id.replace('OS-', ''), 10);
+      return isNaN(n) ? max : Math.max(max, n);
+    }, 0) + 1;
+  };
+
+  const handleDuplicateTicket = () => {
+    const nextNum = getNextTicketNumber();
+    const newId = `OS-${String(nextNum).padStart(4, '0')}`;
+    const newToken = `trk_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    const now = new Date();
+
+    const duplicated: Ticket = {
+      ...activeTicket,
+      id: newId,
+      trackingToken: newToken,
+      status: TICKET_STATUS.NEW,
+      time: now,
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: 'Sistema',
+          time: now,
+          text: `OS duplicada de ${activeTicket.id} e reiniciada para triagem.`,
+        },
+      ],
+    };
+
+    updateTicket(activeTicket.id, {
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: 'Rafael (Gestor)',
+          time: now,
+          text: `OS duplicada para ${newId}.`,
+        },
+      ],
+    });
+
+    addTicket(duplicated);
+    setActiveTicketId(newId);
+    setShowActionsMenu(false);
+    setToast(`OS ${activeTicket.id} duplicada como ${newId}.`);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleCancelTicket = () => {
+    if (activeTicket.status === TICKET_STATUS.CANCELED) return;
+    updateTicket(activeTicket.id, {
+      status: TICKET_STATUS.CANCELED,
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: 'Rafael (Gestor)',
+          time: new Date(),
+          text: 'OS cancelada pelo gestor através do menu de ações.',
+        },
+      ],
+    });
+    setShowActionsMenu(false);
+    setToast(`OS ${activeTicket.id} cancelada.`);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleReopenTicket = () => {
+    updateTicket(activeTicket.id, {
+      status: TICKET_STATUS.IN_PROGRESS,
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: 'Rafael (Gestor)',
+          time: new Date(),
+          text: 'OS reaberta pelo gestor para continuação do atendimento.',
+        },
+      ],
+    });
+    setShowActionsMenu(false);
+    setToast(`OS ${activeTicket.id} reaberta.`);
+    setTimeout(() => setToast(null), 3000);
   };
 
   // Z7: active chips
@@ -306,14 +460,14 @@ export function InboxView() {
 
         {/* Toolbar */}
         <div className="p-2 border-b border-roman-border flex gap-2 bg-roman-bg/50 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: ['Nova OS'] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes('Nova OS') && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Novas OS ({tickets.filter(t => t.status === 'Nova OS').length})
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.NEW] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes(TICKET_STATUS.NEW) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+            Novas OS ({tickets.filter(t => t.status === TICKET_STATUS.NEW).length})
           </button>
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: ['Aguardando Orçamento'] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes('Aguardando Orçamento') && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Aguard. Orçamento ({tickets.filter(t => t.status === 'Aguardando Orçamento').length})
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.WAITING_BUDGET] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes(TICKET_STATUS.WAITING_BUDGET) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+            Aguard. Orçamento ({tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length})
           </button>
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: ['Em andamento'] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes('Em andamento') && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Em Execução ({tickets.filter(t => t.status === 'Em andamento').length})
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.IN_PROGRESS] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes(TICKET_STATUS.IN_PROGRESS) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+            Em Execução ({tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length})
           </button>
           <button onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.length === 0 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
             Limpar Filtros
@@ -376,10 +530,10 @@ export function InboxView() {
                 ? `${activeTicket.subject.substring(0, 20)}…`
                 : activeTicket.subject}
             </div>
-            <div className="h-full px-4 border-r border-roman-border flex items-center gap-2 hover:bg-roman-bg cursor-pointer text-roman-text-sub">
+            <button onClick={() => navigateTo('public-form')} className="h-full px-4 border-r border-roman-border flex items-center gap-2 hover:bg-roman-bg cursor-pointer text-roman-text-sub">
               <Plus size={16} />
               <span className="font-serif">Nova OS</span>
-            </div>
+            </button>
           </div>
           <div className="ml-auto flex items-center gap-3 px-4 relative">
             <div className="flex items-center gap-2 mr-4 text-xs text-roman-text-sub">
@@ -405,11 +559,11 @@ export function InboxView() {
                     Limpar todos
                   </button>
                 </div>
-                {renderFilterSection('Status', 'status', [
-                  'Nova OS', 'Aguardando Parecer Técnico', 'Aguardando Aprovação da Solução',
-                  'Aguardando Orçamento', 'Aguardando Aprovação do Orçamento',
-                  'Aguardando aprovação do contrato', 'Aguardando Ações Preliminares',
-                  'Em andamento', 'Aguardando aprovação da manutenção', 'Aguardando pagamento', 'Encerrada',
+                                {renderFilterSection('Status', 'status', [
+                  TICKET_STATUS.NEW, TICKET_STATUS.WAITING_TECH_OPINION, TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+                  TICKET_STATUS.WAITING_BUDGET, TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+                  TICKET_STATUS.WAITING_CONTRACT_APPROVAL, TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+                  TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL, TICKET_STATUS.WAITING_PAYMENT, TICKET_STATUS.CLOSED,
                 ], inboxFilter, setInboxFilter)}
                 {renderFilterSection('Prioridade', 'priority', ['Urgente', 'Alta', 'Normal', 'Trivial'], inboxFilter, setInboxFilter)}
                 {renderFilterSection('Região', 'region', [
@@ -432,7 +586,38 @@ export function InboxView() {
             <div className="bg-roman-surface p-6 border-b border-roman-border">
               <div className="flex items-start justify-between mb-4">
                 <h1 className="text-3xl font-serif font-medium text-roman-text-main">{activeTicket.subject}</h1>
-                <button className="text-roman-text-sub hover:text-roman-text-main"><MoreHorizontal size={20} /></button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowActionsMenu(v => !v)}
+                    className={`text-roman-text-sub hover:text-roman-text-main ${showActionsMenu ? 'text-roman-primary' : ''}`}
+                    title="Ações da OS"
+                    aria-label="Ações da OS"
+                  >
+                    <MoreHorizontal size={20} />
+                  </button>
+                  {showActionsMenu && (
+                    <div ref={actionsMenuRef} className="absolute right-0 top-7 w-56 bg-roman-surface border border-roman-border shadow-xl rounded-sm z-20 overflow-hidden">
+                      <button onClick={handleCopyLink} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-bg transition-colors">
+                        Copiar link de acompanhamento
+                      </button>
+                      <button onClick={handleOpenTracking} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-bg transition-colors">
+                        Abrir visão do solicitante
+                      </button>
+                      <button onClick={handleDuplicateTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-bg transition-colors">
+                        Duplicar OS
+                      </button>
+                      {(activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED) ? (
+                        <button onClick={handleReopenTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-bg transition-colors text-emerald-700">
+                          Reabrir OS
+                        </button>
+                      ) : (
+                        <button onClick={handleCancelTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 transition-colors text-red-700">
+                          Cancelar OS
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-4 text-roman-text-sub font-serif italic text-sm">
                 <StatusBadge status={activeTicket.status} />
@@ -515,9 +700,9 @@ export function InboxView() {
 
                 {/* Formatting Toolbar */}
                 <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <button className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Bold size={16} /></button>
-                  <button className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Italic size={16} /></button>
-                  <button className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><List size={16} /></button>
+                  <button onClick={() => applyFormatting('bold')} className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Bold size={16} /></button>
+                  <button onClick={() => applyFormatting('italic')} className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Italic size={16} /></button>
+                  <button onClick={() => applyFormatting('list')} className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><List size={16} /></button>
                   <div className="w-px h-4 bg-roman-border mx-1"></div>
                   <button
                     onClick={() => replyFileRef.current?.click()}
@@ -542,6 +727,7 @@ export function InboxView() {
 
                 {/* Textarea */}
                 <textarea
+                  ref={replyTextRef}
                   className="w-full h-24 p-4 outline-none resize-none bg-transparent font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder={isClosed ? 'Esta OS está encerrada e não aceita novos comentários.' : (replyMode === 'internal' ? internalPlaceholder : 'Mensagem para o solicitante...')}
                   value={replyText}
@@ -668,7 +854,7 @@ export function InboxView() {
               </div>
 
               {/* BUDGETS SECTION */}
-              {activeTicket.status.includes('Cotação') && (
+              {(activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) && (
                 <div className="pt-4 border-t border-roman-border">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
@@ -685,17 +871,17 @@ export function InboxView() {
               )}
 
               {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
-              {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento') || activeTicket.status.includes('pagamento')) && (
+              {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS || activeTicket.status === TICKET_STATUS.WAITING_PAYMENT) && (
                 <div className="pt-4 border-t border-roman-border">
                   <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
                   <div className="space-y-2">
-                    {activeTicket.status.includes('Aguardando Ações Preliminares') && (
+                    {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
                       <button onClick={() => { setPrelimsChecked({}); setShowPrelimModal(true); }} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
                         <List size={14} /> Ações Preliminares (Compras)
                       </button>
                     )}
 
-                    {(activeTicket.status.includes('Aguardando Ações Preliminares') || activeTicket.status.includes('Em andamento')) && (
+                    {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS) && (
                       <button
                         onClick={handleStartExecution}
                         className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
@@ -704,7 +890,7 @@ export function InboxView() {
                       </button>
                     )}
 
-                    {activeTicket.status.includes('Em andamento') && (
+                    {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
                       <button
                         onClick={handleSendForValidation}
                         className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
@@ -713,7 +899,7 @@ export function InboxView() {
                       </button>
                     )}
 
-                    {activeTicket.status.includes('pagamento') && (
+                    {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
                       <button
                         onClick={handleCloseTicket}
                         className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 mt-4"
@@ -749,9 +935,15 @@ export function InboxView() {
                   <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
                       <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
-                      <button className="text-xs text-roman-primary hover:underline flex items-center gap-1">
-                        <Paperclip size={12} /> Anexar PDF
-                      </button>
+                      <label className="text-xs text-roman-primary hover:underline flex items-center gap-1 cursor-pointer">
+                        <Paperclip size={12} /> {quoteAttachments[i] ? 'Trocar PDF' : 'Anexar PDF'}
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          className="hidden"
+                          onChange={(e) => handleQuoteAttachmentChange(i, e.target.files?.[0] ?? null)}
+                        />
+                      </label>
                     </div>
                     <div className="space-y-3 flex-1">
                       <div>
@@ -774,6 +966,11 @@ export function InboxView() {
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
                       </div>
+                      {quoteAttachments[i] && (
+                        <div className="text-[11px] text-roman-text-sub truncate">
+                          PDF: {quoteAttachments[i]!.name}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -850,7 +1047,7 @@ export function InboxView() {
                       text: 'Ações preliminares concluídas. Materiais solicitados, equipe escalada e cronograma definido.',
                     };
                     updateTicket(activeTicket.id, {
-                      status: 'Em andamento',
+                      status: TICKET_STATUS.IN_PROGRESS,
                       history: [...activeTicket.history, item],
                     });
                     setShowPrelimModal(false);
@@ -867,3 +1064,4 @@ export function InboxView() {
     </div>
   );
 }
+

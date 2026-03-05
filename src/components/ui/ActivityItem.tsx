@@ -6,7 +6,7 @@ interface ActivityItemProps {
   desc: string;
 }
 
-export function ActivityItem({ time, title, desc }: ActivityItemProps) {
+export const ActivityItem: React.FC<ActivityItemProps> = ({ time, title, desc }) => {
   return (
     <div className="flex gap-4 items-start">
       <div className="text-xs text-roman-text-sub font-serif italic w-12 pt-1">{time}</div>
@@ -16,4 +16,4 @@ export function ActivityItem({ time, title, desc }: ActivityItemProps) {
       </div>
     </div>
   );
-}
+};

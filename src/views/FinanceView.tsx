@@ -3,6 +3,7 @@ import { CheckCircle, Loader2, FileText, DollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
+import { TICKET_STATUS } from '../constants/ticketStatus';
 
 const PAYMENT_DATA: Record<string, { vendor: string; value: string }> = {
   'OS-0041': { vendor: 'Limpeza das Alturas Ltda.', value: 'R$ 3.200,00' },
@@ -16,7 +17,7 @@ export function FinanceView() {
 
   const payments = useMemo(() =>
     tickets
-      .filter(t => t.status === 'Aguardando pagamento')
+      .filter(t => t.status === TICKET_STATUS.WAITING_PAYMENT)
       .map(t => ({
         id: t.id,
         subject: t.subject,
@@ -30,7 +31,7 @@ export function FinanceView() {
     setProcessingId(id);
     setTimeout(() => {
       setProcessingId(null);
-      updateTicket(id, { status: 'Encerrada' });
+      updateTicket(id, { status: TICKET_STATUS.CLOSED });
       setToast(`Pagamento confirmado. OS ${id} encerrada com sucesso.`);
       setTimeout(() => setToast(null), 3000);
     }, 1500);

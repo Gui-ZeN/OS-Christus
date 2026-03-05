@@ -1,22 +1,23 @@
-import React, { useRef, useEffect } from 'react';
-import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell, AlertCircle } from 'lucide-react';
+import React, { lazy, Suspense, useRef, useEffect } from 'react';
+import { Home, Inbox, Users, BarChart2, Settings, Landmark, LogOut, X, FileText, Image as ImageIcon, Shield, DollarSign, Bell } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import { SidebarIcon } from './components/ui/SidebarIcon';
-import { UsersView } from './views/UsersView';
-import { KpiView } from './views/KpiView';
-import { SettingsView } from './views/SettingsView';
-import { TrackingView } from './views/TrackingView';
-import { ApprovalsView } from './views/ApprovalsView';
-import { FinanceView } from './views/FinanceView';
-import { HomeView } from './views/HomeView';
-import { InboxView } from './views/InboxView';
-import { SplitLoginView } from './views/SplitLoginView';
-import { LandingView } from './views/LandingView';
-import { PublicFormView } from './views/PublicFormView';
 import { ViewState } from './types';
 import { useApp } from './context/AppContext';
+
+const UsersView = lazy(async () => ({ default: (await import('./views/UsersView')).UsersView }));
+const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
+const SettingsView = lazy(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
+const TrackingView = lazy(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
+const ApprovalsView = lazy(async () => ({ default: (await import('./views/ApprovalsView')).ApprovalsView }));
+const FinanceView = lazy(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
+const HomeView = lazy(async () => ({ default: (await import('./views/HomeView')).HomeView }));
+const InboxView = lazy(async () => ({ default: (await import('./views/InboxView')).InboxView }));
+const SplitLoginView = lazy(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
+const LandingView = lazy(async () => ({ default: (await import('./views/LandingView')).LandingView }));
+const PublicFormView = lazy(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
 
 export const VIEWS = {
   LANDING: 'landing',
@@ -32,11 +33,27 @@ export const VIEWS = {
   FINANCE: 'finance'
 } as const;
 
+function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
+  if (fullScreen) {
+    return (
+      <div className="h-screen w-full bg-roman-bg flex items-center justify-center text-roman-text-sub font-serif italic">
+        Carregando...
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex items-center justify-center text-roman-text-sub font-serif italic">
+      Carregando...
+    </div>
+  );
+}
+
 export default function App() {
   const {
     currentView,
     navigateTo,
-    trackingTicketId,
+    trackingTicketToken,
     showNotifications,
     setShowNotifications,
     attachmentPreview,
@@ -54,28 +71,6 @@ export default function App() {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node) && showNotifications) {
-        // Check if the click was on the bell icon (which toggles it)
-        // We can't easily check the bell icon ref here without more state, 
-        // but typically the toggle logic handles the "open" click.
-        // If we click outside, we just want to close.
-        // However, if we click the bell again, it might toggle (close then open or open then close).
-        // To avoid conflict, we usually rely on the fact that the bell click handler runs.
-        // But if the bell is outside the notification panel (it is), clicking it will trigger this.
-        // If this runs before the bell click handler, it closes. Then bell handler toggles it back open.
-        // To fix this, we can check if the target is the bell button. 
-        // Or simpler: just set to false. If the bell button was clicked, its handler will toggle it.
-        // If it was true, this sets false. Bell handler sets !true = false. Result: false. Correct.
-        // Wait, if it was true:
-        // Click outside -> sets false.
-        // Click bell -> sets !true (false).
-        // Both set false. Correct.
-        
-        // What if it was false?
-        // Click bell -> sets !false (true).
-        // Click outside (bell is outside) -> sets false.
-        // Race condition.
-        
-        // Let's just implement standard click outside.
         setShowNotifications(false);
       }
     }
@@ -90,28 +85,40 @@ export default function App() {
 
   if (currentView === VIEWS.LANDING) {
     return (
-      <LandingView
-        onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)}
-        onLogin={() => navigateTo(VIEWS.LOGIN)}
-      />
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <LandingView
+          onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)}
+          onLogin={() => navigateTo(VIEWS.LOGIN)}
+        />
+      </Suspense>
     );
   }
 
   if (currentView === VIEWS.PUBLIC_FORM) {
-    return <PublicFormView onBack={() => navigateTo(VIEWS.LANDING)} />;
+    return (
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <PublicFormView onBack={() => navigateTo(VIEWS.LANDING)} />
+      </Suspense>
+    );
   }
 
   if (currentView === VIEWS.LOGIN) {
     return (
-      <SplitLoginView
-        onLogin={() => navigateTo(VIEWS.HOME)}
-        onBack={() => navigateTo(VIEWS.LANDING)}
-      />
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <SplitLoginView
+          onLogin={() => navigateTo(VIEWS.HOME)}
+          onBack={() => navigateTo(VIEWS.LANDING)}
+        />
+      </Suspense>
     );
   }
 
   if (currentView === VIEWS.TRACKING) {
-    return <TrackingView ticketId={trackingTicketId || 'OS-0042'} onBack={() => navigateTo(VIEWS.INBOX)} />;
+    return (
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <TrackingView ticketToken={trackingTicketToken} onBack={() => navigateTo(VIEWS.INBOX)} />
+      </Suspense>
+    );
   }
 
   return (
@@ -217,7 +224,7 @@ export default function App() {
                         e.stopPropagation();
                         markNotificationRead(n.id);
                         if (n.action!.ticketId) setActiveTicketId(n.action!.ticketId);
-                        navigateTo(VIEWS[n.action!.view.toUpperCase() as keyof typeof VIEWS]);
+                        navigateTo(n.action!.view);
                         setShowNotifications(false);
                       }}
                       className={`w-full py-1.5 text-xs font-medium rounded-sm transition-colors border ${
@@ -247,13 +254,15 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {currentView === VIEWS.HOME && <HomeView />}
-        {currentView === VIEWS.INBOX && <InboxView />}
-        {currentView === VIEWS.APPROVALS && <ApprovalsView />}
-        {currentView === VIEWS.FINANCE && <FinanceView />}
-        {currentView === VIEWS.USERS && <UsersView />}
-        {currentView === VIEWS.KPI && <KpiView />}
-        {currentView === VIEWS.SETTINGS && <SettingsView />}
+        <Suspense fallback={<ViewLoader />}>
+          {currentView === VIEWS.HOME && <HomeView />}
+          {currentView === VIEWS.INBOX && <InboxView />}
+          {currentView === VIEWS.APPROVALS && <ApprovalsView />}
+          {currentView === VIEWS.FINANCE && <FinanceView />}
+          {currentView === VIEWS.USERS && <UsersView />}
+          {currentView === VIEWS.KPI && <KpiView />}
+          {currentView === VIEWS.SETTINGS && <SettingsView />}
+        </Suspense>
       </main>
 
       {/* Attachment Modal */}
@@ -300,9 +309,6 @@ export default function App() {
     </div>
   );
 }
-
-
-
 
 
 

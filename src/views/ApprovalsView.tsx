@@ -4,12 +4,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { TICKET_STATUS } from '../constants/ticketStatus';
+import type { TicketStatus } from '../types';
 
-const APPROVAL_STATUS: Record<string, string> = {
-  new_os: 'Aguardando Parecer Técnico',
-  solutions: 'Aguardando Orçamento',
-  budgets: 'Aguardando aprovação do contrato',
-  contracts: 'Aguardando Ações Preliminares',
+const APPROVAL_STATUS: Record<string, TicketStatus> = {
+  new_os: TICKET_STATUS.WAITING_TECH_OPINION,
+  solutions: TICKET_STATUS.WAITING_BUDGET,
+  budgets: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+  contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
 };
 
 const QUOTES_MAP: Record<string, { id: number; vendor: string; value: string; recommended: boolean }[]> = {
@@ -64,7 +66,19 @@ export function ApprovalsView() {
 
     setTimeout(() => {
       setProcessingId(null);
-      updateTicket(rejectTargetId, { status: 'Cancelada' });
+      const targetTicket = tickets.find(t => t.id === rejectTargetId);
+      const reasonText = reason.trim() || 'Motivo não informado.';
+      const historyItem = {
+        id: crypto.randomUUID(),
+        type: 'system' as const,
+        sender: 'Diretoria',
+        time: new Date(),
+        text: `OS cancelada pela Diretoria. Motivo: ${reasonText}`,
+      };
+      updateTicket(rejectTargetId, {
+        status: TICKET_STATUS.CANCELED,
+        history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+      });
       setRejectTargetId(null);
     }, 1500);
   };
@@ -75,14 +89,14 @@ export function ApprovalsView() {
     setAttachContractModalId(null);
     setTimeout(() => {
       setProcessingId(null);
-      updateTicket(attachContractModalId, { status: 'Aguardando Ações Preliminares' });
+      updateTicket(attachContractModalId, { status: TICKET_STATUS.WAITING_PRELIM_ACTIONS });
       setAttachedFile(null);
     }, 1500);
   };
 
   const newOSList = useMemo(() =>
     tickets
-      .filter(t => t.status === 'Nova OS')
+      .filter(t => t.status === TICKET_STATUS.NEW)
       .map(t => ({
         id: t.id,
         subject: t.subject,
@@ -94,7 +108,7 @@ export function ApprovalsView() {
 
   const solutions = useMemo(() =>
     tickets
-      .filter(t => t.status === 'Aguardando Aprovação da Solução')
+      .filter(t => t.status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL)
       .map(t => ({
         id: t.id,
         subject: t.subject,
@@ -106,7 +120,7 @@ export function ApprovalsView() {
 
   const budgets = useMemo(() =>
     tickets
-      .filter(t => t.status === 'Aguardando Aprovação do Orçamento')
+      .filter(t => t.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL)
       .map(t => ({
         id: t.id,
         subject: t.subject,
@@ -119,7 +133,7 @@ export function ApprovalsView() {
 
   const contracts = useMemo(() =>
     tickets
-      .filter(t => t.status === 'Aguardando aprovação do contrato')
+      .filter(t => t.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL)
       .map(t => ({
         id: t.id,
         subject: t.subject,

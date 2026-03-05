@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { ViewState, Ticket, InboxFilter, AppNotification } from '../types';
 import { MOCK_TICKETS } from '../data/mockTickets';
 import { subHours, subDays } from 'date-fns';
+import { TICKET_STATUS } from '../constants/ticketStatus';
 
 interface AppContextType {
   // Navigation
@@ -11,8 +12,8 @@ interface AppContextType {
   // Global State
   activeTicketId: string;
   setActiveTicketId: (id: string) => void;
-  trackingTicketId: string | null;
-  setTrackingTicketId: (id: string | null) => void;
+  trackingTicketToken: string | null;
+  setTrackingTicketToken: (token: string | null) => void;
 
   // UI State
   showNotifications: boolean;
@@ -92,7 +93,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Global State
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
-  const [trackingTicketId, setTrackingTicketId] = useState<string | null>(null);
+  const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   
   // UI State
   const [showNotifications, setShowNotifications] = useState(false);
@@ -137,7 +138,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let updated = ticket;
 
         // Z1: SLA Check — atualiza via estado, sem mutação direta
-        if (ticket.sla && ticket.status !== 'Encerrada') {
+        if (ticket.sla && ticket.status !== TICKET_STATUS.CLOSED) {
           if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
             updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
           } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
@@ -155,6 +156,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     runAutomations();
     const interval = setInterval(runAutomations, 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryTracking = params.get('tracking');
+    const pathMatch = window.location.pathname.match(/^\/tracking\/([^/]+)\/?$/);
+    const pathTracking = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+    const initialTracking = queryTracking || pathTracking;
+
+    if (initialTracking) {
+      setTrackingTicketToken(initialTracking);
+      setCurrentView('tracking');
+      return;
+    }
+
+    const requestedView = params.get('view');
+    if (requestedView === 'public-form') {
+      setCurrentView('public-form');
+      return;
+    }
+    if (requestedView === 'login') {
+      setCurrentView('login');
+    }
   }, []);
 
   useEffect(() => {
@@ -194,14 +218,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAttachmentPreview(null);
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (currentView === 'tracking' && trackingTicketToken) {
+      params.set('tracking', trackingTicketToken);
+      params.delete('view');
+    } else {
+      params.delete('tracking');
+      if (currentView === 'public-form' || currentView === 'login') {
+        params.set('view', currentView);
+      } else {
+        params.delete('view');
+      }
+    }
+
+    const query = params.toString();
+    const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [currentView, trackingTicketToken]);
+
   return (
     <AppContext.Provider value={{
       currentView,
       navigateTo,
       activeTicketId,
       setActiveTicketId,
-      trackingTicketId,
-      setTrackingTicketId,
+      trackingTicketToken,
+      setTrackingTicketToken,
       showNotifications,
       setShowNotifications,
       attachmentPreview,
