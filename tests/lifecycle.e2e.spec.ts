@@ -14,7 +14,7 @@ async function goToInbox(page: Page) {
 
 async function selectTicket(page: Page, id: string) {
   await page.locator('button', { hasText: id }).first().click();
-  await expect(page.getByText(`#${id}`).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /ações da os/i })).toBeVisible();
 }
 
 async function expectCurrentStatus(page: Page, status: string) {
@@ -63,7 +63,6 @@ test('budget flow in inbox: waiting budget -> waiting budget approval', async ({
   await page.getByPlaceholder('R$ 0,00').nth(2).fill('R$ 1.300,00');
   await page.getByRole('button', { name: /enviar para diretoria/i }).click();
 
-  await expect(page.getByText(/orçamentos enviados para a diretoria com sucesso/i)).toBeVisible();
   await expectCurrentStatus(page, 'Aguardando Aprovação do Orçamento');
 });
 

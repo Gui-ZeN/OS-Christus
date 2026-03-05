@@ -38,6 +38,25 @@ export function ApprovalsView() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAttachContractModalId(null);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  React.useEffect(() => {
+    if (!attachContractModalId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [attachContractModalId]);
+
   const handleApprove = (id: string, tab: 'new_os' | 'solutions' | 'budgets' | 'contracts') => {
     setProcessingId(id);
     setTimeout(() => {
@@ -384,7 +403,15 @@ export function ApprovalsView() {
 
       {/* Attach Contract Modal */}
       {attachContractModalId && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAttachContractModalId(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Anexar contrato assinado"
+        >
           <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Anexar Contrato Assinado</h3>

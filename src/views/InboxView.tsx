@@ -189,15 +189,44 @@ export function InboxView() {
   const [isSending, setIsSending] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showMobileTicketList, setShowMobileTicketList] = useState(false);
+  const [showMobileContext, setShowMobileContext] = useState(false);
   const [showQuotesModal, setShowQuotesModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
   const [prelimChecked, setPrelimsChecked] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<string | null>(null);
+  const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
+  const shouldLockBodyScroll = isMobileOverlayOpen || showQuotesModal || showPrelimModal;
+
+  useEffect(() => {
+    function handleEsc(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (showQuotesModal) setShowQuotesModal(false);
+      if (showPrelimModal) setShowPrelimModal(false);
+      if (showActionsMenu) setShowActionsMenu(false);
+      if (showFilterMenu) setShowFilterMenu(false);
+      if (showMobileTicketList) setShowMobileTicketList(false);
+      if (showMobileContext) setShowMobileContext(false);
+    }
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [showQuotesModal, showPrelimModal, showActionsMenu, showFilterMenu, showMobileTicketList, showMobileContext]);
 
   useEffect(() => {
     setShowActionsMenu(false);
+    setShowMobileTicketList(false);
+    setShowMobileContext(false);
   }, [activeTicketId]);
+
+  useEffect(() => {
+    if (!shouldLockBodyScroll) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [shouldLockBodyScroll]);
 
   // useClickOutside substitui o useEffect manual anterior
   const filterMenuRef = useClickOutside<HTMLDivElement>(() => setShowFilterMenu(false));
@@ -337,6 +366,7 @@ export function InboxView() {
     setTrackingTicketToken(activeTicket.trackingToken);
     navigateTo('tracking');
     setShowActionsMenu(false);
+    setShowMobileContext(false);
   };
 
   const getNextTicketNumber = () => {
@@ -448,14 +478,38 @@ export function InboxView() {
         </div>
       )}
 
+      {isMobileOverlayOpen && (
+        <button
+          className="md:hidden fixed inset-0 bg-black/40 z-30"
+          onClick={() => {
+            setShowMobileTicketList(false);
+            setShowMobileContext(false);
+          }}
+          aria-label="Fechar painéis móveis"
+        />
+      )}
+
       {/* Ticket List Pane */}
-      <div className="w-80 bg-roman-surface border-r border-roman-border flex flex-col z-10 shadow-[1px_0_5px_rgba(0,0,0,0.02)]">
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[86vw] max-w-80 md:w-80 bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="h-14 border-b border-roman-border flex items-center justify-between px-4 hover:bg-roman-bg cursor-pointer">
           <div className="flex items-center gap-2">
             <h2 className="font-serif text-[16px] font-semibold tracking-wide">Minhas Filas (Rafael)</h2>
             <ChevronDown size={16} className="text-roman-text-sub" />
           </div>
-          <span className="text-roman-text-sub font-serif italic text-sm">{tickets.length}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-roman-text-sub font-serif italic text-sm">{tickets.length}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMobileTicketList(false);
+                setShowMobileContext(false);
+              }}
+              className="md:hidden text-roman-text-sub hover:text-roman-text-main"
+              aria-label="Fechar lista"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -511,7 +565,10 @@ export function InboxView() {
                 priority={ticket.priority}
                 viewingBy={ticket.viewingBy}
                 active={activeTicketId === ticket.id}
-                onClick={() => setActiveTicketId(ticket.id)}
+                onClick={() => {
+                  setActiveTicketId(ticket.id);
+                  setShowMobileTicketList(false);
+                }}
               />
             ))
           )}
@@ -522,7 +579,34 @@ export function InboxView() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navigation */}
         <header className="h-12 bg-roman-surface border-b border-roman-border flex items-center px-2">
-          <div className="flex h-full">
+          <div className="md:hidden flex h-full items-center gap-2 px-2">
+            <button
+              onClick={() => {
+                setShowMobileTicketList(prev => !prev);
+                setShowMobileContext(false);
+              }}
+              className="px-2 py-1 border border-roman-border rounded-sm text-xs text-roman-text-main"
+              aria-expanded={showMobileTicketList}
+              aria-controls="ticket-list-drawer"
+            >
+              Filas
+            </button>
+            <div className="text-[11px] text-roman-text-sub font-medium max-w-[42vw] truncate" title={`${activeTicket.id} · ${activeTicket.status}`}>
+              #{activeTicket.id} · {activeTicket.status}
+            </div>
+            <button
+              onClick={() => {
+                setShowMobileContext(prev => !prev);
+                setShowMobileTicketList(false);
+              }}
+              className="px-2 py-1 border border-roman-border rounded-sm text-xs text-roman-text-main"
+              aria-expanded={showMobileContext}
+              aria-controls="context-drawer"
+            >
+              Dados
+            </button>
+          </div>
+          <div className="hidden md:flex h-full">
             <div className="h-full px-4 border-r border-roman-border flex items-center gap-2 bg-roman-bg border-t-2 border-t-roman-primary font-medium">
               <span className="w-2 h-2 rounded-full bg-roman-primary"></span>
               <span className="font-serif italic text-roman-text-sub mr-1">#{activeTicket.id}</span>
@@ -536,7 +620,7 @@ export function InboxView() {
             </button>
           </div>
           <div className="ml-auto flex items-center gap-3 px-4 relative">
-            <div className="flex items-center gap-2 mr-4 text-xs text-roman-text-sub">
+            <div className="hidden md:flex items-center gap-2 mr-4 text-xs text-roman-text-sub">
               <User size={14} />
               <span>Visualizando como: <strong>Rafael (Gestor)</strong></span>
             </div>
@@ -545,6 +629,7 @@ export function InboxView() {
               className={`transition-colors ${showFilterMenu || Object.values(inboxFilter).some(arr => (arr as string[]).length > 0) ? 'text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}
               title="Filtros compostos"
               aria-label="Filtros compostos"
+              aria-expanded={showFilterMenu}
             >
               <Filter size={18} />
             </button>
@@ -592,6 +677,7 @@ export function InboxView() {
                     className={`text-roman-text-sub hover:text-roman-text-main ${showActionsMenu ? 'text-roman-primary' : ''}`}
                     title="Ações da OS"
                     aria-label="Ações da OS"
+                    aria-expanded={showActionsMenu}
                   >
                     <MoreHorizontal size={20} />
                   </button>
@@ -782,9 +868,19 @@ export function InboxView() {
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside className="w-80 bg-roman-surface border-l border-roman-border flex flex-col">
-            <div className="h-12 border-b border-roman-border flex items-center px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
-              Dados da OS
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[86vw] max-w-80 md:w-80 bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+            <div className="h-12 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
+              <span>Dados da OS</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMobileContext(false);
+                }}
+                className="md:hidden text-roman-text-sub hover:text-roman-text-main"
+                aria-label="Fechar painel de dados"
+              >
+                <X size={16} />
+              </button>
             </div>
             <div className="p-4 space-y-5 overflow-y-auto">
               <PropertyField label="Status Atual" value={activeTicket.status} highlight />
@@ -918,7 +1014,15 @@ export function InboxView() {
 
       {/* Quotes Modal */}
       {showQuotesModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowQuotesModal(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Gestão de orçamentos"
+        >
           <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-2xl overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Gestão de Orçamentos</h3>
@@ -1001,7 +1105,15 @@ export function InboxView() {
 
       {/* Ações Preliminares Modal */}
       {showPrelimModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowPrelimModal(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ações preliminares"
+        >
           <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Ações Preliminares</h3>

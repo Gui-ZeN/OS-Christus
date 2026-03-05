@@ -54,3 +54,28 @@ test('notifications and tracking smoke', async ({ page }) => {
   await page.getByRole('button', { name: /voltar ao sistema interno/i }).click();
   await expect(page.getByText(/Minhas Filas/i)).toBeVisible();
 });
+
+test('mobile drawers and modal dismissal smoke', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsManager(page);
+  await page.locator('button[title="Caixa de Entrada"]').click();
+  await expect(page.getByText(/Minhas Filas/i)).toBeVisible();
+
+  await page.getByRole('button', { name: /^filas$/i }).click();
+  await expect(page.getByLabel(/fechar lista/i)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: /^filas$/i })).toHaveAttribute('aria-expanded', 'false');
+
+  await page.getByRole('button', { name: /^dados$/i }).click();
+  await expect(page.getByLabel(/fechar painel de dados/i)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: /^dados$/i })).toHaveAttribute('aria-expanded', 'false');
+
+  await page.getByRole('button', { name: /^filas$/i }).click();
+  await page.getByText('OS-0047').first().click();
+  await page.getByRole('button', { name: /^dados$/i }).click();
+  await page.getByRole('button', { name: /gerenciar cotações/i }).click();
+  await expect(page.getByRole('dialog', { name: /gestão de orçamentos/i })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: /gestão de orçamentos/i })).toHaveCount(0);
+});

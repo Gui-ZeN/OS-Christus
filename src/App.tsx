@@ -83,6 +83,25 @@ export default function App() {
     };
   }, [showNotifications, setShowNotifications]);
 
+  useEffect(() => {
+    function handleEsc(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (attachmentPreview) closeAttachment();
+      if (showNotifications) setShowNotifications(false);
+    }
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [attachmentPreview, closeAttachment, showNotifications, setShowNotifications]);
+
+  useEffect(() => {
+    if (!attachmentPreview) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [attachmentPreview]);
+
   if (currentView === VIEWS.LANDING) {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
@@ -147,6 +166,7 @@ export default function App() {
               className={`transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/40 hover:text-white/80'}`}
               title="Notificações"
               aria-label="Notificações"
+              aria-expanded={showNotifications}
             >
               <Bell size={18} />
             </button>
@@ -267,7 +287,15 @@ export default function App() {
 
       {/* Attachment Modal */}
       {attachmentPreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-in fade-in">
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeAttachment();
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Visualizador de anexo"
+        >
           <div className="bg-roman-surface w-full max-w-4xl h-[80vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-stone-700">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-stone-900 text-white">
               <div className="flex items-center gap-3">
@@ -309,10 +337,6 @@ export default function App() {
     </div>
   );
 }
-
-
-
-
 
 
 
