@@ -5,6 +5,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
+import { uploadClosureDocument } from '../services/ticketStorage';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
 
@@ -102,6 +103,7 @@ export function FinanceView() {
   const [measurementDraftByTicket, setMeasurementDraftByTicket] = useState<Record<string, MeasurementFormState>>({});
   const [measurementFormOpen, setMeasurementFormOpen] = useState<Record<string, boolean>>({});
   const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
+  const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
 
   if (!canAccess) {
     return (
@@ -229,6 +231,49 @@ export function FinanceView() {
         ...updates,
       },
     }));
+  };
+
+  const handleClosureDocumentUpload = async (ticketId: string, file: File | null) => {
+    if (!file) return;
+    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
+    if (!targetTicket) return;
+
+    setUploadingTicketId(ticketId);
+    try {
+      const uploaded = await uploadClosureDocument(ticketId, file);
+      const currentDocuments = targetTicket.closureChecklist?.documents || [];
+      updateTicket(ticketId, {
+        closureChecklist: {
+          requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
+          requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
+          requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
+          infrastructureApprovedByRafael: targetTicket.closureChecklist?.infrastructureApprovedByRafael ?? false,
+          infrastructureApprovedByFernando: targetTicket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+          closureNotes: targetTicket.closureChecklist?.closureNotes || '',
+          serviceStartedAt: targetTicket.closureChecklist?.serviceStartedAt || null,
+          serviceCompletedAt: targetTicket.closureChecklist?.serviceCompletedAt || null,
+          closedAt: targetTicket.closureChecklist?.closedAt || null,
+          documents: [uploaded, ...currentDocuments],
+        },
+        history: [
+          ...targetTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: 'Financeiro',
+            time: new Date(),
+            text: `Documento de encerramento anexado: ${uploaded.name}.`,
+          },
+        ],
+      });
+      setToast(`Documento ${uploaded.name} anexado com sucesso.`);
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(`Erro: ${error instanceof Error ? error.message : 'falha no upload do documento.'}`);
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setUploadingTicketId(null);
+    }
   };
 
   const generatePaymentPlan = async (ticketId: string, totalValue: number, vendor: string, parts: number) => {
@@ -403,6 +448,7 @@ export function FinanceView() {
               serviceStartedAt,
               serviceCompletedAt,
               closedAt,
+              documents: targetTicket.closureChecklist?.documents || [],
             }
           : targetTicket.closureChecklist;
         const guarantee: GuaranteeInfo | undefined = allPaid && serviceCompletedAt
@@ -464,6 +510,7 @@ export function FinanceView() {
             const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';
             const measurementDraft = getMeasurementDraft(ticket.id);
             const closureDraft = getClosureDraft(ticket.id, ticket.closureChecklist, ticket.guarantee);
+            const closureDocuments = ticket.closureChecklist?.documents || [];
 
             return (
               <div key={ticket.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden">
@@ -796,6 +843,56 @@ export function FinanceView() {
                         />
                       </div>
 
+                      <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-4 py-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="text-sm font-semibold text-roman-text-main">Laudos e anexos de encerramento</div>
+                            <div className="text-xs text-roman-text-sub mt-1">Envie PDF para laudos e imagens para evidências fotográficas.</div>
+                          </div>
+                          <label className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
+                            {uploadingTicketId === ticket.id ? 'Enviando...' : 'Anexar documento'}
+                            <input
+                              type="file"
+                              accept=".pdf,image/*"
+                              className="hidden"
+                              disabled={uploadingTicketId === ticket.id}
+                              onChange={event => {
+                                const file = event.target.files?.[0] || null;
+                                void handleClosureDocumentUpload(ticket.id, file);
+                                event.currentTarget.value = '';
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {closureDocuments.length === 0 ? (
+                          <div className="mt-3 text-sm text-roman-text-sub font-serif italic">Nenhum laudo ou anexo vinculado ao encerramento.</div>
+                        ) : (
+                          <div className="mt-3 space-y-2">
+                            {closureDocuments.map(document => (
+                              <div key={document.id} className="border border-roman-border rounded-sm bg-roman-bg px-3 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <div>
+                                  <div className="text-sm font-medium text-roman-text-main">{document.name}</div>
+                                  <div className="text-xs text-roman-text-sub">
+                                    {document.category === 'closure_report' ? 'Laudo / PDF' : 'Evidência'} | {document.size ? `${Math.round(document.size / 1024)} KB` : 'tamanho não informado'}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-roman-text-sub">{formatDateLabel(document.uploadedAt)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => window.open(document.url, '_blank', 'noopener,noreferrer')}
+                                    className="text-sm font-medium text-roman-primary hover:underline"
+                                  >
+                                    Abrir
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       {ticket.guarantee && (
                         <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
                           <div className="font-medium text-roman-text-main mb-1">Garantia atual</div>
@@ -819,6 +916,7 @@ export function FinanceView() {
                         <div>Pago até agora: {formatCurrency(paidValue)}</div>
                         <div>Saldo pendente: {formatCurrency(remainingValue)}</div>
                         <div>Classificacao: {ticket.serviceCatalogName || ticket.macroServiceName || 'Nao definida'}</div>
+                        <div>Laudos anexados: {closureDocuments.length}</div>
                         <div>Parcelas pendentes: {pendingInstallments.length}</div>
                         <div>MediÃ§Ãµes registradas: {measurements.length}</div>
                         <div>Ãšltima atualizaÃ§Ã£o: {formatDistanceToNowSafe(ticket.time)}</div>

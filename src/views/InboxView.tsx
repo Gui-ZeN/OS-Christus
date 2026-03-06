@@ -1498,6 +1498,7 @@ export function InboxView() {
                         <div>Infra Fernando: {activeTicket.closureChecklist.infrastructureApprovedByFernando ? 'confirmado' : 'pendente'}</div>
                         <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
                         <div>Término do serviço: {formatShortDate(activeTicket.closureChecklist.serviceCompletedAt)}</div>
+                        <div>Laudos anexados: {activeTicket.closureChecklist.documents?.length || 0}</div>
                       </div>
                     )}
 

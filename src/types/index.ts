@@ -21,6 +21,17 @@ export interface HistoryItem {
   to?: string;
 }
 
+export interface TicketAttachment {
+  id: string;
+  name: string;
+  path: string;
+  url: string;
+  contentType?: string | null;
+  size?: number | null;
+  uploadedAt?: Date | null;
+  category?: 'closure_report' | 'closure_evidence' | 'attachment';
+}
+
 export interface SLAStatus {
   dueAt: Date;
   status: 'on_time' | 'at_risk' | 'overdue';
@@ -50,6 +61,7 @@ export interface ClosureChecklist {
   serviceStartedAt?: Date | null;
   serviceCompletedAt?: Date | null;
   closedAt?: Date | null;
+  documents?: TicketAttachment[];
 }
 
 export interface GuaranteeInfo {

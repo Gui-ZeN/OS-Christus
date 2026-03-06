@@ -333,6 +333,9 @@ export function HomeView() {
                     <div>
                       <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
                       <div className="text-xs text-roman-text-sub">{ticket.requester} • {ticket.sede} • {ticket.region}</div>
+                      <div className="text-xs text-roman-text-sub mt-1">
+                        Laudos anexados: {ticket.closureChecklist?.documents?.length || 0}
+                      </div>
                     </div>
                     <div className="text-xs text-roman-text-sub md:text-right">
                       <div>{ticket.status}</div>
