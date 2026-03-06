@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
+function normalizePath(id: string) {
+  return id.replace(/\\/g, '/');
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
@@ -19,10 +23,17 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('recharts')) return 'charts';
-            if (id.includes('date-fns')) return 'date-fns';
-            if (id.includes('lucide-react')) return 'icons';
-            if (id.includes('node_modules')) return 'vendor';
+            const normalizedId = normalizePath(id);
+
+            if (!normalizedId.includes('/node_modules/')) return undefined;
+            if (normalizedId.includes('/react/') || normalizedId.includes('/react-dom/') || normalizedId.includes('/scheduler/')) return 'react-core';
+            if (normalizedId.includes('/firebase/') || normalizedId.includes('/@firebase/')) return 'firebase';
+            if (normalizedId.includes('/recharts/')) return 'charts';
+            if (normalizedId.includes('/date-fns/')) return 'date-fns';
+            if (normalizedId.includes('/lucide-react/')) return 'icons';
+            if (normalizedId.includes('/motion/')) return 'motion';
+            if (normalizedId.includes('/@babel/')) return 'babel-runtime';
+            return 'vendor';
           },
         },
       },
