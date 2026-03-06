@@ -5,7 +5,7 @@ import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { InboxFilter, HistoryItem, Quote, Ticket } from '../types';
+import { InboxFilter, HistoryItem, PreliminaryActions, Quote, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
@@ -43,6 +43,76 @@ const EMPTY_TICKET: Ticket = {
   history: [],
   viewingBy: null,
 };
+
+const PRELIMINARY_ITEMS = [
+  { id: 'materialRequested', label: 'Compra de material solicitada' },
+  { id: 'teamConfirmed', label: 'Equipe responsável confirmada' },
+  { id: 'sitePrepared', label: 'Local organizado para manutenção' },
+  { id: 'scheduleDefined', label: 'Cronograma de atividades definido' },
+  { id: 'stakeholderAligned', label: 'Alinhamento com direção/supervisão concluído' },
+  { id: 'accessReleased', label: 'Acesso ao local liberado pela unidade' },
+] as const;
+
+type PreliminaryChecklistKey = (typeof PRELIMINARY_ITEMS)[number]['id'];
+
+interface PreliminaryFormState {
+  materialRequested: boolean;
+  materialEta: string;
+  teamConfirmed: boolean;
+  sitePrepared: boolean;
+  scheduleDefined: boolean;
+  stakeholderAligned: boolean;
+  accessReleased: boolean;
+  plannedStartAt: string;
+  blockerNotes: string;
+}
+
+function formatInputDate(value?: Date | null) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
+  return value.toISOString().slice(0, 10);
+}
+
+function formatShortDate(value?: Date | null) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return 'Nao definido';
+  return value.toLocaleDateString('pt-BR');
+}
+
+function createPreliminaryFormState(preliminaryActions?: PreliminaryActions): PreliminaryFormState {
+  return {
+    materialRequested: preliminaryActions?.materialRequested ?? false,
+    materialEta: formatInputDate(preliminaryActions?.materialEta),
+    teamConfirmed: preliminaryActions?.teamConfirmed ?? false,
+    sitePrepared: preliminaryActions?.sitePrepared ?? false,
+    scheduleDefined: preliminaryActions?.scheduleDefined ?? false,
+    stakeholderAligned: preliminaryActions?.stakeholderAligned ?? false,
+    accessReleased: preliminaryActions?.accessReleased ?? false,
+    plannedStartAt: formatInputDate(preliminaryActions?.plannedStartAt),
+    blockerNotes: preliminaryActions?.blockerNotes ?? '',
+  };
+}
+
+function arePreliminaryActionsReady(form: PreliminaryFormState) {
+  return PRELIMINARY_ITEMS.every(item => form[item.id]);
+}
+
+function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
+  if (!preliminaryActions) return 'Nenhuma ação preliminar registrada.';
+
+  const completed = PRELIMINARY_ITEMS.filter(item => preliminaryActions[item.id]).length;
+  const parts = [`${completed}/${PRELIMINARY_ITEMS.length} itens concluídos`];
+
+  if (preliminaryActions.materialEta) {
+    parts.push(`material previsto para ${formatShortDate(preliminaryActions.materialEta)}`);
+  }
+  if (preliminaryActions.plannedStartAt) {
+    parts.push(`início previsto em ${formatShortDate(preliminaryActions.plannedStartAt)}`);
+  }
+  if (preliminaryActions.blockerNotes?.trim()) {
+    parts.push('há impedimentos registrados');
+  }
+
+  return parts.join(' | ');
+}
 
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
@@ -122,6 +192,10 @@ export function InboxView() {
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
   }, [activeTicketId]);
+
+  useEffect(() => {
+    setPrelimForm(createPreliminaryFormState(activeTicket.preliminaryActions));
+  }, [activeTicket.id, activeTicket.preliminaryActions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,13 +315,88 @@ export function InboxView() {
     if (replyFileRef.current) replyFileRef.current.value = '';
   };
 
+  const handlePrelimFieldToggle = (field: PreliminaryChecklistKey) => {
+    setPrelimForm(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const handlePrelimFieldChange = (field: 'materialEta' | 'plannedStartAt' | 'blockerNotes', value: string) => {
+    setPrelimForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const buildPreliminaryActionsPayload = (withActualStart: boolean): PreliminaryActions => ({
+    materialRequested: prelimForm.materialRequested,
+    materialEta: prelimForm.materialEta ? new Date(`${prelimForm.materialEta}T12:00:00`) : null,
+    teamConfirmed: prelimForm.teamConfirmed,
+    sitePrepared: prelimForm.sitePrepared,
+    scheduleDefined: prelimForm.scheduleDefined,
+    stakeholderAligned: prelimForm.stakeholderAligned,
+    accessReleased: prelimForm.accessReleased,
+    plannedStartAt: prelimForm.plannedStartAt ? new Date(`${prelimForm.plannedStartAt}T12:00:00`) : null,
+    actualStartAt: withActualStart ? new Date() : activeTicket.preliminaryActions?.actualStartAt || null,
+    blockerNotes: prelimForm.blockerNotes.trim(),
+    updatedAt: new Date(),
+  });
+
+  const handleSavePreliminaryActions = (startExecution: boolean) => {
+    const isReady = arePreliminaryActionsReady(prelimForm);
+    if (startExecution && !isReady) {
+      setToast('Erro: conclua todas as ações preliminares antes de iniciar a execução.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (startExecution && !prelimForm.plannedStartAt) {
+      setToast('Erro: informe a data prevista de início antes de iniciar a execução.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const now = new Date();
+    const preliminaryActions = buildPreliminaryActionsPayload(startExecution);
+    const historyText = startExecution
+      ? `Ações preliminares concluídas. Execução liberada com início previsto em ${formatShortDate(preliminaryActions.plannedStartAt)}.`
+      : `Ações preliminares atualizadas. ${buildPreliminarySummary(preliminaryActions)}.`;
+
+    const item: HistoryItem = {
+      id: crypto.randomUUID(),
+      type: 'system',
+      sender: 'Rafael (Gestor)',
+      time: now,
+      text: historyText,
+    };
+
+    updateTicket(activeTicket.id, {
+      status: startExecution ? TICKET_STATUS.IN_PROGRESS : activeTicket.status,
+      preliminaryActions,
+      history: [...activeTicket.history, item],
+    });
+
+    setShowPrelimModal(false);
+    if (startExecution) {
+      setToast('Execução liberada com checklist preliminar concluído.');
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   // Controle de Execução
   const handleStartExecution = () => {
+    if (activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) {
+      setShowPrelimModal(true);
+      return;
+    }
+
+    const preliminaryActions = activeTicket.preliminaryActions
+      ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || new Date(), updatedAt: new Date() }
+      : undefined;
     const item: HistoryItem = {
       id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
       time: new Date(), text: 'Execução da obra iniciada.',
     };
-    updateTicket(activeTicket.id, { status: TICKET_STATUS.IN_PROGRESS, history: [...activeTicket.history, item] });
+    updateTicket(activeTicket.id, {
+      status: TICKET_STATUS.IN_PROGRESS,
+      preliminaryActions,
+      history: [...activeTicket.history, item],
+    });
   };
 
   const handleSendForValidation = () => {
@@ -275,7 +424,7 @@ export function InboxView() {
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
-  const [prelimChecked, setPrelimsChecked] = useState<Record<string, boolean>>({});
+  const [prelimForm, setPrelimForm] = useState<PreliminaryFormState>(createPreliminaryFormState());
   const [toast, setToast] = useState<string | null>(null);
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
   const shouldLockBodyScroll = isMobileOverlayOpen || showQuotesModal || showPrelimModal;
@@ -1077,9 +1226,17 @@ export function InboxView() {
               {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS || activeTicket.status === TICKET_STATUS.WAITING_PAYMENT) && (
                 <div className="pt-4 border-t border-roman-border">
                   <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
+                  {activeTicket.preliminaryActions && (
+                    <div className="mb-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                      <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
+                      <div>{buildPreliminarySummary(activeTicket.preliminaryActions)}</div>
+                      <div>Início previsto: {formatShortDate(activeTicket.preliminaryActions.plannedStartAt)}</div>
+                      <div>Material previsto: {formatShortDate(activeTicket.preliminaryActions.materialEta)}</div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
-                      <button onClick={() => { setPrelimsChecked({}); setShowPrelimModal(true); }} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                      <button onClick={() => setShowPrelimModal(true)} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
                         <List size={14} /> Ações Preliminares (Compras)
                       </button>
                     )}
@@ -1089,7 +1246,7 @@ export function InboxView() {
                         onClick={handleStartExecution}
                         className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
                       >
-                        <Play size={14} /> Iniciar Execução da Obra
+                        <Play size={14} /> {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ? 'Revisar Checklist para Início' : 'Iniciar Execução da Obra'}
                       </button>
                     )}
 
@@ -1223,56 +1380,90 @@ export function InboxView() {
           aria-modal="true"
           aria-label="Ações preliminares"
         >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-md overflow-hidden">
+          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-2xl overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Ações Preliminares</h3>
               <button onClick={() => setShowPrelimModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
             </div>
-            <div className="p-6">
-              <p className="text-sm text-roman-text-sub mb-4 font-serif italic">Confirme cada item antes de liberar a execução do serviço.</p>
-              <div className="space-y-2 mb-6">
-                {[
-                  { id: 'materiais', label: 'Materiais solicitados ao almoxarifado' },
-                  { id: 'equipe', label: 'Disponibilidade da equipe confirmada' },
-                  { id: 'cronograma', label: 'Cronograma de execução definido' },
-                  { id: 'acesso', label: 'Acesso ao local liberado com o solicitante' },
-                ].map(item => (
+            <div className="p-6 space-y-6">
+              <div>
+                <p className="text-sm text-roman-text-sub font-serif italic">
+                  Registre compras, cronograma, liberações e impedimentos antes de iniciar a execução.
+                </p>
+                <p className="mt-2 text-xs text-roman-text-sub">
+                  Checklist concluído: {PRELIMINARY_ITEMS.filter(item => prelimForm[item.id]).length}/{PRELIMINARY_ITEMS.length}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {PRELIMINARY_ITEMS.map(item => (
                   <button
                     key={item.id}
-                    onClick={() => setPrelimsChecked(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                    onClick={() => handlePrelimFieldToggle(item.id)}
                     className={`w-full flex items-center gap-3 p-3 border rounded-sm text-left transition-colors ${
-                      prelimChecked[item.id]
+                      prelimForm[item.id]
                         ? 'border-roman-primary bg-roman-primary/5 text-roman-primary'
                         : 'border-roman-border text-roman-text-main hover:border-roman-primary/50'
                     }`}
                   >
-                    <div className={`w-4 h-4 border rounded-sm flex items-center justify-center flex-shrink-0 ${prelimChecked[item.id] ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
-                      {prelimChecked[item.id] && <CheckSquare size={10} className="text-white" />}
+                    <div className={`w-4 h-4 border rounded-sm flex items-center justify-center flex-shrink-0 ${prelimForm[item.id] ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
+                      {prelimForm[item.id] && <CheckSquare size={10} className="text-white" />}
                     </div>
                     <span className="text-sm font-medium">{item.label}</span>
                   </button>
                 ))}
               </div>
-              <div className="flex justify-end gap-3">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Previsão de chegada do material</label>
+                  <input
+                    type="date"
+                    value={prelimForm.materialEta}
+                    onChange={e => handlePrelimFieldChange('materialEta', e.target.value)}
+                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Data prevista para início</label>
+                  <input
+                    type="date"
+                    value={prelimForm.plannedStartAt}
+                    onChange={e => handlePrelimFieldChange('plannedStartAt', e.target.value)}
+                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impedimentos / observações</label>
+                <textarea
+                  value={prelimForm.blockerNotes}
+                  onChange={e => handlePrelimFieldChange('blockerNotes', e.target.value)}
+                  placeholder="Ex: aguardando liberação da unidade, janela sem aula, entrega do fornecedor."
+                  className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+                />
+              </div>
+
+              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                <div className="font-medium text-roman-text-main">Resumo operacional</div>
+                <div>{buildPreliminarySummary(buildPreliminaryActionsPayload(false))}</div>
+                {prelimForm.blockerNotes.trim() && <div>Impedimentos: {prelimForm.blockerNotes.trim()}</div>}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
                 <button onClick={() => setShowPrelimModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
                   Cancelar
                 </button>
                 <button
-                  disabled={!['materiais', 'equipe', 'cronograma', 'acesso'].every(id => prelimChecked[id])}
-                  onClick={() => {
-                    const item: HistoryItem = {
-                      id: crypto.randomUUID(),
-                      type: 'system',
-                      sender: 'Rafael (Gestor)',
-                      time: new Date(),
-                      text: 'Ações preliminares concluídas. Materiais solicitados, equipe escalada e cronograma definido.',
-                    };
-                    updateTicket(activeTicket.id, {
-                      status: TICKET_STATUS.IN_PROGRESS,
-                      history: [...activeTicket.history, item],
-                    });
-                    setShowPrelimModal(false);
-                  }}
+                  onClick={() => handleSavePreliminaryActions(false)}
+                  className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm"
+                >
+                  Salvar checklist
+                </button>
+                <button
+                  disabled={!arePreliminaryActionsReady(prelimForm) || !prelimForm.plannedStartAt}
+                  onClick={() => handleSavePreliminaryActions(true)}
                   className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Concluir e Iniciar Execução

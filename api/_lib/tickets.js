@@ -34,6 +34,15 @@ export function normalizeTicketForStorage(ticket) {
       time: toDate(item.time) || new Date(),
     }));
   }
+  if (next.preliminaryActions) {
+    next.preliminaryActions = {
+      ...next.preliminaryActions,
+      materialEta: toDate(next.preliminaryActions.materialEta) || null,
+      plannedStartAt: toDate(next.preliminaryActions.plannedStartAt) || null,
+      actualStartAt: toDate(next.preliminaryActions.actualStartAt) || null,
+      updatedAt: toDate(next.preliminaryActions.updatedAt) || new Date(),
+    };
+  }
   return next;
 }
 
@@ -59,5 +68,14 @@ export function serializeTicketForApi(ticket) {
           time: serializeDate(item.time),
         }))
       : [],
+    preliminaryActions: ticket.preliminaryActions
+      ? {
+          ...ticket.preliminaryActions,
+          materialEta: serializeDate(ticket.preliminaryActions.materialEta),
+          plannedStartAt: serializeDate(ticket.preliminaryActions.plannedStartAt),
+          actualStartAt: serializeDate(ticket.preliminaryActions.actualStartAt),
+          updatedAt: serializeDate(ticket.preliminaryActions.updatedAt),
+        }
+      : null,
   };
 }

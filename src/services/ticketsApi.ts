@@ -1,5 +1,5 @@
 import { getAuthenticatedActorHeaders } from './actorHeaders';
-import { Ticket } from '../types';
+import { PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 
 type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
@@ -7,6 +7,12 @@ type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
   viewingBy?: { name: string; at: string } | null;
   sla?: { dueAt: string; status: 'on_time' | 'at_risk' | 'overdue' } | null;
   history: Array<Omit<Ticket['history'][number], 'time'> & { time: string }>;
+  preliminaryActions?: Omit<PreliminaryActions, 'materialEta' | 'plannedStartAt' | 'actualStartAt' | 'updatedAt'> & {
+    materialEta?: string | null;
+    plannedStartAt?: string | null;
+    actualStartAt?: string | null;
+    updatedAt?: string | null;
+  } | null;
 };
 
 function hydrateTicket(ticket: ApiTicket): Ticket {
@@ -16,6 +22,15 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
     sla: ticket.sla ? { ...ticket.sla, dueAt: coerceDate(ticket.sla.dueAt) } : undefined,
     history: ticket.history.map(item => ({ ...item, time: coerceDate(item.time) })),
+    preliminaryActions: ticket.preliminaryActions
+      ? {
+          ...ticket.preliminaryActions,
+          materialEta: ticket.preliminaryActions.materialEta ? coerceDate(ticket.preliminaryActions.materialEta) : null,
+          plannedStartAt: ticket.preliminaryActions.plannedStartAt ? coerceDate(ticket.preliminaryActions.plannedStartAt) : null,
+          actualStartAt: ticket.preliminaryActions.actualStartAt ? coerceDate(ticket.preliminaryActions.actualStartAt) : null,
+          updatedAt: ticket.preliminaryActions.updatedAt ? coerceDate(ticket.preliminaryActions.updatedAt) : null,
+        }
+      : undefined,
   };
 }
 

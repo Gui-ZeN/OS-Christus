@@ -26,6 +26,20 @@ export interface SLAStatus {
   status: 'on_time' | 'at_risk' | 'overdue';
 }
 
+export interface PreliminaryActions {
+  materialRequested: boolean;
+  materialEta?: Date | null;
+  teamConfirmed: boolean;
+  sitePrepared: boolean;
+  scheduleDefined: boolean;
+  stakeholderAligned: boolean;
+  accessReleased: boolean;
+  plannedStartAt?: Date | null;
+  actualStartAt?: Date | null;
+  blockerNotes?: string;
+  updatedAt?: Date | null;
+}
+
 export interface Ticket {
   id: string;
   trackingToken: string;
@@ -44,6 +58,7 @@ export interface Ticket {
   history: HistoryItem[];
   viewingBy?: { name: string; at: Date } | null;
   sla?: SLAStatus;
+  preliminaryActions?: PreliminaryActions;
 }
 
 export interface Quote {
