@@ -453,6 +453,11 @@ export function ApprovalsView() {
                 {budget.quotes.map(quote => (
                   <div key={quote.id} className={`border rounded-sm p-4 flex flex-col ${quote.recommended ? 'border-roman-primary bg-roman-primary/5' : 'border-roman-border bg-roman-bg'}`}>
                     {quote.recommended && <div className="text-[10px] font-serif uppercase tracking-widest text-roman-primary mb-2 font-bold flex items-center gap-1"><CheckCircle size={12} /> Recomendado pelo Gestor</div>}
+                    {budget.historySummary.preferredVendor && quote.vendor.trim().toLowerCase() === budget.historySummary.preferredVendor.vendor.trim().toLowerCase() && (
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-emerald-700 mb-2 font-bold">
+                        Histórico favorece este fornecedor
+                      </div>
+                    )}
                     <div className="text-sm text-roman-text-sub mb-1">{quote.vendor}</div>
                     <div className="text-2xl font-serif text-roman-text-main mb-4">{quote.value}</div>
                     {quote.items && quote.items.length > 0 && (
@@ -521,6 +526,22 @@ export function ApprovalsView() {
                   </div>
                 </div>
 
+                {budget.historySummary.preferredVendor && (
+                  <div className="mt-3 rounded-sm border border-emerald-200 bg-emerald-50/70 p-3">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-widest text-emerald-700">Fornecedor preferencial</div>
+                        <div className="mt-1 text-sm font-medium text-emerald-950">{budget.historySummary.preferredVendor.vendor}</div>
+                        <div className="text-[11px] text-emerald-800">{budget.historySummary.preferredVendor.rationale.join(' · ')}</div>
+                      </div>
+                      <div className="text-[11px] text-emerald-900 md:text-right">
+                        <div>Média: {budget.historySummary.preferredVendor.averageComparableValueLabel ?? '-'}</div>
+                        <div>Último comparável: {budget.historySummary.preferredVendor.latestComparableValueLabel ?? '-'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {budget.historySummary.similarCases.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {budget.historySummary.similarCases.slice(0, 2).map(item => (
@@ -539,6 +560,26 @@ export function ApprovalsView() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {budget.historySummary.itemReferences.length > 0 && (
+                  <div className="mt-3 rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Histórico por item/material</div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                      {budget.historySummary.itemReferences.slice(0, 3).map(item => (
+                        <div key={item.key} className="rounded-sm border border-roman-border/70 bg-roman-bg px-3 py-2">
+                          <div className="text-sm font-medium text-roman-text-main">{item.label}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            {item.sampleCount} referência(s) {item.unit ? `· ${item.unit}` : ''}
+                          </div>
+                          <div className="mt-1 text-[11px] text-roman-text-main">Média unitária: {item.averageUnitPriceLabel ?? '-'}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            Faixa: {item.minUnitPriceLabel ?? '-'} / {item.maxUnitPriceLabel ?? '-'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

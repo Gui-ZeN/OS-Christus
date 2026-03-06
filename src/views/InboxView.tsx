@@ -751,11 +751,17 @@ export function InboxView() {
     }
     setIsSending(true);
     setTimeout(async () => {
+      const preferredVendorName = budgetHistory.preferredVendor?.vendor
+        ? budgetHistory.preferredVendor.vendor.trim().toLowerCase()
+        : null;
+      const recommendedIndex = preferredVendorName
+        ? quotes.findIndex(quote => quote.vendor.trim().toLowerCase() === preferredVendorName)
+        : 0;
       const nextQuotes: Quote[] = quotes.map((quote, index) => ({
         id: `quote-${index + 1}`,
         vendor: quote.vendor.trim(),
         value: quote.value.trim(),
-        recommended: index === 0,
+        recommended: index === (recommendedIndex >= 0 ? recommendedIndex : 0),
         status: 'pending',
         attachmentName: quoteAttachments[index]?.name || null,
         items: quote.items
@@ -1560,6 +1566,24 @@ export function InboxView() {
                   </div>
                 </div>
 
+                {budgetHistory.preferredVendor && (
+                  <div className="mt-4 rounded-sm border border-emerald-200 bg-emerald-50/70 p-3">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-widest text-emerald-700">Fornecedor preferencial sugerido</div>
+                        <div className="mt-1 text-sm font-medium text-emerald-950">{budgetHistory.preferredVendor.vendor}</div>
+                        <div className="text-[11px] text-emerald-800">
+                          {budgetHistory.preferredVendor.rationale.join(' · ')}
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-emerald-900 md:text-right">
+                        <div>Média: {budgetHistory.preferredVendor.averageComparableValueLabel ?? '-'}</div>
+                        <div>Último comparável: {budgetHistory.preferredVendor.latestComparableValueLabel ?? '-'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {budgetHistory.similarCases.length > 0 && (
                   <div className="mt-4 space-y-2">
                     {budgetHistory.similarCases.slice(0, 3).map(item => (
@@ -1578,6 +1602,36 @@ export function InboxView() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {budgetHistory.itemReferences.length > 0 && (
+                  <div className="mt-4 rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h5 className="text-[10px] uppercase tracking-widest text-roman-text-sub">Referência por item/material</h5>
+                        <p className="mt-1 text-[11px] text-roman-text-sub">Faixas unitárias observadas nas OS comparáveis.</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {budgetHistory.itemReferences.slice(0, 4).map(item => (
+                        <div key={item.key} className="rounded-sm border border-roman-border/70 bg-roman-bg px-3 py-2">
+                          <div className="text-sm font-medium text-roman-text-main">{item.label}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            {item.sampleCount} referência(s) {item.unit ? `· ${item.unit}` : ''}
+                          </div>
+                          <div className="mt-1 text-[11px] text-roman-text-main">
+                            Média unitária: {item.averageUnitPriceLabel ?? '-'}
+                          </div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            Faixa: {item.minUnitPriceLabel ?? '-'} a {item.maxUnitPriceLabel ?? '-'}
+                          </div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            Último fornecedor: {item.latestVendor ?? '-'} · {item.latestUnitPriceLabel ?? '-'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1607,6 +1661,13 @@ export function InboxView() {
                           onChange={e => handleQuoteChange(i, 'vendor', e.target.value)}
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
+                        {budgetHistory.preferredVendor && quotes[i].vendor.trim() && (
+                          <div className={`mt-1 text-[11px] ${quotes[i].vendor.trim().toLowerCase() === budgetHistory.preferredVendor.vendor.trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
+                            {quotes[i].vendor.trim().toLowerCase() === budgetHistory.preferredVendor.vendor.trim().toLowerCase()
+                              ? 'Coincide com o fornecedor preferencial da base histórica.'
+                              : `Preferência histórica atual: ${budgetHistory.preferredVendor.vendor}`}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor Total</label>
@@ -1680,6 +1741,20 @@ export function InboxView() {
                                   onChange={event => handleQuoteItemChange(i, item.id, 'description', event.target.value)}
                                   className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                 />
+                                {(() => {
+                                  const itemKey = String(item.materialId || item.materialName || item.description || '')
+                                    .normalize('NFD')
+                                    .replace(/[\u0300-\u036f]/g, '')
+                                    .toLowerCase()
+                                    .trim();
+                                  const reference = budgetHistory.itemReferences.find(entry => entry.key === itemKey);
+                                  if (!reference) return null;
+                                  return (
+                                    <div className="rounded-sm border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-900">
+                                      Histórico unitário: média {reference.averageUnitPriceLabel ?? '-'} · faixa {reference.minUnitPriceLabel ?? '-'} a {reference.maxUnitPriceLabel ?? '-'}
+                                    </div>
+                                  );
+                                })()}
                                 <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="number"
