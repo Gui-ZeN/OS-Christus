@@ -10,6 +10,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
+import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { formatDistanceToNowSafe } from '../utils/date';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
@@ -507,6 +508,11 @@ export function InboxView() {
     if (!isAUrgentCorrective && isBUrgentCorrective) return 1;
     return b.time.getTime() - a.time.getTime();
   }), [tickets, inboxFilter]);
+
+  const budgetHistory = useMemo(
+    () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket),
+    [activeTicket, tickets, storedQuotesByTicket]
+  );
 
   const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setReplyFiles(Array.from(e.target.files));
@@ -1325,6 +1331,66 @@ export function InboxView() {
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-roman-text-sub">Preencha os dados dos 3 orçamentos obrigatórios para enviar para aprovação da diretoria.</p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">Rodada 1</span>
+              </div>
+
+              <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
+                <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h4 className="text-sm font-serif text-roman-text-main">Base historica (24 meses)</h4>
+                    <p className="text-xs text-roman-text-sub">
+                      {budgetHistory.comparableTicketCount > 0
+                        ? `${budgetHistory.comparableTicketCount} OS similares encontradas para comparacao.`
+                        : 'Sem base historica suficiente para comparar esta OS.'}
+                    </p>
+                  </div>
+                  <div className="text-xs text-roman-text-sub">
+                    Termos base: {budgetHistory.basisTerms.length > 0 ? budgetHistory.basisTerms.join(', ') : 'nao definidos'}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Media</div>
+                    <div className="mt-1 text-lg font-serif text-roman-text-main">{formatBudgetHistoryValue(budgetHistory.averageQuoteValue)}</div>
+                  </div>
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Faixa</div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main">
+                      {formatBudgetHistoryValue(budgetHistory.minQuoteValue)} a {formatBudgetHistoryValue(budgetHistory.maxQuoteValue)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Ultimo comparavel</div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main">{budgetHistory.latestComparableValueLabel ?? '-'}</div>
+                    <div className="text-[11px] text-roman-text-sub">{budgetHistory.latestComparableVendor ?? 'Sem fornecedor'}</div>
+                  </div>
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Referencias</div>
+                    <div className="mt-1 text-lg font-serif text-roman-text-main">{budgetHistory.comparableQuoteCount}</div>
+                    <div className="text-[11px] text-roman-text-sub">cotacoes aproveitaveis</div>
+                  </div>
+                </div>
+
+                {budgetHistory.similarCases.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {budgetHistory.similarCases.slice(0, 3).map(item => (
+                      <div key={item.ticketId} className="flex flex-col gap-1 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-roman-text-main">{item.ticketId} · {item.subject}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            {item.vendor} · {item.sede} / {item.region} · {formatDistanceToNowSafe(item.date)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-serif text-roman-text-main">{item.valueLabel}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            Match: {item.sharedTerms.length > 0 ? item.sharedTerms.join(', ') : 'tipo/regiao'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

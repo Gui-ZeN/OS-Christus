@@ -6,6 +6,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
+import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { formatDistanceToNowSafe } from '../utils/date';
 
 const APPROVAL_STATUS: Record<string, TicketStatus> = {
@@ -235,6 +236,7 @@ export function ApprovalsView() {
           date: ticket.time,
           viewingBy: ticket.viewingBy?.name ?? null,
           quotes: quotesByTicket[ticket.id] ?? FALLBACK_QUOTES_BY_TICKET[ticket.id] ?? [],
+          historySummary: buildBudgetHistorySummary(ticket, tickets, { ...FALLBACK_QUOTES_BY_TICKET, ...quotesByTicket }),
         })),
     [quotesByTicket, tickets]
   );
@@ -399,6 +401,66 @@ export function ApprovalsView() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-4 rounded-sm border border-roman-border bg-roman-bg p-4">
+                <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Base historica</div>
+                    <div className="text-sm text-roman-text-main">
+                      {budget.historySummary.comparableTicketCount > 0
+                        ? `${budget.historySummary.comparableTicketCount} OS comparaveis nos ultimos 24 meses`
+                        : 'Sem OS comparaveis suficientes nos ultimos 24 meses'}
+                    </div>
+                  </div>
+                  <div className="text-xs text-roman-text-sub">
+                    Termos: {budget.historySummary.basisTerms.length > 0 ? budget.historySummary.basisTerms.join(', ') : 'nao definidos'}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Media</div>
+                    <div className="mt-1 text-base font-serif text-roman-text-main">{formatBudgetHistoryValue(budget.historySummary.averageQuoteValue)}</div>
+                  </div>
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Min / Max</div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main">
+                      {formatBudgetHistoryValue(budget.historySummary.minQuoteValue)} / {formatBudgetHistoryValue(budget.historySummary.maxQuoteValue)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Ultimo fornecedor</div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main">{budget.historySummary.latestComparableVendor ?? '-'}</div>
+                    <div className="text-[11px] text-roman-text-sub">{budget.historySummary.latestComparableValueLabel ?? '-'}</div>
+                  </div>
+                  <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Volume</div>
+                    <div className="mt-1 text-base font-serif text-roman-text-main">{budget.historySummary.comparableQuoteCount}</div>
+                    <div className="text-[11px] text-roman-text-sub">cotacoes consideradas</div>
+                  </div>
+                </div>
+
+                {budget.historySummary.similarCases.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {budget.historySummary.similarCases.slice(0, 2).map(item => (
+                      <div key={item.ticketId} className="flex flex-col gap-1 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-roman-text-main">{item.ticketId} · {item.subject}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            {item.vendor} · {item.sede} / {item.region} · {formatDistanceToNowSafe(item.date)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-serif text-roman-text-main">{item.valueLabel}</div>
+                          <div className="text-[11px] text-roman-text-sub">
+                            Match: {item.sharedTerms.length > 0 ? item.sharedTerms.join(', ') : 'tipo/regiao'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
