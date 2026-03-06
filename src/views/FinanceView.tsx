@@ -44,7 +44,7 @@ function formatCurrency(value: number) {
 }
 
 function formatDateLabel(date?: Date | null) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Nao definido';
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Não definido';
   return date.toLocaleDateString('pt-BR');
 }
 
@@ -1186,7 +1186,7 @@ export function FinanceView() {
                         <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
                         <div>Pago até agora: {formatCurrency(paidValue)}</div>
                         <div>Saldo pendente: {formatCurrency(remainingValue)}</div>
-                        <div>Classificacao: {ticket.serviceCatalogName || ticket.macroServiceName || 'Nao definida'}</div>
+                        <div>Classificação: {ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
                         <div>Laudos anexados: {closureDocuments.length}</div>
                         <div>Parcelas pendentes: {pendingInstallments.length}</div>
                         <div>Medições registradas: {measurements.length}</div>

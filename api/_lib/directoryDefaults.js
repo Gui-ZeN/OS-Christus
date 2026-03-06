@@ -90,7 +90,7 @@ export const DEFAULT_TEAMS = [
   { id: 'jy', name: 'JY', type: 'internal', active: true },
   { id: 'marketing', name: 'Marketing', type: 'internal', active: true },
   { id: 'metalurgica', name: 'Metalurgica', type: 'internal', active: true },
-  { id: 'nao-especificado', name: 'Nao especificado', type: 'internal', active: true },
+  { id: 'nao-especificado', name: 'Não especificado', type: 'internal', active: true },
   { id: 'redes', name: 'Redes', type: 'internal', active: true },
   { id: 'refrigeracao', name: 'Refrigeracao', type: 'internal', active: true },
   { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external', active: true },

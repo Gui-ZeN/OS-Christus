@@ -180,7 +180,7 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Allow', 'GET, POST, PATCH');
-    return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de usuarios.' });
   }

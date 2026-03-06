@@ -188,7 +188,7 @@ export function UsersView() {
         <header className="flex justify-between items-end mb-8 border-b border-roman-border pb-4 gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Usuarios</h1>
-            <p className="text-roman-text-sub font-serif italic">Gestao de acesso por papel, regiao e sede.</p>
+            <p className="text-roman-text-sub font-serif italic">Gestão de acesso por papel, região e sede.</p>
           </div>
           <button onClick={openNew} disabled={!canManageUsers} className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
             <Plus size={16} /> Novo Usuario
@@ -255,7 +255,7 @@ export function UsersView() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">{editingId ? 'Editar Usuario' : 'Novo Usuario'}</h3>
+              <h3 className="font-serif text-lg text-roman-text-main font-medium">{editingId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
               <button onClick={() => setModalOpen(false)} className="text-roman-text-sub hover:text-roman-text-main">
                 <X size={20} />
               </button>

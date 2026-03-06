@@ -229,10 +229,10 @@ export function SettingsView() {
       setMaterials(catalog.materials);
       setVendorPreferences(catalog.vendorPreferences);
       setMacroDraft({ code: '', name: '' });
-      setCatalogSaved('Macroservico salvo.');
+      setCatalogSaved('Macroserviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar macroservico.');
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar macroserviço.');
     }
   };
 
@@ -244,10 +244,10 @@ export function SettingsView() {
       setMaterials(catalog.materials);
       setVendorPreferences(catalog.vendorPreferences);
       setServiceDraft({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
-      setCatalogSaved('Servico salvo.');
+      setCatalogSaved('Serviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar servico.');
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar serviço.');
     }
   };
 

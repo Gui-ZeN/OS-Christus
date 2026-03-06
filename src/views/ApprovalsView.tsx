@@ -169,7 +169,7 @@ export function ApprovalsView() {
             );
           }
         } catch {
-          // Mantem o fluxo local mesmo se a API nao estiver disponivel no ambiente atual.
+          // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
         }
         setQuotesByTicket(prev => ({ ...prev, [id]: nextQuotes }));
         if (approvedQuote) {
@@ -187,7 +187,7 @@ export function ApprovalsView() {
           }));
         }
         const winner = selectedQuote?.vendor || 'Fornecedor vencedor';
-        setToast(`Automacao: aprovacao enviada para ${winner}.`);
+        setToast(`Automação: aprovação enviada para ${winner}.`);
         setTimeout(() => setToast(null), 4000);
       }
 
@@ -211,7 +211,7 @@ export function ApprovalsView() {
     setTimeout(() => {
       setProcessingId(null);
       const targetTicket = tickets.find(ticket => ticket.id === rejectTargetId);
-      const reasonText = reason.trim() || 'Motivo nao informado.';
+      const reasonText = reason.trim() || 'Motivo não informado.';
       const historyItem = {
         id: crypto.randomUUID(),
         type: 'system' as const,
@@ -250,7 +250,7 @@ export function ApprovalsView() {
           targetTicket ? buildProcurementClassification(targetTicket) : undefined
         );
       } catch {
-        // Mantem o fluxo local mesmo se a API nao estiver disponivel no ambiente atual.
+        // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
       }
       setContractsByTicket(prev => ({ ...prev, [attachContractModalId]: nextContract }));
       setProcessingId(null);
@@ -344,7 +344,7 @@ export function ApprovalsView() {
           subject: ticket.subject,
           requester: ticket.requester,
           date: ticket.time,
-          description: ticket.history.find(item => item.type === 'customer')?.text ?? 'Sem descricao.',
+          description: ticket.history.find(item => item.type === 'customer')?.text ?? 'Sem descrição.',
         })),
     [tickets]
   );
@@ -358,7 +358,7 @@ export function ApprovalsView() {
           subject: ticket.subject,
           requester: ticket.requester,
           date: ticket.time,
-          technicalOpinion: [...ticket.history].reverse().find(item => item.type === 'tech')?.text ?? 'Parecer nao disponivel.',
+          technicalOpinion: [...ticket.history].reverse().find(item => item.type === 'tech')?.text ?? 'Parecer não disponível.',
         })),
     [tickets]
   );
@@ -450,7 +450,7 @@ export function ApprovalsView() {
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
-                <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Descricao do Problema</h4>
+                <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Descrição do Problema</h4>
                 <p className="text-sm text-roman-text-main leading-relaxed">{os.description}</p>
                 <button onClick={() => openAttachment(`Fotos: ${os.subject}`, 'image')} className="mt-3 flex items-center gap-2 text-roman-primary hover:underline text-xs font-medium">
                   <ImageIcon size={14} /> Ver Fotos Anexadas
@@ -486,7 +486,7 @@ export function ApprovalsView() {
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
-                <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Parecer Tecnico</h4>
+                <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Parecer Técnico</h4>
                 <p className="text-sm text-roman-text-main leading-relaxed">{solution.technicalOpinion}</p>
               </div>
               <div className="flex justify-end gap-3">
@@ -512,7 +512,7 @@ export function ApprovalsView() {
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{budget.id}</span>
-                    <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovacao</span>
+                    <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação</span>
                     {budget.viewingBy && (
                       <span className="text-xs font-medium px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-sm flex items-center gap-1.5 shadow-sm">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
@@ -600,7 +600,7 @@ export function ApprovalsView() {
                     </div>
                   </div>
                   <div className="text-xs text-roman-text-sub">
-                    Termos: {budget.historySummary.basisTerms.length > 0 ? budget.historySummary.basisTerms.join(', ') : 'nao definidos'}
+                    Termos: {budget.historySummary.basisTerms.length > 0 ? budget.historySummary.basisTerms.join(', ') : 'não definidos'}
                   </div>
                 </div>
 

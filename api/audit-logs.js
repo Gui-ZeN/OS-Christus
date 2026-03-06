@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
-      return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     await requireAdminUser(req);

@@ -14,6 +14,6 @@ export async function writeAuditLog(entry) {
       createdAt: new Date(),
     });
   } catch {
-    // Auditoria nao deve quebrar o fluxo principal.
+    // Auditoria não deve quebrar o fluxo principal.
   }
 }

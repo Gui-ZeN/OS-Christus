@@ -121,6 +121,6 @@ export async function saveMeasurement(ticketId: string, measurement: Measurement
     }),
   });
   if (!response.ok) {
-    throw new Error('Falha ao salvar medicao.');
+    throw new Error('Falha ao salvar medição.');
   }
 }

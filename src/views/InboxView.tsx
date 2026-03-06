@@ -24,7 +24,7 @@ const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'jy', name: 'JY', type: 'internal' },
   { id: 'marketing', name: 'Marketing', type: 'internal' },
   { id: 'metalurgica', name: 'Metalurgica', type: 'internal' },
-  { id: 'nao-especificado', name: 'Nao especificado', type: 'internal' },
+  { id: 'nao-especificado', name: 'Não especificado', type: 'internal' },
   { id: 'redes', name: 'Redes', type: 'internal' },
   { id: 'refrigeracao', name: 'Refrigeracao', type: 'internal' },
   { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external' },
@@ -100,7 +100,7 @@ function formatInputDate(value?: Date | null) {
 }
 
 function formatShortDate(value?: Date | null) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return 'Nao definido';
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return 'Não definido';
   return value.toLocaleDateString('pt-BR');
 }
 
@@ -810,7 +810,7 @@ export function InboxView() {
       try {
         await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
       } catch {
-        // Mantem o fluxo local mesmo se a API nao estiver disponivel no ambiente atual.
+        // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
       }
       setStoredQuotesByTicket(prev => ({ ...prev, [activeTicket.id]: nextQuotes }));
       const historyItem: HistoryItem = {
@@ -1572,7 +1572,7 @@ export function InboxView() {
                     </p>
                   </div>
                   <div className="text-xs text-roman-text-sub">
-                    Termos base: {budgetHistory.basisTerms.length > 0 ? budgetHistory.basisTerms.join(', ') : 'nao definidos'}
+                    Termos base: {budgetHistory.basisTerms.length > 0 ? budgetHistory.basisTerms.join(', ') : 'não definidos'}
                   </div>
                 </div>
 

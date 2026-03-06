@@ -14,7 +14,7 @@ function safeJson(value: unknown) {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
-    return '[nao serializavel]';
+    return '[não serializável]';
   }
 }
 
