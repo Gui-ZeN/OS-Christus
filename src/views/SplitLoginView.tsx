@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Landmark, ArrowRight, ArrowLeft, Loader2, Lock } from 'lucide-react';
 
 interface SplitLoginViewProps {
-  onLogin: () => void;
+  onLogin: (email: string) => void;
   onBack: () => void;
 }
 
@@ -13,7 +13,7 @@ export function SplitLoginView({ onLogin, onBack }: SplitLoginViewProps) {
 
   const handleLogin = () => {
     setIsLoading(true);
-    setTimeout(onLogin, 1500);
+    setTimeout(() => onLogin(loginEmail.trim().toLowerCase()), 1500);
   };
 
   return (

@@ -28,6 +28,23 @@ const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external' },
 ];
 
+const EMPTY_TICKET: Ticket = {
+  id: '',
+  trackingToken: '',
+  subject: '',
+  requester: '',
+  requesterEmail: '',
+  time: new Date(),
+  status: TICKET_STATUS.NEW,
+  type: '',
+  region: '',
+  sede: '',
+  sector: '',
+  priority: '',
+  history: [],
+  viewingBy: null,
+};
+
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
   label: string,
@@ -94,8 +111,9 @@ export function InboxView() {
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
   // Derived state — usa tickets do contexto (mutável)
-  const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0];
-  const isClosed = activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
+  const hasTickets = tickets.length > 0;
+  const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET;
+  const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
 
   // Reseta campos ao trocar de ticket
   useEffect(() => {
@@ -664,6 +682,18 @@ export function InboxView() {
 
       {/* Main Ticket Workspace */}
       <div className="flex-1 flex flex-col min-w-0">
+        {!hasTickets ? (
+          <div className="flex-1 flex items-center justify-center bg-roman-bg p-8">
+            <div className="max-w-md text-center bg-roman-surface border border-roman-border rounded-sm p-8 shadow-sm">
+              <Lock size={22} className="mx-auto mb-4 text-roman-primary" />
+              <h2 className="text-2xl font-serif text-roman-text-main mb-2">Nenhuma OS disponível</h2>
+              <p className="text-sm text-roman-text-sub font-serif italic">
+                Este usuário não possui OS visíveis com as permissões atuais de região e sede.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Top Navigation */}
         <header className="h-12 bg-roman-surface border-b border-roman-border flex items-center px-2">
           <div className="md:hidden flex h-full items-center gap-2 px-2">
@@ -1088,6 +1118,8 @@ export function InboxView() {
             </div>
           </aside>
         </div>
+          </>
+        )}
       </div>
 
       {/* Quotes Modal */}

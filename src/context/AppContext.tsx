@@ -1,14 +1,18 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { subDays, subHours } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { MOCK_TICKETS } from '../data/mockTickets';
-import { notifyTicketStatusChange } from '../services/ticketEmail';
+import {
+  DirectoryUser,
+  fetchUsers,
+} from '../services/directoryApi';
 import {
   dismissNotificationRemote,
   fetchNotifications,
   markAllNotificationsReadRemote,
   markNotificationReadRemote,
 } from '../services/notificationsApi';
+import { notifyTicketStatusChange } from '../services/ticketEmail';
 import { createTicketInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
 import { AppNotification, InboxFilter, Ticket, ViewState } from '../types';
 
@@ -35,6 +39,9 @@ interface AppContextType {
   ticketsLoading: boolean;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
   addTicket: (ticket: Ticket) => void;
+  currentUser: DirectoryUser | null;
+  currentUserEmail: string;
+  setCurrentUserEmail: (email: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -85,6 +92,24 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
 ];
 
+function getInitialUserEmail() {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem('os-christus-user-email') || '';
+}
+
+function canUserAccessTicket(user: DirectoryUser | null, currentUserEmail: string, ticket: Ticket) {
+  if (!currentUserEmail) return true;
+  if (!user) return false;
+  if (user.role === 'Admin' || user.role === 'Diretor') return true;
+
+  const regionIds = user.regionIds || [];
+  const siteIds = user.siteIds || [];
+  if (regionIds.length === 0 && siteIds.length === 0) return false;
+  if (siteIds.includes(ticket.sede)) return true;
+  if (regionIds.includes(ticket.region)) return true;
+  return false;
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
@@ -92,9 +117,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ title: string; type: 'image' | 'pdf' } | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
+  const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
+  const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,14 +129,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const remote = await fetchTicketsFromApi();
         if (!cancelled) {
-          setTickets(remote);
-          if (remote.length > 0 && !remote.some(ticket => ticket.id === activeTicketId)) {
-            setActiveTicketId(remote[0].id);
-          }
+          setAllTickets(remote);
         }
       } catch {
         if (!cancelled) {
-          setTickets([...MOCK_TICKETS]);
+          setAllTickets([...MOCK_TICKETS]);
         }
       } finally {
         if (!cancelled) {
@@ -143,11 +167,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!currentUserEmail) {
+      setCurrentUser(null);
+      return undefined;
+    }
+
+    (async () => {
+      try {
+        const users = await fetchUsers();
+        const found = users.find(user => user.email.toLowerCase() === currentUserEmail.toLowerCase()) || null;
+        if (!cancelled) {
+          setCurrentUser(found);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentUser({
+            id: currentUserEmail.split('@')[0] || 'usuario',
+            name: currentUserEmail.split('@')[0] || 'Usuario',
+            role: 'Admin',
+            email: currentUserEmail,
+            status: 'Ativo',
+            regionIds: [],
+            siteIds: [],
+            active: true,
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserEmail]);
+
+  const tickets = useMemo(
+    () => allTickets.filter(ticket => canUserAccessTicket(currentUser, currentUserEmail, ticket)),
+    [allTickets, currentUser, currentUserEmail]
+  );
+
+  useEffect(() => {
+    if (tickets.length === 0) {
+      if (activeTicketId !== '') setActiveTicketId('');
+      return;
+    }
+    if (!tickets.some(ticket => ticket.id === activeTicketId)) {
+      setActiveTicketId(tickets[0].id);
+    }
+  }, [tickets, activeTicketId]);
+
   const updateTicket = (id: string, updates: Partial<Ticket>) => {
     let previousStatus: string | null = null;
     let nextTicket: Ticket | null = null;
 
-    setTickets(prev =>
+    setAllTickets(prev =>
       prev.map(ticket => {
         if (ticket.id !== id) return ticket;
         previousStatus = ticket.status;
@@ -166,7 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const addTicket = (ticket: Ticket) => {
-    setTickets(prev => [ticket, ...prev]);
+    setAllTickets(prev => [ticket, ...prev]);
     void createTicketInApi(ticket).catch(() => {
       // Persistência remota falhou, mas não bloqueia o fluxo local.
     });
@@ -199,11 +274,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const runAutomations = () => {
       const now = new Date();
 
-      setTickets(prev =>
+      setAllTickets(prev =>
         prev.map(ticket => {
           let updated = ticket;
-
-          // Z1: atualiza o estado do SLA localmente para refletir risco e atraso.
           if (ticket.sla && ticket.status !== TICKET_STATUS.CLOSED) {
             if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
               updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
@@ -211,7 +284,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
             }
           }
-
           return updated;
         })
       );
@@ -282,6 +354,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAttachmentPreview(null);
   };
 
+  const setCurrentUserEmail = (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    setCurrentUserEmailState(normalized);
+    if (typeof window !== 'undefined') {
+      if (normalized) {
+        window.localStorage.setItem('os-christus-user-email', normalized);
+      } else {
+        window.localStorage.removeItem('os-christus-user-email');
+      }
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -327,6 +411,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ticketsLoading,
         updateTicket,
         addTicket,
+        currentUser,
+        currentUserEmail,
+        setCurrentUserEmail,
       }}
     >
       {children}

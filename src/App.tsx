@@ -84,6 +84,7 @@ export default function App() {
     dismissNotification,
     markAllNotificationsRead,
     setActiveTicketId,
+    setCurrentUserEmail,
   } = useApp();
 
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -141,7 +142,13 @@ export default function App() {
   if (currentView === VIEWS.LOGIN) {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
-        <SplitLoginView onLogin={() => navigateTo(VIEWS.HOME)} onBack={() => navigateTo(VIEWS.LANDING)} />
+        <SplitLoginView
+          onLogin={email => {
+            setCurrentUserEmail(email);
+            navigateTo(VIEWS.HOME);
+          }}
+          onBack={() => navigateTo(VIEWS.LANDING)}
+        />
       </Suspense>
     );
   }
