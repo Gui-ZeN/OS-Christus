@@ -1,6 +1,7 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readProcurement, seedProcurementDefaults } from './_lib/procurement.js';
+import { writeAuditLog } from './_lib/auditLogs.js';
 
 async function writeQuotes(db, ticketId, quotes) {
   const batch = db.batch();
@@ -87,6 +88,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      const actor = readActorFromHeaders(req);
       const body = await readJsonBody(req);
       const ticketId = String(body?.ticketId || '').trim();
       const type = String(body?.type || '').trim();
@@ -97,16 +99,37 @@ export default async function handler(req, res) {
 
       if (type === 'quotes') {
         await writeQuotes(db, ticketId, Array.isArray(body?.quotes) ? body.quotes : []);
+        await writeAuditLog({
+          actor,
+          action: 'procurement.quotes.save',
+          entity: 'ticket',
+          entityId: ticketId,
+          after: { type, quotes: body?.quotes || [] },
+        });
         return sendJson(res, 200, { ok: true });
       }
 
       if (type === 'contract') {
         await writeContract(db, ticketId, body?.contract || {});
+        await writeAuditLog({
+          actor,
+          action: 'procurement.contract.save',
+          entity: 'ticket',
+          entityId: ticketId,
+          after: { type, contract: body?.contract || {} },
+        });
         return sendJson(res, 200, { ok: true });
       }
 
       if (type === 'payment') {
         await writePayment(db, ticketId, body?.payment || {});
+        await writeAuditLog({
+          actor,
+          action: 'procurement.payment.save',
+          entity: 'ticket',
+          entityId: ticketId,
+          after: { type, payment: body?.payment || {} },
+        });
         return sendJson(res, 200, { ok: true });
       }
 

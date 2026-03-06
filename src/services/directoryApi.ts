@@ -1,3 +1,5 @@
+import { getActorHeaders } from './actorHeaders';
+
 export interface DirectoryUser {
   id: string;
   name: string;
@@ -54,7 +56,7 @@ export async function fetchUsers() {
 export async function createUser(user: DirectoryUser) {
   const response = await fetch('/api/users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
     body: JSON.stringify({ user }),
   });
   if (!response.ok) {
@@ -65,7 +67,7 @@ export async function createUser(user: DirectoryUser) {
 export async function updateUser(id: string, updates: Partial<DirectoryUser>) {
   const response = await fetch('/api/users', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
     body: JSON.stringify({ id, updates }),
   });
   if (!response.ok) {

@@ -1,5 +1,5 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
@@ -51,6 +51,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      const actor = readActorFromHeaders(req);
       const body = await readJsonBody(req);
       const section = String(body?.section || '').trim();
       const data = body?.data;
@@ -69,7 +70,7 @@ export default async function handler(req, res) {
       await docRef.set({ ...data, updatedAt: new Date() }, { merge: true });
 
       await writeAuditLog({
-        actor: 'painel',
+        actor,
         action: 'settings.update',
         entity: 'settings',
         entityId: section,

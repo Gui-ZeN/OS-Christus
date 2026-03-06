@@ -1,6 +1,7 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
+import { writeAuditLog } from './_lib/auditLogs.js';
 
 function normalizeUser(input) {
   const regionIds = Array.isArray(input?.regionIds)
@@ -35,6 +36,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      const actor = readActorFromHeaders(req);
       const body = await readJsonBody(req);
       const user = normalizeUser(body?.user);
       if (!user.name || !user.email || !user.role) {
@@ -47,8 +49,11 @@ export default async function handler(req, res) {
           .replace(/[^a-z0-9]+/gi, '-')
           .replace(/(^-|-$)/g, '')
           .toLowerCase();
+      const docRef = db.collection('users').doc(id);
+      const beforeSnap = await docRef.get();
+      const before = beforeSnap.exists ? beforeSnap.data() : null;
 
-      await db.collection('users').doc(id).set(
+      await docRef.set(
         {
           id,
           ...user,
@@ -57,11 +62,20 @@ export default async function handler(req, res) {
         },
         { merge: true }
       );
+      await writeAuditLog({
+        actor,
+        action: 'users.create',
+        entity: 'user',
+        entityId: id,
+        before,
+        after: { id, ...user },
+      });
 
       return sendJson(res, 200, { ok: true, id });
     }
 
     if (req.method === 'PATCH') {
+      const actor = readActorFromHeaders(req);
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       const user = normalizeUser(body?.updates);
@@ -71,7 +85,18 @@ export default async function handler(req, res) {
       if (!user.name || !user.email || !user.role) {
         return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
       }
-      await db.collection('users').doc(id).set({ ...user, id, updatedAt: new Date() }, { merge: true });
+      const docRef = db.collection('users').doc(id);
+      const beforeSnap = await docRef.get();
+      const before = beforeSnap.exists ? beforeSnap.data() : null;
+      await docRef.set({ ...user, id, updatedAt: new Date() }, { merge: true });
+      await writeAuditLog({
+        actor,
+        action: 'users.update',
+        entity: 'user',
+        entityId: id,
+        before,
+        after: { ...user, id },
+      });
       return sendJson(res, 200, { ok: true, id });
     }
 

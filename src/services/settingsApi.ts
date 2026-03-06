@@ -1,3 +1,5 @@
+import { getActorHeaders } from './actorHeaders';
+
 export interface EmailTemplateSettings {
   trigger: string;
   subject: string;
@@ -34,7 +36,7 @@ export async function fetchSettings() {
 export async function saveSettings(section: 'emailTemplates' | 'dailyDigest' | 'sla', data: object) {
   const response = await fetch('/api/settings', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
     body: JSON.stringify({ section, data }),
   });
   if (!response.ok) {

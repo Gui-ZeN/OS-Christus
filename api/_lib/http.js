@@ -7,6 +7,15 @@ export function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
+export function readActorFromHeaders(req) {
+  const email = String(req.headers['x-actor-email'] || '').trim().toLowerCase();
+  const name = String(req.headers['x-actor-name'] || '').trim();
+  if (name && email) return `${name} <${email}>`;
+  if (name) return name;
+  if (email) return email;
+  return 'painel';
+}
+
 export async function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   const raw = await readRawBody(req);

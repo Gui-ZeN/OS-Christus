@@ -1,3 +1,4 @@
+import { getActorHeaders } from './actorHeaders';
 import { ContractRecord, PaymentRecord, Quote } from '../types';
 
 type QuoteApi = Quote & { ticketId?: string };
@@ -37,7 +38,7 @@ export async function fetchProcurementData() {
 export async function saveQuotes(ticketId: string, quotes: Quote[]) {
   const response = await fetch('/api/procurement', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
     body: JSON.stringify({ ticketId, type: 'quotes', quotes }),
   });
   if (!response.ok) {
@@ -48,7 +49,7 @@ export async function saveQuotes(ticketId: string, quotes: Quote[]) {
 export async function saveContract(ticketId: string, contract: ContractRecord) {
   const response = await fetch('/api/procurement', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
     body: JSON.stringify({ ticketId, type: 'contract', contract }),
   });
   if (!response.ok) {
@@ -59,7 +60,7 @@ export async function saveContract(ticketId: string, contract: ContractRecord) {
 export async function savePayment(ticketId: string, payment: PaymentRecord) {
   const response = await fetch('/api/procurement', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
     body: JSON.stringify({
       ticketId,
       type: 'payment',

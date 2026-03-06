@@ -1,5 +1,5 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
@@ -43,6 +43,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      const actor = readActorFromHeaders(req);
       const body = await readJsonBody(req);
       const action = String(body?.action || '').trim();
 
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
         if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatorio.' });
         await db.collection('notifications').doc(id).delete();
         await writeAuditLog({
-          actor: 'painel',
+          actor,
           action: 'notifications.dismiss',
           entity: 'notification',
           entityId: id,
