@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BarChart2, Building2, Plus, ShieldAlert, Users } from 'lucide-react';
 import { ActivityItem } from '../components/ui/ActivityItem';
 import { StatCard } from '../components/ui/StatCard';
@@ -31,25 +31,53 @@ function isOpenStatus(status: string) {
   return status !== TICKET_STATUS.CLOSED && status !== TICKET_STATUS.CANCELED;
 }
 
+function buildGreetingName(name: string | null | undefined, email: string) {
+  if (name) return name;
+  return (
+    email
+      .split('@')[0]
+      ?.replace(/[-_.]+/g, ' ')
+      ?.replace(/\b\w/g, char => char.toUpperCase()) || 'Usuário'
+  );
+}
+
 export function HomeView() {
   const { navigateTo, tickets, currentUser, currentUserEmail } = useApp();
-  const greetingName =
-    currentUser?.name ||
-    currentUserEmail.split('@')[0]?.replace(/[-_.]+/g, ' ')?.replace(/\b\w/g, char => char.toUpperCase()) ||
-    'Usuário';
+  const [selectedSite, setSelectedSite] = useState('all');
+  const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
+  const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
 
-  const stats = useMemo(
-    () => ({
-      novas: tickets.filter(ticket => ticket.status === TICKET_STATUS.NEW).length,
-      aguardandoOrcamento: tickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
-      aguardandoAprovacao: tickets.filter(ticket => ticket.status.toLowerCase().includes('aprovação') || ticket.status.toLowerCase().includes('aprovacao')).length,
-      encerradas: tickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
-    }),
+  const availableSites = useMemo(
+    () => {
+      const values: string[] = tickets.map(ticket => ticket.sede).filter((value): value is string => Boolean(value));
+      return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    },
     [tickets]
   );
 
+  useEffect(() => {
+    if (selectedSite !== 'all' && !availableSites.includes(selectedSite)) {
+      setSelectedSite('all');
+    }
+  }, [availableSites, selectedSite]);
+
+  const scopedTickets = useMemo(
+    () => tickets.filter(ticket => selectedSite === 'all' || ticket.sede === selectedSite),
+    [selectedSite, tickets]
+  );
+
+  const stats = useMemo(
+    () => ({
+      novas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.NEW).length,
+      aguardandoOrcamento: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
+      aguardandoAprovacao: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprovação') || ticket.status.toLowerCase().includes('aprovacao')).length,
+      encerradas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
+    }),
+    [scopedTickets]
+  );
+
   const recentActivity = useMemo(() => {
-    return tickets
+    return scopedTickets
       .flatMap(ticket =>
         ticket.history
           .filter(item => item.type !== 'field_change')
@@ -57,12 +85,12 @@ export function HomeView() {
       )
       .sort((a, b) => b.time.getTime() - a.time.getTime())
       .slice(0, 5);
-  }, [tickets]);
+  }, [scopedTickets]);
 
   const siteOverview = useMemo(() => {
     const grouped = new Map<string, { site: string; region: string; open: number; inProgress: number; waitingPayment: number; overdue: number }>();
 
-    for (const ticket of tickets) {
+    for (const ticket of scopedTickets) {
       const key = `${ticket.sede}|${ticket.region}`;
       if (!grouped.has(key)) {
         grouped.set(key, {
@@ -82,10 +110,10 @@ export function HomeView() {
     }
 
     return [...grouped.values()].sort((a, b) => b.open - a.open).slice(0, 8);
-  }, [tickets]);
+  }, [scopedTickets]);
 
   const guaranteeAlerts = useMemo(() => {
-    return tickets
+    return scopedTickets
       .filter(ticket => ticket.guarantee?.status === 'active' && ticket.guarantee.endAt)
       .map(ticket => ({
         id: ticket.id,
@@ -97,10 +125,10 @@ export function HomeView() {
       .filter(item => item.daysLeft <= 45)
       .sort((a, b) => a.daysLeft - b.daysLeft)
       .slice(0, 5);
-  }, [tickets]);
+  }, [scopedTickets]);
 
   const executiveQueue = useMemo(() => {
-    return tickets
+    return scopedTickets
       .filter(ticket =>
         [
           TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
@@ -111,9 +139,12 @@ export function HomeView() {
       )
       .sort((a, b) => b.time.getTime() - a.time.getTime())
       .slice(0, 5);
-  }, [tickets]);
+  }, [scopedTickets]);
 
-  const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const siteSpotlight = useMemo(
+    () => scopedTickets.slice().sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6),
+    [scopedTickets]
+  );
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
@@ -126,6 +157,22 @@ export function HomeView() {
               : 'Aqui está o resumo das suas responsabilidades operacionais de hoje.'}
           </p>
         </header>
+
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-roman-text-sub">
+            Recorte atual: <span className="font-medium text-roman-text-main">{selectedSite === 'all' ? 'todas as sedes visíveis' : selectedSite}</span>
+          </div>
+          <select
+            value={selectedSite}
+            onChange={event => setSelectedSite(event.target.value)}
+            className="min-w-56 border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+          >
+            <option value="all">Todas as sedes</option>
+            {availableSites.map(site => (
+              <option key={site} value={site}>{site}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => navigateTo('inbox')} />
@@ -222,7 +269,7 @@ export function HomeView() {
                     key={item.id}
                     time={formatActivityTime(item.time)}
                     title={ACTIVITY_TITLES[item.type] ?? 'Atualização'}
-                    desc={`${item.subject}: ${item.text ? item.text.slice(0, 70) + (item.text.length > 70 ? '…' : '') : '—'} (${item.ticketId})`}
+                    desc={`${item.subject}: ${item.text ? item.text.slice(0, 70) + (item.text.length > 70 ? '...' : '') : '-'} (${item.ticketId})`}
                   />
                 ))
               )}
@@ -257,6 +304,45 @@ export function HomeView() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-8 bg-roman-surface border border-roman-border rounded-sm p-6">
+          <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+            <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados da Sede</h2>
+            <Building2 size={16} className="text-roman-text-sub" />
+          </div>
+          {siteSpotlight.length === 0 ? (
+            <p className="text-sm text-roman-text-sub font-serif italic">Nenhum chamado disponível para este recorte.</p>
+          ) : (
+            <div className="space-y-3">
+              {siteSpotlight.map(ticket => (
+                <button
+                  key={ticket.id}
+                  onClick={() =>
+                    navigateTo(
+                      ticket.status === TICKET_STATUS.WAITING_PAYMENT
+                        ? 'finance'
+                        : ticket.status.toLowerCase().includes('aprova')
+                          ? 'approvals'
+                          : 'inbox'
+                    )
+                  }
+                  className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
+                      <div className="text-xs text-roman-text-sub">{ticket.requester} • {ticket.sede} • {ticket.region}</div>
+                    </div>
+                    <div className="text-xs text-roman-text-sub md:text-right">
+                      <div>{ticket.status}</div>
+                      <div>{formatActivityTime(ticket.time)}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
