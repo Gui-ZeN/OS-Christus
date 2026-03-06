@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import {
   BarChart2,
   Bell,
@@ -85,9 +85,41 @@ export default function App() {
     markAllNotificationsRead,
     setActiveTicketId,
     setCurrentUserEmail,
+    currentUser,
+    currentUserEmail,
   } = useApp();
 
   const notificationRef = useRef<HTMLDivElement>(null);
+  const currentRole = currentUser?.role || '';
+  const canAccessApprovals = currentRole === 'Admin' || currentRole === 'Diretor';
+  const canAccessFinance = currentRole === 'Admin' || currentRole === 'Diretor';
+  const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
+  const canAccessAudit = currentRole === 'Admin';
+  const canAccessUsers = currentRole === 'Admin';
+  const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor';
+  const canAccessSettings = currentRole === 'Admin';
+  const restrictedViews = useMemo(
+    () =>
+      new Set<ViewState>(
+        [
+          !canAccessApprovals ? VIEWS.APPROVALS : null,
+          !canAccessFinance ? VIEWS.FINANCE : null,
+          !canAccessEmailHealth ? VIEWS.EMAIL_HEALTH : null,
+          !canAccessAudit ? VIEWS.AUDIT_LOGS : null,
+          !canAccessUsers ? VIEWS.USERS : null,
+          !canAccessKpi ? VIEWS.KPI : null,
+          !canAccessSettings ? VIEWS.SETTINGS : null,
+        ].filter(Boolean) as ViewState[]
+      ),
+    [canAccessApprovals, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessUsers, canAccessKpi, canAccessSettings]
+  );
+  const initials =
+    (currentUser?.name || currentUserEmail || 'RG')
+      .split(/[\s@._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0]?.toUpperCase() || '')
+      .join('') || 'RG';
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -122,6 +154,12 @@ export default function App() {
       document.body.style.overflow = previousOverflow;
     };
   }, [attachmentPreview]);
+
+  useEffect(() => {
+    if (restrictedViews.has(currentView)) {
+      navigateTo(VIEWS.HOME);
+    }
+  }, [currentView, navigateTo, restrictedViews]);
 
   if (currentView === VIEWS.LANDING) {
     return (
@@ -170,13 +208,13 @@ export default function App() {
         <nav className="flex flex-col gap-4 w-full">
           <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Início" />
           <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
-          <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />
-          <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />
-          <SidebarIcon icon={<Mail size={20} />} active={currentView === VIEWS.EMAIL_HEALTH} onClick={() => navigateTo(VIEWS.EMAIL_HEALTH)} title="Saúde de E-mail" />
-          <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />
-          <SidebarIcon icon={<Users size={20} />} active={currentView === VIEWS.USERS} onClick={() => navigateTo(VIEWS.USERS)} title="Usuários" />
-          <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />
-          <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />
+          {canAccessApprovals && <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />}
+          {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
+          {canAccessEmailHealth && <SidebarIcon icon={<Mail size={20} />} active={currentView === VIEWS.EMAIL_HEALTH} onClick={() => navigateTo(VIEWS.EMAIL_HEALTH)} title="Saúde de E-mail" />}
+          {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
+          {canAccessUsers && <SidebarIcon icon={<Users size={20} />} active={currentView === VIEWS.USERS} onClick={() => navigateTo(VIEWS.USERS)} title="Usuários" />}
+          {canAccessKpi && <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />}
+          {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />}
         </nav>
         <div className="mt-auto flex flex-col gap-4 items-center">
           <div className="relative">
@@ -201,8 +239,8 @@ export default function App() {
           <button onClick={() => navigateTo(VIEWS.LANDING)} className="text-white/40 hover:text-white/80 transition-colors" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
-          <div className="w-8 h-8 rounded-full bg-roman-sidebar-light border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs" title="Logado como: Rafael">
-            RG
+          <div className="w-8 h-8 rounded-full bg-roman-sidebar-light border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>
+            {initials}
           </div>
         </div>
       </aside>
@@ -212,20 +250,14 @@ export default function App() {
           <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
             <div className="flex items-center gap-2">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>
-              {unreadCount > 0 && (
-                <span className="bg-roman-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
-              )}
+              {unreadCount > 0 && <span className="bg-roman-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>}
             </div>
             <button onClick={() => setShowNotifications(false)} className="text-roman-text-sub hover:text-roman-text-main" aria-label="Fechar notificações">
               <X size={18} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {notifications.length === 0 && (
-              <div className="py-12 text-center text-roman-text-sub font-serif italic">
-                Nenhuma notificação.
-              </div>
-            )}
+            {notifications.length === 0 && <div className="py-12 text-center text-roman-text-sub font-serif italic">Nenhuma notificação.</div>}
             {notifications.map(notification => {
               const isAlert = notification.type === 'alert';
               const isActionable = notification.type === 'actionable';
@@ -244,9 +276,7 @@ export default function App() {
                   {isActionable && <div className="absolute top-0 left-0 w-1 h-full bg-roman-primary"></div>}
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
-                      {!notification.read && (
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>
-                      )}
+                      {!notification.read && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>}
                       <span className={`text-xs font-serif italic ${isAlert ? 'text-red-700' : 'text-roman-text-sub'}`}>
                         {formatDistanceToNow(notification.time, { addSuffix: true, locale: ptBR })}
                       </span>
@@ -302,13 +332,13 @@ export default function App() {
         <Suspense fallback={<ViewLoader />}>
           {currentView === VIEWS.HOME && <HomeView />}
           {currentView === VIEWS.INBOX && <InboxView />}
-          {currentView === VIEWS.APPROVALS && <ApprovalsView />}
-          {currentView === VIEWS.FINANCE && <FinanceView />}
-          {currentView === VIEWS.EMAIL_HEALTH && <EmailHealthView />}
-          {currentView === VIEWS.AUDIT_LOGS && <AuditLogsView />}
-          {currentView === VIEWS.USERS && <UsersView />}
-          {currentView === VIEWS.KPI && <KpiView />}
-          {currentView === VIEWS.SETTINGS && <SettingsView />}
+          {currentView === VIEWS.APPROVALS && canAccessApprovals && <ApprovalsView />}
+          {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
+          {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
+          {currentView === VIEWS.AUDIT_LOGS && canAccessAudit && <AuditLogsView />}
+          {currentView === VIEWS.USERS && canAccessUsers && <UsersView />}
+          {currentView === VIEWS.KPI && canAccessKpi && <KpiView />}
+          {currentView === VIEWS.SETTINGS && canAccessSettings && <SettingsView />}
         </Suspense>
       </main>
 
