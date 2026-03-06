@@ -23,7 +23,7 @@ const ROLE_OPTIONS: Array<{ value: UserRole; label: string; description: string 
   { value: 'Diretor', label: 'Diretor', description: 'Acompanha e aprova demandas da sua estrutura.' },
   { value: 'Supervisor', label: 'Supervisor', description: 'Opera e visualiza somente as sedes vinculadas.' },
   { value: 'Admin', label: 'Admin', description: 'Acesso administrativo amplo ao sistema.' },
-  { value: 'Usuario', label: 'Usuario', description: 'Acesso operacional restrito as sedes vinculadas.' },
+  { value: 'Usuario', label: 'Usuário', description: 'Acesso operacional restrito às sedes vinculadas.' },
 ];
 
 const EMPTY_FORM: UserForm = {
@@ -187,11 +187,11 @@ export function UsersView() {
       <div className="max-w-6xl mx-auto">
         <header className="flex justify-between items-end mb-8 border-b border-roman-border pb-4 gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Usuarios</h1>
+            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Usuários</h1>
             <p className="text-roman-text-sub font-serif italic">Gestão de acesso por papel, região e sede.</p>
           </div>
           <button onClick={openNew} disabled={!canManageUsers} className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-            <Plus size={16} /> Novo Usuario
+            <Plus size={16} /> Novo Usuário
           </button>
         </header>
 
@@ -199,7 +199,7 @@ export function UsersView() {
           {loading ? (
             <div className="p-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
               <Loader2 size={18} className="animate-spin" />
-              Carregando usuarios...
+              Carregando usuários...
             </div>
           ) : (
             <table className="w-full text-left border-collapse">
@@ -208,9 +208,9 @@ export function UsersView() {
                   <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Nome</th>
                   <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Papel</th>
                   <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">E-mail</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Regiao / Sedes</th>
+                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Região / Sedes</th>
                   <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Status</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold text-right">Acoes</th>
+                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -291,11 +291,11 @@ export function UsersView() {
                   type="password"
                   value={form.password}
                   onChange={event => setForm(current => ({ ...current, password: event.target.value }))}
-                  placeholder={editingId ? 'Preencha apenas para redefinir' : 'Minimo de 6 caracteres'}
+                  placeholder={editingId ? 'Preencha apenas para redefinir' : 'Mínimo de 6 caracteres'}
                   className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
                 />
                 <p className="mt-2 text-xs text-roman-text-sub font-serif italic">
-                  {editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessaria para criar o acesso no Firebase Auth.'}
+                  {editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessária para criar o acesso no Firebase Auth.'}
                 </p>
               </div>
 
@@ -329,7 +329,7 @@ export function UsersView() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Regioes</label>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Regiões</label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {regions.map(region => {
                     const checked = form.regionIds.includes(region.id);
@@ -357,7 +357,7 @@ export function UsersView() {
                 <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Sedes</label>
                 {form.regionIds.length === 0 ? (
                   <div className="border border-dashed border-roman-border rounded-sm p-4 text-sm text-roman-text-sub font-serif italic">
-                    Selecione ao menos uma regiao para vincular as sedes.
+                    Selecione ao menos uma região para vincular as sedes.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -395,7 +395,7 @@ export function UsersView() {
                 className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-                {editingId ? 'Salvar Alteracoes' : 'Criar Usuario'}
+                {editingId ? 'Salvar Alterações' : 'Criar Usuário'}
               </button>
             </div>
           </div>

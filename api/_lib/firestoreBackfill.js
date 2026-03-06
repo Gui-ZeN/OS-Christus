@@ -5,7 +5,7 @@ const LEGACY_ROLE_MAP = {
   'Gestor de OS': 'Supervisor',
   Financeiro: 'Admin',
   'Aprovador Contratos': 'Supervisor',
-  'Tecnico (Interno)': 'Usuario',
+  'Técnico (Interno)': 'Usuario',
   Terceirizado: 'Usuario',
 };
 

@@ -17,16 +17,16 @@ import { formatDistanceToNowSafe } from '../utils/date';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'construtora', name: 'Construtora', type: 'internal' },
-  { id: 'informatica', name: 'Informatica', type: 'internal' },
+  { id: 'informatica', name: 'Informática', type: 'internal' },
   { id: 'infra-compras', name: 'Infra - Compras', type: 'internal' },
-  { id: 'infra-coordenacao', name: 'Infra - Coordenacao', type: 'internal' },
+  { id: 'infra-coordenacao', name: 'Infra - Coordenação', type: 'internal' },
   { id: 'infra-sede', name: 'Infra - Sede', type: 'internal' },
   { id: 'jy', name: 'JY', type: 'internal' },
   { id: 'marketing', name: 'Marketing', type: 'internal' },
-  { id: 'metalurgica', name: 'Metalurgica', type: 'internal' },
+  { id: 'metalurgica', name: 'Metalúrgica', type: 'internal' },
   { id: 'nao-especificado', name: 'Não especificado', type: 'internal' },
   { id: 'redes', name: 'Redes', type: 'internal' },
-  { id: 'refrigeracao', name: 'Refrigeracao', type: 'internal' },
+  { id: 'refrigeracao', name: 'Refrigeração', type: 'internal' },
   { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external' },
 ];
 
@@ -179,7 +179,7 @@ function formatCurrencyInput(value: number) {
   }).format(value);
 }
 
-// Z7: Renders a filter section with checkboxes for a given dimension
+// Z7: Renderiza uma seção de filtro com checkboxes para uma dimensão
 function renderFilterSection(
   label: string,
   dim: keyof InboxFilter,
@@ -250,12 +250,12 @@ export function InboxView() {
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
-  // Derived state — usa tickets do contexto (mutável)
+  // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
   const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET;
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
 
-  // Reseta campos ao trocar de ticket
+  // Reseta os campos ao trocar de ticket
   useEffect(() => {
     setReplyText('');
     setTechTeam('');
