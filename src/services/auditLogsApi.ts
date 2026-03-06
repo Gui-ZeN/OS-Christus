@@ -1,3 +1,5 @@
+import { getAuthenticatedActorHeaders } from './actorHeaders';
+
 export interface AuditLogEntry {
   id: string;
   actor: string;
@@ -11,7 +13,9 @@ export interface AuditLogEntry {
 }
 
 export async function fetchAuditLogs(limit = 100) {
-  const response = await fetch(`/api/audit-logs?limit=${limit}`);
+  const response = await fetch(`/api/audit-logs?limit=${limit}`, {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar auditoria.');
   }

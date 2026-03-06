@@ -1,3 +1,5 @@
+import { getCurrentIdToken } from './authClient';
+
 function readStoredEmail() {
   if (typeof window === 'undefined') return '';
   return (window.localStorage.getItem('os-christus-user-email') || '').trim().toLowerCase();
@@ -17,5 +19,15 @@ export function getActorHeaders(): Record<string, string> {
   return {
     'X-Actor-Email': email,
     'X-Actor-Name': normalizeNameFromEmail(email),
+  };
+}
+
+export async function getAuthenticatedActorHeaders(): Promise<Record<string, string>> {
+  const headers = getActorHeaders();
+  const token = await getCurrentIdToken();
+  if (!token) return headers;
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
   };
 }

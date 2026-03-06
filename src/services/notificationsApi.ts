@@ -1,10 +1,13 @@
+import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { AppNotification } from '../types';
 import { coerceDate } from '../utils/date';
 
 type NotificationApi = Omit<AppNotification, 'time'> & { time: string };
 
 export async function fetchNotifications() {
-  const response = await fetch('/api/notifications');
+  const response = await fetch('/api/notifications', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar notifications.');
   }
@@ -19,25 +22,28 @@ export async function fetchNotifications() {
 }
 
 export async function markNotificationReadRemote(id: string) {
+  const headers = await getAuthenticatedActorHeaders();
   await fetch('/api/notifications', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ action: 'markRead', id }),
   });
 }
 
 export async function dismissNotificationRemote(id: string) {
+  const headers = await getAuthenticatedActorHeaders();
   await fetch('/api/notifications', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ action: 'dismiss', id }),
   });
 }
 
 export async function markAllNotificationsReadRemote() {
+  const headers = await getAuthenticatedActorHeaders();
   await fetch('/api/notifications', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ action: 'markAllRead' }),
   });
 }

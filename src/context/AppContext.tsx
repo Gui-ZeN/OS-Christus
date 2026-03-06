@@ -279,6 +279,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (authEnabled && !currentUserEmail) {
+      setNotifications(INITIAL_NOTIFICATIONS);
+      return undefined;
+    }
     (async () => {
       try {
         const remote = await fetchNotifications();
@@ -295,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authEnabled, currentUserEmail]);
 
   useEffect(() => {
     let cancelled = false;

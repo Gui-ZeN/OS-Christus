@@ -1,3 +1,4 @@
+import { requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
 import { normalizeTicketForStorage, serializeTicketForApi } from './_lib/tickets.js';
@@ -36,6 +37,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PATCH') {
+      await requireAuthenticatedUser(req);
       const body = await readJsonBody(req);
       if (!body?.id || !body?.updates) {
         return sendJson(res, 400, { ok: false, error: 'id e updates são obrigatórios.' });

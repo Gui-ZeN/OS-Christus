@@ -1,3 +1,4 @@
+import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
@@ -67,6 +68,7 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
+      await requireAdminUser(req);
       let settings = await readSettings(db);
       if (!settings.emailTemplate || !settings.dailyDigest || !settings.sla) {
         await ensureDefaults(db);
@@ -76,7 +78,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const actor = readActorFromHeaders(req);
+      const admin = await requireAdminUser(req);
+      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
       const body = await readJsonBody(req);
       const section = String(body?.section || '').trim();
       const data = body?.data;

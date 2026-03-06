@@ -1,4 +1,4 @@
-import { getActorHeaders } from './actorHeaders';
+import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 
 export interface EmailTemplateSettings {
   trigger: string;
@@ -46,7 +46,9 @@ function normalizeSlaSettings(value: unknown): SlaSettings {
 }
 
 export async function fetchSettings() {
-  const response = await fetch('/api/settings');
+  const response = await fetch('/api/settings', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar settings.');
   }
@@ -62,9 +64,10 @@ export async function fetchSettings() {
 }
 
 export async function saveSettings(section: 'emailTemplates' | 'dailyDigest' | 'sla', data: object) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/settings', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ section, data }),
   });
   if (!response.ok) {

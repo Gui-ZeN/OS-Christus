@@ -1,3 +1,4 @@
+import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { sendJson } from './_lib/http.js';
 
@@ -15,6 +16,7 @@ export default async function handler(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
     }
 
+    await requireAdminUser(req);
     const db = getAdminDb();
     const rawLimit = Number.parseInt(String(req.query?.limit || '100'), 10);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;

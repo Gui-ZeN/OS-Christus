@@ -1,3 +1,4 @@
+import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readProcurement, seedProcurementDefaults } from './_lib/procurement.js';
@@ -73,6 +74,7 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
+      await requireAuthenticatedUser(req);
       let data = await readProcurement(db);
       const hasAnyData =
         Object.keys(data.quotesByTicket).length > 0 ||
@@ -88,7 +90,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const actor = readActorFromHeaders(req);
+      const user = await requireUserWithRoles(req, ['Admin', 'Diretor']);
+      const actor = readActorFromHeaders(req) || user.email || user.name || 'painel';
       const body = await readJsonBody(req);
       const ticketId = String(body?.ticketId || '').trim();
       const type = String(body?.type || '').trim();

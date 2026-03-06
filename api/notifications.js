@@ -1,3 +1,4 @@
+import { requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
@@ -46,6 +47,7 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
+      await requireAuthenticatedUser(req);
       let notifications = await readNotifications(db);
       if (notifications.length === 0) {
         await ensureDefaults(db);
@@ -55,7 +57,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const actor = readActorFromHeaders(req);
+      const user = await requireAuthenticatedUser(req);
+      const actor = readActorFromHeaders(req) || user.email || user.name || 'painel';
       const body = await readJsonBody(req);
       const action = String(body?.action || '').trim();
 

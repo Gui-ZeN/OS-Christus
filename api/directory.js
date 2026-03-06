@@ -1,3 +1,4 @@
+import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
 import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
@@ -16,6 +17,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      await requireAdminUser(req);
       const body = await readJsonBody(req);
       if (body?.seedDefaults !== true) {
         return sendJson(res, 400, { ok: false, error: 'Envie { seedDefaults: true } para popular o diretório.' });

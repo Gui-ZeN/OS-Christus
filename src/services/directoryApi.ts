@@ -1,4 +1,4 @@
-import { getActorHeaders } from './actorHeaders';
+import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 
 export interface DirectoryUser {
   id: string;
@@ -55,9 +55,10 @@ export async function fetchUsers() {
 }
 
 export async function createUser(user: DirectoryUser, password?: string) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ user, password }),
   });
   if (!response.ok) {
@@ -67,9 +68,10 @@ export async function createUser(user: DirectoryUser, password?: string) {
 }
 
 export async function updateUser(id: string, updates: Partial<DirectoryUser>, password?: string) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/users', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ id, updates, password }),
   });
   if (!response.ok) {

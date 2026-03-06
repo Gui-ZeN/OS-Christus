@@ -1,3 +1,4 @@
+import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 
@@ -42,9 +43,10 @@ export async function createTicketInApi(ticket: Ticket) {
 }
 
 export async function patchTicketInApi(id: string, updates: Partial<Ticket>) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/tickets', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ id, updates }),
   });
   if (!response.ok) {

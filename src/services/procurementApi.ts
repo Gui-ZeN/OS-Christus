@@ -1,4 +1,4 @@
-import { getActorHeaders } from './actorHeaders';
+import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 import { ContractRecord, PaymentRecord, Quote } from '../types';
 import { coerceDate } from '../utils/date';
 
@@ -7,7 +7,9 @@ type ContractApi = ContractRecord & { ticketId?: string };
 type PaymentApi = Omit<PaymentRecord, 'paidAt'> & { paidAt?: string | null; ticketId?: string };
 
 export async function fetchProcurementData() {
-  const response = await fetch('/api/procurement');
+  const response = await fetch('/api/procurement', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar procurement.');
   }
@@ -37,9 +39,10 @@ export async function fetchProcurementData() {
 }
 
 export async function saveQuotes(ticketId: string, quotes: Quote[]) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ ticketId, type: 'quotes', quotes }),
   });
   if (!response.ok) {
@@ -48,9 +51,10 @@ export async function saveQuotes(ticketId: string, quotes: Quote[]) {
 }
 
 export async function saveContract(ticketId: string, contract: ContractRecord) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ ticketId, type: 'contract', contract }),
   });
   if (!response.ok) {
@@ -59,9 +63,10 @@ export async function saveContract(ticketId: string, contract: ContractRecord) {
 }
 
 export async function savePayment(ticketId: string, payment: PaymentRecord) {
+  const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({
       ticketId,
       type: 'payment',

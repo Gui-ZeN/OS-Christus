@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Mail, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
+import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { formatDateTimeSafe } from '../utils/date';
 
 type EmailHealthResponse = {
@@ -55,7 +56,9 @@ export function EmailHealthView() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/email/health');
+      const res = await fetch('/api/email/health', {
+        headers: await getAuthenticatedActorHeaders(),
+      });
       const json = await res.json();
       if (!res.ok || !json.ok) {
         throw new Error(json.error || 'Falha ao carregar saúde de e-mail.');

@@ -7,7 +7,7 @@ function readBearerToken(req) {
   return header.slice(7).trim() || null;
 }
 
-export async function requireAdminUser(req) {
+async function resolveAuthenticatedUser(req) {
   const token = readBearerToken(req);
   if (!token) {
     throw new Error('Token de autenticação ausente.');
@@ -35,14 +35,31 @@ export async function requireAdminUser(req) {
     throw new Error('Usuário inativo.');
   }
 
-  if (userDoc.role !== 'Admin') {
-    throw new Error('Permissão insuficiente.');
-  }
-
   return {
     uid: decoded.uid,
     email: decoded.email || null,
     name: userDoc.name || decoded.name || null,
     role: userDoc.role,
   };
+}
+
+export async function requireAuthenticatedUser(req) {
+  return resolveAuthenticatedUser(req);
+}
+
+export async function requireUserWithRoles(req, allowedRoles) {
+  const user = await resolveAuthenticatedUser(req);
+  if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) {
+    return user;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    throw new Error('Permissão insuficiente.');
+  }
+
+  return user;
+}
+
+export async function requireAdminUser(req) {
+  return requireUserWithRoles(req, ['Admin']);
 }
