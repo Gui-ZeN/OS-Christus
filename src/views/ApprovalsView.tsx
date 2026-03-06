@@ -46,6 +46,7 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
 export function ApprovalsView() {
   const { openAttachment, updateTicket, tickets, currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canApprove = canAccess;
   const [activeTab, setActiveTab] = useState<'new_os' | 'solutions' | 'budgets' | 'contracts'>('new_os');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -111,6 +112,7 @@ export function ApprovalsView() {
   }, [attachContractModalId]);
 
   const handleApprove = (id: string, tab: 'new_os' | 'solutions' | 'budgets', selectedQuote?: Quote) => {
+    if (!canApprove) return;
     setProcessingId(id);
     setTimeout(async () => {
       if (tab === 'budgets') {
@@ -137,11 +139,13 @@ export function ApprovalsView() {
   };
 
   const openRejectModal = (id: string) => {
+    if (!canApprove) return;
     setRejectTargetId(id);
     setRejectModalOpen(true);
   };
 
   const handleReject = (reason: string) => {
+    if (!canApprove) return;
     if (!rejectTargetId) return;
     setProcessingId(rejectTargetId);
     setRejectModalOpen(false);
@@ -166,6 +170,7 @@ export function ApprovalsView() {
   };
 
   const handleAttachContract = () => {
+    if (!canApprove) return;
     if (!attachContractModalId) return;
     setProcessingId(attachContractModalId);
     const currentContract = contractsByTicket[attachContractModalId];

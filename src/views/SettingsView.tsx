@@ -32,6 +32,7 @@ const DEFAULT_SLA: SlaSettings = {
 export function SettingsView() {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin';
+  const canEditSettings = canAccess;
   const [section, setSection] = useState<SettingsSection>('templates');
   const [loading, setLoading] = useState(true);
   const [templateSaved, setTemplateSaved] = useState(false);
@@ -83,6 +84,7 @@ export function SettingsView() {
   }, []);
 
   const handleSaveTemplate = async () => {
+    if (!canEditSettings) return;
     try {
       await saveSettings('emailTemplates', template);
     } catch {
@@ -93,6 +95,7 @@ export function SettingsView() {
   };
 
   const handleSaveDigest = async () => {
+    if (!canEditSettings) return;
     try {
       await saveSettings('dailyDigest', digest);
     } catch {
@@ -103,6 +106,7 @@ export function SettingsView() {
   };
 
   const handleSaveSla = async () => {
+    if (!canEditSettings) return;
     try {
       await saveSettings('sla', sla);
     } catch {

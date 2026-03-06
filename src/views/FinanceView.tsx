@@ -11,6 +11,7 @@ import { fetchProcurementData, savePayment } from '../services/procurementApi';
 export function FinanceView() {
   const { openAttachment, updateTicket, tickets, currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canPay = canAccess;
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord>>({});
@@ -64,6 +65,7 @@ export function FinanceView() {
   );
 
   const handlePay = (id: string) => {
+    if (!canPay) return;
     setProcessingId(id);
     setTimeout(async () => {
       const currentPayment = paymentsByTicket[id];
@@ -128,7 +130,7 @@ export function FinanceView() {
                   <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor a Pagar</div>
                   <div className="text-2xl font-serif text-roman-text-main">{payment.value}</div>
                 </div>
-                <button onClick={() => handlePay(payment.id)} className="w-full px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2">
+                <button onClick={() => handlePay(payment.id)} disabled={!canPay} className="w-full px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   <DollarSign size={16} /> Confirmar Pagamento
                 </button>
               </div>

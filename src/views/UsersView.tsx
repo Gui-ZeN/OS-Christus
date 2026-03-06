@@ -49,6 +49,7 @@ function normalizeUserForm(user: DirectoryUser): UserForm {
 export function UsersView() {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin';
+  const canManageUsers = canAccess;
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
@@ -142,6 +143,7 @@ export function UsersView() {
   };
 
   const handleSave = async () => {
+    if (!canManageUsers) return;
     if (!form.name.trim() || !form.email.trim() || !form.role.trim()) return;
 
     const payload: DirectoryUser = {
@@ -178,7 +180,7 @@ export function UsersView() {
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Usuarios</h1>
             <p className="text-roman-text-sub font-serif italic">Gestao de acesso por papel, regiao e sede.</p>
           </div>
-          <button onClick={openNew} className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm font-medium transition-colors flex items-center gap-2">
+          <button onClick={openNew} disabled={!canManageUsers} className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
             <Plus size={16} /> Novo Usuario
           </button>
         </header>
@@ -226,7 +228,7 @@ export function UsersView() {
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <button onClick={() => openEdit(user)} className="text-roman-primary hover:underline font-medium text-sm">
+                        <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
                           Editar
                         </button>
                       </td>
