@@ -1,4 +1,4 @@
-﻿import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+﻿import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { getFirebaseClientApp } from '../lib/firebaseClient';
 import type { TicketAttachment } from '../types';
 
@@ -37,4 +37,14 @@ export async function uploadClosureDocument(ticketId: string, file: File): Promi
     uploadedAt: new Date(),
     category: file.type === 'application/pdf' ? 'closure_report' : 'closure_evidence',
   };
+}
+
+export async function deleteTicketAttachment(path: string) {
+  const app = getFirebaseClientApp();
+  if (!app) {
+    throw new Error('Firebase Storage não configurado no frontend.');
+  }
+
+  const storage = getStorage(app);
+  await deleteObject(ref(storage, path));
 }

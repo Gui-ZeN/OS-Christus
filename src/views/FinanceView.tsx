@@ -1,11 +1,11 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, ClipboardList, DollarSign, FileText, Loader2, PlusCircle } from 'lucide-react';
+import { CheckCircle, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
-import { uploadClosureDocument } from '../services/ticketStorage';
+import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
 
@@ -270,6 +270,52 @@ export function FinanceView() {
       setTimeout(() => setToast(null), 3000);
     } catch (error) {
       setToast(`Erro: ${error instanceof Error ? error.message : 'falha no upload do documento.'}`);
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setUploadingTicketId(null);
+    }
+  };
+
+  const handleClosureDocumentRemove = async (ticketId: string, documentId: string) => {
+    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
+    if (!targetTicket) return;
+
+    const currentDocuments = targetTicket.closureChecklist?.documents || [];
+    const targetDocument = currentDocuments.find(document => document.id === documentId);
+    if (!targetDocument) return;
+
+    setUploadingTicketId(ticketId);
+    try {
+      await deleteTicketAttachment(targetDocument.path);
+      const nextDocuments = currentDocuments.filter(document => document.id !== documentId);
+      updateTicket(ticketId, {
+        closureChecklist: {
+          requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
+          requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
+          requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
+          infrastructureApprovedByRafael: targetTicket.closureChecklist?.infrastructureApprovedByRafael ?? false,
+          infrastructureApprovedByFernando: targetTicket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+          closureNotes: targetTicket.closureChecklist?.closureNotes || '',
+          serviceStartedAt: targetTicket.closureChecklist?.serviceStartedAt || null,
+          serviceCompletedAt: targetTicket.closureChecklist?.serviceCompletedAt || null,
+          closedAt: targetTicket.closureChecklist?.closedAt || null,
+          documents: nextDocuments,
+        },
+        history: [
+          ...targetTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: 'Financeiro',
+            time: new Date(),
+            text: `Documento de encerramento removido: ${targetDocument.name}.`,
+          },
+        ],
+      });
+      setToast(`Documento ${targetDocument.name} removido com sucesso.`);
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover o documento.'}`);
       setTimeout(() => setToast(null), 4000);
     } finally {
       setUploadingTicketId(null);
@@ -885,6 +931,15 @@ export function FinanceView() {
                                     className="text-sm font-medium text-roman-primary hover:underline"
                                   >
                                     Abrir
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleClosureDocumentRemove(ticket.id, document.id)}
+                                    disabled={uploadingTicketId === ticket.id}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                                  >
+                                    <Trash2 size={14} />
+                                    Remover
                                   </button>
                                 </div>
                               </div>
