@@ -1,3 +1,5 @@
+import { getAuthenticatedActorHeaders } from './actorHeaders';
+
 export interface FirestoreLegacyHealth {
   summary: {
     legacyUsers: number;
@@ -14,7 +16,9 @@ export interface FirestoreLegacyHealth {
 }
 
 export async function fetchFirestoreLegacyHealth() {
-  const response = await fetch('/api/firestore-legacy-health');
+  const response = await fetch('/api/firestore-legacy-health', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar diagnostico de legado do Firestore.');
   }

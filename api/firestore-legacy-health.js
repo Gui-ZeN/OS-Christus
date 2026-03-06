@@ -1,3 +1,4 @@
+import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { sendJson } from './_lib/http.js';
 
@@ -24,6 +25,7 @@ export default async function handler(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
     }
 
+    await requireAdminUser(req);
     const db = getAdminDb();
     const [usersSnap, ticketsSnap, notificationsSnap, slaSnap] = await Promise.all([
       db.collection('users').get(),

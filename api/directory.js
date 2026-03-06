@@ -1,4 +1,4 @@
-import { requireAdminUser } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
 import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
@@ -8,6 +8,7 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
+      await requireAuthenticatedUser(req);
       let directory = await readDirectory(db);
       if (directory.users.length === 0 || directory.teams.length === 0 || directory.vendors.length === 0) {
         await seedDirectoryDefaults(db);

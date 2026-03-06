@@ -1,3 +1,5 @@
+import { getAuthenticatedActorHeaders } from './actorHeaders';
+
 export interface IntegrationCheck {
   ok: boolean;
   label: string;
@@ -15,7 +17,9 @@ export interface IntegrationsHealthResponse {
 }
 
 export async function fetchIntegrationsHealth() {
-  const response = await fetch('/api/integrations-health');
+  const response = await fetch('/api/integrations-health', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar saúde das integrações.');
   }

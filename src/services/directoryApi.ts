@@ -27,7 +27,9 @@ export interface DirectoryVendor {
 }
 
 export async function fetchDirectory() {
-  const response = await fetch('/api/directory');
+  const response = await fetch('/api/directory', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar diretorio.');
   }
@@ -43,7 +45,9 @@ export async function fetchDirectory() {
 }
 
 export async function fetchUsers() {
-  const response = await fetch('/api/users');
+  const response = await fetch('/api/users', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
   if (!response.ok) {
     throw new Error('Falha ao buscar usuarios.');
   }

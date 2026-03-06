@@ -206,6 +206,7 @@ async function resolveAuthorizedUser(email: string) {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
+  const [authResolved, setAuthResolved] = useState(!authEnabled);
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
@@ -226,6 +227,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void (async () => {
       unsubscribe = await subscribeToAuthState(user => {
         setCurrentUserEmailState(user?.email?.trim().toLowerCase() || '');
+        setAuthResolved(true);
       });
     })();
     return () => unsubscribe();
@@ -304,6 +306,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    if (authEnabled && !authResolved) {
+      return undefined;
+    }
+
     if (!currentUserEmail) {
       setCurrentUser(null);
       return undefined;
@@ -325,7 +331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [currentUserEmail]);
+  }, [authEnabled, authResolved, currentUserEmail]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

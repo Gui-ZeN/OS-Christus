@@ -1,6 +1,7 @@
 import { getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
+import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { gmailGetProfile } from './_lib/gmail.js';
 import { sendJson } from './_lib/http.js';
@@ -186,6 +187,7 @@ export default async function handler(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
+    await requireAdminUser(req);
     const [firebaseAdmin, auth, storage, email] = await Promise.all([
       checkFirebaseAdmin(),
       checkAuth(),
