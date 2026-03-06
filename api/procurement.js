@@ -60,8 +60,35 @@ async function writePayment(db, ticketId, payment) {
       vendor: String(payment.vendor || '').trim(),
       value: String(payment.value || '').trim(),
       status: String(payment.status || 'pending'),
+      label: payment.label ? String(payment.label) : null,
+      installmentNumber: payment.installmentNumber ? Number(payment.installmentNumber) : null,
+      totalInstallments: payment.totalInstallments ? Number(payment.totalInstallments) : null,
+      dueAt: payment.dueAt ? new Date(payment.dueAt) : null,
+      measurementId: payment.measurementId ? String(payment.measurementId) : null,
+      releasedPercent: payment.releasedPercent != null ? Number(payment.releasedPercent) : null,
       receiptFileName: payment.receiptFileName ? String(payment.receiptFileName) : null,
       paidAt: payment.paidAt ? new Date(payment.paidAt) : null,
+      updatedAt: now,
+      createdAt: now,
+    },
+    { merge: true }
+  );
+}
+
+async function writeMeasurement(db, ticketId, measurement) {
+  const now = new Date();
+  const id = measurement.id || `measurement-${Date.now()}`;
+  await db.collection('tickets').doc(ticketId).collection('measurements').doc(id).set(
+    {
+      id,
+      ticketId,
+      label: String(measurement.label || 'Medição').trim(),
+      progressPercent: Number(measurement.progressPercent || 0),
+      releasePercent: Number(measurement.releasePercent || 0),
+      status: String(measurement.status || 'approved'),
+      notes: measurement.notes ? String(measurement.notes) : '',
+      requestedAt: measurement.requestedAt ? new Date(measurement.requestedAt) : now,
+      approvedAt: measurement.approvedAt ? new Date(measurement.approvedAt) : null,
       updatedAt: now,
       createdAt: now,
     },
@@ -79,7 +106,8 @@ export default async function handler(req, res) {
       const hasAnyData =
         Object.keys(data.quotesByTicket).length > 0 ||
         Object.keys(data.contractsByTicket).length > 0 ||
-        Object.keys(data.paymentsByTicket).length > 0;
+        Object.keys(data.paymentsByTicket).length > 0 ||
+        Object.keys(data.measurementsByTicket).length > 0;
 
       if (!hasAnyData) {
         await seedProcurementDefaults(db);
@@ -132,6 +160,18 @@ export default async function handler(req, res) {
           entity: 'ticket',
           entityId: ticketId,
           after: { type, payment: body?.payment || {} },
+        });
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (type === 'measurement') {
+        await writeMeasurement(db, ticketId, body?.measurement || {});
+        await writeAuditLog({
+          actor,
+          action: 'procurement.measurement.save',
+          entity: 'ticket',
+          entityId: ticketId,
+          after: { type, measurement: body?.measurement || {} },
         });
         return sendJson(res, 200, { ok: true });
       }

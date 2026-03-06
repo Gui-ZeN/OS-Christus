@@ -17,16 +17,61 @@ export const DEFAULT_CONTRACTS = {
 };
 
 export const DEFAULT_PAYMENTS = {
-  'OS-0041': {
-    id: 'payment-1',
-    vendor: 'Limpeza das Alturas Ltda.',
-    value: 'R$ 3.200,00',
-    status: 'pending',
-  },
-  'OS-0042': {
-    id: 'payment-2',
-    vendor: 'Serralheria Forte',
-    value: 'R$ 480,00',
-    status: 'pending',
-  },
+  'OS-0041': [
+    {
+      id: 'payment-1',
+      vendor: 'Limpeza das Alturas Ltda.',
+      value: 'R$ 1.600,00',
+      label: 'Parcela 1/2',
+      installmentNumber: 1,
+      totalInstallments: 2,
+      releasedPercent: 50,
+      status: 'paid',
+    },
+    {
+      id: 'payment-2',
+      vendor: 'Limpeza das Alturas Ltda.',
+      value: 'R$ 1.600,00',
+      label: 'Parcela 2/2',
+      installmentNumber: 2,
+      totalInstallments: 2,
+      releasedPercent: 50,
+      status: 'pending',
+    },
+  ],
+  'OS-0042': [
+    {
+      id: 'payment-1',
+      vendor: 'Serralheria Forte',
+      value: 'R$ 480,00',
+      label: 'Pagamento à vista',
+      installmentNumber: 1,
+      totalInstallments: 1,
+      releasedPercent: 100,
+      status: 'pending',
+    },
+  ],
+};
+
+export const DEFAULT_MEASUREMENTS = {
+  'OS-0041': [
+    {
+      id: 'measurement-1',
+      label: 'Medição 50%',
+      progressPercent: 50,
+      releasePercent: 50,
+      status: 'paid',
+      notes: 'Primeira etapa concluída com limpeza total das calhas principais.',
+    },
+  ],
+  'OS-0042': [
+    {
+      id: 'measurement-1',
+      label: 'Medição final',
+      progressPercent: 100,
+      releasePercent: 100,
+      status: 'approved',
+      notes: 'Serviço concluído e validado pelo solicitante.',
+    },
+  ],
 };

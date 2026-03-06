@@ -79,11 +79,28 @@ export interface ContractRecord {
   signedFileName?: string | null;
 }
 
+export interface MeasurementRecord {
+  id: string;
+  label: string;
+  progressPercent: number;
+  releasePercent: number;
+  status: 'pending' | 'approved' | 'paid';
+  notes?: string;
+  requestedAt?: Date | null;
+  approvedAt?: Date | null;
+}
+
 export interface PaymentRecord {
   id: string;
   vendor: string;
   value: string;
   status: string;
+  label?: string | null;
+  installmentNumber?: number | null;
+  totalInstallments?: number | null;
+  dueAt?: Date | null;
+  measurementId?: string | null;
+  releasedPercent?: number | null;
   receiptFileName?: string | null;
   paidAt?: Date | null;
 }
