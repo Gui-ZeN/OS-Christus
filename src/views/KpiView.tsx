@@ -140,10 +140,10 @@ export function KpiView() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* OS Abertas vs Fechadas (Z3) */}
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Volume de OS: Abertas vs. Fechadas</h2>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-72 min-w-0 min-h-[18rem]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={osPorRegiao} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
@@ -162,10 +162,10 @@ export function KpiView() {
           </div>
 
           {/* Tempo Médio por Etapa (Z3) */}
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Tempo Médio por Etapa (Dias)</h2>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-72 min-w-0 min-h-[18rem]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={tempoPorEtapa} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
                   <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} />
@@ -183,10 +183,10 @@ export function KpiView() {
           </div>
         </div>
 
-        <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+        <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
           <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Custo Total de Manutenção por Sede (R$)</h2>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-72 min-w-0 min-h-[18rem]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />

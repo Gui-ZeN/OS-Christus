@@ -264,7 +264,7 @@ export function SettingsView() {
                   <>
                     <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Regras de SLA</h2>
                     <div className="space-y-4">
-                      {sla.rules.map(rule => (
+                      {(sla.rules || []).map(rule => (
                         <div key={rule.priority} className="flex items-center justify-between p-4 border rounded-sm bg-roman-bg border-roman-border">
                           <span className="font-medium text-sm">{rule.priority}</span>
                           <span className="font-mono text-sm">{rule.prazo}</span>

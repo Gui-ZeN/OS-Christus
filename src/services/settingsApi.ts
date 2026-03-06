@@ -17,6 +17,34 @@ export interface SlaSettings {
   rules: Array<{ priority: string; prazo: string }>;
 }
 
+function normalizeSlaSettings(value: unknown): SlaSettings {
+  const sla = (value || {}) as {
+    rules?: Array<{ priority?: string; prazo?: string }>;
+    urgentHours?: number;
+    highHours?: number;
+    normalHours?: number;
+    lowHours?: number;
+  };
+
+  if (Array.isArray(sla.rules)) {
+    return {
+      rules: sla.rules.map(rule => ({
+        priority: String(rule.priority || '').trim(),
+        prazo: String(rule.prazo || '').trim(),
+      })),
+    };
+  }
+
+  return {
+    rules: [
+      { priority: 'Urgente', prazo: `${Number(sla?.urgentHours || 24)}h` },
+      { priority: 'Alta', prazo: `${Number(sla?.highHours || 72)}h` },
+      { priority: 'Normal', prazo: `${Number(sla?.normalHours || 120)}h` },
+      { priority: 'Trivial', prazo: `${Number(sla?.lowHours || 240)}h` },
+    ],
+  };
+}
+
 export async function fetchSettings() {
   const response = await fetch('/api/settings');
   if (!response.ok) {
@@ -29,7 +57,7 @@ export async function fetchSettings() {
   return {
     emailTemplate: json.emailTemplate as EmailTemplateSettings,
     dailyDigest: json.dailyDigest as DailyDigestSettings,
-    sla: json.sla as SlaSettings,
+    sla: normalizeSlaSettings(json.sla),
   };
 }
 

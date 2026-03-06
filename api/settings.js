@@ -3,6 +3,31 @@ import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
+function normalizeSla(data) {
+  if (Array.isArray(data?.rules)) {
+    return {
+      ...data,
+      rules: data.rules.map(rule => ({
+        priority: String(rule?.priority || '').trim(),
+        prazo: String(rule?.prazo || '').trim(),
+      })),
+    };
+  }
+
+  if (data && typeof data === 'object') {
+    return {
+      rules: [
+        { priority: 'Urgente', prazo: `${Number(data.urgentHours || 24)}h` },
+        { priority: 'Alta', prazo: `${Number(data.highHours || 72)}h` },
+        { priority: 'Normal', prazo: `${Number(data.normalHours || 120)}h` },
+        { priority: 'Trivial', prazo: `${Number(data.lowHours || 240)}h` },
+      ],
+    };
+  }
+
+  return DEFAULT_SETTINGS.sla.default;
+}
+
 async function ensureDefaults(db) {
   const batch = db.batch();
   const now = new Date();
@@ -33,7 +58,7 @@ async function readSettings(db) {
   return {
     emailTemplate: refs[0].exists ? refs[0].data() : null,
     dailyDigest: refs[1].exists ? refs[1].data() : null,
-    sla: refs[2].exists ? refs[2].data() : null,
+    sla: refs[2].exists ? normalizeSla(refs[2].data()) : null,
   };
 }
 
@@ -64,10 +89,11 @@ export default async function handler(req, res) {
         return sendJson(res, 400, { ok: false, error: 'section invalida.' });
       }
 
+      const normalizedData = section === 'sla' ? normalizeSla(data) : data;
       const docRef = db.collection('settings').doc(section).collection('items').doc('default');
       const beforeSnap = await docRef.get();
       const before = beforeSnap.exists ? beforeSnap.data() : null;
-      await docRef.set({ ...data, updatedAt: new Date() }, { merge: true });
+      await docRef.set({ ...normalizedData, updatedAt: new Date() }, { merge: true });
 
       await writeAuditLog({
         actor,
@@ -75,7 +101,7 @@ export default async function handler(req, res) {
         entity: 'settings',
         entityId: section,
         before,
-        after: data,
+        after: normalizedData,
       });
 
       return sendJson(res, 200, { ok: true });
