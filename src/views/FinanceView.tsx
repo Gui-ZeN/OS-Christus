@@ -3,15 +3,31 @@ import { CheckCircle, DollarSign, FileText, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
+import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { PaymentRecord } from '../types';
 import { fetchProcurementData, savePayment } from '../services/procurementApi';
 
 export function FinanceView() {
-  const { openAttachment, updateTicket, tickets } = useApp();
+  const { openAttachment, updateTicket, tickets, currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord>>({});
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={DollarSign}
+            title="Acesso restrito"
+            description="Apenas Diretor e Admin podem acessar o painel financeiro."
+          />
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;

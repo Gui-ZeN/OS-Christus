@@ -1,9 +1,27 @@
 import React, { useState } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, LineChart, CartesianGrid, XAxis, YAxis, Line, BarChart, Bar, Legend } from 'recharts';
 import { Calendar, DollarSign, Briefcase, Clock, TrendingUp, TrendingDown } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { EmptyState } from '../components/ui/EmptyState';
 
 export function KpiView() {
+  const { currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [period, setPeriod] = useState<'month' | 'semester' | 'custom'>('month');
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={TrendingUp}
+            title="Acesso restrito"
+            description="Os indicadores gerenciais estão disponíveis apenas para Diretor e Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   // Mock Data for Z3 Features
   const osPorRegiao = [

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Mail, RefreshCw } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { EmptyState } from '../components/ui/EmptyState';
 
 type EmailHealthResponse = {
   ok: boolean;
@@ -34,9 +36,25 @@ function formatDate(value: unknown) {
 }
 
 export function EmailHealthView() {
+  const { currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<EmailHealthResponse | null>(null);
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={Mail}
+            title="Acesso restrito"
+            description="O monitoramento de e-mail está disponível apenas para Diretor e Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   const load = async () => {
     setLoading(true);

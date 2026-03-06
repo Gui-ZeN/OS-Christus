@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, History, RefreshCw, Search } from 'lucide-react';
 import { AuditLogEntry, fetchAuditLogs } from '../services/auditLogsApi';
+import { useApp } from '../context/AppContext';
+import { EmptyState } from '../components/ui/EmptyState';
 
 function formatDate(value: string | null) {
   if (!value) return '-';
@@ -17,10 +19,26 @@ function safeJson(value: unknown) {
 }
 
 export function AuditLogsView() {
+  const { currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [search, setSearch] = useState('');
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={History}
+            title="Acesso restrito"
+            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   const load = async () => {
     setLoading(true);

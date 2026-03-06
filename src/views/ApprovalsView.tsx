@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
@@ -43,7 +44,8 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
 };
 
 export function ApprovalsView() {
-  const { openAttachment, updateTicket, tickets } = useApp();
+  const { openAttachment, updateTicket, tickets, currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [activeTab, setActiveTab] = useState<'new_os' | 'solutions' | 'budgets' | 'contracts'>('new_os');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -53,6 +55,20 @@ export function ApprovalsView() {
   const [toast, setToast] = useState<string | null>(null);
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={Shield}
+            title="Acesso restrito"
+            description="Apenas Diretor e Admin podem acessar o painel de aprovações."
+          />
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, Clock, Loader2, Mail } from 'lucide-react';
 import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
+import { useApp } from '../context/AppContext';
+import { EmptyState } from '../components/ui/EmptyState';
 
 type SettingsSection = 'templates' | 'daily-digest' | 'sla' | 'integrations';
 
@@ -28,6 +30,8 @@ const DEFAULT_SLA: SlaSettings = {
 };
 
 export function SettingsView() {
+  const { currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin';
   const [section, setSection] = useState<SettingsSection>('templates');
   const [loading, setLoading] = useState(true);
   const [templateSaved, setTemplateSaved] = useState(false);
@@ -36,6 +40,20 @@ export function SettingsView() {
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
   const [digest, setDigest] = useState<DailyDigestSettings>(DEFAULT_DIGEST);
   const [sla, setSla] = useState<SlaSettings>(DEFAULT_SLA);
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={Mail}
+            title="Acesso restrito"
+            description="As configurações do sistema estão disponíveis apenas para perfis Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;

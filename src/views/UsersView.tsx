@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Plus, X } from 'lucide-react';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { createUser, DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
+import { useApp } from '../context/AppContext';
+import { EmptyState } from '../components/ui/EmptyState';
 
 type UserStatus = 'Ativo' | 'Inativo';
 type UserRole = 'Diretor' | 'Supervisor' | 'Admin' | 'Usuario';
@@ -45,6 +47,8 @@ function normalizeUserForm(user: DirectoryUser): UserForm {
 }
 
 export function UsersView() {
+  const { currentUser } = useApp();
+  const canAccess = currentUser?.role === 'Admin';
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
@@ -53,6 +57,20 @@ export function UsersView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={Plus}
+            title="Acesso restrito"
+            description="A administração de usuários está disponível apenas para perfis Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     let cancelled = false;
