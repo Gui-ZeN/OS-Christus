@@ -161,7 +161,7 @@ export default async function handler(req, res) {
       const docRef = db.collection('users').doc(id);
       const beforeSnap = await docRef.get();
       const before = beforeSnap.exists ? beforeSnap.data() : null;
-      const authUid = await upsertAuthUser(user, password);
+      const authUid = await upsertAuthUserByExistingRecord(user, password, before?.authUid || null);
       await docRef.set({ ...user, id, authUid, updatedAt: new Date() }, { merge: true });
       await writeAuditLog({
         actor,

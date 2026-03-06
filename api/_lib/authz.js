@@ -1,0 +1,48 @@
+import { getAuth } from 'firebase-admin/auth';
+import { getAdminDb } from './firebaseAdmin.js';
+
+function readBearerToken(req) {
+  const header = String(req.headers.authorization || '').trim();
+  if (!header.toLowerCase().startsWith('bearer ')) return null;
+  return header.slice(7).trim() || null;
+}
+
+export async function requireAdminUser(req) {
+  const token = readBearerToken(req);
+  if (!token) {
+    throw new Error('Token de autenticação ausente.');
+  }
+
+  const db = getAdminDb();
+  const decoded = await getAuth().verifyIdToken(token);
+
+  let userDoc = null;
+  if (decoded.uid) {
+    const byUid = await db.collection('users').where('authUid', '==', decoded.uid).limit(1).get();
+    if (!byUid.empty) userDoc = byUid.docs[0].data();
+  }
+
+  if (!userDoc && decoded.email) {
+    const byEmail = await db.collection('users').where('email', '==', String(decoded.email).toLowerCase()).limit(1).get();
+    if (!byEmail.empty) userDoc = byEmail.docs[0].data();
+  }
+
+  if (!userDoc) {
+    throw new Error('Usuário autenticado sem cadastro no diretório.');
+  }
+
+  if (userDoc.status !== 'Ativo' || userDoc.active === false) {
+    throw new Error('Usuário inativo.');
+  }
+
+  if (userDoc.role !== 'Admin') {
+    throw new Error('Permissão insuficiente.');
+  }
+
+  return {
+    uid: decoded.uid,
+    email: decoded.email || null,
+    name: userDoc.name || decoded.name || null,
+    role: userDoc.role,
+  };
+}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw, ShieldCheck, TriangleAlert, Wrench } from 'lucide-react';
+import { runFirestoreLegacyBackfill, type FirestoreBackfillResult } from '../services/adminActionsApi';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApp } from '../context/AppContext';
 import { isFirebaseAuthConfigured } from '../lib/firebaseClient';
@@ -76,6 +77,9 @@ export function SettingsView() {
   const [slaSaved, setSlaSaved] = useState(false);
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsError, setIntegrationsError] = useState<string | null>(null);
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
+  const [backfillResult, setBackfillResult] = useState<FirestoreBackfillResult | null>(null);
   const [legacyHealth, setLegacyHealth] = useState<FirestoreLegacyHealth | null>(null);
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationsHealthResponse | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
@@ -160,6 +164,21 @@ export function SettingsView() {
     }
     setSlaSaved(true);
     setTimeout(() => setSlaSaved(false), 3000);
+  };
+
+  const handleRunBackfill = async () => {
+    setBackfillLoading(true);
+    setBackfillError(null);
+
+    try {
+      const result = await runFirestoreLegacyBackfill();
+      setBackfillResult(result.result);
+      await loadIntegrations();
+    } catch (error) {
+      setBackfillError(error instanceof Error ? error.message : 'Falha ao executar backfill.');
+    } finally {
+      setBackfillLoading(false);
+    }
   };
 
   const clientFirebaseCheck = useMemo(
@@ -409,20 +428,49 @@ export function SettingsView() {
                         <p className="text-sm text-roman-text-sub font-serif italic">Status operacional do ambiente e compatibilidade com dados antigos.</p>
                       </div>
 
-                      <button
-                        onClick={() => void loadIntegrations()}
-                        className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
-                        disabled={integrationsLoading}
-                      >
-                        <RefreshCw size={14} className={integrationsLoading ? 'animate-spin' : ''} />
-                        Atualizar
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => void handleRunBackfill()}
+                          className="px-4 py-2 bg-roman-sidebar text-white rounded-sm text-sm font-medium hover:bg-stone-900 flex items-center gap-2 disabled:opacity-60"
+                          disabled={backfillLoading || integrationsLoading}
+                        >
+                          {backfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
+                          Executar Backfill
+                        </button>
+                        <button
+                          onClick={() => void loadIntegrations()}
+                          className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
+                          disabled={integrationsLoading || backfillLoading}
+                        >
+                          <RefreshCw size={14} className={integrationsLoading ? 'animate-spin' : ''} />
+                          Atualizar
+                        </button>
+                      </div>
                     </div>
 
                     {integrationsError && (
                       <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
                         <AlertCircle size={16} />
                         {integrationsError}
+                      </div>
+                    )}
+
+                    {backfillError && (
+                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {backfillError}
+                      </div>
+                    )}
+
+                    {backfillResult && (
+                      <div className="mb-4 p-4 border border-green-200 bg-green-50 text-green-800 rounded-sm">
+                        <div className="font-medium mb-2">Backfill executado com sucesso</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div>Usuários: {backfillResult.updatedUsers}</div>
+                          <div>Tickets: {backfillResult.updatedTickets}</div>
+                          <div>Notificações: {backfillResult.updatedNotifications}</div>
+                          <div>SLA: {backfillResult.updatedSla}</div>
+                        </div>
                       </div>
                     )}
 

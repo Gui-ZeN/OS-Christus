@@ -37,3 +37,10 @@ export async function subscribeToAuthState(listener: (user: User | null) => void
   }
   return onAuthStateChanged(auth, listener);
 }
+
+export async function getCurrentIdToken() {
+  const auth = await getFirebaseClientAuth();
+  const user = auth?.currentUser || null;
+  if (!user) return null;
+  return user.getIdToken();
+}
