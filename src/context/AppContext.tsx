@@ -6,7 +6,7 @@ import {
   DirectoryUser,
   fetchUsers,
 } from '../services/directoryApi';
-import { isAuthEnabled, loginWithEmailPassword, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
+import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
 import {
   dismissNotificationRemote,
   fetchNotifications,
@@ -44,6 +44,7 @@ interface AppContextType {
   currentUserEmail: string;
   setCurrentUserEmail: (email: string) => void;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogleAccount: () => Promise<void>;
   logout: () => Promise<void>;
   authEnabled: boolean;
 }
@@ -96,6 +97,18 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
 ];
 
+const FALLBACK_DIRECTORY_USERS: DirectoryUser[] = [
+  { id: 'rafael', name: 'Rafael', role: 'Admin', email: 'rafael@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'leonardo', name: 'Leonardo', role: 'Diretor', email: 'leonardo@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'murilo', name: 'Murilo', role: 'Diretor', email: 'murilo@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'pedro', name: 'Pedro', role: 'Diretor', email: 'pedro@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'fernando', name: 'Fernando', role: 'Supervisor', email: 'fernando@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'geovana', name: 'Geovana', role: 'Admin', email: 'geovana@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'equipe-climatizacao', name: 'Equipe Climatizacao', role: 'Usuario', email: 'clima@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+  { id: 'eletrica-jose', name: 'Eletrica Jose', role: 'Usuario', email: 'contato@eletricajose.com.br', status: 'Inativo', regionIds: [], siteIds: [], active: true },
+  { id: 'admin-os-christus', name: 'Administrador OS Christus', role: 'Admin', email: 'admin@os-christus.local', status: 'Ativo', regionIds: [], siteIds: [], active: true },
+];
+
 function getInitialUserEmail() {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem('os-christus-user-email') || '';
@@ -112,6 +125,27 @@ function canUserAccessTicket(user: DirectoryUser | null, currentUserEmail: strin
   if (siteIds.includes(ticket.sede)) return true;
   if (regionIds.includes(ticket.region)) return true;
   return false;
+}
+
+async function resolveAuthorizedUser(email: string) {
+  let users: DirectoryUser[] = [];
+  try {
+    users = await fetchUsers();
+  } catch {
+    users = FALLBACK_DIRECTORY_USERS;
+  }
+
+  const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
+
+  if (!found) {
+    throw new Error('Usuário sem cadastro no sistema. Solicite liberação ao admin.');
+  }
+
+  if (found.status !== 'Ativo' || found.active === false) {
+    throw new Error('Usuário inativo no sistema.');
+  }
+
+  return found;
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -193,23 +227,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const users = await fetchUsers();
-        const found = users.find(user => user.email.toLowerCase() === currentUserEmail.toLowerCase()) || null;
+        const found = await resolveAuthorizedUser(currentUserEmail);
         if (!cancelled) {
           setCurrentUser(found);
         }
       } catch {
         if (!cancelled) {
-          setCurrentUser({
-            id: currentUserEmail.split('@')[0] || 'usuario',
-            name: currentUserEmail.split('@')[0] || 'Usuario',
-            role: 'Admin',
-            email: currentUserEmail,
-            status: 'Ativo',
-            regionIds: [],
-            siteIds: [],
-            active: true,
-          });
+          setCurrentUser(null);
         }
       }
     })();
@@ -387,9 +411,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const normalized = email.trim().toLowerCase();
     if (authEnabled) {
-      await loginWithEmailPassword(normalized, password);
+      try {
+        await loginWithEmailPassword(normalized, password);
+        const authorizedUser = await resolveAuthorizedUser(normalized);
+        setCurrentUser(authorizedUser);
+      } catch (error) {
+        await logoutFirebaseAuth().catch(() => undefined);
+        setCurrentUserEmail('');
+        throw error;
+      }
     } else {
       setCurrentUserEmail(normalized);
+    }
+  };
+
+  const loginWithGoogleAccount = async () => {
+    if (!authEnabled) {
+      throw new Error('Login com Google indisponível sem Firebase configurado.');
+    }
+
+    try {
+      const credential = await loginWithGoogle();
+      const email = credential.user.email?.trim().toLowerCase();
+      if (!email) {
+        throw new Error('Conta Google sem e-mail disponível.');
+      }
+      const authorizedUser = await resolveAuthorizedUser(email);
+      setCurrentUserEmail(email);
+      setCurrentUser(authorizedUser);
+    } catch (error) {
+      await logoutFirebaseAuth().catch(() => undefined);
+      setCurrentUserEmail('');
+      setCurrentUser(null);
+      throw error;
     }
   };
 
@@ -449,6 +503,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentUserEmail,
         setCurrentUserEmail,
         login,
+        loginWithGoogleAccount,
         logout,
         authEnabled,
       }}

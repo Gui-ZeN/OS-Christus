@@ -84,6 +84,7 @@ export default function App() {
     markAllNotificationsRead,
     setActiveTicketId,
     login,
+    loginWithGoogleAccount,
     logout,
     currentUser,
     currentUserEmail,
@@ -193,7 +194,12 @@ export default function App() {
             await login(email, password);
             navigateTo(VIEWS.HOME);
           }}
+          onGoogleLogin={async () => {
+            await loginWithGoogleAccount();
+            navigateTo(VIEWS.HOME);
+          }}
           onBack={() => navigateTo(VIEWS.LANDING)}
+          authEnabled={authEnabled}
         />
       </Suspense>
     );

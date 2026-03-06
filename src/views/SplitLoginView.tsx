@@ -3,11 +3,14 @@ import { ArrowLeft, ArrowRight, Landmark, Loader2, Lock } from 'lucide-react';
 
 interface SplitLoginViewProps {
   onLogin: (email: string, password: string) => Promise<void>;
+  onGoogleLogin?: () => Promise<void>;
   onBack: () => void;
+  authEnabled?: boolean;
 }
 
-export function SplitLoginView({ onLogin, onBack }: SplitLoginViewProps) {
+export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = false }: SplitLoginViewProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState('rafael@empresa.com');
   const [loginPassword, setLoginPassword] = useState('12345678');
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +24,19 @@ export function SplitLoginView({ onLogin, onBack }: SplitLoginViewProps) {
       setError(err instanceof Error ? err.message : 'Falha no login.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (!onGoogleLogin) return;
+    setIsGoogleLoading(true);
+    setError(null);
+    try {
+      await onGoogleLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha no login com Google.');
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -76,11 +92,28 @@ export function SplitLoginView({ onLogin, onBack }: SplitLoginViewProps) {
           </div>
           <button
             onClick={() => void handleLogin()}
-            disabled={isLoading || !loginEmail.trim() || !loginPassword.trim()}
+            disabled={isLoading || isGoogleLoading || !loginEmail.trim() || !loginPassword.trim()}
             className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-sm font-serif tracking-wide text-base transition-colors flex items-center justify-center gap-2 mt-4 disabled:opacity-70"
           >
             {isLoading ? <Loader2 size={18} className="animate-spin" /> : <>Acessar o Sistema <ArrowRight size={18} /></>}
           </button>
+
+          {authEnabled && onGoogleLogin && (
+            <button
+              onClick={() => void handleGoogleLogin()}
+              disabled={isLoading || isGoogleLoading}
+              className="w-full border border-roman-border hover:border-roman-primary bg-roman-bg text-roman-text-main py-3 rounded-sm font-medium transition-colors flex items-center justify-center gap-3 disabled:opacity-70"
+            >
+              {isGoogleLoading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <>
+                  <span className="text-base leading-none">G</span>
+                  Entrar com Google
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

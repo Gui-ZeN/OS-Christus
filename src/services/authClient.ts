@@ -1,4 +1,4 @@
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 import { getFirebaseClientAuth, isFirebaseAuthConfigured } from '../lib/firebaseClient';
 
 export function isAuthEnabled() {
@@ -11,6 +11,16 @@ export async function loginWithEmailPassword(email: string, password: string) {
     return { email };
   }
   return signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function loginWithGoogle() {
+  const auth = await getFirebaseClientAuth();
+  if (!auth) {
+    throw new Error('Login com Google indisponível sem Firebase configurado.');
+  }
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return signInWithPopup(auth, provider);
 }
 
 export async function logoutFirebaseAuth() {

@@ -103,6 +103,7 @@ const DEFAULT_SETTINGS = {
 const ADMIN_EMAIL = process.env.OS_CHRISTUS_ADMIN_EMAIL?.trim().toLowerCase() || 'admin@os-christus.local';
 const ADMIN_PASSWORD = process.env.OS_CHRISTUS_ADMIN_PASSWORD?.trim() || 'Admin@123456';
 const ADMIN_NAME = process.env.OS_CHRISTUS_ADMIN_NAME?.trim() || 'Administrador OS Christus';
+const DEFAULT_USER_PASSWORD = process.env.OS_CHRISTUS_DEFAULT_PASSWORD?.trim() || '12345678';
 
 function initApp(serviceAccount, bucketName) {
   if (getApps().length > 0) return;
@@ -141,12 +142,21 @@ async function seedCatalog(db) {
   await batch.commit();
 }
 
-async function seedDirectory(db, adminUid) {
+async function seedDirectory(db, adminUid, authUsersByEmail = {}) {
   const batch = db.batch();
   const now = new Date();
 
   for (const user of DEFAULT_USERS) {
-    batch.set(db.collection('users').doc(user.id), { ...user, createdAt: now, updatedAt: now }, { merge: true });
+    batch.set(
+      db.collection('users').doc(user.id),
+      {
+        ...user,
+        authUid: authUsersByEmail[user.email] || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
   }
 
   batch.set(
@@ -263,32 +273,55 @@ async function ensureStoragePlaceholders(storage, bucketName) {
   }
 }
 
-async function ensureAdminAuth() {
+function mapRoleToClaim(role) {
+  if (role === 'Admin') return 'admin';
+  if (role === 'Diretor' || role === 'Supervisor') return 'gestor';
+  return 'user';
+}
+
+async function upsertAuthUser({ email, name, role, status }, password) {
   const auth = getAuth();
   let record;
   try {
-    record = await auth.getUserByEmail(ADMIN_EMAIL);
+    record = await auth.getUserByEmail(email);
     await auth.updateUser(record.uid, {
-      displayName: ADMIN_NAME,
-      password: ADMIN_PASSWORD,
-      disabled: false,
+      displayName: name,
+      password,
+      disabled: status !== 'Ativo',
     });
   } catch (error) {
     if (error?.code !== 'auth/user-not-found') throw error;
     record = await auth.createUser({
-      email: ADMIN_EMAIL,
-      password: ADMIN_PASSWORD,
-      displayName: ADMIN_NAME,
-      disabled: false,
+      email,
+      password,
+      displayName: name,
+      disabled: status !== 'Ativo',
     });
   }
 
   await auth.setCustomUserClaims(record.uid, {
-    role: 'admin',
-    appRole: 'Admin',
+    role: mapRoleToClaim(role),
+    appRole: role,
   });
 
-  return { uid: record.uid, enabled: true, error: null };
+  return record.uid;
+}
+
+async function ensureAdminAuth() {
+  const uid = await upsertAuthUser(
+    { email: ADMIN_EMAIL, name: ADMIN_NAME, role: 'Admin', status: 'Ativo' },
+    ADMIN_PASSWORD
+  );
+  return { uid, enabled: true, error: null };
+}
+
+async function ensureDefaultUsersAuth() {
+  const authUsersByEmail = {};
+  for (const user of DEFAULT_USERS) {
+    const uid = await upsertAuthUser(user, DEFAULT_USER_PASSWORD);
+    authUsersByEmail[user.email] = uid;
+  }
+  return authUsersByEmail;
 }
 
 async function main() {
@@ -311,10 +344,14 @@ async function main() {
     };
   }
   const db = getFirestore();
+  let authUsersByEmail = {};
+  if (adminAuth.enabled) {
+    authUsersByEmail = await ensureDefaultUsersAuth();
+  }
 
   await seedConfig(db, projectId, bucketName);
   await seedCatalog(db);
-  await seedDirectory(db, adminAuth.uid);
+  await seedDirectory(db, adminAuth.uid, authUsersByEmail);
   await seedNotifications(db);
   await seedSettings(db);
   await ensureInboundLog(db);
