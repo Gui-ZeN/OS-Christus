@@ -8,6 +8,7 @@ export interface DirectoryUser {
   status: 'Ativo' | 'Inativo';
   regionIds?: string[];
   siteIds?: string[];
+  authUid?: string | null;
   active?: boolean;
 }
 
@@ -53,24 +54,26 @@ export async function fetchUsers() {
   return json.users as DirectoryUser[];
 }
 
-export async function createUser(user: DirectoryUser) {
+export async function createUser(user: DirectoryUser, password?: string) {
   const response = await fetch('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
-    body: JSON.stringify({ user }),
+    body: JSON.stringify({ user, password }),
   });
   if (!response.ok) {
     throw new Error('Falha ao criar usuario.');
   }
+  return response.json();
 }
 
-export async function updateUser(id: string, updates: Partial<DirectoryUser>) {
+export async function updateUser(id: string, updates: Partial<DirectoryUser>, password?: string) {
   const response = await fetch('/api/users', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getActorHeaders() },
-    body: JSON.stringify({ id, updates }),
+    body: JSON.stringify({ id, updates, password }),
   });
   if (!response.ok) {
     throw new Error('Falha ao atualizar usuario.');
   }
+  return response.json();
 }

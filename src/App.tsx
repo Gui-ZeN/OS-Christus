@@ -84,9 +84,11 @@ export default function App() {
     dismissNotification,
     markAllNotificationsRead,
     setActiveTicketId,
-    setCurrentUserEmail,
+    login,
+    logout,
     currentUser,
     currentUserEmail,
+    authEnabled,
   } = useApp();
 
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -161,6 +163,13 @@ export default function App() {
     }
   }, [currentView, navigateTo, restrictedViews]);
 
+  useEffect(() => {
+    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
+    if (authEnabled && !currentUserEmail && !publicViews.has(currentView)) {
+      navigateTo(VIEWS.LOGIN);
+    }
+  }, [authEnabled, currentUserEmail, currentView, navigateTo]);
+
   if (currentView === VIEWS.LANDING) {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
@@ -181,8 +190,8 @@ export default function App() {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
         <SplitLoginView
-          onLogin={email => {
-            setCurrentUserEmail(email);
+          onLogin={async (email, password) => {
+            await login(email, password);
             navigateTo(VIEWS.HOME);
           }}
           onBack={() => navigateTo(VIEWS.LANDING)}
@@ -236,7 +245,7 @@ export default function App() {
               </span>
             )}
           </div>
-          <button onClick={() => navigateTo(VIEWS.LANDING)} className="text-white/40 hover:text-white/80 transition-colors" title="Sair" aria-label="Sair">
+          <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="text-white/40 hover:text-white/80 transition-colors" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
           <div className="w-8 h-8 rounded-full bg-roman-sidebar-light border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>

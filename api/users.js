@@ -1,4 +1,5 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
+import { getAuth } from 'firebase-admin/auth';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
@@ -22,6 +23,48 @@ function normalizeUser(input) {
   };
 }
 
+function mapRoleToClaim(role) {
+  const normalized = String(role || '').trim();
+  if (normalized === 'Admin') return 'admin';
+  if (normalized === 'Diretor' || normalized === 'Supervisor') return 'gestor';
+  return 'user';
+}
+
+async function upsertAuthUser(user, password) {
+  const auth = getAuth();
+  let record = null;
+
+  try {
+    record = await auth.getUserByEmail(user.email);
+  } catch (error) {
+    if (error?.code !== 'auth/user-not-found') throw error;
+  }
+
+  const payload = {
+    email: user.email,
+    displayName: user.name,
+    disabled: user.status !== 'Ativo',
+  };
+
+  if (record) {
+    const updatePayload = password ? { ...payload, password } : payload;
+    await auth.updateUser(record.uid, updatePayload);
+  } else {
+    if (!password || String(password).length < 6) {
+      throw new Error('Senha inicial obrigatoria com ao menos 6 caracteres.');
+    }
+    record = await auth.createUser({ ...payload, password });
+  }
+
+  const finalRecord = record || (await auth.getUserByEmail(user.email));
+  await auth.setCustomUserClaims(finalRecord.uid, {
+    role: mapRoleToClaim(user.role),
+    appRole: user.role,
+  });
+
+  return finalRecord.uid;
+}
+
 export default async function handler(req, res) {
   try {
     const db = getAdminDb();
@@ -39,6 +82,7 @@ export default async function handler(req, res) {
       const actor = readActorFromHeaders(req);
       const body = await readJsonBody(req);
       const user = normalizeUser(body?.user);
+      const password = String(body?.password || '').trim();
       if (!user.name || !user.email || !user.role) {
         return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
       }
@@ -53,10 +97,12 @@ export default async function handler(req, res) {
       const beforeSnap = await docRef.get();
       const before = beforeSnap.exists ? beforeSnap.data() : null;
 
+      const authUid = await upsertAuthUser(user, password);
       await docRef.set(
         {
           id,
           ...user,
+          authUid,
           updatedAt: new Date(),
           createdAt: new Date(),
         },
@@ -68,10 +114,10 @@ export default async function handler(req, res) {
         entity: 'user',
         entityId: id,
         before,
-        after: { id, ...user },
+        after: { id, ...user, authUid },
       });
 
-      return sendJson(res, 200, { ok: true, id });
+      return sendJson(res, 200, { ok: true, id, authUid });
     }
 
     if (req.method === 'PATCH') {
@@ -79,6 +125,7 @@ export default async function handler(req, res) {
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       const user = normalizeUser(body?.updates);
+      const password = String(body?.password || '').trim();
       if (!id) {
         return sendJson(res, 400, { ok: false, error: 'id e obrigatorio.' });
       }
@@ -88,16 +135,17 @@ export default async function handler(req, res) {
       const docRef = db.collection('users').doc(id);
       const beforeSnap = await docRef.get();
       const before = beforeSnap.exists ? beforeSnap.data() : null;
-      await docRef.set({ ...user, id, updatedAt: new Date() }, { merge: true });
+      const authUid = await upsertAuthUser(user, password);
+      await docRef.set({ ...user, id, authUid, updatedAt: new Date() }, { merge: true });
       await writeAuditLog({
         actor,
         action: 'users.update',
         entity: 'user',
         entityId: id,
         before,
-        after: { ...user, id },
+        after: { ...user, id, authUid },
       });
-      return sendJson(res, 200, { ok: true, id });
+      return sendJson(res, 200, { ok: true, id, authUid });
     }
 
     res.setHeader('Allow', 'GET, POST, PATCH');

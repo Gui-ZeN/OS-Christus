@@ -23,6 +23,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "busboy": "^1.6.0",
     "date-fns": "^4.1.0",
+    "firebase": "^12.10.0",
     "firebase-admin": "^13.7.0",
     "googleapis": "^171.4.0",
     "lucide-react": "^0.546.0",

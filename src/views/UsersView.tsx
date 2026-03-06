@@ -16,6 +16,7 @@ type UserForm = {
   status: UserStatus;
   regionIds: string[];
   siteIds: string[];
+  password: string;
 };
 
 const ROLE_OPTIONS: Array<{ value: UserRole; label: string; description: string }> = [
@@ -32,6 +33,7 @@ const EMPTY_FORM: UserForm = {
   status: 'Ativo',
   regionIds: [],
   siteIds: [],
+  password: '',
 };
 
 function normalizeUserForm(user: DirectoryUser): UserForm {
@@ -43,6 +45,7 @@ function normalizeUserForm(user: DirectoryUser): UserForm {
     status: user.status === 'Inativo' ? 'Inativo' : 'Ativo',
     regionIds: user.regionIds || [],
     siteIds: user.siteIds || [],
+    password: '',
   };
 }
 
@@ -145,6 +148,7 @@ export function UsersView() {
   const handleSave = async () => {
     if (!canManageUsers) return;
     if (!form.name.trim() || !form.email.trim() || !form.role.trim()) return;
+    if (!editingId && form.password.trim().length < 6) return;
 
     const payload: DirectoryUser = {
       id: form.id || form.email.split('@')[0].toLowerCase(),
@@ -160,10 +164,16 @@ export function UsersView() {
     setSaving(true);
     try {
       if (editingId) {
-        await updateUser(editingId, payload);
+        const result = await updateUser(editingId, payload, form.password.trim() || undefined);
+        if (result?.authUid) {
+          payload.authUid = result.authUid as string;
+        }
         setUsers(prev => prev.map(user => (user.id === editingId ? { ...user, ...payload } : user)));
       } else {
-        await createUser(payload);
+        const result = await createUser(payload, form.password.trim());
+        if (result?.authUid) {
+          payload.authUid = result.authUid as string;
+        }
         setUsers(prev => [...prev, payload].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       }
       setModalOpen(false);
@@ -273,6 +283,22 @@ export function UsersView() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">
+                  {editingId ? 'Nova senha (opcional)' : 'Senha inicial'}
+                </label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={event => setForm(current => ({ ...current, password: event.target.value }))}
+                  placeholder={editingId ? 'Preencha apenas para redefinir' : 'Minimo de 6 caracteres'}
+                  className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                />
+                <p className="mt-2 text-xs text-roman-text-sub font-serif italic">
+                  {editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessaria para criar o acesso no Firebase Auth.'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Papel</label>
@@ -365,7 +391,7 @@ export function UsersView() {
               </button>
               <button
                 onClick={() => void handleSave()}
-                disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim()}
+                disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)}
                 className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}

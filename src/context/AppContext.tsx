@@ -6,6 +6,7 @@ import {
   DirectoryUser,
   fetchUsers,
 } from '../services/directoryApi';
+import { isAuthEnabled, loginWithEmailPassword, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
 import {
   dismissNotificationRemote,
   fetchNotifications,
@@ -42,6 +43,9 @@ interface AppContextType {
   currentUser: DirectoryUser | null;
   currentUserEmail: string;
   setCurrentUserEmail: (email: string) => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  authEnabled: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -111,6 +115,7 @@ function canUserAccessTicket(user: DirectoryUser | null, currentUserEmail: strin
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const authEnabled = isAuthEnabled();
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
@@ -122,6 +127,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
+
+  useEffect(() => {
+    if (!authEnabled) return undefined;
+    let unsubscribe = () => undefined;
+    void (async () => {
+      unsubscribe = await subscribeToAuthState(user => {
+        setCurrentUserEmailState(user?.email?.trim().toLowerCase() || '');
+      });
+    })();
+    return () => unsubscribe();
+  }, [authEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +217,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, [currentUserEmail]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (currentUserEmail) {
+      window.localStorage.setItem('os-christus-user-email', currentUserEmail);
+    } else {
+      window.localStorage.removeItem('os-christus-user-email');
+    }
   }, [currentUserEmail]);
 
   const tickets = useMemo(
@@ -357,13 +382,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setCurrentUserEmail = (email: string) => {
     const normalized = email.trim().toLowerCase();
     setCurrentUserEmailState(normalized);
-    if (typeof window !== 'undefined') {
-      if (normalized) {
-        window.localStorage.setItem('os-christus-user-email', normalized);
-      } else {
-        window.localStorage.removeItem('os-christus-user-email');
-      }
+  };
+
+  const login = async (email: string, password: string) => {
+    const normalized = email.trim().toLowerCase();
+    if (authEnabled) {
+      await loginWithEmailPassword(normalized, password);
+    } else {
+      setCurrentUserEmail(normalized);
     }
+  };
+
+  const logout = async () => {
+    if (authEnabled) {
+      await logoutFirebaseAuth();
+    }
+    setCurrentUserEmail('');
   };
 
   useEffect(() => {
@@ -414,6 +448,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentUser,
         currentUserEmail,
         setCurrentUserEmail,
+        login,
+        logout,
+        authEnabled,
       }}
     >
       {children}
