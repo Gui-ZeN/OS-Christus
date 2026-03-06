@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, Clock, Loader2, Mail } from 'lucide-react';
-import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
-import { useApp } from '../context/AppContext';
+import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw } from 'lucide-react';
 import { EmptyState } from '../components/ui/EmptyState';
+import { useApp } from '../context/AppContext';
+import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
+import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
 
 type SettingsSection = 'templates' | 'daily-digest' | 'sla' | 'integrations';
 
@@ -38,50 +39,58 @@ export function SettingsView() {
   const [templateSaved, setTemplateSaved] = useState(false);
   const [digestSaved, setDigestSaved] = useState(false);
   const [slaSaved, setSlaSaved] = useState(false);
+  const [legacyLoading, setLegacyLoading] = useState(false);
+  const [legacyError, setLegacyError] = useState<string | null>(null);
+  const [legacyHealth, setLegacyHealth] = useState<FirestoreLegacyHealth | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
   const [digest, setDigest] = useState<DailyDigestSettings>(DEFAULT_DIGEST);
   const [sla, setSla] = useState<SlaSettings>(DEFAULT_SLA);
 
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={Mail}
-            title="Acesso restrito"
-            description="As configurações do sistema estão disponíveis apenas para perfis Admin."
-          />
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       try {
         const remote = await fetchSettings();
-        if (!cancelled) {
-          setTemplate(remote.emailTemplate || DEFAULT_TEMPLATE);
-          setDigest(remote.dailyDigest || DEFAULT_DIGEST);
-          setSla(remote.sla || DEFAULT_SLA);
-        }
+        if (cancelled) return;
+        setTemplate(remote.emailTemplate || DEFAULT_TEMPLATE);
+        setDigest(remote.dailyDigest || DEFAULT_DIGEST);
+        setSla(remote.sla || DEFAULT_SLA);
       } catch {
-        if (!cancelled) {
-          setTemplate(DEFAULT_TEMPLATE);
-          setDigest(DEFAULT_DIGEST);
-          setSla(DEFAULT_SLA);
-        }
+        if (cancelled) return;
+        setTemplate(DEFAULT_TEMPLATE);
+        setDigest(DEFAULT_DIGEST);
+        setSla(DEFAULT_SLA);
       } finally {
         if (!cancelled) {
           setLoading(false);
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (section !== 'integrations') return;
+    void loadLegacyHealth();
+  }, [section]);
+
+  const loadLegacyHealth = async () => {
+    setLegacyLoading(true);
+    setLegacyError(null);
+
+    try {
+      const result = await fetchFirestoreLegacyHealth();
+      setLegacyHealth(result);
+    } catch (error) {
+      setLegacyError(error instanceof Error ? error.message : 'Falha ao carregar diagnóstico.');
+    } finally {
+      setLegacyLoading(false);
+    }
+  };
 
   const handleSaveTemplate = async () => {
     if (!canEditSettings) return;
@@ -116,6 +125,29 @@ export function SettingsView() {
     setTimeout(() => setSlaSaved(false), 3000);
   };
 
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={Mail}
+            title="Acesso restrito"
+            description="As configurações do sistema estão disponíveis apenas para perfis Admin."
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const integrationCards = legacyHealth
+    ? [
+        { label: 'Usuários com papel legado', value: legacyHealth.summary.legacyUsers },
+        { label: 'Tickets sem regionId/siteId', value: legacyHealth.summary.ticketsMissingCatalog },
+        { label: 'Notificações com time legado', value: legacyHealth.summary.notificationsLegacy },
+        { label: 'SLA com compatibilidade legada', value: legacyHealth.summary.slaLegacy },
+      ]
+    : [];
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-4xl mx-auto">
@@ -130,7 +162,7 @@ export function SettingsView() {
               { key: 'templates', label: 'Templates de E-mail' },
               { key: 'daily-digest', label: 'Resumo Diário (Z6)' },
               { key: 'sla', label: 'Regras de SLA' },
-              { key: 'integrations', label: 'Integrações (Drive)' },
+              { key: 'integrations', label: 'Integrações e Legado' },
             ].map(item => (
               <button
                 key={item.key}
@@ -171,6 +203,7 @@ export function SettingsView() {
                           <option value="EMAIL-ORCAMENTO-APROVADO">EMAIL-ORCAMENTO-APROVADO (Para Fornecedor)</option>
                         </select>
                       </div>
+
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto do E-mail</label>
                         <input
@@ -180,6 +213,7 @@ export function SettingsView() {
                           className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                         />
                       </div>
+
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Corpo do E-mail (HTML/Texto)</label>
                         <textarea
@@ -188,9 +222,19 @@ export function SettingsView() {
                           onChange={event => setTemplate(current => ({ ...current, body: event.target.value }))}
                         />
                       </div>
+
                       <div className="flex justify-end">
-                        <button onClick={() => void handleSaveTemplate()} className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2">
-                          {templateSaved ? <><CheckCircle size={15} /> Salvo!</> : 'Salvar Template'}
+                        <button
+                          onClick={() => void handleSaveTemplate()}
+                          className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          {templateSaved ? (
+                            <>
+                              <CheckCircle size={15} /> Salvo!
+                            </>
+                          ) : (
+                            'Salvar Template'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -204,9 +248,17 @@ export function SettingsView() {
                         <h2 className="font-serif text-xl font-medium text-roman-text-main">Resumo Diário Automático</h2>
                         <p className="text-xs text-roman-text-sub font-serif italic mt-1">E-mail gerado pelo cron toda manhã.</p>
                       </div>
+
                       <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <div onClick={() => setDigest(current => ({ ...current, enabled: !current.enabled }))} className={`w-10 h-5 rounded-full transition-colors relative ${digest.enabled ? 'bg-roman-primary' : 'bg-roman-border'}`}>
-                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${digest.enabled ? 'translate-x-5' : 'translate-x-0.5'}`}></span>
+                        <div
+                          onClick={() => setDigest(current => ({ ...current, enabled: !current.enabled }))}
+                          className={`w-10 h-5 rounded-full transition-colors relative ${digest.enabled ? 'bg-roman-primary' : 'bg-roman-border'}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                              digest.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                            }`}
+                          />
                         </div>
                         <span className="text-xs font-medium text-roman-text-sub">{digest.enabled ? 'Ativo' : 'Pausado'}</span>
                       </label>
@@ -252,8 +304,17 @@ export function SettingsView() {
 
                       <div className="flex items-center justify-between pt-2">
                         <p className="text-xs text-roman-text-sub font-serif italic">Configuração do resumo diário persistida no Firestore.</p>
-                        <button onClick={() => void handleSaveDigest()} className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2">
-                          {digestSaved ? <><CheckCircle size={15} /> Salvo!</> : 'Salvar Configuração'}
+                        <button
+                          onClick={() => void handleSaveDigest()}
+                          className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          {digestSaved ? (
+                            <>
+                              <CheckCircle size={15} /> Salvo!
+                            </>
+                          ) : (
+                            'Salvar Configuração'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -270,12 +331,22 @@ export function SettingsView() {
                           <span className="font-mono text-sm">{rule.prazo}</span>
                         </div>
                       ))}
+
                       <div className="flex items-center justify-between pt-2">
                         <p className="text-xs text-roman-text-sub font-serif italic">
                           O cron de monitoramento pode usar essas regras como base para alertas e relatórios.
                         </p>
-                        <button onClick={() => void handleSaveSla()} className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2">
-                          {slaSaved ? <><CheckCircle size={15} /> Salvo!</> : 'Salvar SLA'}
+                        <button
+                          onClick={() => void handleSaveSla()}
+                          className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          {slaSaved ? (
+                            <>
+                              <CheckCircle size={15} /> Salvo!
+                            </>
+                          ) : (
+                            'Salvar SLA'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -284,11 +355,95 @@ export function SettingsView() {
 
                 {section === 'integrations' && (
                   <>
-                    <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Integrações</h2>
-                    <div className="space-y-4 text-sm text-roman-text-sub font-serif italic">
-                      <p>Configurações de integração com Google Drive, Gmail API e futuras APIs.</p>
-                      <p className="text-xs">Em desenvolvimento.</p>
+                    <div className="flex items-center justify-between mb-6 gap-4">
+                      <div>
+                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Integrações e Legado</h2>
+                        <p className="text-sm text-roman-text-sub font-serif italic">Diagnóstico do Firestore e compatibilidade com dados antigos.</p>
+                      </div>
+
+                      <button
+                        onClick={() => void loadLegacyHealth()}
+                        className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
+                        disabled={legacyLoading}
+                      >
+                        <RefreshCw size={14} className={legacyLoading ? 'animate-spin' : ''} />
+                        Atualizar
+                      </button>
                     </div>
+
+                    {legacyError && (
+                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {legacyError}
+                      </div>
+                    )}
+
+                    {legacyLoading && (
+                      <div className="py-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
+                        <Loader2 size={18} className="animate-spin" />
+                        Analisando Firestore...
+                      </div>
+                    )}
+
+                    {!legacyLoading && legacyHealth && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {integrationCards.map(card => (
+                            <div key={card.label} className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                              <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
+                              <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                          <div className="flex items-center gap-2 text-roman-text-main font-medium mb-3">
+                            <Database size={16} />
+                            Amostras
+                          </div>
+
+                          <div className="space-y-3 text-sm text-roman-text-sub">
+                            <div>
+                              <div className="font-medium text-roman-text-main">Usuários legados</div>
+                              <div>
+                                {legacyHealth.samples.legacyUsers.length > 0
+                                  ? legacyHealth.samples.legacyUsers.map(user => `${user.email} (${user.role})`).join(', ')
+                                  : 'Nenhum.'}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="font-medium text-roman-text-main">Tickets sem catálogo</div>
+                              <div>
+                                {legacyHealth.samples.ticketsMissingCatalog.length > 0
+                                  ? legacyHealth.samples.ticketsMissingCatalog.map(ticket => ticket.id).join(', ')
+                                  : 'Nenhum.'}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="font-medium text-roman-text-main">Notificações com time legado</div>
+                              <div>
+                                {legacyHealth.samples.notificationsLegacy.length > 0
+                                  ? legacyHealth.samples.notificationsLegacy.map(item => item.id).join(', ')
+                                  : 'Nenhuma.'}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="font-medium text-roman-text-main">SLA</div>
+                              <div>
+                                {legacyHealth.samples.sla
+                                  ? `rules=${legacyHealth.samples.sla.hasRules ? 'ok' : 'faltando'} • legacyHours=${
+                                      legacyHealth.samples.sla.hasLegacyHours ? 'sim' : 'não'
+                                    }`
+                                  : 'Documento ausente.'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </>
