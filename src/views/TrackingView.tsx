@@ -95,12 +95,30 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     const nextTicket: Ticket = {
       ...ticket,
       status: newStatus,
+      closureChecklist: approved
+        ? {
+            requesterApproved: true,
+            requesterApprovedBy: ticket.requester,
+            requesterApprovedAt: new Date(),
+            infrastructureApprovedByRafael: ticket.closureChecklist?.infrastructureApprovedByRafael ?? false,
+            infrastructureApprovedByFernando: ticket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+            closureNotes: ticket.closureChecklist?.closureNotes || '',
+            serviceStartedAt:
+              ticket.closureChecklist?.serviceStartedAt ||
+              ticket.preliminaryActions?.actualStartAt ||
+              ticket.preliminaryActions?.plannedStartAt ||
+              null,
+            serviceCompletedAt: new Date(),
+            closedAt: ticket.closureChecklist?.closedAt || null,
+          }
+        : ticket.closureChecklist,
       history: [...ticket.history, newHistoryItem],
     };
 
     try {
       await patchTrackingTicketInApi(ticketToken, {
         status: newStatus,
+        closureChecklist: nextTicket.closureChecklist,
         history: nextTicket.history,
       });
       setTicket(nextTicket);
@@ -154,7 +172,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                 </button>
                 <button onClick={() => void handleValidate(true)} disabled={isProcessing} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                   {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                  Serviço Aprovado (Encerrar)
+                  Serviço Aprovado (Seguir para Pagamento)
                 </button>
               </div>
             </div>

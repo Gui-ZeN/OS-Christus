@@ -3,7 +3,7 @@ import { CheckCircle, ClipboardList, DollarSign, FileText, Loader2, PlusCircle }
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import type { ContractRecord, MeasurementRecord, PaymentRecord } from '../types';
+import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { formatDistanceToNowSafe } from '../utils/date';
 
@@ -12,6 +12,16 @@ interface MeasurementFormState {
   progressPercent: string;
   releasePercent: string;
   notes: string;
+}
+
+interface ClosureFormState {
+  requesterApproved: boolean;
+  infrastructureApprovedByRafael: boolean;
+  infrastructureApprovedByFernando: boolean;
+  serviceStartedAt: string;
+  serviceCompletedAt: string;
+  guaranteeMonths: string;
+  closureNotes: string;
 }
 
 function parseCurrency(value: string) {
@@ -36,6 +46,11 @@ function formatDateLabel(date?: Date | null) {
   return date.toLocaleDateString('pt-BR');
 }
 
+function formatInputDate(date?: Date | null) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
 function sumReleasedPercent(payments: PaymentRecord[]) {
   return payments.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0);
 }
@@ -44,6 +59,24 @@ function normalizeStatusLabel(status: string) {
   if (status === 'paid') return 'Pago';
   if (status === 'approved') return 'Aprovada';
   return 'Pendente';
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState {
+  return {
+    requesterApproved: closureChecklist?.requesterApproved ?? false,
+    infrastructureApprovedByRafael: closureChecklist?.infrastructureApprovedByRafael ?? false,
+    infrastructureApprovedByFernando: closureChecklist?.infrastructureApprovedByFernando ?? false,
+    serviceStartedAt: formatInputDate(closureChecklist?.serviceStartedAt),
+    serviceCompletedAt: formatInputDate(closureChecklist?.serviceCompletedAt),
+    guaranteeMonths: String(guarantee?.months || 12),
+    closureNotes: closureChecklist?.closureNotes || '',
+  };
 }
 
 export function FinanceView() {
@@ -57,6 +90,7 @@ export function FinanceView() {
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [measurementDraftByTicket, setMeasurementDraftByTicket] = useState<Record<string, MeasurementFormState>>({});
   const [measurementFormOpen, setMeasurementFormOpen] = useState<Record<string, boolean>>({});
+  const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
 
   if (!canAccess) {
     return (
@@ -94,6 +128,25 @@ export function FinanceView() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setClosureDraftByTicket(prev => {
+      const next = { ...prev };
+      for (const ticket of tickets) {
+        const current = next[ticket.id];
+        const seeded = createClosureFormState(ticket.closureChecklist, ticket.guarantee);
+        next[ticket.id] = current
+          ? {
+              ...current,
+              requesterApproved: current.requesterApproved || seeded.requesterApproved,
+              serviceStartedAt: current.serviceStartedAt || seeded.serviceStartedAt,
+              serviceCompletedAt: current.serviceCompletedAt || seeded.serviceCompletedAt,
+            }
+          : seeded;
+      }
+      return next;
+    });
+  }, [tickets]);
 
   const financeTickets = useMemo(
     () =>
@@ -146,6 +199,19 @@ export function FinanceView() {
       delete next[ticketId];
       return next;
     });
+  };
+
+  const getClosureDraft = (ticketId: string, closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState =>
+    closureDraftByTicket[ticketId] || createClosureFormState(closureChecklist, guarantee);
+
+  const setClosureDraft = (ticketId: string, updates: Partial<ClosureFormState>) => {
+    setClosureDraftByTicket(prev => ({
+      ...prev,
+      [ticketId]: {
+        ...getClosureDraft(ticketId),
+        ...updates,
+      },
+    }));
   };
 
   const generatePaymentPlan = async (ticketId: string, totalValue: number, vendor: string, parts: number) => {
@@ -267,6 +333,31 @@ export function FinanceView() {
 
   const handlePayInstallment = async (ticketId: string, payment: PaymentRecord) => {
     if (!canPay) return;
+    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
+    if (!targetTicket) return;
+
+    const existingPayments = paymentsByTicket[ticketId] || [];
+    const pendingPayments = existingPayments.filter(item => item.status !== 'paid');
+    const isFinalInstallment = pendingPayments.length === 1 && pendingPayments[0].id === payment.id;
+    const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
+
+    if (isFinalInstallment) {
+      const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
+      if (
+        !closureDraft.requesterApproved ||
+        !closureDraft.infrastructureApprovedByRafael ||
+        !closureDraft.infrastructureApprovedByFernando ||
+        !closureDraft.serviceStartedAt ||
+        !closureDraft.serviceCompletedAt ||
+        !Number.isFinite(guaranteeMonths) ||
+        guaranteeMonths <= 0
+      ) {
+        setToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar a última parcela.');
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+    }
+
     setProcessingId(`${ticketId}:${payment.id}`);
     try {
       const nextPayment: PaymentRecord = {
@@ -275,15 +366,41 @@ export function FinanceView() {
         paidAt: new Date(),
       };
       await savePayment(ticketId, nextPayment);
-      const existingPayments = paymentsByTicket[ticketId] || [];
       const nextPayments = existingPayments.map(item => (item.id === payment.id ? nextPayment : item));
       setPaymentsByTicket(prev => ({ ...prev, [ticketId]: nextPayments }));
 
-      const targetTicket = tickets.find(ticket => ticket.id === ticketId);
       const allPaid = nextPayments.every(item => item.status === 'paid');
       if (targetTicket) {
+        const guaranteeMonths = Number(closureDraft.guaranteeMonths || 12);
+        const serviceStartedAt = closureDraft.serviceStartedAt ? new Date(`${closureDraft.serviceStartedAt}T12:00:00`) : null;
+        const serviceCompletedAt = closureDraft.serviceCompletedAt ? new Date(`${closureDraft.serviceCompletedAt}T12:00:00`) : null;
+        const closedAt = allPaid ? new Date() : targetTicket.closureChecklist?.closedAt || null;
+        const closureChecklist: ClosureChecklist | undefined = allPaid
+          ? {
+              requesterApproved: closureDraft.requesterApproved,
+              requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || targetTicket.requester,
+              requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || new Date(),
+              infrastructureApprovedByRafael: closureDraft.infrastructureApprovedByRafael,
+              infrastructureApprovedByFernando: closureDraft.infrastructureApprovedByFernando,
+              closureNotes: closureDraft.closureNotes.trim(),
+              serviceStartedAt,
+              serviceCompletedAt,
+              closedAt,
+            }
+          : targetTicket.closureChecklist;
+        const guarantee: GuaranteeInfo | undefined = allPaid && serviceCompletedAt
+          ? {
+              startAt: serviceCompletedAt,
+              endAt: addMonths(serviceCompletedAt, guaranteeMonths),
+              months: guaranteeMonths,
+              status: addMonths(serviceCompletedAt, guaranteeMonths).getTime() < Date.now() ? 'expired' : 'active',
+            }
+          : targetTicket.guarantee;
+
         updateTicket(ticketId, {
           status: allPaid ? TICKET_STATUS.CLOSED : TICKET_STATUS.WAITING_PAYMENT,
+          closureChecklist,
+          guarantee,
           history: [
             ...targetTicket.history,
             {
@@ -292,7 +409,7 @@ export function FinanceView() {
               sender: 'Financeiro',
               time: new Date(),
               text: allPaid
-                ? `${payment.label || 'Pagamento'} confirmado. Todas as parcelas foram quitadas e a OS foi encerrada.`
+                ? `${payment.label || 'Pagamento'} confirmado. Todas as parcelas foram quitadas, checklist concluído e garantia iniciada.`
                 : `${payment.label || 'Pagamento'} confirmado. Restam ${nextPayments.filter(item => item.status !== 'paid').length} parcela(s) pendente(s).`,
             },
           ],
@@ -329,6 +446,7 @@ export function FinanceView() {
             const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
             const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';
             const measurementDraft = getMeasurementDraft(ticket.id);
+            const closureDraft = getClosureDraft(ticket.id, ticket.closureChecklist, ticket.guarantee);
 
             return (
               <div key={ticket.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden">
@@ -509,6 +627,95 @@ export function FinanceView() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
+                      <div className="mb-3">
+                        <h4 className="text-sm font-semibold text-roman-text-main">Checklist de encerramento e garantia</h4>
+                        <p className="text-xs text-roman-text-sub mt-1">A última parcela só pode ser quitada após confirmação da infraestrutura, do solicitante e definição da garantia.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.requesterApproved ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
+                          <input
+                            type="checkbox"
+                            checked={closureDraft.requesterApproved}
+                            onChange={e => setClosureDraft(ticket.id, { requesterApproved: e.target.checked })}
+                          />
+                          Solicitante confirmou a conclusão
+                        </label>
+                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovedByRafael ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
+                          <input
+                            type="checkbox"
+                            checked={closureDraft.infrastructureApprovedByRafael}
+                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovedByRafael: e.target.checked })}
+                          />
+                          Infraestrutura aprovada por Rafael
+                        </label>
+                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovedByFernando ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
+                          <input
+                            type="checkbox"
+                            checked={closureDraft.infrastructureApprovedByFernando}
+                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovedByFernando: e.target.checked })}
+                          />
+                          Infraestrutura aprovada por Fernando
+                        </label>
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
+                          <div>Solicitante: {ticket.closureChecklist?.requesterApprovedBy || ticket.requester}</div>
+                          <div>Aprovação registrada: {formatDateLabel(ticket.closureChecklist?.requesterApprovedAt)}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                        <div>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Início do serviço</label>
+                          <input
+                            type="date"
+                            value={closureDraft.serviceStartedAt}
+                            onChange={e => setClosureDraft(ticket.id, { serviceStartedAt: e.target.value })}
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Término do serviço</label>
+                          <input
+                            type="date"
+                            value={closureDraft.serviceCompletedAt}
+                            onChange={e => setClosureDraft(ticket.id, { serviceCompletedAt: e.target.value })}
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Garantia (meses)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="60"
+                            value={closureDraft.guaranteeMonths}
+                            onChange={e => setClosureDraft(ticket.id, { guaranteeMonths: e.target.value })}
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de encerramento</label>
+                        <textarea
+                          value={closureDraft.closureNotes}
+                          onChange={e => setClosureDraft(ticket.id, { closureNotes: e.target.value })}
+                          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+                          placeholder="Ex: laudo final anexado, direção comunicada, garantia de 12 meses para estrutura."
+                        />
+                      </div>
+
+                      {ticket.guarantee && (
+                        <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
+                          <div className="font-medium text-roman-text-main mb-1">Garantia atual</div>
+                          <div>Status: {ticket.guarantee.status === 'active' ? 'Ativa' : ticket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
+                          <div>Início: {formatDateLabel(ticket.guarantee.startAt)}</div>
+                          <div>Fim: {formatDateLabel(ticket.guarantee.endAt)}</div>
                         </div>
                       )}
                     </section>

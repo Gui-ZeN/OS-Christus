@@ -404,15 +404,25 @@ export function InboxView() {
       id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
       time: new Date(), text: 'Serviço concluído. Aguardando validação do solicitante.',
     };
-    updateTicket(activeTicket.id, { status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL, history: [...activeTicket.history, item] });
-  };
-
-  const handleCloseTicket = () => {
-    const item: HistoryItem = {
-      id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
-      time: new Date(), text: 'OS encerrada após confirmação de pagamento.',
-    };
-    updateTicket(activeTicket.id, { status: TICKET_STATUS.CLOSED, history: [...activeTicket.history, item] });
+    updateTicket(activeTicket.id, {
+      status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+      closureChecklist: {
+        requesterApproved: activeTicket.closureChecklist?.requesterApproved ?? false,
+        requesterApprovedBy: activeTicket.closureChecklist?.requesterApprovedBy || null,
+        requesterApprovedAt: activeTicket.closureChecklist?.requesterApprovedAt || null,
+        infrastructureApprovedByRafael: activeTicket.closureChecklist?.infrastructureApprovedByRafael ?? false,
+        infrastructureApprovedByFernando: activeTicket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+        closureNotes: activeTicket.closureChecklist?.closureNotes || '',
+        serviceStartedAt:
+          activeTicket.closureChecklist?.serviceStartedAt ||
+          activeTicket.preliminaryActions?.actualStartAt ||
+          activeTicket.preliminaryActions?.plannedStartAt ||
+          null,
+        serviceCompletedAt: new Date(),
+        closedAt: activeTicket.closureChecklist?.closedAt || null,
+      },
+      history: [...activeTicket.history, item],
+    });
   };
 
   const [isSending, setIsSending] = useState(false);
@@ -1223,7 +1233,7 @@ export function InboxView() {
               )}
 
               {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
-              {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS || activeTicket.status === TICKET_STATUS.WAITING_PAYMENT) && (
+              {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS || activeTicket.status === TICKET_STATUS.WAITING_PAYMENT || activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || activeTicket.status === TICKET_STATUS.CLOSED) && (
                 <div className="pt-4 border-t border-roman-border">
                   <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
                   {activeTicket.preliminaryActions && (
@@ -1259,13 +1269,30 @@ export function InboxView() {
                       </button>
                     )}
 
+                    {(activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || activeTicket.status === TICKET_STATUS.WAITING_PAYMENT || activeTicket.status === TICKET_STATUS.CLOSED) && activeTicket.closureChecklist && (
+                      <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                        <div className="font-medium text-roman-text-main">Checklist de encerramento</div>
+                        <div>Solicitante: {activeTicket.closureChecklist.requesterApproved ? 'confirmado' : 'pendente'}</div>
+                        <div>Infra Rafael: {activeTicket.closureChecklist.infrastructureApprovedByRafael ? 'confirmado' : 'pendente'}</div>
+                        <div>Infra Fernando: {activeTicket.closureChecklist.infrastructureApprovedByFernando ? 'confirmado' : 'pendente'}</div>
+                        <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
+                        <div>Término do serviço: {formatShortDate(activeTicket.closureChecklist.serviceCompletedAt)}</div>
+                      </div>
+                    )}
+
                     {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
-                      <button
-                        onClick={handleCloseTicket}
-                        className="w-full bg-green-700 hover:bg-green-800 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 mt-4"
-                      >
-                        <CheckCircle size={14} /> Encerrar OS (Paga)
-                      </button>
+                      <div className="rounded-sm border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
+                        Pagamento e encerramento final agora são concluídos no painel Financeiro, com checklist e garantia.
+                      </div>
+                    )}
+
+                    {activeTicket.status === TICKET_STATUS.CLOSED && activeTicket.guarantee && (
+                      <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                        <div className="font-medium text-roman-text-main">Garantia</div>
+                        <div>Status: {activeTicket.guarantee.status === 'active' ? 'Ativa' : activeTicket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
+                        <div>Início: {formatShortDate(activeTicket.guarantee.startAt)}</div>
+                        <div>Fim: {formatShortDate(activeTicket.guarantee.endAt)}</div>
+                      </div>
                     )}
                   </div>
                 </div>

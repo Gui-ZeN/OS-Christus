@@ -43,6 +43,22 @@ export function normalizeTicketForStorage(ticket) {
       updatedAt: toDate(next.preliminaryActions.updatedAt) || new Date(),
     };
   }
+  if (next.closureChecklist) {
+    next.closureChecklist = {
+      ...next.closureChecklist,
+      requesterApprovedAt: toDate(next.closureChecklist.requesterApprovedAt) || null,
+      serviceStartedAt: toDate(next.closureChecklist.serviceStartedAt) || null,
+      serviceCompletedAt: toDate(next.closureChecklist.serviceCompletedAt) || null,
+      closedAt: toDate(next.closureChecklist.closedAt) || null,
+    };
+  }
+  if (next.guarantee) {
+    next.guarantee = {
+      ...next.guarantee,
+      startAt: toDate(next.guarantee.startAt) || null,
+      endAt: toDate(next.guarantee.endAt) || null,
+    };
+  }
   return next;
 }
 
@@ -75,6 +91,22 @@ export function serializeTicketForApi(ticket) {
           plannedStartAt: serializeDate(ticket.preliminaryActions.plannedStartAt),
           actualStartAt: serializeDate(ticket.preliminaryActions.actualStartAt),
           updatedAt: serializeDate(ticket.preliminaryActions.updatedAt),
+        }
+      : null,
+    closureChecklist: ticket.closureChecklist
+      ? {
+          ...ticket.closureChecklist,
+          requesterApprovedAt: serializeDate(ticket.closureChecklist.requesterApprovedAt),
+          serviceStartedAt: serializeDate(ticket.closureChecklist.serviceStartedAt),
+          serviceCompletedAt: serializeDate(ticket.closureChecklist.serviceCompletedAt),
+          closedAt: serializeDate(ticket.closureChecklist.closedAt),
+        }
+      : null,
+    guarantee: ticket.guarantee
+      ? {
+          ...ticket.guarantee,
+          startAt: serializeDate(ticket.guarantee.startAt),
+          endAt: serializeDate(ticket.guarantee.endAt),
         }
       : null,
   };

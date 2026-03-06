@@ -1,5 +1,5 @@
 import { getAuthenticatedActorHeaders } from './actorHeaders';
-import { PreliminaryActions, Ticket } from '../types';
+import { ClosureChecklist, GuaranteeInfo, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 
 type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
@@ -12,6 +12,16 @@ type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
     plannedStartAt?: string | null;
     actualStartAt?: string | null;
     updatedAt?: string | null;
+  } | null;
+  closureChecklist?: Omit<ClosureChecklist, 'requesterApprovedAt' | 'serviceStartedAt' | 'serviceCompletedAt' | 'closedAt'> & {
+    requesterApprovedAt?: string | null;
+    serviceStartedAt?: string | null;
+    serviceCompletedAt?: string | null;
+    closedAt?: string | null;
+  } | null;
+  guarantee?: Omit<GuaranteeInfo, 'startAt' | 'endAt'> & {
+    startAt?: string | null;
+    endAt?: string | null;
   } | null;
 };
 
@@ -29,6 +39,22 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
           plannedStartAt: ticket.preliminaryActions.plannedStartAt ? coerceDate(ticket.preliminaryActions.plannedStartAt) : null,
           actualStartAt: ticket.preliminaryActions.actualStartAt ? coerceDate(ticket.preliminaryActions.actualStartAt) : null,
           updatedAt: ticket.preliminaryActions.updatedAt ? coerceDate(ticket.preliminaryActions.updatedAt) : null,
+        }
+      : undefined,
+    closureChecklist: ticket.closureChecklist
+      ? {
+          ...ticket.closureChecklist,
+          requesterApprovedAt: ticket.closureChecklist.requesterApprovedAt ? coerceDate(ticket.closureChecklist.requesterApprovedAt) : null,
+          serviceStartedAt: ticket.closureChecklist.serviceStartedAt ? coerceDate(ticket.closureChecklist.serviceStartedAt) : null,
+          serviceCompletedAt: ticket.closureChecklist.serviceCompletedAt ? coerceDate(ticket.closureChecklist.serviceCompletedAt) : null,
+          closedAt: ticket.closureChecklist.closedAt ? coerceDate(ticket.closureChecklist.closedAt) : null,
+        }
+      : undefined,
+    guarantee: ticket.guarantee
+      ? {
+          ...ticket.guarantee,
+          startAt: ticket.guarantee.startAt ? coerceDate(ticket.guarantee.startAt) : null,
+          endAt: ticket.guarantee.endAt ? coerceDate(ticket.guarantee.endAt) : null,
         }
       : undefined,
   };

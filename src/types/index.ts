@@ -40,6 +40,25 @@ export interface PreliminaryActions {
   updatedAt?: Date | null;
 }
 
+export interface ClosureChecklist {
+  requesterApproved: boolean;
+  requesterApprovedBy?: string | null;
+  requesterApprovedAt?: Date | null;
+  infrastructureApprovedByRafael: boolean;
+  infrastructureApprovedByFernando: boolean;
+  closureNotes?: string;
+  serviceStartedAt?: Date | null;
+  serviceCompletedAt?: Date | null;
+  closedAt?: Date | null;
+}
+
+export interface GuaranteeInfo {
+  startAt?: Date | null;
+  endAt?: Date | null;
+  months: number;
+  status: 'pending' | 'active' | 'expired';
+}
+
 export interface Ticket {
   id: string;
   trackingToken: string;
@@ -59,6 +78,8 @@ export interface Ticket {
   viewingBy?: { name: string; at: Date } | null;
   sla?: SLAStatus;
   preliminaryActions?: PreliminaryActions;
+  closureChecklist?: ClosureChecklist;
+  guarantee?: GuaranteeInfo;
 }
 
 export interface Quote {
