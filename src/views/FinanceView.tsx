@@ -529,13 +529,13 @@ export function FinanceView() {
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
     const existingPayments = paymentsByTicket[ticketId] || [];
     if (existingPayments.length > 0) {
-      setToast('Erro: jÃ¡ existe um plano de pagamento cadastrado para esta OS.');
+      setToast('Erro: já existe um plano de pagamento cadastrado para esta OS.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
     if (totalValue <= 0) {
-      setToast('Erro: nÃ£o foi possÃ­vel calcular o valor total do contrato para gerar parcelas.');
+      setToast('Erro: não foi possível calcular o valor total do contrato para gerar parcelas.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -552,7 +552,7 @@ export function FinanceView() {
         id: `payment-${installmentNumber}`,
         vendor,
         value: formatCurrency(rawValue),
-        label: parts === 1 ? 'Pagamento Ã  vista' : `Parcela ${installmentNumber}/${parts}`,
+        label: parts === 1 ? 'Pagamento à vista' : `Parcela ${installmentNumber}/${parts}`,
         status: 'pending',
         installmentNumber,
         totalInstallments: parts,
@@ -594,7 +594,7 @@ export function FinanceView() {
     const releasePercent = Number(draft.releasePercent);
 
     if (!draft.label.trim() || !Number.isFinite(progressPercent) || !Number.isFinite(releasePercent)) {
-      setToast('Erro: informe descriÃ§Ã£o, percentual executado e percentual para liberaÃ§Ã£o.');
+      setToast('Erro: informe descrição, percentual executado e percentual para liberação.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -627,14 +627,14 @@ export function FinanceView() {
               type: 'system',
               sender: 'Rafael (Gestor)',
               time: new Date(),
-              text: `MediÃ§Ã£o registrada: ${measurement.label} (${measurement.progressPercent}% executado, ${measurement.releasePercent}% para pagamento).`,
+              text: `Medição registrada: ${measurement.label} (${measurement.progressPercent}% executado, ${measurement.releasePercent}% para pagamento).`,
             },
           ],
         });
       }
       clearMeasurementDraft(ticketId);
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
-      setToast('MediÃ§Ã£o registrada com sucesso.');
+      setToast('Medição registrada com sucesso.');
       setTimeout(() => setToast(null), 3000);
     } finally {
       setProcessingId(null);
@@ -662,7 +662,7 @@ export function FinanceView() {
         !Number.isFinite(guaranteeMonths) ||
         guaranteeMonths <= 0
       ) {
-        setToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar a Ãºltima parcela.');
+        setToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar a última parcela.');
         setTimeout(() => setToast(null), 3000);
         return;
       }
@@ -720,7 +720,7 @@ export function FinanceView() {
               sender: 'Financeiro',
               time: new Date(),
               text: allPaid
-                ? `${payment.label || 'Pagamento'} confirmado. Todas as parcelas foram quitadas, checklist concluÃ­do e garantia iniciada.`
+                ? `${payment.label || 'Pagamento'} confirmado. Todas as parcelas foram quitadas, checklist concluído e garantia iniciada.`
                 : `${payment.label || 'Pagamento'} confirmado. Restam ${nextPayments.filter(item => item.status !== 'paid').length} parcela(s) pendente(s).`,
             },
           ],
@@ -748,7 +748,7 @@ export function FinanceView() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 border-b border-roman-border pb-4">
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel Financeiro</h1>
-          <p className="text-roman-text-sub font-serif italic">MediÃ§Ãµes, geraÃ§Ã£o de parcelas e confirmaÃ§Ã£o de pagamentos das ordens de serviÃ§o validadas.</p>
+          <p className="text-roman-text-sub font-serif italic">Medições, geração de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
         </header>
 
         <div className="space-y-5">
@@ -824,7 +824,7 @@ export function FinanceView() {
                         <div className="text-lg font-serif text-roman-text-main">{totalReleased}%</div>
                       </div>
                       <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">PrÃ³xima parcela</div>
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Próxima parcela</div>
                         <div className="text-lg font-serif text-roman-text-main">{nextPendingInstallment?.label || 'Nenhuma'}</div>
                       </div>
                     </div>
@@ -861,27 +861,27 @@ export function FinanceView() {
                     <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><ClipboardList size={15} /> MediÃ§Ãµes</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">Registre a evoluÃ§Ã£o da obra antes de solicitar pagamento.</p>
+                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><ClipboardList size={15} /> Medições</h4>
+                          <p className="text-xs text-roman-text-sub mt-1">Registre a evolução da obra antes de solicitar pagamento.</p>
                         </div>
                         <button
                           onClick={() => setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }))}
                           className="text-xs font-medium text-roman-primary hover:underline flex items-center gap-1"
                         >
-                          <PlusCircle size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar mediÃ§Ã£o' : 'Registrar mediÃ§Ã£o'}
+                          <PlusCircle size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar medição' : 'Registrar medição'}
                         </button>
                       </div>
 
                       {measurementFormOpen[ticket.id] && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border border-roman-border rounded-sm p-3 bg-roman-surface">
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">DescriÃ§Ã£o da mediÃ§Ã£o</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição da medição</label>
                             <input
                               type="text"
                               value={measurementDraft.label}
                               onChange={e => setMeasurementDraft(ticket.id, { label: e.target.value })}
                               className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              placeholder="Ex: mediÃ§Ã£o 50% - cobertura e pintura"
+                              placeholder="Ex: medição 50% - cobertura e pintura"
                             />
                           </div>
                           <div>
@@ -907,12 +907,12 @@ export function FinanceView() {
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">ObservaÃ§Ãµes</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
                             <textarea
                               value={measurementDraft.notes}
                               onChange={e => setMeasurementDraft(ticket.id, { notes: e.target.value })}
                               className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                              placeholder="Ex: relatÃ³rio com fotos enviado ao Pedro para liberaÃ§Ã£o."
+                              placeholder="Ex: relatório com fotos enviado ao Pedro para liberação."
                             />
                           </div>
                           <div className="md:col-span-2 flex justify-end">
@@ -920,7 +920,7 @@ export function FinanceView() {
                               onClick={() => handleAddMeasurement(ticket.id)}
                               className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm"
                             >
-                              Salvar mediÃ§Ã£o
+                              Salvar medição
                             </button>
                           </div>
                         </div>
@@ -928,7 +928,7 @@ export function FinanceView() {
 
                       <div className="space-y-2">
                         {measurements.length === 0 ? (
-                          <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma mediÃ§Ã£o registrada.</p>
+                          <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma medição registrada.</p>
                         ) : (
                           measurements.map(measurement => (
                             <div key={measurement.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
@@ -976,7 +976,7 @@ export function FinanceView() {
                       <div className="flex items-center justify-between mb-3">
                         <div>
                           <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><DollarSign size={15} /> Plano de pagamento</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">Gere parcelas padronizadas ou confirme as parcelas jÃ¡ liberadas.</p>
+                          <p className="text-xs text-roman-text-sub mt-1">Gere parcelas padronizadas ou confirme as parcelas já liberadas.</p>
                         </div>
                         {payments.length === 0 && (
                           <div className="flex gap-2">
@@ -986,7 +986,7 @@ export function FinanceView() {
                                 onClick={() => generatePaymentPlan(ticket.id, totalValue, vendor, parts)}
                                 className="px-3 py-1.5 border border-roman-border rounded-sm text-xs font-medium text-roman-text-main hover:border-roman-primary"
                               >
-                                {parts === 1 ? 'Ã€ vista' : `${parts}x`}
+                                {parts === 1 ? 'À vista' : `${parts}x`}
                               </button>
                             ))}
                           </div>
@@ -995,7 +995,7 @@ export function FinanceView() {
 
                       {payments.length === 0 ? (
                         <div className="text-sm text-roman-text-sub font-serif italic">
-                          Nenhum plano gerado ainda. Use os atalhos acima para criar pagamento Ã  vista ou parcelado.
+                          Nenhum plano gerado ainda. Use os atalhos acima para criar pagamento à vista ou parcelado.
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -1029,7 +1029,7 @@ export function FinanceView() {
                     <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
                       <div className="mb-3">
                         <h4 className="text-sm font-semibold text-roman-text-main">Checklist de encerramento e garantia</h4>
-                        <p className="text-xs text-roman-text-sub mt-1">A Ãºltima parcela sÃ³ pode ser quitada apÃ³s confirmaÃ§Ã£o da infraestrutura, do solicitante e definiÃ§Ã£o da garantia.</p>
+                        <p className="text-xs text-roman-text-sub mt-1">A última parcela só pode ser quitada após confirmação da infraestrutura, do solicitante e definição da garantia.</p>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -1039,7 +1039,7 @@ export function FinanceView() {
                             checked={closureDraft.requesterApproved}
                             onChange={e => setClosureDraft(ticket.id, { requesterApproved: e.target.checked })}
                           />
-                          Solicitante confirmou a conclusÃ£o
+                          Solicitante confirmou a conclusão
                         </label>
                         <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovedByRafael ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
                           <input
@@ -1059,13 +1059,13 @@ export function FinanceView() {
                         </label>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
                           <div>Solicitante: {ticket.closureChecklist?.requesterApprovedBy || ticket.requester}</div>
-                          <div>AprovaÃ§Ã£o registrada: {formatDateLabel(ticket.closureChecklist?.requesterApprovedAt)}</div>
+                          <div>Aprovação registrada: {formatDateLabel(ticket.closureChecklist?.requesterApprovedAt)}</div>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">InÃ­cio do serviÃ§o</label>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Início do serviço</label>
                           <input
                             type="date"
                             value={closureDraft.serviceStartedAt}
@@ -1074,7 +1074,7 @@ export function FinanceView() {
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">TÃ©rmino do serviÃ§o</label>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Término do serviço</label>
                           <input
                             type="date"
                             value={closureDraft.serviceCompletedAt}
@@ -1096,12 +1096,12 @@ export function FinanceView() {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">ObservaÃ§Ãµes de encerramento</label>
+                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de encerramento</label>
                         <textarea
                           value={closureDraft.closureNotes}
                           onChange={e => setClosureDraft(ticket.id, { closureNotes: e.target.value })}
                           className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                          placeholder="Ex: laudo final anexado, direÃ§Ã£o comunicada, garantia de 12 meses para estrutura."
+                          placeholder="Ex: laudo final anexado, direção comunicada, garantia de 12 meses para estrutura."
                         />
                       </div>
 
@@ -1168,7 +1168,7 @@ export function FinanceView() {
                         <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
                           <div className="font-medium text-roman-text-main mb-1">Garantia atual</div>
                           <div>Status: {ticket.guarantee.status === 'active' ? 'Ativa' : ticket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
-                          <div>InÃ­cio: {formatDateLabel(ticket.guarantee.startAt)}</div>
+                          <div>Início: {formatDateLabel(ticket.guarantee.startAt)}</div>
                           <div>Fim: {formatDateLabel(ticket.guarantee.endAt)}</div>
                         </div>
                       )}
@@ -1189,8 +1189,8 @@ export function FinanceView() {
                         <div>Classificacao: {ticket.serviceCatalogName || ticket.macroServiceName || 'Nao definida'}</div>
                         <div>Laudos anexados: {closureDocuments.length}</div>
                         <div>Parcelas pendentes: {pendingInstallments.length}</div>
-                        <div>MediÃ§Ãµes registradas: {measurements.length}</div>
-                        <div>Ãšltima atualizaÃ§Ã£o: {formatDistanceToNowSafe(ticket.time)}</div>
+                        <div>Medições registradas: {measurements.length}</div>
+                        <div>Última atualização: {formatDistanceToNowSafe(ticket.time)}</div>
                       </div>
                     </div>
                   </aside>

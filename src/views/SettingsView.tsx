@@ -22,22 +22,22 @@ const DEFAULT_TEMPLATE: EmailTemplateSettings = {
   trigger: 'EMAIL-NOVA-OS',
   subject: '[Nova OS] {{ticket.id}} - {{ticket.subject}}',
   body:
-    'OlÃ¡ {{requester.name}},\n\nSua Ordem de ServiÃ§o foi registrada com sucesso.\n\nNÃºmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe farÃ¡ a triagem em breve.\n\nAtenciosamente,\nGestÃ£o de ManutenÃ§Ã£o',
+    'Olá {{requester.name}},\n\nSua Ordem de Serviço foi registrada com sucesso.\n\nNúmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe fará a triagem em breve.\n\nAtenciosamente,\nGestão de Manutenção',
 };
 
 const DEFAULT_DIGEST: DailyDigestSettings = {
   enabled: true,
   time: '08:00',
   recipients: 'rafael@empresa.com, diretoria@empresa.com',
-  subject: '[Resumo DiÃ¡rio] ManutenÃ§Ã£o - {{data}} | {{novas_os_ontem}} novas OS Â· {{slas_vencendo_hoje}} SLAs hoje',
+  subject: '[Resumo Diário] Manutenção - {{data}} | {{novas_os_ontem}} novas OS · {{slas_vencendo_hoje}} SLAs hoje',
 };
 
 const DEFAULT_SLA: SlaSettings = {
   rules: [
     { priority: 'Urgente', prazo: '24h' },
     { priority: 'Alta', prazo: '72h' },
-    { priority: 'Normal', prazo: '5 dias Ãºteis' },
-    { priority: 'Trivial', prazo: '10 dias Ãºteis' },
+    { priority: 'Normal', prazo: '5 dias úteis' },
+    { priority: 'Trivial', prazo: '10 dias úteis' },
   ],
 };
 
@@ -53,7 +53,7 @@ function IntegrationStatusCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{title}</div>
-          <div className="text-base font-serif text-roman-text-main mt-1">{check.ok ? 'Operacional' : 'AtenÃ§Ã£o'}</div>
+          <div className="text-base font-serif text-roman-text-main mt-1">{check.ok ? 'Operacional' : 'Atenção'}</div>
         </div>
         <div className={`shrink-0 ${check.ok ? 'text-green-700' : 'text-amber-700'}`}>
           {check.ok ? <ShieldCheck size={18} /> : <TriangleAlert size={18} />}
@@ -140,7 +140,7 @@ export function SettingsView() {
       setLegacyHealth(legacy);
       setIntegrationsHealth(integrations);
     } catch (error) {
-      setIntegrationsError(error instanceof Error ? error.message : 'Falha ao carregar integraÃ§Ãµes.');
+      setIntegrationsError(error instanceof Error ? error.message : 'Falha ao carregar integrações.');
     } finally {
       setIntegrationsLoading(false);
     }
@@ -178,7 +178,7 @@ export function SettingsView() {
     try {
       await saveSettings('emailTemplates', template);
     } catch {
-      // MantÃ©m feedback local mesmo se a API nÃ£o estiver disponÃ­vel.
+      // Mantém feedback local mesmo se a API não estiver disponível.
     }
     setTemplateSaved(true);
     setTimeout(() => setTemplateSaved(false), 3000);
@@ -189,7 +189,7 @@ export function SettingsView() {
     try {
       await saveSettings('dailyDigest', digest);
     } catch {
-      // MantÃ©m feedback local mesmo se a API nÃ£o estiver disponÃ­vel.
+      // Mantém feedback local mesmo se a API não estiver disponível.
     }
     setDigestSaved(true);
     setTimeout(() => setDigestSaved(false), 3000);
@@ -200,7 +200,7 @@ export function SettingsView() {
     try {
       await saveSettings('sla', sla);
     } catch {
-      // MantÃ©m feedback local mesmo se a API nÃ£o estiver disponÃ­vel.
+      // Mantém feedback local mesmo se a API não estiver disponível.
     }
     setSlaSaved(true);
     setTimeout(() => setSlaSaved(false), 3000);
@@ -270,8 +270,8 @@ export function SettingsView() {
     () => ({
       ok: isFirebaseAuthConfigured(),
       detail: isFirebaseAuthConfigured()
-        ? 'VariÃ¡veis VITE_FIREBASE_* disponÃ­veis no frontend.'
-        : 'ConfiguraÃ§Ã£o web do Firebase ausente no frontend.',
+        ? 'Variáveis VITE_FIREBASE_* disponíveis no frontend.'
+        : 'Configuração web do Firebase ausente no frontend.',
       meta: null,
     }),
     []
@@ -284,7 +284,7 @@ export function SettingsView() {
           <EmptyState
             icon={Mail}
             title="Acesso restrito"
-            description="As configuraÃ§Ãµes do sistema estÃ£o disponÃ­veis apenas para perfis Admin."
+            description="As configurações do sistema estão disponíveis apenas para perfis Admin."
           />
         </div>
       </div>
@@ -293,9 +293,9 @@ export function SettingsView() {
 
   const legacyCards = legacyHealth
     ? [
-        { label: 'UsuÃ¡rios com papel legado', value: legacyHealth.summary.legacyUsers },
+        { label: 'Usuários com papel legado', value: legacyHealth.summary.legacyUsers },
         { label: 'Tickets sem regionId/siteId', value: legacyHealth.summary.ticketsMissingCatalog },
-        { label: 'NotificaÃ§Ãµes com time legado', value: legacyHealth.summary.notificationsLegacy },
+        { label: 'Notificações com time legado', value: legacyHealth.summary.notificationsLegacy },
         { label: 'SLA com compatibilidade legada', value: legacyHealth.summary.slaLegacy },
       ]
     : [];
@@ -304,18 +304,18 @@ export function SettingsView() {
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8 border-b border-roman-border pb-4">
-          <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">ConfiguraÃ§Ãµes do Sistema</h1>
-          <p className="text-roman-text-sub font-serif italic">Ajustes de e-mail, templates, integraÃ§Ãµes e regras de negÃ³cio.</p>
+          <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Configurações do Sistema</h1>
+          <p className="text-roman-text-sub font-serif italic">Ajustes de e-mail, templates, integrações e regras de negócio.</p>
         </header>
 
         <div className="flex gap-8">
           <div className="w-64 shrink-0 space-y-2">
             {[
               { key: 'templates', label: 'Templates de E-mail' },
-              { key: 'daily-digest', label: 'Resumo DiÃ¡rio (Z6)' },
+              { key: 'daily-digest', label: 'Resumo Diário (Z6)' },
               { key: 'sla', label: 'Regras de SLA' },
               { key: 'catalog', label: 'Catálogo Operacional' },
-              { key: 'integrations', label: 'IntegraÃ§Ãµes e Legado' },
+              { key: 'integrations', label: 'Integrações e Legado' },
             ].map(item => (
               <button
                 key={item.key}
@@ -335,13 +335,13 @@ export function SettingsView() {
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                 <Loader2 size={18} className="animate-spin" />
-                Carregando configuraÃ§Ãµes...
+                Carregando configurações...
               </div>
             ) : (
               <>
                 {section === 'templates' && (
                   <>
-                    <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Templates de ComunicaÃ§Ã£o</h2>
+                    <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Templates de Comunicação</h2>
                     <div className="space-y-6">
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Gatilho</label>
@@ -351,7 +351,7 @@ export function SettingsView() {
                           className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                         >
                           <option value="EMAIL-NOVA-OS">EMAIL-NOVA-OS (Abertura)</option>
-                          <option value="EMAIL-VISITEC-PENDENTE">EMAIL-VISITEC-PENDENTE (SolicitaÃ§Ã£o TÃ©cnico)</option>
+                          <option value="EMAIL-VISITEC-PENDENTE">EMAIL-VISITEC-PENDENTE (Solicitação Técnico)</option>
                           <option value="EMAIL-APROV-ORCAMENTO">EMAIL-APROV-ORCAMENTO (Para Diretoria)</option>
                           <option value="EMAIL-ORCAMENTO-APROVADO">EMAIL-ORCAMENTO-APROVADO (Para Fornecedor)</option>
                         </select>
@@ -398,8 +398,8 @@ export function SettingsView() {
                   <>
                     <div className="flex items-center justify-between mb-6">
                       <div>
-                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Resumo DiÃ¡rio AutomÃ¡tico</h2>
-                        <p className="text-xs text-roman-text-sub font-serif italic mt-1">E-mail gerado pelo cron toda manhÃ£.</p>
+                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Resumo Diário Automático</h2>
+                        <p className="text-xs text-roman-text-sub font-serif italic mt-1">E-mail gerado pelo cron toda manhã.</p>
                       </div>
 
                       <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -420,7 +420,7 @@ export function SettingsView() {
                     <div className="space-y-6">
                       <div className="bg-roman-bg border border-roman-border rounded-sm p-4">
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-3 flex items-center gap-2">
-                          <Clock size={12} /> HorÃ¡rio de Envio (Cron)
+                          <Clock size={12} /> Horário de Envio (Cron)
                         </label>
                         <div className="flex items-center gap-4">
                           <input
@@ -435,7 +435,7 @@ export function SettingsView() {
 
                       <div>
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5 flex items-center gap-2">
-                          <Mail size={12} /> DestinatÃ¡rios (separados por vÃ­rgula)
+                          <Mail size={12} /> Destinatários (separados por vírgula)
                         </label>
                         <input
                           type="text"
@@ -456,7 +456,7 @@ export function SettingsView() {
                       </div>
 
                       <div className="flex items-center justify-between pt-2">
-                        <p className="text-xs text-roman-text-sub font-serif italic">ConfiguraÃ§Ã£o do resumo diÃ¡rio persistida no Firestore.</p>
+                        <p className="text-xs text-roman-text-sub font-serif italic">Configuração do resumo diário persistida no Firestore.</p>
                         <button
                           onClick={() => void handleSaveDigest()}
                           className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
@@ -466,7 +466,7 @@ export function SettingsView() {
                               <CheckCircle size={15} /> Salvo!
                             </>
                           ) : (
-                            'Salvar ConfiguraÃ§Ã£o'
+                            'Salvar Configuração'
                           )}
                         </button>
                       </div>
@@ -487,7 +487,7 @@ export function SettingsView() {
 
                       <div className="flex items-center justify-between pt-2">
                         <p className="text-xs text-roman-text-sub font-serif italic">
-                          O cron de monitoramento pode usar essas regras como base para alertas e relatÃ³rios.
+                          O cron de monitoramento pode usar essas regras como base para alertas e relatórios.
                         </p>
                         <button
                           onClick={() => void handleSaveSla()}
@@ -752,7 +752,7 @@ export function SettingsView() {
                   <>
                     <div className="flex items-center justify-between mb-6 gap-4">
                       <div>
-                        <h2 className="font-serif text-xl font-medium text-roman-text-main">IntegraÃ§Ãµes e Legado</h2>
+                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Integrações e Legado</h2>
                         <p className="text-sm text-roman-text-sub font-serif italic">Status operacional do ambiente e compatibilidade com dados antigos.</p>
                       </div>
 
@@ -794,9 +794,9 @@ export function SettingsView() {
                       <div className="mb-4 p-4 border border-green-200 bg-green-50 text-green-800 rounded-sm">
                         <div className="font-medium mb-2">Backfill executado com sucesso</div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <div>UsuÃ¡rios: {backfillResult.updatedUsers}</div>
+                          <div>Usuários: {backfillResult.updatedUsers}</div>
                           <div>Tickets: {backfillResult.updatedTickets}</div>
-                          <div>NotificaÃ§Ãµes: {backfillResult.updatedNotifications}</div>
+                          <div>Notificações: {backfillResult.updatedNotifications}</div>
                           <div>SLA: {backfillResult.updatedSla}</div>
                         </div>
                       </div>
@@ -805,7 +805,7 @@ export function SettingsView() {
                     {integrationsLoading && (
                       <div className="py-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
                         <Loader2 size={18} className="animate-spin" />
-                        Validando integraÃ§Ãµes...
+                        Validando integrações...
                       </div>
                     )}
 
@@ -838,7 +838,7 @@ export function SettingsView() {
 
                               <div className="space-y-3 text-sm text-roman-text-sub">
                                 <div>
-                                  <div className="font-medium text-roman-text-main">UsuÃ¡rios legados</div>
+                                  <div className="font-medium text-roman-text-main">Usuários legados</div>
                                   <div>
                                     {legacyHealth.samples.legacyUsers.length > 0
                                       ? legacyHealth.samples.legacyUsers.map(user => `${user.email} (${user.role})`).join(', ')
@@ -847,7 +847,7 @@ export function SettingsView() {
                                 </div>
 
                                 <div>
-                                  <div className="font-medium text-roman-text-main">Tickets sem catÃ¡logo</div>
+                                  <div className="font-medium text-roman-text-main">Tickets sem catálogo</div>
                                   <div>
                                     {legacyHealth.samples.ticketsMissingCatalog.length > 0
                                       ? legacyHealth.samples.ticketsMissingCatalog.map(ticket => ticket.id).join(', ')
@@ -856,7 +856,7 @@ export function SettingsView() {
                                 </div>
 
                                 <div>
-                                  <div className="font-medium text-roman-text-main">NotificaÃ§Ãµes com time legado</div>
+                                  <div className="font-medium text-roman-text-main">Notificações com time legado</div>
                                   <div>
                                     {legacyHealth.samples.notificationsLegacy.length > 0
                                       ? legacyHealth.samples.notificationsLegacy.map(item => item.id).join(', ')
@@ -868,8 +868,8 @@ export function SettingsView() {
                                   <div className="font-medium text-roman-text-main">SLA</div>
                                   <div>
                                     {legacyHealth.samples.sla
-                                      ? `rules=${legacyHealth.samples.sla.hasRules ? 'ok' : 'faltando'} â€¢ legacyHours=${
-                                          legacyHealth.samples.sla.hasLegacyHours ? 'sim' : 'nÃ£o'
+                                      ? `rules=${legacyHealth.samples.sla.hasRules ? 'ok' : 'faltando'} · legacyHours=${
+                                          legacyHealth.samples.sla.hasLegacyHours ? 'sim' : 'não'
                                         }`
                                       : 'Documento ausente.'}
                                   </div>

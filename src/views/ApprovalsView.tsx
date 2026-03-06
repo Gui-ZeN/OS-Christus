@@ -91,7 +91,7 @@ export function ApprovalsView() {
           <EmptyState
             icon={Shield}
             title="Acesso restrito"
-            description="Apenas Diretor e Admin podem acessar o painel de aprovaÃ§Ãµes."
+            description="Apenas Diretor e Admin podem acessar o painel de aprovações."
           />
         </div>
       </div>
@@ -412,17 +412,17 @@ export function ApprovalsView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex justify-between items-end">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel da Diretoria</h1>
-            <p className="text-roman-text-sub font-serif italic">AprovaÃ§Ãµes rÃ¡pidas de orÃ§amentos e assinaturas de contratos.</p>
+            <p className="text-roman-text-sub font-serif italic">Aprovações rápidas de orçamentos e assinaturas de contratos.</p>
           </div>
           <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1 shadow-sm overflow-x-auto hide-scrollbar">
             <button onClick={() => setActiveTab('new_os')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'new_os' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Novas OS ({newOSList.length})
             </button>
             <button onClick={() => setActiveTab('solutions')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'solutions' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
-              SoluÃ§Ãµes ({solutions.length})
+              Soluções ({solutions.length})
             </button>
             <button onClick={() => setActiveTab('budgets')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'budgets' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
-              OrÃ§amentos ({budgets.length})
+              Orçamentos ({budgets.length})
             </button>
             <button onClick={() => setActiveTab('contracts')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'contracts' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Contratos ({contracts.length})
@@ -446,7 +446,7 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Triagem (Diretoria)</span>
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{os.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {os.requester} â€¢ Enviado: {formatDistanceToNowSafe(os.date)}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {os.requester} · Enviado: {formatDistanceToNowSafe(os.date)}</p>
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
@@ -479,10 +479,10 @@ export function ApprovalsView() {
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{solution.id}</span>
-                    <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando AprovaÃ§Ã£o da SoluÃ§Ã£o</span>
+                    <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{solution.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} â€¢ Parecer emitido: {formatDistanceToNowSafe(solution.date)}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} · Parecer emitido: {formatDistanceToNowSafe(solution.date)}</p>
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
@@ -491,10 +491,10 @@ export function ApprovalsView() {
               </div>
               <div className="flex justify-end gap-3">
                 <button onClick={() => openRejectModal(solution.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
-                  Reprovar SoluÃ§Ã£o (Arquivar)
+                  Reprovar Solução (Arquivar)
                 </button>
                 <button onClick={() => handleApprove(solution.id, 'solutions')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
-                  <CheckCircle size={16} /> Aprovar (Ir para CotaÃ§Ã£o)
+                  <CheckCircle size={16} /> Aprovar (Ir para Cotação)
                 </button>
               </div>
             </div>
@@ -578,11 +578,11 @@ export function ApprovalsView() {
                       </div>
                     )}
                     <div className="mt-auto flex flex-col gap-2">
-                      <button onClick={() => openAttachment(`OrÃ§amento: ${quote.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
+                      <button onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
                         <FileText size={14} /> Ver PDF
                       </button>
                       <button onClick={() => handleApprove(budget.id, 'budgets', quote)} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm">
-                        Aprovar Esta OpÃ§Ã£o
+                        Aprovar Esta Opção
                       </button>
                     </div>
                   </div>
@@ -648,9 +648,9 @@ export function ApprovalsView() {
                     {budget.historySummary.similarCases.slice(0, 2).map(item => (
                       <div key={item.ticketId} className="flex flex-col gap-1 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-2 md:flex-row md:items-center md:justify-between">
                         <div>
-                          <div className="text-sm font-medium text-roman-text-main">{item.ticketId} Â· {item.subject}</div>
+                          <div className="text-sm font-medium text-roman-text-main">{item.ticketId} · {item.subject}</div>
                           <div className="text-[11px] text-roman-text-sub">
-                            {item.vendor} Â· {item.sede} / {item.region} Â· {formatDistanceToNowSafe(item.date)}
+                            {item.vendor} · {item.sede} / {item.region} · {formatDistanceToNowSafe(item.date)}
                           </div>
                         </div>
                         <div className="text-right">
