@@ -93,6 +93,7 @@ export interface Quote {
   recommended: boolean;
   status?: string;
   attachmentName?: string | null;
+  classification?: ProcurementClassificationSnapshot;
 }
 
 export interface ContractRecord {
@@ -102,6 +103,7 @@ export interface ContractRecord {
   status: string;
   viewingBy?: string | null;
   signedFileName?: string | null;
+  classification?: ProcurementClassificationSnapshot;
 }
 
 export interface MeasurementRecord {
@@ -113,6 +115,7 @@ export interface MeasurementRecord {
   notes?: string;
   requestedAt?: Date | null;
   approvedAt?: Date | null;
+  classification?: ProcurementClassificationSnapshot;
 }
 
 export interface PaymentRecord {
@@ -128,6 +131,20 @@ export interface PaymentRecord {
   releasedPercent?: number | null;
   receiptFileName?: string | null;
   paidAt?: Date | null;
+  classification?: ProcurementClassificationSnapshot;
+}
+
+export interface ProcurementClassificationSnapshot {
+  ticketType?: string | null;
+  macroServiceId?: string | null;
+  macroServiceName?: string | null;
+  serviceCatalogId?: string | null;
+  serviceCatalogName?: string | null;
+  regionId?: string | null;
+  regionName?: string | null;
+  siteId?: string | null;
+  siteName?: string | null;
+  sector?: string | null;
 }
 
 export interface User {

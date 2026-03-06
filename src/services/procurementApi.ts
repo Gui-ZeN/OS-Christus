@@ -1,5 +1,5 @@
 import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
-import { ContractRecord, MeasurementRecord, PaymentRecord, Quote } from '../types';
+import { ContractRecord, MeasurementRecord, PaymentRecord, ProcurementClassificationSnapshot, Quote } from '../types';
 import { coerceDate } from '../utils/date';
 
 type QuoteApi = Quote & { ticketId?: string };
@@ -59,31 +59,31 @@ export async function fetchProcurementData() {
   };
 }
 
-export async function saveQuotes(ticketId: string, quotes: Quote[]) {
+export async function saveQuotes(ticketId: string, quotes: Quote[], classification?: ProcurementClassificationSnapshot) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
-    body: JSON.stringify({ ticketId, type: 'quotes', quotes }),
+    body: JSON.stringify({ ticketId, type: 'quotes', quotes, classification }),
   });
   if (!response.ok) {
     throw new Error('Falha ao salvar cotacoes.');
   }
 }
 
-export async function saveContract(ticketId: string, contract: ContractRecord) {
+export async function saveContract(ticketId: string, contract: ContractRecord, classification?: ProcurementClassificationSnapshot) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
-    body: JSON.stringify({ ticketId, type: 'contract', contract }),
+    body: JSON.stringify({ ticketId, type: 'contract', contract, classification }),
   });
   if (!response.ok) {
     throw new Error('Falha ao salvar contrato.');
   }
 }
 
-export async function savePayment(ticketId: string, payment: PaymentRecord) {
+export async function savePayment(ticketId: string, payment: PaymentRecord, classification?: ProcurementClassificationSnapshot) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
@@ -91,6 +91,7 @@ export async function savePayment(ticketId: string, payment: PaymentRecord) {
     body: JSON.stringify({
       ticketId,
       type: 'payment',
+      classification,
       payment: {
         ...payment,
         paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
@@ -103,7 +104,7 @@ export async function savePayment(ticketId: string, payment: PaymentRecord) {
   }
 }
 
-export async function saveMeasurement(ticketId: string, measurement: MeasurementRecord) {
+export async function saveMeasurement(ticketId: string, measurement: MeasurementRecord, classification?: ProcurementClassificationSnapshot) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/procurement', {
     method: 'POST',
@@ -111,6 +112,7 @@ export async function saveMeasurement(ticketId: string, measurement: Measurement
     body: JSON.stringify({
       ticketId,
       type: 'measurement',
+      classification,
       measurement: {
         ...measurement,
         requestedAt: measurement.requestedAt ? measurement.requestedAt.toISOString() : null,

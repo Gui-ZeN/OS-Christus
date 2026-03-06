@@ -11,6 +11,7 @@ import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
+import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
@@ -592,7 +593,7 @@ export function InboxView() {
         attachmentName: quoteAttachments[index]?.name || null,
       }));
       try {
-        await saveQuotes(activeTicket.id, nextQuotes);
+        await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
       } catch {
         // Mantem o fluxo local mesmo se a API nao estiver disponivel no ambiente atual.
       }
