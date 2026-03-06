@@ -235,6 +235,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (authEnabled && !authResolved) {
+      return undefined;
+    }
+
+    if (authEnabled && !currentUserEmail) {
+      setAllTickets([]);
+      setTicketsLoading(false);
+      return undefined;
+    }
+
+    setTicketsLoading(true);
     (async () => {
       try {
         const remote = await fetchTicketsFromApi();
@@ -255,7 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authEnabled, authResolved, currentUserEmail]);
 
   useEffect(() => {
     let cancelled = false;

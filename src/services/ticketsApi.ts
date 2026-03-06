@@ -13,22 +13,36 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
   return {
     ...ticket,
     time: coerceDate(ticket.time),
-    viewingBy: ticket.viewingBy
-      ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) }
-      : null,
-    sla: ticket.sla
-      ? { ...ticket.sla, dueAt: coerceDate(ticket.sla.dueAt) }
-      : undefined,
+    viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
+    sla: ticket.sla ? { ...ticket.sla, dueAt: coerceDate(ticket.sla.dueAt) } : undefined,
     history: ticket.history.map(item => ({ ...item, time: coerceDate(item.time) })),
   };
 }
 
 export async function fetchTicketsFromApi(): Promise<Ticket[]> {
-  const response = await fetch('/api/tickets');
-  if (!response.ok) throw new Error('Falha ao buscar tickets da API.');
+  const response = await fetch('/api/tickets', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error('Falha ao buscar tickets da API.');
+  }
+
   const json = await response.json();
-  if (!json.ok || !Array.isArray(json.tickets)) throw new Error('Resposta inválida da API de tickets.');
-  return json.tickets.map(hydrateTicket);
+  if (!json.ok || !Array.isArray(json.tickets)) {
+    throw new Error('Resposta inválida da API de tickets.');
+  }
+
+  return json.tickets.map((ticket: ApiTicket) => hydrateTicket(ticket));
+}
+
+export async function fetchTrackingTicketFromApi(trackingToken: string): Promise<Ticket> {
+  const response = await fetch(`/api/tickets?tracking=${encodeURIComponent(trackingToken)}`);
+  const json = await response.json();
+  if (!response.ok || !json.ok || !json.ticket) {
+    throw new Error(json.error || 'Falha ao buscar ticket de acompanhamento.');
+  }
+
+  return hydrateTicket(json.ticket as ApiTicket);
 }
 
 export async function createTicketInApi(ticket: Ticket) {
@@ -51,5 +65,16 @@ export async function patchTicketInApi(id: string, updates: Partial<Ticket>) {
   });
   if (!response.ok) {
     throw new Error('Falha ao atualizar ticket na API.');
+  }
+}
+
+export async function patchTrackingTicketInApi(trackingToken: string, updates: Partial<Ticket>) {
+  const response = await fetch('/api/tickets', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingToken, updates }),
+  });
+  if (!response.ok) {
+    throw new Error('Falha ao atualizar ticket por acompanhamento.');
   }
 }

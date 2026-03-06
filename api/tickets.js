@@ -14,11 +14,29 @@ export default async function handler(req, res) {
     const col = db.collection('tickets');
 
     if (req.method === 'GET') {
+      const trackingToken = String(req.query?.tracking || '').trim();
+      if (trackingToken) {
+        const trackingSnap = await col.where('trackingToken', '==', trackingToken).limit(1).get();
+        if (trackingSnap.empty) {
+          return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
+        }
+
+        const ticket = serializeTicketForApi({
+          id: trackingSnap.docs[0].id,
+          ...trackingSnap.docs[0].data(),
+        });
+
+        return sendJson(res, 200, { ok: true, ticket });
+      }
+
+      await requireAuthenticatedUser(req);
+
       const snap = await col.get();
       const tickets = snap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .map(serializeTicketForApi)
         .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time));
+
       return sendJson(res, 200, { ok: true, tickets });
     }
 
@@ -27,21 +45,49 @@ export default async function handler(req, res) {
       if (!body?.ticket?.id) {
         return sendJson(res, 400, { ok: false, error: 'ticket.id é obrigatório.' });
       }
+
       const ticket = normalizeTicketForStorage(body.ticket);
       await col.doc(ticket.id).set({
         ...ticket,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+
       return sendJson(res, 200, { ok: true });
     }
 
     if (req.method === 'PATCH') {
-      await requireAuthenticatedUser(req);
       const body = await readJsonBody(req);
-      if (!body?.id || !body?.updates) {
+      if (!body?.updates) {
+        return sendJson(res, 400, { ok: false, error: 'updates são obrigatórios.' });
+      }
+
+      if (body?.trackingToken) {
+        const trackingToken = String(body.trackingToken || '').trim();
+        const trackingSnap = await col.where('trackingToken', '==', trackingToken).limit(1).get();
+        if (trackingSnap.empty) {
+          return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
+        }
+
+        const normalized = normalizeTicketForStorage(body.updates);
+        const allowedUpdates = {};
+        if (normalized.status) allowedUpdates.status = normalized.status;
+        if (Array.isArray(normalized.history)) allowedUpdates.history = normalized.history;
+
+        if (Object.keys(allowedUpdates).length === 0) {
+          return sendJson(res, 400, { ok: false, error: 'Nenhuma atualização pública permitida foi enviada.' });
+        }
+
+        await trackingSnap.docs[0].ref.set({ ...allowedUpdates, updatedAt: new Date() }, { merge: true });
+        return sendJson(res, 200, { ok: true });
+      }
+
+      await requireAuthenticatedUser(req);
+
+      if (!body?.id) {
         return sendJson(res, 400, { ok: false, error: 'id e updates são obrigatórios.' });
       }
+
       const updates = normalizeTicketForStorage(body.updates);
       await col.doc(body.id).set({ ...updates, updatedAt: new Date() }, { merge: true });
       return sendJson(res, 200, { ok: true });
