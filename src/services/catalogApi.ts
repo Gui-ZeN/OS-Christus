@@ -1,3 +1,5 @@
+import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+
 export interface CatalogRegion {
   id: string;
   code: string;
@@ -46,6 +48,32 @@ export async function fetchCatalog() {
   const json = await response.json();
   if (!json.ok || !Array.isArray(json.regions) || !Array.isArray(json.sites)) {
     throw new Error('Resposta invalida do catalogo.');
+  }
+  return {
+    regions: json.regions as CatalogRegion[],
+    sites: json.sites as CatalogSite[],
+    macroServices: (json.macroServices || []) as CatalogMacroService[],
+    serviceCatalog: (json.serviceCatalog || []) as CatalogServiceItem[],
+    materials: (json.materials || []) as CatalogMaterial[],
+  };
+}
+
+export async function saveCatalogEntry(
+  entity: 'macroServices' | 'serviceCatalog' | 'materials' | 'regions' | 'sites',
+  record: Record<string, unknown>
+) {
+  const headers = await getAuthenticatedActorHeaders();
+  const response = await fetch('/api/catalog', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
+    body: JSON.stringify({ entity, record }),
+  });
+  if (!response.ok) {
+    throw new Error('Falha ao salvar item do catalogo.');
+  }
+  const json = await response.json();
+  if (!json.ok) {
+    throw new Error(json.error || 'Resposta invalida ao salvar catalogo.');
   }
   return {
     regions: json.regions as CatalogRegion[],
