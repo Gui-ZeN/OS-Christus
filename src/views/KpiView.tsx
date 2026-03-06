@@ -25,6 +25,20 @@ function daysBetween(start: Date, end: Date) {
   return Math.max(0, (end.getTime() - start.getTime()) / 86400000);
 }
 
+function resolveItemValue(
+  item: { totalPrice?: string | null; unitPrice?: string | null; quantity?: number | null },
+  fallbackValue = 0
+) {
+  const totalPrice = parseCurrency(item.totalPrice || '');
+  if (totalPrice > 0) return totalPrice;
+
+  const unitPrice = parseCurrency(item.unitPrice || '');
+  const quantity = item.quantity ?? 0;
+  if (unitPrice > 0 && quantity > 0) return unitPrice * quantity;
+
+  return fallbackValue;
+}
+
 export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
@@ -136,7 +150,7 @@ export function KpiView() {
   const maiorCusto = useMemo(() => {
     const target = [...contractValues].sort((a, b) => b.value - a.value)[0];
     if (!target) {
-      return { id: '—', subject: 'Sem contratos no período', valor: 0, sede: '—' };
+      return { id: '-', subject: 'Sem contratos no período', valor: 0, sede: '-' };
     }
     return {
       id: target.ticket.id,
@@ -156,6 +170,55 @@ export function KpiView() {
     }
     return [...grouped.values()].sort((a, b) => b.custo - a.custo);
   }, [contractValues]);
+
+  const custoPorServico = useMemo(() => {
+    const grouped = new Map<string, { name: string; custo: number; contratos: number }>();
+
+    for (const ticket of filteredTickets) {
+      const contract = contractsByTicket[ticket.id];
+      if (!contract) continue;
+
+      const serviceName =
+        ticket.serviceCatalogName ||
+        ticket.macroServiceName ||
+        contract.classification?.serviceCatalogName ||
+        contract.classification?.macroServiceName ||
+        'Não classificado';
+
+      if (!grouped.has(serviceName)) {
+        grouped.set(serviceName, { name: serviceName, custo: 0, contratos: 0 });
+      }
+
+      const current = grouped.get(serviceName)!;
+      current.custo += parseCurrency(contract.value);
+      current.contratos += 1;
+    }
+
+    return [...grouped.values()].sort((a, b) => b.custo - a.custo).slice(0, 8);
+  }, [contractsByTicket, filteredTickets]);
+
+  const custoPorMaterial = useMemo(() => {
+    const grouped = new Map<string, { name: string; custo: number; usos: number; unit?: string | null }>();
+
+    for (const ticket of filteredTickets) {
+      const contract = contractsByTicket[ticket.id];
+      if (!contract?.items?.length) continue;
+
+      for (const item of contract.items) {
+        const materialName = item.materialName || item.description || 'Material não identificado';
+        if (!grouped.has(materialName)) {
+          grouped.set(materialName, { name: materialName, custo: 0, usos: 0, unit: item.unit || null });
+        }
+
+        const current = grouped.get(materialName)!;
+        current.custo += resolveItemValue(item);
+        current.usos += 1;
+        if (!current.unit && item.unit) current.unit = item.unit;
+      }
+    }
+
+    return [...grouped.values()].sort((a, b) => b.custo - a.custo).slice(0, 10);
+  }, [contractsByTicket, filteredTickets]);
 
   const averageResolutionDays = useMemo(() => {
     const closed = filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED);
@@ -177,7 +240,7 @@ export function KpiView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Dashboard Gerencial</h1>
-            <p className="text-roman-text-sub font-serif italic">Indicadores reais de volume, custos, prazos e fornecedores.</p>
+            <p className="text-roman-text-sub font-serif italic">Indicadores reais de volume, custos, prazos, serviços e materiais.</p>
           </div>
 
           <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1">
@@ -232,7 +295,7 @@ export function KpiView() {
               <Clock size={64} />
             </div>
             <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">SLA Médio de Resolução</h3>
-            <div className="text-2xl font-medium text-roman-text-main mb-1">{averageResolutionDays.toFixed(1)} Dias</div>
+            <div className="text-2xl font-medium text-roman-text-main mb-1">{averageResolutionDays.toFixed(1)} dias</div>
             <div className="text-sm text-roman-text-sub mb-4">{pendingPaymentsCount} OS aguardando pagamento</div>
             <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 w-fit px-2 py-1 rounded-sm border border-green-100">
               <TrendingDown size={12} /> visão baseada nas OS do período
@@ -240,9 +303,29 @@ export function KpiView() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Serviço com Maior Custo</h3>
+            <div className="text-xl font-medium text-roman-text-main mb-1">{custoPorServico[0]?.name || 'Sem dados'}</div>
+            <div className="text-sm text-roman-text-sub mb-4">{custoPorServico[0]?.contratos || 0} contrato(s)</div>
+            <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+              Total: R$ {(custoPorServico[0]?.custo || 0).toLocaleString('pt-BR')}
+            </div>
+          </div>
+
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Material com Maior Custo</h3>
+            <div className="text-xl font-medium text-roman-text-main mb-1">{custoPorMaterial[0]?.name || 'Sem dados'}</div>
+            <div className="text-sm text-roman-text-sub mb-4">{custoPorMaterial[0]?.usos || 0} ocorrência(s) no escopo contratado</div>
+            <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+              Total: R$ {(custoPorMaterial[0]?.custo || 0).toLocaleString('pt-BR')}
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Volume de OS: Abertas vs. Fechadas</h2>
+            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Volume de OS: abertas vs. fechadas</h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={osPorRegiao} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -251,7 +334,7 @@ export function KpiView() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} />
                   <Tooltip cursor={{ fill: '#f5f5f5' }} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }} itemStyle={{ color: '#1a1a1a' }} />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar dataKey="abertas" name="Em Aberto" stackId="a" fill="#a3a3a3" barSize={40} />
+                  <Bar dataKey="abertas" name="Em aberto" stackId="a" fill="#a3a3a3" barSize={40} />
                   <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
@@ -259,7 +342,7 @@ export function KpiView() {
           </div>
 
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Tempo Médio por Etapa (Dias em Aberto)</h2>
+            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Tempo médio por etapa</h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={tempoPorEtapa} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -279,24 +362,70 @@ export function KpiView() {
           </div>
         </div>
 
-        <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-          <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Custo Total de Manutenção por Sede (R$)</h2>
-          <div className="h-72 min-w-0 min-h-[18rem]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <BarChart data={custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} tickFormatter={value => `R$ ${value / 1000}k`} />
-                <Tooltip
-                  cursor={{ fill: '#f5f5f5' }}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                  itemStyle={{ color: '#1a1a1a' }}
-                  formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo']}
-                />
-                <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Custo total por sede</h2>
+            <div className="h-72 min-w-0 min-h-[18rem]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} tickFormatter={value => `R$ ${value / 1000}k`} />
+                  <Tooltip
+                    cursor={{ fill: '#f5f5f5' }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                    itemStyle={{ color: '#1a1a1a' }}
+                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo']}
+                  />
+                  <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
+
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Custo por serviço (top 8)</h2>
+            <div className="h-72 min-w-0 min-h-[18rem]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={custoPorServico} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={130} />
+                  <Tooltip
+                    cursor={{ fill: '#f5f5f5' }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                    itemStyle={{ color: '#1a1a1a' }}
+                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo']}
+                  />
+                  <Bar dataKey="custo" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <h2 className="font-serif text-lg font-medium text-roman-text-main">Materiais com maior custo</h2>
+            <div className="text-xs text-roman-text-sub">Baseada no escopo contratado das OS do período</div>
+          </div>
+          {custoPorMaterial.length === 0 ? (
+            <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
+              Ainda não há itens de contrato suficientes para consolidar custo por material.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {custoPorMaterial.map(item => (
+                <div key={item.name} className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                  <div className="text-[11px] text-roman-text-sub">
+                    {item.usos} ocorrência(s){item.unit ? ` • ${item.unit}` : ''}
+                  </div>
+                  <div className="mt-2 text-lg font-serif text-roman-text-main">R$ {item.custo.toLocaleString('pt-BR')}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
