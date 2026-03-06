@@ -1,4 +1,4 @@
-import { getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
 
 export interface AuditLogEntry {
   id: string;
@@ -12,8 +12,8 @@ export interface AuditLogEntry {
   createdAt: string | null;
 }
 
-export async function fetchAuditLogs(limit = 100) {
-  const response = await fetch(`/api/audit-logs?limit=${limit}`, {
+export async function fetchAuditLogs(limit = 100, includeSystem = false) {
+  const response = await fetch(`/api/audit-logs?limit=${limit}&includeSystem=${includeSystem ? 'true' : 'false'}`, {
     headers: await getAuthenticatedActorHeaders(),
   });
   if (!response.ok) {
@@ -21,7 +21,7 @@ export async function fetchAuditLogs(limit = 100) {
   }
   const json = await response.json();
   if (!json.ok || !Array.isArray(json.logs)) {
-    throw new Error('Resposta invalida de auditoria.');
+    throw new Error('Resposta inválida de auditoria.');
   }
   return json.logs as AuditLogEntry[];
 }

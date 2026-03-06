@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, History, RefreshCw, Search } from 'lucide-react';
 import { AuditLogEntry, fetchAuditLogs } from '../services/auditLogsApi';
 import { useApp } from '../context/AppContext';
@@ -25,6 +25,7 @@ export function AuditLogsView() {
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [search, setSearch] = useState('');
+  const [includeSystem, setIncludeSystem] = useState(false);
 
   if (!canAccess) {
     return (
@@ -44,7 +45,7 @@ export function AuditLogsView() {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchAuditLogs(150);
+      const result = await fetchAuditLogs(150, includeSystem);
       setLogs(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha inesperada.');
@@ -55,7 +56,7 @@ export function AuditLogsView() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [includeSystem]);
 
   const filteredLogs = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -74,7 +75,7 @@ export function AuditLogsView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Auditoria do Sistema</h1>
-            <p className="text-roman-text-sub font-serif italic">Registro das principais alteracoes persistidas no Firestore.</p>
+            <p className="text-roman-text-sub font-serif italic">Registro das principais alterações persistidas no Firestore.</p>
           </div>
           <button
             onClick={() => void load()}
@@ -92,12 +93,22 @@ export function AuditLogsView() {
             <input
               value={search}
               onChange={event => setSearch(event.target.value)}
-              placeholder="Buscar por acao, entidade, ator ou id..."
+              placeholder="Buscar por ação, entidade, ator ou id..."
               className="w-full border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
             />
           </div>
-          <div className="text-xs text-roman-text-sub font-serif italic">
-            {loading ? 'Carregando logs...' : `${filteredLogs.length} registro(s) exibido(s)`}
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-xs text-roman-text-sub">
+              <input
+                type="checkbox"
+                checked={includeSystem}
+                onChange={event => setIncludeSystem(event.target.checked)}
+              />
+              Exibir logs técnicos
+            </label>
+            <div className="text-xs text-roman-text-sub font-serif italic">
+              {loading ? 'Carregando logs...' : `${filteredLogs.length} registro(s) exibido(s)`}
+            </div>
           </div>
         </div>
 

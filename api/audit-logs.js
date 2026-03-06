@@ -1,4 +1,4 @@
-import { requireAdminUser } from './_lib/authz.js';
+﻿import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { sendJson } from './_lib/http.js';
 
@@ -20,22 +20,31 @@ export default async function handler(req, res) {
     const db = getAdminDb();
     const rawLimit = Number.parseInt(String(req.query?.limit || '100'), 10);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;
+    const includeSystem = String(req.query?.includeSystem || '').trim().toLowerCase() === 'true';
     const snapshot = await db.collection('auditLogs').orderBy('createdAt', 'desc').limit(limit).get();
 
-    const logs = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        actor: data.actor || 'sistema',
-        action: data.action || 'unknown',
-        entity: data.entity || 'unknown',
-        entityId: data.entityId || null,
-        before: data.before || null,
-        after: data.after || null,
-        metadata: data.metadata || null,
-        createdAt: normalizeTimestamp(data.createdAt),
-      };
-    });
+    const technicalActions = new Set(['system.bootstrap', 'firestore.backfill_legacy', 'firebase.auth-pending']);
+    const technicalEntities = new Set(['firebase', 'firestore.legacy']);
+
+    const logs = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          actor: data.actor || 'sistema',
+          action: data.action || 'unknown',
+          entity: data.entity || 'unknown',
+          entityId: data.entityId || null,
+          before: data.before || null,
+          after: data.after || null,
+          metadata: data.metadata || null,
+          createdAt: normalizeTimestamp(data.createdAt),
+        };
+      })
+      .filter(log => {
+        if (includeSystem) return true;
+        return !(technicalActions.has(log.action) || technicalEntities.has(log.entity));
+      });
 
     return sendJson(res, 200, { ok: true, logs });
   } catch (error) {
