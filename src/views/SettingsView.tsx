@@ -10,6 +10,7 @@ import {
   type CatalogMacroService,
   type CatalogMaterial,
   type CatalogServiceItem,
+  type CatalogVendorPreference,
 } from '../services/catalogApi';
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
 import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
@@ -98,6 +99,7 @@ export function SettingsView() {
   const [macroServices, setMacroServices] = useState<CatalogMacroService[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [materials, setMaterials] = useState<CatalogMaterial[]>([]);
+  const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
   const [macroDraft, setMacroDraft] = useState({ code: '', name: '' });
   const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
   const [materialDraft, setMaterialDraft] = useState({ code: '', name: '', unit: '' });
@@ -153,6 +155,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao carregar catalogo.');
     } finally {
@@ -224,6 +227,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
       setMacroDraft({ code: '', name: '' });
       setCatalogSaved('Macroservico salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -238,6 +242,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
       setServiceDraft({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
       setCatalogSaved('Servico salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -252,6 +257,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
       setMaterialDraft({ code: '', name: '', unit: '' });
       setCatalogSaved('Material salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -308,6 +314,7 @@ export function SettingsView() {
               { key: 'templates', label: 'Templates de E-mail' },
               { key: 'daily-digest', label: 'Resumo DiÃ¡rio (Z6)' },
               { key: 'sla', label: 'Regras de SLA' },
+              { key: 'catalog', label: 'Catálogo Operacional' },
               { key: 'integrations', label: 'IntegraÃ§Ãµes e Legado' },
             ].map(item => (
               <button
@@ -693,6 +700,49 @@ export function SettingsView() {
                             </div>
                           </section>
                         </div>
+
+                        <section className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                          <div className="flex items-center justify-between gap-4 mb-4">
+                            <div>
+                              <h3 className="font-serif text-lg text-roman-text-main">Fornecedores preferenciais por histórico</h3>
+                              <p className="text-xs text-roman-text-sub mt-1">Base persistida a partir das aprovações de orçamento dos últimos 24 meses.</p>
+                            </div>
+                            <div className="text-xs text-roman-text-sub">{vendorPreferences.length} registro(s)</div>
+                          </div>
+
+                          {vendorPreferences.length === 0 ? (
+                            <div className="text-sm text-roman-text-sub border border-dashed border-roman-border rounded-sm p-4 bg-roman-surface">
+                              Ainda não há preferências persistidas. Elas passam a ser geradas quando a diretoria aprova uma cotação.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                              {vendorPreferences.slice(0, 12).map(item => (
+                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-sm font-medium text-roman-text-main">{item.vendor}</div>
+                                      <div className="text-[11px] text-roman-text-sub">
+                                        {item.scopeType === 'material' ? 'Material' : item.scopeType === 'service' ? 'Serviço' : 'Macroserviço'} · {item.scopeName}
+                                      </div>
+                                    </div>
+                                    <div className="text-right text-[11px] text-roman-text-sub">
+                                      <div>{item.approvalCount} aprovação(ões)</div>
+                                      <div>{item.lastTicketId || '-'}</div>
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-roman-text-sub">
+                                    <div>
+                                      Média aprovada: {item.averageApprovedValue != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.averageApprovedValue) : '-'}
+                                    </div>
+                                    <div>
+                                      Média unitária: {item.averageUnitPrice != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.averageUnitPrice) : '-'}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </section>
                       </div>
                     )}
                   </>

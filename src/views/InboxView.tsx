@@ -8,7 +8,7 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import { InboxFilter, HistoryItem, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
-import { CatalogMaterial, CatalogServiceItem, fetchCatalog } from '../services/catalogApi';
+import { CatalogMaterial, CatalogServiceItem, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -241,6 +241,7 @@ export function InboxView() {
   const [teams, setTeams] = useState<DirectoryTeam[]>(FALLBACK_TEAMS);
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>(FALLBACK_CATALOG_MATERIALS);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>(FALLBACK_SERVICE_CATALOG);
+  const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -292,11 +293,13 @@ export function InboxView() {
         if (!cancelled) {
           setCatalogMaterials(catalog.materials);
           setServiceCatalog(catalog.serviceCatalog);
+          setVendorPreferences(catalog.vendorPreferences);
         }
       } catch {
         if (!cancelled) {
           setCatalogMaterials(FALLBACK_CATALOG_MATERIALS);
           setServiceCatalog(FALLBACK_SERVICE_CATALOG);
+          setVendorPreferences([]);
         }
       }
     })();
@@ -623,6 +626,30 @@ export function InboxView() {
       .filter((value): value is CatalogMaterial => Boolean(value));
   }, [activeTicket.serviceCatalogId, catalogMaterials, serviceCatalog]);
 
+  const persistedServicePreference = useMemo(() => {
+    const exactService = vendorPreferences
+      .filter(
+        item =>
+          item.scopeType === 'service' &&
+          activeTicket.serviceCatalogId &&
+          item.scopeId === activeTicket.serviceCatalogId
+      )
+      .sort((a, b) => b.approvalCount - a.approvalCount)[0];
+
+    if (exactService) return exactService;
+
+    return (
+      vendorPreferences
+        .filter(
+          item =>
+            item.scopeType === 'macroService' &&
+            activeTicket.macroServiceId &&
+            item.scopeId === activeTicket.macroServiceId
+        )
+        .sort((a, b) => b.approvalCount - a.approvalCount)[0] ?? null
+    );
+  }, [activeTicket.macroServiceId, activeTicket.serviceCatalogId, vendorPreferences]);
+
   const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setReplyFiles(Array.from(e.target.files));
   };
@@ -751,9 +778,11 @@ export function InboxView() {
     }
     setIsSending(true);
     setTimeout(async () => {
-      const preferredVendorName = budgetHistory.preferredVendor?.vendor
-        ? budgetHistory.preferredVendor.vendor.trim().toLowerCase()
-        : null;
+      const preferredVendorName = persistedServicePreference?.vendor
+        ? persistedServicePreference.vendor.trim().toLowerCase()
+        : budgetHistory.preferredVendor?.vendor
+          ? budgetHistory.preferredVendor.vendor.trim().toLowerCase()
+          : null;
       const recommendedIndex = preferredVendorName
         ? quotes.findIndex(quote => quote.vendor.trim().toLowerCase() === preferredVendorName)
         : 0;
@@ -1566,19 +1595,35 @@ export function InboxView() {
                   </div>
                 </div>
 
-                {budgetHistory.preferredVendor && (
+                {(persistedServicePreference || budgetHistory.preferredVendor) && (
                   <div className="mt-4 rounded-sm border border-emerald-200 bg-emerald-50/70 p-3">
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <div className="text-[10px] uppercase tracking-widest text-emerald-700">Fornecedor preferencial sugerido</div>
-                        <div className="mt-1 text-sm font-medium text-emerald-950">{budgetHistory.preferredVendor.vendor}</div>
+                        <div className="text-[10px] uppercase tracking-widest text-emerald-700">
+                          {persistedServicePreference ? 'Fornecedor preferencial persistido' : 'Fornecedor preferencial sugerido'}
+                        </div>
+                        <div className="mt-1 text-sm font-medium text-emerald-950">
+                          {(persistedServicePreference || budgetHistory.preferredVendor)?.vendor}
+                        </div>
                         <div className="text-[11px] text-emerald-800">
-                          {budgetHistory.preferredVendor.rationale.join(' · ')}
+                          {persistedServicePreference
+                            ? `${persistedServicePreference.approvalCount} aprovação(ões) registradas para ${persistedServicePreference.scopeName}`
+                            : budgetHistory.preferredVendor?.rationale.join(' · ')}
                         </div>
                       </div>
                       <div className="text-[11px] text-emerald-900 md:text-right">
-                        <div>Média: {budgetHistory.preferredVendor.averageComparableValueLabel ?? '-'}</div>
-                        <div>Último comparável: {budgetHistory.preferredVendor.latestComparableValueLabel ?? '-'}</div>
+                        <div>
+                          Média:{' '}
+                          {persistedServicePreference
+                            ? formatBudgetHistoryValue(persistedServicePreference.averageApprovedValue ?? null)
+                            : budgetHistory.preferredVendor?.averageComparableValueLabel ?? '-'}
+                        </div>
+                        <div>
+                          Último comparável:{' '}
+                          {persistedServicePreference
+                            ? formatBudgetHistoryValue(persistedServicePreference.lastApprovedValue ?? null)
+                            : budgetHistory.preferredVendor?.latestComparableValueLabel ?? '-'}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1661,11 +1706,13 @@ export function InboxView() {
                           onChange={e => handleQuoteChange(i, 'vendor', e.target.value)}
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
-                        {budgetHistory.preferredVendor && quotes[i].vendor.trim() && (
-                          <div className={`mt-1 text-[11px] ${quotes[i].vendor.trim().toLowerCase() === budgetHistory.preferredVendor.vendor.trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
-                            {quotes[i].vendor.trim().toLowerCase() === budgetHistory.preferredVendor.vendor.trim().toLowerCase()
-                              ? 'Coincide com o fornecedor preferencial da base histórica.'
-                              : `Preferência histórica atual: ${budgetHistory.preferredVendor.vendor}`}
+                        {(persistedServicePreference || budgetHistory.preferredVendor) && quotes[i].vendor.trim() && (
+                          <div className={`mt-1 text-[11px] ${quotes[i].vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
+                            {quotes[i].vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase()
+                              ? persistedServicePreference
+                                ? 'Coincide com o fornecedor persistido para este serviço.'
+                                : 'Coincide com o fornecedor preferencial da base histórica.'
+                              : `Preferência atual: ${(persistedServicePreference || budgetHistory.preferredVendor)?.vendor}`}
                           </div>
                         )}
                       </div>

@@ -40,6 +40,27 @@ export interface CatalogServiceItem {
   active?: boolean;
 }
 
+export interface CatalogVendorPreference {
+  id: string;
+  scopeType: 'service' | 'macroService' | 'material';
+  scopeId: string;
+  scopeName: string;
+  vendor: string;
+  approvalCount: number;
+  averageApprovedValue?: number | null;
+  averageUnitPrice?: number | null;
+  lastApprovedAt?: string | Date | null;
+  lastApprovedValue?: number | null;
+  lastTicketId?: string | null;
+  unit?: string | null;
+  materialId?: string | null;
+  materialName?: string | null;
+  serviceCatalogId?: string | null;
+  serviceCatalogName?: string | null;
+  macroServiceId?: string | null;
+  macroServiceName?: string | null;
+}
+
 export async function fetchCatalog() {
   const response = await fetch('/api/catalog');
   if (!response.ok) {
@@ -55,6 +76,7 @@ export async function fetchCatalog() {
     macroServices: (json.macroServices || []) as CatalogMacroService[],
     serviceCatalog: (json.serviceCatalog || []) as CatalogServiceItem[],
     materials: (json.materials || []) as CatalogMaterial[],
+    vendorPreferences: (json.vendorPreferences || []) as CatalogVendorPreference[],
   };
 }
 
@@ -81,5 +103,6 @@ export async function saveCatalogEntry(
     macroServices: (json.macroServices || []) as CatalogMacroService[],
     serviceCatalog: (json.serviceCatalog || []) as CatalogServiceItem[],
     materials: (json.materials || []) as CatalogMaterial[],
+    vendorPreferences: (json.vendorPreferences || []) as CatalogVendorPreference[],
   };
 }

@@ -28,12 +28,13 @@ function slugify(value) {
 }
 
 async function readCatalog(db) {
-  const [regionsSnap, sitesSnap, macroServicesSnap, serviceCatalogSnap, materialsSnap] = await Promise.all([
+  const [regionsSnap, sitesSnap, macroServicesSnap, serviceCatalogSnap, materialsSnap, vendorPreferenceEventsSnap] = await Promise.all([
     db.collection('regions').where('active', '==', true).get(),
     db.collection('sites').where('active', '==', true).get(),
     db.collection('macroServices').where('active', '==', true).get(),
     db.collection('serviceCatalog').where('active', '==', true).get(),
     db.collection('materials').where('active', '==', true).get(),
+    db.collection('vendorPreferenceEvents').get(),
   ]);
 
   const regions = regionsSnap.docs
@@ -56,7 +57,92 @@ async function readCatalog(db) {
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
 
-  return { regions, sites, macroServices, serviceCatalog, materials };
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 24);
+  const vendorPreferenceMap = new Map();
+
+  vendorPreferenceEventsSnap.docs.forEach(doc => {
+    const data = { id: doc.id, ...doc.data() };
+    const approvedAtRaw = data.approvedAt?.toDate ? data.approvedAt.toDate() : data.approvedAt ? new Date(data.approvedAt) : null;
+    if (approvedAtRaw && !Number.isNaN(approvedAtRaw.getTime()) && approvedAtRaw < cutoff) {
+      return;
+    }
+
+    const scopeType = String(data.scopeType || '').trim();
+    const scopeId = String(data.scopeId || '').trim();
+    const vendor = String(data.vendor || '').trim();
+    if (!scopeType || !scopeId || !vendor) return;
+
+    const key = `${scopeType}:${scopeId}:${vendor.toLowerCase()}`;
+    const current = vendorPreferenceMap.get(key) || {
+      id: key.replace(/[^a-z0-9:-]+/gi, '-'),
+      scopeType,
+      scopeId,
+      scopeName: data.scopeName || scopeId,
+      vendor,
+      approvalCount: 0,
+      totalApprovedValue: 0,
+      approvedValueSamples: 0,
+      totalUnitPrice: 0,
+      unitPriceSamples: 0,
+      lastApprovedAt: null,
+      lastApprovedValue: null,
+      lastTicketId: null,
+      unit: data.unit || null,
+      materialId: data.materialId || null,
+      materialName: data.materialName || null,
+      serviceCatalogId: data.serviceCatalogId || null,
+      serviceCatalogName: data.serviceCatalogName || null,
+      macroServiceId: data.macroServiceId || null,
+      macroServiceName: data.macroServiceName || null,
+    };
+
+    current.approvalCount += 1;
+    if (typeof data.approvedValue === 'number' && Number.isFinite(data.approvedValue)) {
+      current.totalApprovedValue += data.approvedValue;
+      current.approvedValueSamples += 1;
+    }
+    if (typeof data.unitPrice === 'number' && Number.isFinite(data.unitPrice)) {
+      current.totalUnitPrice += data.unitPrice;
+      current.unitPriceSamples += 1;
+    }
+    if (!current.lastApprovedAt || (approvedAtRaw && approvedAtRaw > current.lastApprovedAt)) {
+      current.lastApprovedAt = approvedAtRaw;
+      current.lastApprovedValue = typeof data.approvedValue === 'number' ? data.approvedValue : null;
+      current.lastTicketId = data.ticketId || null;
+    }
+
+    vendorPreferenceMap.set(key, current);
+  });
+
+  const vendorPreferences = [...vendorPreferenceMap.values()]
+    .map(item => ({
+      id: item.id,
+      scopeType: item.scopeType,
+      scopeId: item.scopeId,
+      scopeName: item.scopeName,
+      vendor: item.vendor,
+      approvalCount: item.approvalCount,
+      averageApprovedValue:
+        item.approvedValueSamples > 0 ? item.totalApprovedValue / item.approvedValueSamples : null,
+      averageUnitPrice: item.unitPriceSamples > 0 ? item.totalUnitPrice / item.unitPriceSamples : null,
+      lastApprovedAt: item.lastApprovedAt,
+      lastApprovedValue: item.lastApprovedValue,
+      lastTicketId: item.lastTicketId,
+      unit: item.unit,
+      materialId: item.materialId,
+      materialName: item.materialName,
+      serviceCatalogId: item.serviceCatalogId,
+      serviceCatalogName: item.serviceCatalogName,
+      macroServiceId: item.macroServiceId,
+      macroServiceName: item.macroServiceName,
+    }))
+    .sort((a, b) => {
+      if (b.approvalCount !== a.approvalCount) return b.approvalCount - a.approvalCount;
+      return String(a.vendor).localeCompare(String(b.vendor), 'pt-BR');
+    });
+
+  return { regions, sites, macroServices, serviceCatalog, materials, vendorPreferences };
 }
 
 async function seedDefaults(db) {
