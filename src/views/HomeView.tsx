@@ -1,9 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart2, Building2, Plus, ShieldAlert, Users } from 'lucide-react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  BarChart2,
+  Building2,
+  CircleDollarSign,
+  MapPinned,
+  Plus,
+  ShieldAlert,
+  Users,
+} from 'lucide-react';
 import { ActivityItem } from '../components/ui/ActivityItem';
 import { StatCard } from '../components/ui/StatCard';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
+import { fetchProcurementData } from '../services/procurementApi';
+import type { ContractRecord, PaymentRecord } from '../types';
 
 const ACTIVITY_TITLES: Record<string, string> = {
   customer: 'Mensagem do Solicitante',
@@ -41,19 +52,72 @@ function buildGreetingName(name: string | null | undefined, email: string) {
   );
 }
 
+function parseCurrency(value: string) {
+  const normalized = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export function HomeView() {
   const { navigateTo, tickets, currentUser, currentUserEmail } = useApp();
+  const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
+  const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+  const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
 
-  const availableSites = useMemo(
-    () => {
-      const values: string[] = tickets.map(ticket => ticket.sede).filter((value): value is string => Boolean(value));
-      return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    },
-    [tickets]
-  );
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchProcurementData();
+        if (!cancelled) {
+          setContractsByTicket(data.contractsByTicket);
+          setPaymentsByTicket(data.paymentsByTicket);
+        }
+      } catch {
+        if (!cancelled) {
+          setContractsByTicket({});
+          setPaymentsByTicket({});
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const availableRegions = useMemo(() => {
+    const values: string[] = tickets.map(ticket => ticket.region).filter((value): value is string => Boolean(value));
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [tickets]);
+
+  const availableSites = useMemo(() => {
+    const values: string[] = tickets
+      .filter(ticket => selectedRegion === 'all' || ticket.region === selectedRegion)
+      .map(ticket => ticket.sede)
+      .filter((value): value is string => Boolean(value));
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [selectedRegion, tickets]);
+
+  useEffect(() => {
+    if (selectedRegion !== 'all' && !availableRegions.includes(selectedRegion)) {
+      setSelectedRegion('all');
+    }
+  }, [availableRegions, selectedRegion]);
 
   useEffect(() => {
     if (selectedSite !== 'all' && !availableSites.includes(selectedSite)) {
@@ -61,17 +125,22 @@ export function HomeView() {
     }
   }, [availableSites, selectedSite]);
 
-  const scopedTickets = useMemo(
-    () => tickets.filter(ticket => selectedSite === 'all' || ticket.sede === selectedSite),
-    [selectedSite, tickets]
-  );
+  const scopedTickets = useMemo(() => {
+    return tickets.filter(ticket => {
+      if (selectedRegion !== 'all' && ticket.region !== selectedRegion) return false;
+      if (selectedSite !== 'all' && ticket.sede !== selectedSite) return false;
+      return true;
+    });
+  }, [selectedRegion, selectedSite, tickets]);
 
   const stats = useMemo(
     () => ({
       novas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.NEW).length,
       aguardandoOrcamento: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
-      aguardandoAprovacao: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprovação') || ticket.status.toLowerCase().includes('aprovacao')).length,
+      aguardandoAprovacao: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprova')).length,
       encerradas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
+      slaVencido: scopedTickets.filter(ticket => ticket.sla?.status === 'overdue').length,
+      aguardandoPagamento: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
     }),
     [scopedTickets]
   );
@@ -84,32 +153,80 @@ export function HomeView() {
           .map(item => ({ ...item, ticketId: ticket.id, subject: ticket.subject }))
       )
       .sort((a, b) => b.time.getTime() - a.time.getTime())
-      .slice(0, 5);
+      .slice(0, 6);
   }, [scopedTickets]);
 
-  const siteOverview = useMemo(() => {
-    const grouped = new Map<string, { site: string; region: string; open: number; inProgress: number; waitingPayment: number; overdue: number }>();
+  const regionalExecutiveBoard = useMemo(() => {
+    const grouped = new Map<string, {
+      label: string;
+      region: string;
+      open: number;
+      approvals: number;
+      waitingPayment: number;
+      overdue: number;
+      contractedValue: number;
+      paidValue: number;
+    }>();
 
     for (const ticket of scopedTickets) {
-      const key = `${ticket.sede}|${ticket.region}`;
+      const label = selectedRegion === 'all' ? ticket.region : ticket.sede;
+      const key = selectedRegion === 'all' ? ticket.region : `${ticket.region}|${ticket.sede}`;
       if (!grouped.has(key)) {
         grouped.set(key, {
-          site: ticket.sede,
+          label,
           region: ticket.region,
           open: 0,
-          inProgress: 0,
+          approvals: 0,
           waitingPayment: 0,
           overdue: 0,
+          contractedValue: 0,
+          paidValue: 0,
         });
       }
+
       const current = grouped.get(key)!;
       if (isOpenStatus(ticket.status)) current.open += 1;
-      if (ticket.status === TICKET_STATUS.IN_PROGRESS || ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) current.inProgress += 1;
+      if (ticket.status.toLowerCase().includes('aprova')) current.approvals += 1;
       if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) current.waitingPayment += 1;
       if (ticket.sla?.status === 'overdue') current.overdue += 1;
+      current.contractedValue += parseCurrency(contractsByTicket[ticket.id]?.value || '');
+      current.paidValue += (paymentsByTicket[ticket.id] || [])
+        .filter(payment => payment.status === 'paid')
+        .reduce((total, payment) => total + parseCurrency(payment.value), 0);
     }
 
-    return [...grouped.values()].sort((a, b) => b.open - a.open).slice(0, 8);
+    return [...grouped.values()]
+      .sort((a, b) => b.open + b.approvals + b.waitingPayment - (a.open + a.approvals + a.waitingPayment))
+      .slice(0, 8);
+  }, [contractsByTicket, paymentsByTicket, scopedTickets, selectedRegion]);
+
+  const executiveFinancialSummary = useMemo(() => {
+    let contracted = 0;
+    let planned = 0;
+    let paid = 0;
+
+    for (const ticket of scopedTickets) {
+      contracted += parseCurrency(contractsByTicket[ticket.id]?.value || '');
+      const payments = paymentsByTicket[ticket.id] || [];
+      planned += payments.reduce((total, payment) => total + parseCurrency(payment.value), 0);
+      paid += payments
+        .filter(payment => payment.status === 'paid')
+        .reduce((total, payment) => total + parseCurrency(payment.value), 0);
+    }
+
+    return {
+      contracted,
+      planned,
+      paid,
+      pending: Math.max(0, planned - paid),
+    };
+  }, [contractsByTicket, paymentsByTicket, scopedTickets]);
+
+  const criticalTickets = useMemo(() => {
+    return scopedTickets
+      .filter(ticket => ticket.sla?.status === 'overdue' || ticket.status.toLowerCase().includes('aprova') || ticket.status === TICKET_STATUS.WAITING_PAYMENT)
+      .sort((a, b) => b.time.getTime() - a.time.getTime())
+      .slice(0, 6);
   }, [scopedTickets]);
 
   const guaranteeAlerts = useMemo(() => {
@@ -119,6 +236,7 @@ export function HomeView() {
         id: ticket.id,
         subject: ticket.subject,
         site: ticket.sede,
+        region: ticket.region,
         endAt: ticket.guarantee!.endAt!,
         daysLeft: Math.ceil((ticket.guarantee!.endAt!.getTime() - Date.now()) / 86400000),
       }))
@@ -129,16 +247,14 @@ export function HomeView() {
 
   const executiveQueue = useMemo(() => {
     return scopedTickets
-      .filter(ticket =>
-        [
-          TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-          TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-          TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
-          TICKET_STATUS.WAITING_PAYMENT,
-        ].includes(ticket.status)
-      )
+      .filter(ticket => [
+        TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+        TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+        TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+        TICKET_STATUS.WAITING_PAYMENT,
+      ].includes(ticket.status))
       .sort((a, b) => b.time.getTime() - a.time.getTime())
-      .slice(0, 5);
+      .slice(0, 6);
   }, [scopedTickets]);
 
   const siteSpotlight = useMemo(
@@ -148,24 +264,38 @@ export function HomeView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <header className="mb-8">
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Olá, {greetingName}</h1>
           <p className="text-roman-text-sub font-serif italic">
             {isExecutive
-              ? 'Resumo gerencial por sede, gargalos de aprovação e alertas de garantia.'
+              ? 'Dashboard executivo por região e sede, com foco em decisão, custo, pagamento e risco operacional.'
               : 'Aqui está o resumo das suas responsabilidades operacionais de hoje.'}
           </p>
         </header>
 
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_220px_220px] lg:items-center">
           <div className="text-sm text-roman-text-sub">
-            Recorte atual: <span className="font-medium text-roman-text-main">{selectedSite === 'all' ? 'todas as sedes visíveis' : selectedSite}</span>
+            Recorte atual: <span className="font-medium text-roman-text-main">{selectedRegion === 'all' ? 'todas as regiões visíveis' : selectedRegion}</span>
+            {selectedSite !== 'all' && <span className="font-medium text-roman-text-main"> • {selectedSite}</span>}
           </div>
+          <select
+            value={selectedRegion}
+            onChange={event => {
+              setSelectedRegion(event.target.value);
+              setSelectedSite('all');
+            }}
+            className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+          >
+            <option value="all">Todas as regiões</option>
+            {availableRegions.map(region => (
+              <option key={region} value={region}>{region}</option>
+            ))}
+          </select>
           <select
             value={selectedSite}
             onChange={event => setSelectedSite(event.target.value)}
-            className="min-w-56 border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
           >
             <option value="all">Todas as sedes</option>
             {availableSites.map(site => (
@@ -181,37 +311,69 @@ export function HomeView() {
           <StatCard title="OS Concluídas" value={String(stats.encerradas)} />
         </div>
 
+        {isExecutive && (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+              <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Contrato no recorte</div>
+              <div className="text-2xl font-serif text-roman-text-main">{formatCurrency(executiveFinancialSummary.contracted)}</div>
+            </div>
+            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+              <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Previsto para pagar</div>
+              <div className="text-2xl font-serif text-roman-text-main">{formatCurrency(executiveFinancialSummary.planned)}</div>
+            </div>
+            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+              <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Pago</div>
+              <div className="text-2xl font-serif text-green-800">{formatCurrency(executiveFinancialSummary.paid)}</div>
+            </div>
+            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+              <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Risco no recorte</div>
+              <div className="text-2xl font-serif text-red-700">{stats.slaVencido + stats.aguardandoPagamento}</div>
+              <div className="text-xs text-roman-text-sub mt-1">{stats.slaVencido} SLA vencido • {stats.aguardandoPagamento} aguardando pagamento</div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
           <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-6">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-              <h2 className="font-serif text-lg font-medium text-roman-text-main">Painel por Sede</h2>
-              <Building2 size={16} className="text-roman-text-sub" />
+              <h2 className="font-serif text-lg font-medium text-roman-text-main">
+                {selectedRegion === 'all' ? 'Dashboard por Região' : 'Dashboard por Sede'}
+              </h2>
+              <MapPinned size={16} className="text-roman-text-sub" />
             </div>
-            {siteOverview.length === 0 ? (
+            {regionalExecutiveBoard.length === 0 ? (
               <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS disponível para consolidar.</p>
             ) : (
               <div className="space-y-3">
-                {siteOverview.map(site => (
-                  <div key={`${site.site}-${site.region}`} className="grid grid-cols-1 md:grid-cols-[1.6fr_repeat(4,0.7fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                {regionalExecutiveBoard.map(item => (
+                  <div key={`${item.region}-${item.label}`} className="grid grid-cols-1 md:grid-cols-[1.6fr_repeat(6,0.75fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
                     <div>
-                      <div className="font-medium text-roman-text-main">{site.site}</div>
-                      <div className="text-xs text-roman-text-sub">{site.region}</div>
+                      <div className="font-medium text-roman-text-main">{item.label}</div>
+                      <div className="text-xs text-roman-text-sub">{selectedRegion === 'all' ? 'Visão regional' : item.region}</div>
                     </div>
                     <div className="text-sm">
                       <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Abertas</div>
-                      <div className="font-medium text-roman-text-main">{site.open}</div>
+                      <div className="font-medium text-roman-text-main">{item.open}</div>
                     </div>
                     <div className="text-sm">
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Execução</div>
-                      <div className="font-medium text-roman-text-main">{site.inProgress}</div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Aprovação</div>
+                      <div className="font-medium text-roman-text-main">{item.approvals}</div>
                     </div>
                     <div className="text-sm">
                       <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Pagamento</div>
-                      <div className="font-medium text-roman-text-main">{site.waitingPayment}</div>
+                      <div className="font-medium text-roman-text-main">{item.waitingPayment}</div>
                     </div>
                     <div className="text-sm">
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">SLA vencido</div>
-                      <div className={`font-medium ${site.overdue > 0 ? 'text-red-700' : 'text-roman-text-main'}`}>{site.overdue}</div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">SLA</div>
+                      <div className={`font-medium ${item.overdue > 0 ? 'text-red-700' : 'text-roman-text-main'}`}>{item.overdue}</div>
+                    </div>
+                    <div className="text-sm">
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Contrato</div>
+                      <div className="font-medium text-roman-text-main">{formatCurrency(item.contractedValue)}</div>
+                    </div>
+                    <div className="text-sm">
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Pago</div>
+                      <div className="font-medium text-green-800">{formatCurrency(item.paidValue)}</div>
                     </div>
                   </div>
                 ))}
@@ -233,10 +395,16 @@ export function HomeView() {
                 </button>
               )}
               {isExecutive && (
-                <button onClick={() => navigateTo('kpi')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
-                  <BarChart2 size={18} className="text-roman-primary" />
-                  <span className="font-medium">Ver Indicadores</span>
-                </button>
+                <>
+                  <button onClick={() => navigateTo('kpi')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
+                    <BarChart2 size={18} className="text-roman-primary" />
+                    <span className="font-medium">Ver Indicadores</span>
+                  </button>
+                  <button onClick={() => navigateTo('finance')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
+                    <CircleDollarSign size={18} className="text-roman-primary" />
+                    <span className="font-medium">Ir para Financeiro</span>
+                  </button>
+                </>
               )}
             </div>
 
@@ -249,7 +417,7 @@ export function HomeView() {
                   <div key={item.id} className="border border-amber-200 bg-amber-50 rounded-sm px-3 py-2 text-sm">
                     <div className="flex items-center gap-2 text-amber-800 font-medium"><ShieldAlert size={14} /> {item.id}</div>
                     <div className="text-amber-900">{item.subject}</div>
-                    <div className="text-xs text-amber-800">{item.site} • {item.daysLeft} dia(s) para vencer</div>
+                    <div className="text-xs text-amber-800">{item.region} • {item.site} • {item.daysLeft} dia(s) para vencer</div>
                   </div>
                 ))
               )}
@@ -257,7 +425,7 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           <div className="lg:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-6">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Atividade Recente</h2>
             <div className="space-y-4">
@@ -269,7 +437,7 @@ export function HomeView() {
                     key={item.id}
                     time={formatActivityTime(item.time)}
                     title={ACTIVITY_TITLES[item.type] ?? 'Atualização'}
-                    desc={`${item.subject}: ${item.text ? item.text.slice(0, 70) + (item.text.length > 70 ? '...' : '') : '-'} (${item.ticketId})`}
+                    desc={`${item.subject}: ${item.text ? item.text.slice(0, 80) + (item.text.length > 80 ? '...' : '') : '-'} (${item.ticketId})`}
                   />
                 ))
               )}
@@ -306,46 +474,81 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="mt-8 bg-roman-surface border border-roman-border rounded-sm p-6">
-          <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados da Sede</h2>
-            <Building2 size={16} className="text-roman-text-sub" />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+            <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+              <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados Críticos</h2>
+              <AlertTriangle size={16} className="text-roman-text-sub" />
+            </div>
+            {criticalTickets.length === 0 ? (
+              <p className="text-sm text-roman-text-sub font-serif italic">Nenhum chamado crítico neste recorte.</p>
+            ) : (
+              <div className="space-y-3">
+                {criticalTickets.map(ticket => (
+                  <button
+                    key={ticket.id}
+                    onClick={() =>
+                      navigateTo(
+                        ticket.status === TICKET_STATUS.WAITING_PAYMENT
+                          ? 'finance'
+                          : ticket.status.toLowerCase().includes('aprova')
+                            ? 'approvals'
+                            : 'inbox'
+                      )
+                    }
+                    className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-medium text-roman-text-main">{ticket.id}</div>
+                      <div className={`text-xs ${ticket.sla?.status === 'overdue' ? 'text-red-700' : 'text-roman-text-sub'}`}>{ticket.sla?.status === 'overdue' ? 'SLA vencido' : ticket.status}</div>
+                    </div>
+                    <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
+                    <div className="text-xs text-roman-text-sub mt-2">{ticket.region} • {ticket.sede}</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {siteSpotlight.length === 0 ? (
-            <p className="text-sm text-roman-text-sub font-serif italic">Nenhum chamado disponível para este recorte.</p>
-          ) : (
-            <div className="space-y-3">
-              {siteSpotlight.map(ticket => (
-                <button
-                  key={ticket.id}
-                  onClick={() =>
-                    navigateTo(
-                      ticket.status === TICKET_STATUS.WAITING_PAYMENT
-                        ? 'finance'
-                        : ticket.status.toLowerCase().includes('aprova')
-                          ? 'approvals'
-                          : 'inbox'
-                    )
-                  }
-                  className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
-                >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
-                      <div className="text-xs text-roman-text-sub">{ticket.requester} • {ticket.sede} • {ticket.region}</div>
-                      <div className="text-xs text-roman-text-sub mt-1">
-                        Laudos anexados: {ticket.closureChecklist?.documents?.length || 0}
+
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+            <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+              <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados do Recorte</h2>
+              <Building2 size={16} className="text-roman-text-sub" />
+            </div>
+            {siteSpotlight.length === 0 ? (
+              <p className="text-sm text-roman-text-sub font-serif italic">Nenhum chamado disponível para este recorte.</p>
+            ) : (
+              <div className="space-y-3">
+                {siteSpotlight.map(ticket => (
+                  <button
+                    key={ticket.id}
+                    onClick={() =>
+                      navigateTo(
+                        ticket.status === TICKET_STATUS.WAITING_PAYMENT
+                          ? 'finance'
+                          : ticket.status.toLowerCase().includes('aprova')
+                            ? 'approvals'
+                            : 'inbox'
+                      )
+                    }
+                    className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                  >
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
+                        <div className="text-xs text-roman-text-sub">{ticket.requester} • {ticket.sede} • {ticket.region}</div>
+                        <div className="text-xs text-roman-text-sub mt-1">Laudos anexados: {ticket.closureChecklist?.documents?.length || 0}</div>
+                      </div>
+                      <div className="text-xs text-roman-text-sub md:text-right">
+                        <div>{ticket.status}</div>
+                        <div>{formatActivityTime(ticket.time)}</div>
                       </div>
                     </div>
-                    <div className="text-xs text-roman-text-sub md:text-right">
-                      <div>{ticket.status}</div>
-                      <div>{formatActivityTime(ticket.time)}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
