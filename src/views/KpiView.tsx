@@ -125,8 +125,14 @@ export function KpiView() {
     return filteredTickets.map(ticket => {
       const contract = contractsByTicket[ticket.id];
       const paymentSum = (paymentsByTicket[ticket.id] || []).reduce((total, payment) => total + parseCurrency(payment.value), 0);
+      const paidSum = (paymentsByTicket[ticket.id] || [])
+        .filter(payment => payment.status === 'paid')
+        .reduce((total, payment) => total + parseCurrency(payment.value), 0);
       return {
         ticket,
+        contractValue: parseCurrency(contract?.value || ''),
+        plannedValue: paymentSum,
+        paidValue: paidSum,
         value: parseCurrency(contract?.value || '') || paymentSum,
       };
     });
@@ -234,6 +240,20 @@ export function KpiView() {
     [filteredTickets]
   );
 
+  const financialOverview = useMemo(() => {
+    return contractValues.reduce(
+      (acc, entry) => {
+        acc.contracted += entry.contractValue;
+        acc.planned += entry.plannedValue > 0 ? entry.plannedValue : entry.contractValue;
+        acc.paid += entry.paidValue;
+        return acc;
+      },
+      { contracted: 0, planned: 0, paid: 0 }
+    );
+  }, [contractValues]);
+
+  const financialBalance = Math.max(0, financialOverview.planned - financialOverview.paid);
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-6xl mx-auto">
@@ -320,6 +340,26 @@ export function KpiView() {
             <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
               Total: R$ {(custoPorMaterial[0]?.custo || 0).toLocaleString('pt-BR')}
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Previsto no Período</h3>
+            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.planned.toLocaleString('pt-BR')}</div>
+            <div className="text-sm text-roman-text-sub">Parcelas geradas ou valor contratado como referência</div>
+          </div>
+
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Pago no Período</h3>
+            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.paid.toLocaleString('pt-BR')}</div>
+            <div className="text-sm text-roman-text-sub">Somatório das parcelas efetivamente quitadas</div>
+          </div>
+
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Saldo Financeiro</h3>
+            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialBalance.toLocaleString('pt-BR')}</div>
+            <div className="text-sm text-roman-text-sub">Diferença entre previsto e pago no período</div>
           </div>
         </div>
 

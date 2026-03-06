@@ -56,6 +56,16 @@ function sumReleasedPercent(payments: PaymentRecord[]) {
   return payments.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0);
 }
 
+function sumPaidValue(payments: PaymentRecord[]) {
+  return payments
+    .filter(payment => payment.status === 'paid')
+    .reduce((total, payment) => total + parseCurrency(payment.value), 0);
+}
+
+function sumPlannedValue(payments: PaymentRecord[]) {
+  return payments.reduce((total, payment) => total + parseCurrency(payment.value), 0);
+}
+
 function normalizeStatusLabel(status: string) {
   if (status === 'paid') return 'Pago';
   if (status === 'approved') return 'Aprovada';
@@ -159,6 +169,9 @@ export function FinanceView() {
           const contract = contractsByTicket[ticket.id];
           const totalValue = parseCurrency(contract?.value || payments[0]?.value || '0');
           const totalReleased = sumReleasedPercent(payments);
+          const plannedValue = payments.length > 0 ? sumPlannedValue(payments) : totalValue;
+          const paidValue = sumPaidValue(payments);
+          const remainingValue = Math.max(0, plannedValue - paidValue);
           const pendingInstallments = payments.filter(payment => payment.status !== 'paid');
           const nextPendingInstallment = pendingInstallments[0] || null;
 
@@ -169,6 +182,9 @@ export function FinanceView() {
             contract,
             totalValue,
             totalReleased,
+            plannedValue,
+            paidValue,
+            remainingValue,
             pendingInstallments,
             nextPendingInstallment,
           };
@@ -442,7 +458,7 @@ export function FinanceView() {
         </header>
 
         <div className="space-y-5">
-          {financeTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, pendingInstallments, nextPendingInstallment }) => {
+          {financeTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment }) => {
             const ticketProcessing = processingId === ticket.id || processingId?.startsWith(`${ticket.id}:`);
             const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
             const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';
@@ -485,10 +501,14 @@ export function FinanceView() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor contratado</div>
                         <div className="text-lg font-serif text-roman-text-main">{contractValue}</div>
+                      </div>
+                      <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto no plano</div>
+                        <div className="text-lg font-serif text-roman-text-main">{formatCurrency(plannedValue)}</div>
                       </div>
                       <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Parcelas liberadas</div>
@@ -499,6 +519,35 @@ export function FinanceView() {
                         <div className="text-lg font-serif text-roman-text-main">{nextPendingInstallment?.label || 'Nenhuma'}</div>
                       </div>
                     </div>
+
+                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
+                      <div className="flex items-center justify-between gap-4 mb-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><DollarSign size={15} /> Previsto vs. pago</h4>
+                          <p className="text-xs text-roman-text-sub mt-1">Conciliação simples entre contrato, plano gerado e parcelas efetivamente pagas.</p>
+                        </div>
+                        <div className={`text-xs font-medium px-2 py-1 rounded-sm border ${remainingValue > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                          {remainingValue > 0 ? 'Saldo pendente' : 'Quitado'}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
+                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
+                        </div>
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Saldo a pagar</div>
+                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(remainingValue)}</div>
+                        </div>
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
+                          <div className="text-lg font-serif text-roman-text-main">
+                            {totalValue > 0 ? `${Math.min(100, Math.round((paidValue / totalValue) * 100))}%` : '0%'}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
 
                     <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
                       <div className="flex items-center justify-between mb-3">
@@ -766,6 +815,9 @@ export function FinanceView() {
                       <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
                         <div className="font-medium text-roman-text-main mb-2">Resumo financeiro</div>
                         <div>Total do contrato: {contractValue}</div>
+                        <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
+                        <div>Pago até agora: {formatCurrency(paidValue)}</div>
+                        <div>Saldo pendente: {formatCurrency(remainingValue)}</div>
                         <div>Classificacao: {ticket.serviceCatalogName || ticket.macroServiceName || 'Nao definida'}</div>
                         <div>Parcelas pendentes: {pendingInstallments.length}</div>
                         <div>MediÃ§Ãµes registradas: {measurements.length}</div>
