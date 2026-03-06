@@ -1,4 +1,5 @@
 import { Ticket } from '../types';
+import { getAuthenticatedActorHeaders } from './actorHeaders';
 
 function requesterEmailFallback(requester: string): string | null {
   const key = requester.toLowerCase();
@@ -21,9 +22,10 @@ function resolveTicketEmail(ticket: Ticket): string | null {
 
 async function postEmail(payload: Record<string, unknown>) {
   try {
+    const headers = await getAuthenticatedActorHeaders();
     await fetch('/api/email/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(payload),
     });
   } catch {

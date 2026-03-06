@@ -1,10 +1,11 @@
-﻿import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { requireAuthenticatedUser } from '../_lib/authz.js';
 import { getAdminDb } from '../_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from '../_lib/http.js';
-import { sendWithSendGrid } from '../_lib/sendgrid.js';
 import { gmailSend } from '../_lib/gmail.js';
 import { logEmailEvent } from '../_lib/emailLogs.js';
 import { buildTicketEmailTemplate } from '../_lib/emailTemplates.js';
+import { sendWithSendGrid } from '../_lib/sendgrid.js';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -19,8 +20,10 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
+
+    await requireAuthenticatedUser(req);
 
     const body = await readJsonBody(req);
     const ticketId = required(body.ticketId, 'ticketId');
@@ -65,9 +68,7 @@ export default async function handler(req, res) {
 
     const priorMessageId = thread?.lastMessageId || null;
     const references = thread?.references || [];
-    const nextReferences = priorMessageId
-      ? [...new Set([...references, priorMessageId])].slice(-20)
-      : references;
+    const nextReferences = priorMessageId ? [...new Set([...references, priorMessageId])].slice(-20) : references;
 
     const headers = {
       'X-OS-Ticket-ID': ticketId,
