@@ -1,15 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
+﻿import React, { useEffect, useState } from 'react';
+import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity, FileText, ShieldCheck } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { patchTrackingTicketInApi, fetchTrackingTicketFromApi } from '../services/ticketsApi';
-import { HistoryItem, Ticket } from '../types';
+import type { HistoryItem, Ticket } from '../types';
 import { formatDistanceToNowSafe } from '../utils/date';
 
 interface TrackingViewProps {
   ticketToken: string | null;
   onBack: () => void;
+}
+
+function formatDateLabel(date?: Date | null) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Não informado';
+  return date.toLocaleDateString('pt-BR');
 }
 
 export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
@@ -78,6 +83,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     );
   }
 
+  const closureDocuments = ticket.closureChecklist?.documents || [];
+
   const handleValidate = async (approved: boolean) => {
     setIsProcessing(true);
 
@@ -88,7 +95,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
       sender: ticket.requester,
       time: new Date(),
       text: approved
-        ? 'Manutenção aprovada pelo solicitante. Aguardando Geovana realizar o pagamento.'
+        ? 'Manutenção aprovada pelo solicitante. Aguardando liberação do pagamento.'
         : 'Solicitante reportou pendências. Equipe técnica notificada para revisão.',
     };
 
@@ -110,6 +117,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               null,
             serviceCompletedAt: new Date(),
             closedAt: ticket.closureChecklist?.closedAt || null,
+            documents: ticket.closureChecklist?.documents || [],
           }
         : ticket.closureChecklist,
       history: [...ticket.history, newHistoryItem],
@@ -130,18 +138,18 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   return (
     <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center py-12 px-4 relative">
       <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-roman-text-sub hover:text-roman-text-main font-medium transition-colors">
-        <ArrowRight size={16} className="rotate-180" /> Voltar ao Sistema Interno
+        <ArrowRight size={16} className="rotate-180" /> Voltar ao sistema interno
       </button>
 
       <div className="max-w-3xl w-full">
         <div className="bg-roman-surface border border-roman-border p-8 rounded-sm shadow-sm mb-6">
-          <div className="flex justify-between items-start mb-8 border-b border-roman-border pb-6">
+          <div className="flex justify-between items-start mb-8 border-b border-roman-border pb-6 gap-4">
             <div>
               <div className="text-roman-primary mb-4">
                 <Landmark size={36} strokeWidth={1.5} />
               </div>
               <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-1">Acompanhamento de OS</h1>
-              <p className="text-roman-text-sub font-serif italic">Portal do Solicitante</p>
+              <p className="text-roman-text-sub font-serif italic">Portal do solicitante</p>
             </div>
             <div className="text-right">
               <div className="text-2xl font-serif text-roman-text-main font-medium">#{ticket.id}</div>
@@ -158,21 +166,66 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             </p>
           </div>
 
+          {(ticket.closureChecklist || ticket.guarantee) && (
+            <div className="grid gap-4 md:grid-cols-2 mb-8">
+              <div className="border border-roman-border rounded-sm bg-roman-bg p-4">
+                <h3 className="font-serif text-lg text-roman-text-main mb-3 flex items-center gap-2">
+                  <FileText size={18} /> Encerramento
+                </h3>
+                <div className="space-y-2 text-sm text-roman-text-main">
+                  <div>Início do serviço: {formatDateLabel(ticket.closureChecklist?.serviceStartedAt)}</div>
+                  <div>Término do serviço: {formatDateLabel(ticket.closureChecklist?.serviceCompletedAt)}</div>
+                  <div>Solicitante validou: {ticket.closureChecklist?.requesterApproved ? 'Sim' : 'Não'}</div>
+                  <div>
+                    Infraestrutura validou: {ticket.closureChecklist?.infrastructureApprovedByRafael || ticket.closureChecklist?.infrastructureApprovedByFernando ? 'Sim' : 'Não'}
+                  </div>
+                  <div>Laudos anexados: {closureDocuments.length}</div>
+                </div>
+
+                {closureDocuments.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {closureDocuments.map(document => (
+                      <button
+                        key={document.id}
+                        onClick={() => window.open(document.url, '_blank', 'noopener,noreferrer')}
+                        className="w-full text-left px-3 py-2 rounded-sm border border-roman-border hover:border-roman-primary hover:bg-roman-surface transition-colors text-sm"
+                      >
+                        {document.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-roman-border rounded-sm bg-roman-bg p-4">
+                <h3 className="font-serif text-lg text-roman-text-main mb-3 flex items-center gap-2">
+                  <ShieldCheck size={18} /> Garantia
+                </h3>
+                <div className="space-y-2 text-sm text-roman-text-main">
+                  <div>Status: {ticket.guarantee?.status || 'Pendente'}</div>
+                  <div>Início: {formatDateLabel(ticket.guarantee?.startAt)}</div>
+                  <div>Fim: {formatDateLabel(ticket.guarantee?.endAt)}</div>
+                  <div>Prazo: {ticket.guarantee?.months || 0} mês(es)</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
             <div className="bg-roman-primary/10 border border-roman-primary/30 p-6 rounded-sm shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
               <h3 className="font-serif text-lg font-medium text-roman-primary mb-2 flex items-center gap-2">
-                <CheckSquare size={20} /> Validação da Manutenção
+                <CheckSquare size={20} /> Validação da manutenção
               </h3>
               <p className="text-sm text-roman-text-main mb-6">
-                A equipe técnica informou que o serviço foi concluído. Por favor, verifique o local e confirme se o serviço está aprovado.
+                A equipe técnica informou que o serviço foi concluído. Verifique o local e confirme se a entrega está aprovada.
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button onClick={() => void handleValidate(false)} disabled={isProcessing} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:opacity-50">
-                  Ainda com pendências (Reprovar)
+                  Ainda com pendências
                 </button>
                 <button onClick={() => void handleValidate(true)} disabled={isProcessing} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                   {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                  Serviço Aprovado (Seguir para Pagamento)
+                  Serviço aprovado
                 </button>
               </div>
             </div>
