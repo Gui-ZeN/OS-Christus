@@ -23,7 +23,7 @@ function resolveTicketEmail(ticket: Ticket): string | null {
 async function postEmail(payload: Record<string, unknown>) {
   try {
     const headers = await getAuthenticatedActorHeaders();
-    await fetch('/api/email/send', {
+    await fetch('/api/mail?route=send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(payload),

@@ -17,7 +17,7 @@ export interface IntegrationsHealthResponse {
 }
 
 export async function fetchIntegrationsHealth() {
-  const response = await fetch('/api/integrations-health', {
+  const response = await fetch('/api/admin-tools?route=integrations-health', {
     headers: await getAuthenticatedActorHeaders(),
   });
   if (!response.ok) {

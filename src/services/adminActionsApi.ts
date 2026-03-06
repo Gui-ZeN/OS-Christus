@@ -13,7 +13,7 @@ export async function runFirestoreLegacyBackfill() {
     throw new Error('Sessão inválida. Faça login novamente.');
   }
 
-  const response = await fetch('/api/firestore-backfill', {
+  const response = await fetch('/api/admin-tools?route=backfill', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${idToken}`,

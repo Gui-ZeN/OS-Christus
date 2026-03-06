@@ -56,7 +56,7 @@ export function EmailHealthView() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/email/health', {
+      const res = await fetch('/api/mail?route=health', {
         headers: await getAuthenticatedActorHeaders(),
       });
       const json = await res.json();

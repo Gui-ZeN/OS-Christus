@@ -1,0 +1,32 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/email/send",
+      "destination": "/api/mail?route=send"
+    },
+    {
+      "source": "/api/email/health",
+      "destination": "/api/mail?route=health"
+    },
+    {
+      "source": "/api/email/gmail-sync",
+      "destination": "/api/mail?route=gmail-sync"
+    },
+    {
+      "source": "/api/email/inbound",
+      "destination": "/api/mail?route=inbound"
+    },
+    {
+      "source": "/api/firestore-backfill",
+      "destination": "/api/admin-tools?route=backfill"
+    },
+    {
+      "source": "/api/firestore-legacy-health",
+      "destination": "/api/admin-tools?route=legacy-health"
+    },
+    {
+      "source": "/api/integrations-health",
+      "destination": "/api/admin-tools?route=integrations-health"
+    }
+  ]
+}

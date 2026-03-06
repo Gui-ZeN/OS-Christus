@@ -3,11 +3,28 @@ import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
+import { runFirestoreLegacyBackfill } from './_lib/firestoreBackfill.js';
 import { gmailGetProfile } from './_lib/gmail.js';
 import { sendJson } from './_lib/http.js';
 
+const LEGACY_ROLE_MAP = {
+  'Gestor de OS': 'Supervisor',
+  Financeiro: 'Admin',
+  'Aprovador Contratos': 'Supervisor',
+  'Tecnico (Interno)': 'Usuario',
+  Terceirizado: 'Usuario',
+};
+
 function isConfigured(name) {
   return Boolean(process.env[name]);
+}
+
+function isTimestampLike(value) {
+  return value instanceof Date || typeof value?.toDate === 'function' || typeof value?._seconds === 'number' || typeof value?.seconds === 'number';
+}
+
+function hasLegacySlaShape(data) {
+  return Boolean(data && (data.urgentHours || data.highHours || data.normalHours || data.lowHours));
 }
 
 function detectEmailProvider() {
@@ -180,7 +197,7 @@ async function checkEmail() {
   };
 }
 
-export default async function handler(req, res) {
+async function handleIntegrationsHealth(req, res) {
   try {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
@@ -207,4 +224,110 @@ export default async function handler(req, res) {
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao validar integrações.' });
   }
+}
+
+async function handleLegacyHealth(req, res) {
+  try {
+    if (req.method !== 'GET') {
+      res.setHeader('Allow', 'GET');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+
+    await requireAdminUser(req);
+    const db = getAdminDb();
+    const [usersSnap, ticketsSnap, notificationsSnap, slaSnap] = await Promise.all([
+      db.collection('users').get(),
+      db.collection('tickets').get(),
+      db.collection('notifications').get(),
+      db.collection('settings').doc('sla').collection('items').doc('default').get(),
+    ]);
+
+    const legacyUsers = usersSnap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(user => Boolean(LEGACY_ROLE_MAP[user.role]));
+
+    const ticketsMissingCatalog = ticketsSnap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(ticket => !ticket.regionId || !ticket.siteId);
+
+    const notificationsLegacy = notificationsSnap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(item => !isTimestampLike(item.time));
+
+    const sla = slaSnap.exists ? slaSnap.data() : null;
+    const slaLegacy = hasLegacySlaShape(sla);
+    const slaMissingRules = !Array.isArray(sla?.rules);
+
+    return sendJson(res, 200, {
+      ok: true,
+      summary: {
+        legacyUsers: legacyUsers.length,
+        ticketsMissingCatalog: ticketsMissingCatalog.length,
+        notificationsLegacy: notificationsLegacy.length,
+        slaLegacy: slaLegacy || slaMissingRules ? 1 : 0,
+      },
+      samples: {
+        legacyUsers: legacyUsers.slice(0, 10).map(user => ({ id: user.id, email: user.email, role: user.role })),
+        ticketsMissingCatalog: ticketsMissingCatalog.slice(0, 10).map(ticket => ({
+          id: ticket.id,
+          region: ticket.region || null,
+          regionId: ticket.regionId || null,
+          sede: ticket.sede || null,
+          siteId: ticket.siteId || null,
+        })),
+        notificationsLegacy: notificationsLegacy.slice(0, 10).map(item => ({
+          id: item.id,
+          time: item.time || null,
+        })),
+        sla: sla
+          ? {
+              hasRules: Array.isArray(sla.rules),
+              hasLegacyHours: slaLegacy,
+            }
+          : null,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao analisar legado do Firestore.' });
+  }
+}
+
+async function handleBackfill(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+
+    const admin = await requireAdminUser(req);
+    const db = getAdminDb();
+    const result = await runFirestoreLegacyBackfill(db, admin.email || admin.name || 'admin');
+
+    return sendJson(res, 200, {
+      ok: true,
+      actor: {
+        email: admin.email,
+        name: admin.name,
+      },
+      result,
+    });
+  } catch (error) {
+    const message = error.message || 'Falha ao executar backfill.';
+    const statusCode =
+      message.includes('Token') || message.includes('autentic') || message.includes('Permissão') || message.includes('inativo')
+        ? 401
+        : 400;
+    return sendJson(res, statusCode, { ok: false, error: message });
+  }
+}
+
+export default async function handler(req, res) {
+  const route = String(req.query?.route || '').trim().toLowerCase();
+
+  if (route === 'integrations-health') return handleIntegrationsHealth(req, res);
+  if (route === 'legacy-health') return handleLegacyHealth(req, res);
+  if (route === 'backfill') return handleBackfill(req, res);
+
+  res.setHeader('Allow', 'GET, POST');
+  return sendJson(res, 404, { ok: false, error: 'Rota administrativa inválida.' });
 }

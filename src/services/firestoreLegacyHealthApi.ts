@@ -16,7 +16,7 @@ export interface FirestoreLegacyHealth {
 }
 
 export async function fetchFirestoreLegacyHealth() {
-  const response = await fetch('/api/firestore-legacy-health', {
+  const response = await fetch('/api/admin-tools?route=legacy-health', {
     headers: await getAuthenticatedActorHeaders(),
   });
   if (!response.ok) {
