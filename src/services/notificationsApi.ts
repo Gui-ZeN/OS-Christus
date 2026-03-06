@@ -1,4 +1,5 @@
 import { AppNotification } from '../types';
+import { coerceDate } from '../utils/date';
 
 type NotificationApi = Omit<AppNotification, 'time'> & { time: string };
 
@@ -13,7 +14,7 @@ export async function fetchNotifications() {
   }
   return (json.notifications as NotificationApi[]).map(item => ({
     ...item,
-    time: new Date(item.time),
+    time: coerceDate(item.time),
   })) as AppNotification[];
 }
 

@@ -1,9 +1,8 @@
 import React from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { StatusBadge } from './StatusBadge';
 import { AlertCircle, Eye, Clock } from 'lucide-react';
 import { SLAStatus } from '../../types';
+import { formatDistanceToNowSafe } from '../../utils/date';
 
 interface TicketListItemProps {
   id: string;
@@ -27,7 +26,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({ id, subject, req
       <div className="flex justify-between items-start mb-1">
         <span className="font-semibold text-roman-text-main truncate pr-2">{requester}</span>
         <span className="text-xs text-roman-text-sub font-serif italic whitespace-nowrap">
-          {formatDistanceToNow(time, { addSuffix: true, locale: ptBR })}
+          {formatDistanceToNowSafe(time)}
         </span>
       </div>
       <div className="text-roman-text-main font-medium truncate mb-2">{subject}</div>

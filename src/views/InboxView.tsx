@@ -1,7 +1,5 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Search, Filter, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -12,6 +10,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
+import { formatDistanceToNowSafe } from '../utils/date';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'construtora', name: 'Construtora', type: 'internal' },
@@ -825,7 +824,7 @@ export function InboxView() {
               <div className="flex items-center gap-4 text-roman-text-sub font-serif italic text-sm">
                 <StatusBadge status={activeTicket.status} />
                 <span>via Formulário do Sistema</span>
-                <span>{formatDistanceToNow(activeTicket.time, { addSuffix: true, locale: ptBR })}</span>
+                <span>{formatDistanceToNowSafe(activeTicket.time)}</span>
                 <button onClick={() => openAttachment(`Fotos: ${activeTicket.subject}`, 'image')} className="ml-auto text-roman-primary hover:underline flex items-center gap-1 not-italic font-medium text-xs">
                   <ImageIcon size={14} /> Ver Fotos Anexadas
                 </button>
@@ -855,7 +854,7 @@ export function InboxView() {
                           <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
                           de <span className="line-through opacity-70">{item.from}</span>
                           para <span className="font-medium text-roman-text-main">{item.to}</span>
-                          <span className="text-[10px] opacity-50 ml-1">{formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}</span>
+                          <span className="text-[10px] opacity-50 ml-1">{formatDistanceToNowSafe(item.time)}</span>
                         </div>
                       </div>
                     );
@@ -870,7 +869,7 @@ export function InboxView() {
                         <div className="flex items-baseline gap-2 mb-1">
                           <span className="font-semibold text-[14px]">{item.sender}</span>
                           <span className="text-roman-text-sub text-xs font-serif italic">
-                            {formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}
+                            {formatDistanceToNowSafe(item.time)}
                           </span>
                         </div>
                         <div className="bg-roman-surface border border-roman-border rounded-sm p-5 text-[14px] leading-relaxed shadow-sm">

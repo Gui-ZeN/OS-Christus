@@ -1,4 +1,5 @@
 import { Ticket } from '../types';
+import { coerceDate } from '../utils/date';
 
 type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
   time: string;
@@ -10,14 +11,14 @@ type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
 function hydrateTicket(ticket: ApiTicket): Ticket {
   return {
     ...ticket,
-    time: new Date(ticket.time),
+    time: coerceDate(ticket.time),
     viewingBy: ticket.viewingBy
-      ? { ...ticket.viewingBy, at: new Date(ticket.viewingBy.at) }
+      ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) }
       : null,
     sla: ticket.sla
-      ? { ...ticket.sla, dueAt: new Date(ticket.sla.dueAt) }
+      ? { ...ticket.sla, dueAt: coerceDate(ticket.sla.dueAt) }
       : undefined,
-    history: ticket.history.map(item => ({ ...item, time: new Date(item.time) })),
+    history: ticket.history.map(item => ({ ...item, time: coerceDate(item.time) })),
   };
 }
 

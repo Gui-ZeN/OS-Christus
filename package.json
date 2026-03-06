@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "infra:firebase:setup": "node scripts/infra/setup-firebase.mjs",
+    "infra:firebase:bootstrap": "node scripts/infra/bootstrap-firestore.mjs",
     "infra:firebase:enable-apis": "node scripts/infra/enable-firebase-apis.mjs",
     "infra:storage:check": "node scripts/infra/check-storage.mjs",
     "infra:storage:signed-url": "node scripts/infra/generate-signed-url.mjs",

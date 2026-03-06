@@ -16,12 +16,11 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 import { SidebarIcon } from './components/ui/SidebarIcon';
 import { useApp } from './context/AppContext';
 import { ViewState } from './types';
+import { formatDistanceToNowSafe } from './utils/date';
 
 const UsersView = lazy(async () => ({ default: (await import('./views/UsersView')).UsersView }));
 const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
@@ -287,7 +286,7 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       {!notification.read && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>}
                       <span className={`text-xs font-serif italic ${isAlert ? 'text-red-700' : 'text-roman-text-sub'}`}>
-                        {formatDistanceToNow(notification.time, { addSuffix: true, locale: ptBR })}
+                        {formatDistanceToNowSafe(notification.time)}
                       </span>
                     </div>
                     <button

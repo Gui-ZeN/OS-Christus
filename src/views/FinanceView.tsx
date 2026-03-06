@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, DollarSign, FileText, Loader2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { PaymentRecord } from '../types';
 import { fetchProcurementData, savePayment } from '../services/procurementApi';
+import { formatDistanceToNowSafe } from '../utils/date';
 
 export function FinanceView() {
   const { openAttachment, updateTicket, tickets, currentUser } = useApp();
@@ -119,7 +118,7 @@ export function FinanceView() {
                   <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Pagamento</span>
                 </div>
                 <h3 className="text-xl font-serif text-roman-text-main mb-1">{payment.subject}</h3>
-                <p className="text-sm text-roman-text-sub mb-4">Fornecedor: {payment.vendor} • Validacao: {formatDistanceToNow(payment.date, { addSuffix: true, locale: ptBR })}</p>
+                <p className="text-sm text-roman-text-sub mb-4">Fornecedor: {payment.vendor} • Validacao: {formatDistanceToNowSafe(payment.date)}</p>
                 <button onClick={() => openAttachment(`Nota Fiscal: ${payment.vendor}`, 'pdf')} className="flex items-center gap-2 text-roman-primary hover:underline text-sm font-medium">
                   <FileText size={16} /> Ver Nota Fiscal / Recibo
                 </button>

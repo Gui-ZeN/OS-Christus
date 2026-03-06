@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, FileText, Image as ImageIcon, Loader2, Shield, X } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
+import { formatDistanceToNowSafe } from '../utils/date';
 
 const APPROVAL_STATUS: Record<string, TicketStatus> = {
   new_os: TICKET_STATUS.WAITING_TECH_OPINION,
@@ -302,7 +301,7 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Triagem (Diretoria)</span>
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{os.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {os.requester} • Enviado: {formatDistanceToNow(os.date, { addSuffix: true, locale: ptBR })}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {os.requester} • Enviado: {formatDistanceToNowSafe(os.date)}</p>
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
@@ -338,7 +337,7 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{solution.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} • Parecer emitido: {formatDistanceToNow(solution.date, { addSuffix: true, locale: ptBR })}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} • Parecer emitido: {formatDistanceToNowSafe(solution.date)}</p>
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
@@ -377,7 +376,7 @@ export function ApprovalsView() {
                     )}
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{budget.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDistanceToNow(budget.date, { addSuffix: true, locale: ptBR })}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDistanceToNowSafe(budget.date)}</p>
                 </div>
                 <button onClick={() => openRejectModal(budget.id)} className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
                   Reprovar Todas
@@ -423,7 +422,7 @@ export function ApprovalsView() {
                       Sendo revisado por {contract.viewingBy}
                     </span>
                   )}
-                  <span className="text-xs text-stone-500 ml-auto">{formatDistanceToNow(contract.date, { addSuffix: true, locale: ptBR })}</span>
+                  <span className="text-xs text-stone-500 ml-auto">{formatDistanceToNowSafe(contract.date)}</span>
                 </div>
                 <h3 className="text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
                 <p className="text-sm text-stone-600 mb-4">Solicitante: {contract.requester} • Contratada: {contract.vendor}</p>

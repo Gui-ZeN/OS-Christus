@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { HistoryItem } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { formatDistanceToNowSafe } from '../utils/date';
 
 interface TrackingViewProps {
   ticketToken: string | null;
@@ -126,7 +125,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                   <div className="w-full md:w-[calc(50%-2.5rem)] bg-roman-surface border border-roman-border p-4 rounded-sm shadow-sm md:group-odd:text-right">
                     <div className="flex items-center justify-between md:group-odd:flex-row-reverse mb-1">
                       <div className="font-serif font-medium text-roman-text-main">{item.sender || 'Sistema'}</div>
-                      {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDistanceToNow(item.time, { addSuffix: true, locale: ptBR })}</div>}
+                      {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDistanceToNowSafe(item.time)}</div>}
                     </div>
                     <div className="text-sm text-roman-text-main leading-relaxed">{item.text}</div>
                   </div>

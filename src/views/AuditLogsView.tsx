@@ -3,10 +3,10 @@ import { AlertCircle, History, RefreshCw, Search } from 'lucide-react';
 import { AuditLogEntry, fetchAuditLogs } from '../services/auditLogsApi';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
+import { formatDateTimeSafe } from '../utils/date';
 
 function formatDate(value: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString('pt-BR');
+  return formatDateTimeSafe(value);
 }
 
 function safeJson(value: unknown) {

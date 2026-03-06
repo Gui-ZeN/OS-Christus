@@ -1,5 +1,6 @@
 import { getActorHeaders } from './actorHeaders';
 import { ContractRecord, PaymentRecord, Quote } from '../types';
+import { coerceDate } from '../utils/date';
 
 type QuoteApi = Quote & { ticketId?: string };
 type ContractApi = ContractRecord & { ticketId?: string };
@@ -22,7 +23,7 @@ export async function fetchProcurementData() {
         ticketId,
         {
           ...value,
-          paidAt: value.paidAt ? new Date(value.paidAt) : null,
+          paidAt: value.paidAt ? coerceDate(value.paidAt) : null,
         } as PaymentRecord,
       ];
     })
