@@ -1,10 +1,12 @@
-import { expect, test } from '@playwright/test';
+﻿import { expect, test } from '@playwright/test';
 
 async function loginAsManager(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.getByRole('button', { name: /acesso/i }).click();
+  await page.locator('input[type="email"]').fill('admin@os-christus.local');
+  await page.locator('input[type="password"]').fill('qualquer-coisa');
   await page.getByRole('button', { name: /acessar o sistema/i }).click();
-  await expect(page.getByText(/olá, rafael/i)).toBeVisible();
+  await expect(page.getByText(/olá, administrador os christus/i)).toBeVisible();
 }
 
 test('login and sidebar navigation smoke', async ({ page }) => {

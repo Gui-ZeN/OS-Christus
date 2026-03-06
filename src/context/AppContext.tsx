@@ -198,6 +198,7 @@ async function resolveAuthorizedUser(email: string) {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
+  const localFallbackAllowed = shouldUseLocalDirectoryFallback();
   const [authResolved, setAuthResolved] = useState(!authEnabled);
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
@@ -232,7 +233,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return undefined;
     }
 
-    if (authEnabled && !currentUserEmail) {
+    if (!currentUserEmail) {
+      setAllTickets([]);
+      setTicketsLoading(false);
+      return undefined;
+    }
+
+    if (!authEnabled && !localFallbackAllowed) {
       setAllTickets([]);
       setTicketsLoading(false);
       return undefined;
@@ -247,7 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (!cancelled) {
-          setAllTickets([...MOCK_TICKETS]);
+          setAllTickets(localFallbackAllowed ? [...MOCK_TICKETS] : []);
         }
       } finally {
         if (!cancelled) {
@@ -259,7 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, authResolved, currentUserEmail]);
+  }, [authEnabled, authResolved, currentUserEmail, localFallbackAllowed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,8 +292,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (authEnabled && !currentUserEmail) {
-      setNotifications(INITIAL_NOTIFICATIONS);
+    if (!currentUserEmail) {
+      setNotifications([]);
+      return undefined;
+    }
+    if (!authEnabled && !localFallbackAllowed) {
+      setNotifications([]);
       return undefined;
     }
     (async () => {
@@ -297,7 +308,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (!cancelled) {
-          setNotifications(INITIAL_NOTIFICATIONS);
+          setNotifications(localFallbackAllowed ? INITIAL_NOTIFICATIONS : []);
         }
       }
     })();
@@ -305,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, currentUserEmail]);
+  }, [authEnabled, currentUserEmail, localFallbackAllowed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -328,6 +339,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         if (!cancelled) {
           setCurrentUser(null);
+          setCurrentUserEmailState('');
         }
       }
     })();
@@ -508,14 +520,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         await loginWithEmailPassword(normalized, password);
         const authorizedUser = await resolveAuthorizedUser(normalized);
+        setCurrentUserEmail(normalized);
         setCurrentUser(authorizedUser);
       } catch (error) {
         await logoutFirebaseAuth().catch(() => undefined);
         setCurrentUserEmail('');
+        setCurrentUser(null);
         throw error;
       }
     } else {
+      if (!localFallbackAllowed) {
+        throw new Error('Firebase Auth não está configurado no frontend deste ambiente.');
+      }
+      const authorizedUser = await resolveAuthorizedUser(normalized);
       setCurrentUserEmail(normalized);
+      setCurrentUser(authorizedUser);
     }
   };
 

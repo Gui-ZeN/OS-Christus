@@ -232,6 +232,7 @@ export function InboxView() {
     tickets,
     updateTicket,
     addTicket,
+    currentUser,
   } = useApp();
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal'>('internal');
@@ -242,6 +243,8 @@ export function InboxView() {
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>(FALLBACK_CATALOG_MATERIALS);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>(FALLBACK_SERVICE_CATALOG);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
+  const displayActor = currentUser?.name || 'Gestor';
+  const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -975,7 +978,7 @@ export function InboxView() {
       <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[86vw] max-w-80 md:w-80 bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="h-14 border-b border-roman-border flex items-center justify-between px-4 hover:bg-roman-bg cursor-pointer">
           <div className="flex items-center gap-2">
-            <h2 className="font-serif text-[16px] font-semibold tracking-wide">Minhas Filas (Rafael)</h2>
+            <h2 className="font-serif text-[16px] font-semibold tracking-wide">Minhas Filas ({displayActor})</h2>
             <ChevronDown size={16} className="text-roman-text-sub" />
           </div>
           <div className="flex items-center gap-2">
@@ -1116,7 +1119,7 @@ export function InboxView() {
           <div className="ml-auto flex items-center gap-3 px-4 relative">
             <div className="hidden md:flex items-center gap-2 mr-4 text-xs text-roman-text-sub">
               <User size={14} />
-              <span>Visualizando como: <strong>Rafael (Gestor)</strong></span>
+              <span>Visualizando como: <strong>{displayActorLabel}</strong></span>
             </div>
             <button
               onClick={() => setShowFilterMenu(!showFilterMenu)}

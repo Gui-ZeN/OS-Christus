@@ -165,10 +165,10 @@ export default function App() {
 
   useEffect(() => {
     const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
-    if (authEnabled && !currentUserEmail && !publicViews.has(currentView)) {
+    if (!currentUserEmail && !publicViews.has(currentView)) {
       navigateTo(VIEWS.LOGIN);
     }
-  }, [authEnabled, currentUserEmail, currentView, navigateTo]);
+  }, [currentUserEmail, currentView, navigateTo]);
 
   if (currentView === VIEWS.LANDING) {
     return (
@@ -260,7 +260,9 @@ export default function App() {
       </aside>
 
       {showNotifications && (
-        <div ref={notificationRef} className="absolute left-14 top-0 bottom-0 w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-30 animate-in slide-in-from-left-4 flex flex-col">
+        <>
+          <div className="fixed inset-0 z-50 bg-black/10" />
+          <div ref={notificationRef} className="fixed left-14 top-0 bottom-0 w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-[60] animate-in slide-in-from-left-4 flex flex-col">
           <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
             <div className="flex items-center gap-2">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>
@@ -339,7 +341,8 @@ export default function App() {
               Marcar todas como lidas {unreadCount > 0 ? `(${unreadCount})` : ''}
             </button>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
