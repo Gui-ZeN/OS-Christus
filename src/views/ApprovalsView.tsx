@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, FileText, Image as ImageIcon, Loader2, Shield, X } from 'lucide-react';
+import { CheckCircle, Download, FileText, Image as ImageIcon, Loader2, Shield, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -51,6 +51,24 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
     ],
   },
 };
+
+function normalizeCsvCell(value: unknown) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function triggerCsvDownload(filename: string, rows: string[][]) {
+  const csvContent = rows.map(row => row.map(normalizeCsvCell).join(';')).join('\n');
+  const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export function ApprovalsView() {
   const { openAttachment, updateTicket, tickets, currentUser } = useApp();
@@ -240,6 +258,81 @@ export function ApprovalsView() {
       setAttachContractModalId(null);
       setAttachedFile(null);
     }, 1500);
+  };
+
+  const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
+    const rows: string[][] = [
+      ['OS', budget.id],
+      ['Assunto', budget.subject],
+      ['Solicitante', budget.requester],
+      ['Data', budget.date.toLocaleDateString('pt-BR')],
+      ['Macroserviço', budget.macroServiceName ?? ''],
+      ['Serviço', budget.serviceCatalogName ?? ''],
+      [],
+      ['Base histórica'],
+      ['OS comparáveis', String(budget.historySummary.comparableTicketCount)],
+      ['Cotações consideradas', String(budget.historySummary.comparableQuoteCount)],
+      ['Média histórica', budget.historySummary.averageQuoteValue != null ? formatBudgetHistoryValue(budget.historySummary.averageQuoteValue) : '-'],
+      ['Faixa histórica', `${formatBudgetHistoryValue(budget.historySummary.minQuoteValue)} a ${formatBudgetHistoryValue(budget.historySummary.maxQuoteValue)}`],
+      ['Fornecedor preferencial', budget.historySummary.preferredVendor?.vendor ?? '-'],
+      ['Referência preferencial', budget.historySummary.preferredVendor?.rationale.join(' | ') ?? '-'],
+      [],
+      ['Comparativo de cotações'],
+      ['Cotação', 'Fornecedor', 'Valor', 'Recomendada', 'Status', 'Itens'],
+      ...budget.quotes.map((quote, index) => [
+        `Cotação ${index + 1}`,
+        quote.vendor,
+        quote.value,
+        quote.recommended ? 'Sim' : 'Não',
+        quote.status || 'pending',
+        String(quote.items?.length || 0),
+      ]),
+      [],
+      ['Itens das cotações'],
+      ['Cotação', 'Fornecedor', 'Item', 'Material', 'Unidade', 'Quantidade', 'Valor unitário', 'Valor total'],
+      ...budget.quotes.flatMap((quote, index) =>
+        (quote.items && quote.items.length > 0
+          ? quote.items
+          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, unitPrice: '', totalPrice: '' }]
+        ).map(item => [
+          `Cotação ${index + 1}`,
+          quote.vendor,
+          item.description || 'Sem descrição',
+          item.materialName || '',
+          item.unit || '',
+          item.quantity != null ? String(item.quantity) : '',
+          item.unitPrice || '',
+          item.totalPrice || '',
+        ])
+      ),
+      [],
+      ['Histórico por item/material'],
+      ['Item', 'Amostras', 'Unidade', 'Média unitária', 'Faixa', 'Último fornecedor'],
+      ...budget.historySummary.itemReferences.map(item => [
+        item.label,
+        String(item.sampleCount),
+        item.unit || '',
+        item.averageUnitPriceLabel || '-',
+        `${item.minUnitPriceLabel || '-'} a ${item.maxUnitPriceLabel || '-'}`,
+        item.latestVendor || '-',
+      ]),
+      [],
+      ['OS similares'],
+      ['OS', 'Assunto', 'Fornecedor', 'Valor', 'Sede', 'Região', 'Match'],
+      ...budget.historySummary.similarCases.map(item => [
+        item.ticketId,
+        item.subject,
+        item.vendor,
+        item.valueLabel,
+        item.sede,
+        item.region,
+        item.sharedTerms.join(', '),
+      ]),
+    ];
+
+    triggerCsvDownload(`comparativo-${String(budget.id).toLowerCase()}.csv`, rows);
+    setToast(`Comparativo ${budget.id} exportado em CSV.`);
+    window.setTimeout(() => setToast(null), 3000);
   };
 
   const newOSList = useMemo(
@@ -444,9 +537,17 @@ export function ApprovalsView() {
                     </div>
                   )}
                 </div>
-                <button onClick={() => openRejectModal(budget.id)} className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
-                  Reprovar Todas
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleExportBudgetComparison(budget)}
+                    className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Download size={14} /> Exportar CSV
+                  </button>
+                  <button onClick={() => openRejectModal(budget.id)} className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
+                    Reprovar Todas
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
