@@ -43,6 +43,9 @@ export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [period, setPeriod] = useState<'month' | 'semester' | 'custom'>('month');
+  const [selectedRegion, setSelectedRegion] = useState('all');
+  const [selectedSite, setSelectedSite] = useState('all');
+  const [selectedVendor, setSelectedVendor] = useState('all');
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
 
@@ -81,11 +84,70 @@ export function KpiView() {
     };
   }, []);
 
-  const filteredTickets = useMemo(() => {
+  const periodTickets = useMemo(() => {
     const now = Date.now();
     const rangeDays = period === 'month' ? 30 : period === 'semester' ? 180 : 365;
     return tickets.filter(ticket => now - ticket.time.getTime() <= rangeDays * 86400000);
   }, [period, tickets]);
+
+  const regionOptions = useMemo(
+    () => {
+      const values: string[] = periodTickets.map(ticket => ticket.region).filter((value): value is string => Boolean(value));
+      return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    },
+    [periodTickets]
+  );
+
+  const siteOptions = useMemo(
+    () => {
+      const values: string[] = periodTickets
+        .filter(ticket => selectedRegion === 'all' || ticket.region === selectedRegion)
+        .map(ticket => ticket.sede)
+        .filter((value): value is string => Boolean(value));
+      return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    },
+    [periodTickets, selectedRegion]
+  );
+
+  const vendorOptions = useMemo(
+    () => {
+      const values: string[] = periodTickets
+        .map(ticket => contractsByTicket[ticket.id]?.vendor || '')
+        .filter((value): value is string => Boolean(value));
+      return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    },
+    [contractsByTicket, periodTickets]
+  );
+
+  useEffect(() => {
+    if (selectedRegion !== 'all' && !regionOptions.includes(selectedRegion)) {
+      setSelectedRegion('all');
+    }
+  }, [regionOptions, selectedRegion]);
+
+  useEffect(() => {
+    if (selectedSite !== 'all' && !siteOptions.includes(selectedSite)) {
+      setSelectedSite('all');
+    }
+  }, [selectedSite, siteOptions]);
+
+  useEffect(() => {
+    if (selectedVendor !== 'all' && !vendorOptions.includes(selectedVendor)) {
+      setSelectedVendor('all');
+    }
+  }, [selectedVendor, vendorOptions]);
+
+  const filteredTickets = useMemo(() => {
+    return periodTickets.filter(ticket => {
+      if (selectedRegion !== 'all' && ticket.region !== selectedRegion) return false;
+      if (selectedSite !== 'all' && ticket.sede !== selectedSite) return false;
+      if (selectedVendor !== 'all') {
+        const vendor = contractsByTicket[ticket.id]?.vendor || '';
+        if (vendor !== selectedVendor) return false;
+      }
+      return true;
+    });
+  }, [contractsByTicket, periodTickets, selectedRegion, selectedSite, selectedVendor]);
 
   const osPorRegiao = useMemo(() => {
     const grouped = new Map<string, { name: string; abertas: number; fechadas: number }>();
@@ -284,6 +346,56 @@ export function KpiView() {
             </button>
           </div>
         </header>
+
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <select
+            value={selectedRegion}
+            onChange={event => {
+              setSelectedRegion(event.target.value);
+              setSelectedSite('all');
+            }}
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+          >
+            <option value="all">Todas as regiões</option>
+            {regionOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedSite}
+            onChange={event => setSelectedSite(event.target.value)}
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+          >
+            <option value="all">Todas as sedes</option>
+            {siteOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedVendor}
+            onChange={event => setSelectedVendor(event.target.value)}
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+          >
+            <option value="all">Todos os fornecedores</option>
+            {vendorOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedRegion('all');
+              setSelectedSite('all');
+              setSelectedVendor('all');
+            }}
+            className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary hover:bg-roman-surface"
+          >
+            Limpar filtros
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
