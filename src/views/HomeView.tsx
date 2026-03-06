@@ -70,6 +70,14 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function normalizeText(value: string | null | undefined) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 export function HomeView() {
   const { navigateTo, tickets, currentUser, currentUserEmail } = useApp();
   const [selectedRegion, setSelectedRegion] = useState('all');
@@ -78,6 +86,8 @@ export function HomeView() {
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const isSupervisor = currentUser?.role === 'Supervisor';
+  const isRequester = currentUser?.role === 'Usuario';
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +272,68 @@ export function HomeView() {
     [scopedTickets]
   );
 
+  const requesterTickets = useMemo(() => {
+    if (!isRequester) return [];
+    const requesterEmailKey = normalizeText(currentUserEmail);
+    const requesterNameKey = normalizeText(currentUser?.name);
+    const emailPrefixKey = normalizeText(currentUserEmail.split('@')[0]);
+
+    return scopedTickets
+      .filter(ticket => {
+        const ticketRequesterEmail = normalizeText(ticket.requesterEmail);
+        const ticketRequesterName = normalizeText(ticket.requester);
+        if (requesterEmailKey && ticketRequesterEmail === requesterEmailKey) return true;
+        if (requesterNameKey && ticketRequesterName === requesterNameKey) return true;
+        if (emailPrefixKey && ticketRequesterName.includes(emailPrefixKey)) return true;
+        return false;
+      })
+      .sort((a, b) => b.time.getTime() - a.time.getTime());
+  }, [currentUser?.name, currentUserEmail, isRequester, scopedTickets]);
+
+  const supervisorBoard = useMemo(() => {
+    if (!isSupervisor) return [];
+
+    const grouped = new Map<string, { site: string; open: number; waitingValidation: number; waitingPayment: number; closed: number }>();
+    for (const ticket of scopedTickets) {
+      const key = ticket.sede;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          site: ticket.sede,
+          open: 0,
+          waitingValidation: 0,
+          waitingPayment: 0,
+          closed: 0,
+        });
+      }
+
+      const current = grouped.get(key)!;
+      if (isOpenStatus(ticket.status)) current.open += 1;
+      if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) current.waitingValidation += 1;
+      if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) current.waitingPayment += 1;
+      if (ticket.status === TICKET_STATUS.CLOSED) current.closed += 1;
+    }
+
+    return [...grouped.values()].sort((a, b) => b.open - a.open);
+  }, [isSupervisor, scopedTickets]);
+
+  const pendingRequesterValidations = useMemo(() => {
+    return scopedTickets
+      .filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL)
+      .sort((a, b) => b.time.getTime() - a.time.getTime())
+      .slice(0, 5);
+  }, [scopedTickets]);
+
+  const upcomingPreliminaries = useMemo(() => {
+    return scopedTickets
+      .filter(ticket => ticket.preliminaryActions?.plannedStartAt || ticket.preliminaryActions?.materialEta)
+      .sort((a, b) => {
+        const aDate = (a.preliminaryActions?.plannedStartAt || a.preliminaryActions?.materialEta || a.time).getTime();
+        const bDate = (b.preliminaryActions?.plannedStartAt || b.preliminaryActions?.materialEta || b.time).getTime();
+        return aDate - bDate;
+      })
+      .slice(0, 5);
+  }, [scopedTickets]);
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-7xl mx-auto">
@@ -270,7 +342,11 @@ export function HomeView() {
           <p className="text-roman-text-sub font-serif italic">
             {isExecutive
               ? 'Dashboard executivo por região e sede, com foco em decisão, custo, pagamento e risco operacional.'
-              : 'Aqui está o resumo das suas responsabilidades operacionais de hoje.'}
+              : isSupervisor
+                ? 'Painel da supervisão com foco em andamento por sede, validações pendentes e próximos movimentos.'
+                : isRequester
+                  ? 'Painel do solicitante com acompanhamento resumido das suas solicitações e do retorno da infraestrutura.'
+                  : 'Aqui está o resumo das suas responsabilidades operacionais de hoje.'}
           </p>
         </header>
 
@@ -310,6 +386,108 @@ export function HomeView() {
           <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
           <StatCard title="OS Concluídas" value={String(stats.encerradas)} />
         </div>
+
+        {!isExecutive && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+            {isSupervisor && (
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Resumo da Supervisão</h2>
+                  <Building2 size={16} className="text-roman-text-sub" />
+                </div>
+                {supervisorBoard.length === 0 ? (
+                  <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS visível para a sua supervisão.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {supervisorBoard.map(item => (
+                      <div key={item.site} className="grid grid-cols-1 md:grid-cols-[1.2fr_repeat(4,0.75fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                        <div className="font-medium text-roman-text-main">{item.site}</div>
+                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Abertas</div><div>{item.open}</div></div>
+                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Validação</div><div>{item.waitingValidation}</div></div>
+                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Pagamento</div><div>{item.waitingPayment}</div></div>
+                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Concluídas</div><div>{item.closed}</div></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isRequester && (
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Minhas Solicitações</h2>
+                  <Users size={16} className="text-roman-text-sub" />
+                </div>
+                {requesterTickets.length === 0 ? (
+                  <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma solicitação vinculada ao seu usuário apareceu neste recorte.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {requesterTickets.slice(0, 6).map(ticket => (
+                      <button
+                        key={ticket.id}
+                        onClick={() => navigateTo('inbox')}
+                        className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-roman-text-main">{ticket.id}</div>
+                          <div className="text-xs text-roman-text-sub">{ticket.status}</div>
+                        </div>
+                        <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
+                        <div className="text-xs text-roman-text-sub mt-2">{ticket.sede} • {formatActivityTime(ticket.time)}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">
+                  {isSupervisor ? 'Validações e próximos passos' : 'Acompanhamento operacional'}
+                </h2>
+                <AlertTriangle size={16} className="text-roman-text-sub" />
+              </div>
+              <div className="space-y-3">
+                {pendingRequesterValidations.length === 0 && upcomingPreliminaries.length === 0 ? (
+                  <p className="text-sm text-roman-text-sub font-serif italic">Nenhum destaque operacional neste momento.</p>
+                ) : (
+                  <>
+                    {pendingRequesterValidations.map(ticket => (
+                      <button
+                        key={`validation-${ticket.id}`}
+                        onClick={() => navigateTo('inbox')}
+                        className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                      >
+                        <div className="font-medium text-roman-text-main">{ticket.id} • aguardando validação do solicitante</div>
+                        <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
+                        <div className="text-xs text-roman-text-sub mt-2">{ticket.sede} • {ticket.requester}</div>
+                      </button>
+                    ))}
+                    {upcomingPreliminaries.slice(0, 3).map(ticket => (
+                      <button
+                        key={`prelim-${ticket.id}`}
+                        onClick={() => navigateTo('inbox')}
+                        className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                      >
+                        <div className="font-medium text-roman-text-main">{ticket.id} • ação preliminar</div>
+                        <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
+                        <div className="text-xs text-roman-text-sub mt-2">
+                          {ticket.preliminaryActions?.plannedStartAt
+                            ? `Início previsto ${formatActivityTime(ticket.preliminaryActions.plannedStartAt)}`
+                            : ticket.preliminaryActions?.materialEta
+                              ? `Material previsto ${formatActivityTime(ticket.preliminaryActions.materialEta)}`
+                              : ticket.sede}
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {isExecutive && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
