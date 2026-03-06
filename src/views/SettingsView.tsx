@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApp } from '../context/AppContext';
+import { isFirebaseAuthConfigured } from '../lib/firebaseClient';
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
+import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
 import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
 
 type SettingsSection = 'templates' | 'daily-digest' | 'sla' | 'integrations';
@@ -30,6 +32,39 @@ const DEFAULT_SLA: SlaSettings = {
   ],
 };
 
+function IntegrationStatusCard({
+  title,
+  check,
+}: {
+  title: string;
+  check: IntegrationCheck | { ok: boolean; detail: string; meta: Record<string, unknown> | null };
+}) {
+  return (
+    <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{title}</div>
+          <div className="text-base font-serif text-roman-text-main mt-1">{check.ok ? 'Operacional' : 'Atenção'}</div>
+        </div>
+        <div className={`shrink-0 ${check.ok ? 'text-green-700' : 'text-amber-700'}`}>
+          {check.ok ? <ShieldCheck size={18} /> : <TriangleAlert size={18} />}
+        </div>
+      </div>
+      <p className="text-sm text-roman-text-sub">{check.detail}</p>
+      {check.meta && Object.keys(check.meta).length > 0 && (
+        <div className="mt-3 pt-3 border-t border-roman-border space-y-1">
+          {Object.entries(check.meta).map(([key, value]) => (
+            <div key={key} className="text-xs text-roman-text-sub flex items-start justify-between gap-3">
+              <span className="font-medium text-roman-text-main">{key}</span>
+              <span className="text-right break-all">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsView() {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin';
@@ -39,9 +74,10 @@ export function SettingsView() {
   const [templateSaved, setTemplateSaved] = useState(false);
   const [digestSaved, setDigestSaved] = useState(false);
   const [slaSaved, setSlaSaved] = useState(false);
-  const [legacyLoading, setLegacyLoading] = useState(false);
-  const [legacyError, setLegacyError] = useState<string | null>(null);
+  const [integrationsLoading, setIntegrationsLoading] = useState(false);
+  const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [legacyHealth, setLegacyHealth] = useState<FirestoreLegacyHealth | null>(null);
+  const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationsHealthResponse | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
   const [digest, setDigest] = useState<DailyDigestSettings>(DEFAULT_DIGEST);
   const [sla, setSla] = useState<SlaSettings>(DEFAULT_SLA);
@@ -73,24 +109,25 @@ export function SettingsView() {
     };
   }, []);
 
-  useEffect(() => {
-    if (section !== 'integrations') return;
-    void loadLegacyHealth();
-  }, [section]);
-
-  const loadLegacyHealth = async () => {
-    setLegacyLoading(true);
-    setLegacyError(null);
+  const loadIntegrations = async () => {
+    setIntegrationsLoading(true);
+    setIntegrationsError(null);
 
     try {
-      const result = await fetchFirestoreLegacyHealth();
-      setLegacyHealth(result);
+      const [legacy, integrations] = await Promise.all([fetchFirestoreLegacyHealth(), fetchIntegrationsHealth()]);
+      setLegacyHealth(legacy);
+      setIntegrationsHealth(integrations);
     } catch (error) {
-      setLegacyError(error instanceof Error ? error.message : 'Falha ao carregar diagnóstico.');
+      setIntegrationsError(error instanceof Error ? error.message : 'Falha ao carregar integrações.');
     } finally {
-      setLegacyLoading(false);
+      setIntegrationsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (section !== 'integrations') return;
+    void loadIntegrations();
+  }, [section]);
 
   const handleSaveTemplate = async () => {
     if (!canEditSettings) return;
@@ -125,6 +162,17 @@ export function SettingsView() {
     setTimeout(() => setSlaSaved(false), 3000);
   };
 
+  const clientFirebaseCheck = useMemo(
+    () => ({
+      ok: isFirebaseAuthConfigured(),
+      detail: isFirebaseAuthConfigured()
+        ? 'Variáveis VITE_FIREBASE_* disponíveis no frontend.'
+        : 'Configuração web do Firebase ausente no frontend.',
+      meta: null,
+    }),
+    []
+  );
+
   if (!canAccess) {
     return (
       <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
@@ -139,7 +187,7 @@ export function SettingsView() {
     );
   }
 
-  const integrationCards = legacyHealth
+  const legacyCards = legacyHealth
     ? [
         { label: 'Usuários com papel legado', value: legacyHealth.summary.legacyUsers },
         { label: 'Tickets sem regionId/siteId', value: legacyHealth.summary.ticketsMissingCatalog },
@@ -150,10 +198,10 @@ export function SettingsView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <header className="mb-8 border-b border-roman-border pb-4">
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Configurações do Sistema</h1>
-          <p className="text-roman-text-sub font-serif italic">Ajustes de e-mail, templates e regras de negócio.</p>
+          <p className="text-roman-text-sub font-serif italic">Ajustes de e-mail, templates, integrações e regras de negócio.</p>
         </header>
 
         <div className="flex gap-8">
@@ -358,90 +406,102 @@ export function SettingsView() {
                     <div className="flex items-center justify-between mb-6 gap-4">
                       <div>
                         <h2 className="font-serif text-xl font-medium text-roman-text-main">Integrações e Legado</h2>
-                        <p className="text-sm text-roman-text-sub font-serif italic">Diagnóstico do Firestore e compatibilidade com dados antigos.</p>
+                        <p className="text-sm text-roman-text-sub font-serif italic">Status operacional do ambiente e compatibilidade com dados antigos.</p>
                       </div>
 
                       <button
-                        onClick={() => void loadLegacyHealth()}
+                        onClick={() => void loadIntegrations()}
                         className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
-                        disabled={legacyLoading}
+                        disabled={integrationsLoading}
                       >
-                        <RefreshCw size={14} className={legacyLoading ? 'animate-spin' : ''} />
+                        <RefreshCw size={14} className={integrationsLoading ? 'animate-spin' : ''} />
                         Atualizar
                       </button>
                     </div>
 
-                    {legacyError && (
+                    {integrationsError && (
                       <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
                         <AlertCircle size={16} />
-                        {legacyError}
+                        {integrationsError}
                       </div>
                     )}
 
-                    {legacyLoading && (
+                    {integrationsLoading && (
                       <div className="py-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
                         <Loader2 size={18} className="animate-spin" />
-                        Analisando Firestore...
+                        Validando integrações...
                       </div>
                     )}
 
-                    {!legacyLoading && legacyHealth && (
+                    {!integrationsLoading && integrationsHealth && (
                       <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {integrationCards.map(card => (
-                            <div key={card.label} className="border border-roman-border rounded-sm p-4 bg-roman-bg">
-                              <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
-                              <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
-                            </div>
-                          ))}
+                          <IntegrationStatusCard title="Firebase Web" check={clientFirebaseCheck} />
+                          <IntegrationStatusCard title="Firebase Admin" check={integrationsHealth.checks.firebaseAdmin} />
+                          <IntegrationStatusCard title="Auth" check={integrationsHealth.checks.auth} />
+                          <IntegrationStatusCard title="Storage" check={integrationsHealth.checks.storage} />
+                          <IntegrationStatusCard title="E-mail" check={integrationsHealth.checks.email} />
                         </div>
 
-                        <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
-                          <div className="flex items-center gap-2 text-roman-text-main font-medium mb-3">
-                            <Database size={16} />
-                            Amostras
-                          </div>
-
-                          <div className="space-y-3 text-sm text-roman-text-sub">
-                            <div>
-                              <div className="font-medium text-roman-text-main">Usuários legados</div>
-                              <div>
-                                {legacyHealth.samples.legacyUsers.length > 0
-                                  ? legacyHealth.samples.legacyUsers.map(user => `${user.email} (${user.role})`).join(', ')
-                                  : 'Nenhum.'}
-                              </div>
+                        {legacyHealth && (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {legacyCards.map(card => (
+                                <div key={card.label} className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
+                                  <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
+                                </div>
+                              ))}
                             </div>
 
-                            <div>
-                              <div className="font-medium text-roman-text-main">Tickets sem catálogo</div>
-                              <div>
-                                {legacyHealth.samples.ticketsMissingCatalog.length > 0
-                                  ? legacyHealth.samples.ticketsMissingCatalog.map(ticket => ticket.id).join(', ')
-                                  : 'Nenhum.'}
+                            <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                              <div className="flex items-center gap-2 text-roman-text-main font-medium mb-3">
+                                <Database size={16} />
+                                Amostras de legado
                               </div>
-                            </div>
 
-                            <div>
-                              <div className="font-medium text-roman-text-main">Notificações com time legado</div>
-                              <div>
-                                {legacyHealth.samples.notificationsLegacy.length > 0
-                                  ? legacyHealth.samples.notificationsLegacy.map(item => item.id).join(', ')
-                                  : 'Nenhuma.'}
-                              </div>
-                            </div>
+                              <div className="space-y-3 text-sm text-roman-text-sub">
+                                <div>
+                                  <div className="font-medium text-roman-text-main">Usuários legados</div>
+                                  <div>
+                                    {legacyHealth.samples.legacyUsers.length > 0
+                                      ? legacyHealth.samples.legacyUsers.map(user => `${user.email} (${user.role})`).join(', ')
+                                      : 'Nenhum.'}
+                                  </div>
+                                </div>
 
-                            <div>
-                              <div className="font-medium text-roman-text-main">SLA</div>
-                              <div>
-                                {legacyHealth.samples.sla
-                                  ? `rules=${legacyHealth.samples.sla.hasRules ? 'ok' : 'faltando'} • legacyHours=${
-                                      legacyHealth.samples.sla.hasLegacyHours ? 'sim' : 'não'
-                                    }`
-                                  : 'Documento ausente.'}
+                                <div>
+                                  <div className="font-medium text-roman-text-main">Tickets sem catálogo</div>
+                                  <div>
+                                    {legacyHealth.samples.ticketsMissingCatalog.length > 0
+                                      ? legacyHealth.samples.ticketsMissingCatalog.map(ticket => ticket.id).join(', ')
+                                      : 'Nenhum.'}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="font-medium text-roman-text-main">Notificações com time legado</div>
+                                  <div>
+                                    {legacyHealth.samples.notificationsLegacy.length > 0
+                                      ? legacyHealth.samples.notificationsLegacy.map(item => item.id).join(', ')
+                                      : 'Nenhuma.'}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="font-medium text-roman-text-main">SLA</div>
+                                  <div>
+                                    {legacyHealth.samples.sla
+                                      ? `rules=${legacyHealth.samples.sla.hasRules ? 'ok' : 'faltando'} • legacyHours=${
+                                          legacyHealth.samples.sla.hasLegacyHours ? 'sim' : 'não'
+                                        }`
+                                      : 'Documento ausente.'}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </>

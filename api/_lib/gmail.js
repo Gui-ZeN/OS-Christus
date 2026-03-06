@@ -145,3 +145,15 @@ export async function gmailGetMessage(messageId) {
     text: extractPlainText(payload),
   };
 }
+
+export async function gmailGetProfile() {
+  const oauth2Client = createOAuthClient();
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const result = await gmail.users.getProfile({ userId: 'me' });
+
+  return {
+    emailAddress: result.data.emailAddress || null,
+    messagesTotal: Number(result.data.messagesTotal || 0),
+    threadsTotal: Number(result.data.threadsTotal || 0),
+  };
+}
