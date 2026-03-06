@@ -3,6 +3,18 @@ import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
+function toDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  if (typeof value === 'object' && value !== null) {
+    const seconds = typeof value._seconds === 'number' ? value._seconds : value.seconds;
+    if (typeof seconds === 'number') return new Date(seconds * 1000);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 async function ensureDefaults(db) {
   const batch = db.batch();
   const now = new Date();
@@ -26,7 +38,7 @@ async function readNotifications(db) {
   const snap = await db.collection('notifications').get();
   return snap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
-    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    .sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
 }
 
 export default async function handler(req, res) {

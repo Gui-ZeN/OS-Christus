@@ -7,6 +7,7 @@ import {
   fetchUsers,
 } from '../services/directoryApi';
 import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
+import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
 import {
   dismissNotificationRemote,
   fetchNotifications,
@@ -109,12 +110,65 @@ const FALLBACK_DIRECTORY_USERS: DirectoryUser[] = [
   { id: 'admin-os-christus', name: 'Administrador OS Christus', role: 'Admin', email: 'admin@os-christus.local', status: 'Ativo', regionIds: [], siteIds: [], active: true },
 ];
 
+function normalizeKey(value: string | null | undefined) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function shouldUseLocalDirectoryFallback() {
+  if (typeof window === 'undefined') return false;
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname);
+}
+
+function resolveTicketSiteIds(ticket: Ticket, sites: CatalogSite[]) {
+  const rawValues = [ticket.siteId, ticket.sede].map(value => normalizeKey(value)).filter(Boolean);
+  const matches = sites
+    .filter(site => rawValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value)))
+    .map(site => site.id);
+
+  if (ticket.siteId && !matches.includes(ticket.siteId)) {
+    matches.push(ticket.siteId);
+  }
+
+  return matches;
+}
+
+function resolveTicketRegionIds(ticket: Ticket, regions: CatalogRegion[], sites: CatalogSite[]) {
+  const rawValues = [ticket.regionId, ticket.region].map(value => normalizeKey(value)).filter(Boolean);
+  const matches = regions
+    .filter(region => rawValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value)))
+    .map(region => region.id);
+
+  const siteRegionIds = resolveTicketSiteIds(ticket, sites)
+    .map(siteId => sites.find(site => site.id === siteId)?.regionId)
+    .filter(Boolean) as string[];
+
+  for (const regionId of siteRegionIds) {
+    if (!matches.includes(regionId)) matches.push(regionId);
+  }
+
+  if (ticket.regionId && !matches.includes(ticket.regionId)) {
+    matches.push(ticket.regionId);
+  }
+
+  return matches;
+}
+
 function getInitialUserEmail() {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem('os-christus-user-email') || '';
 }
 
-function canUserAccessTicket(user: DirectoryUser | null, currentUserEmail: string, ticket: Ticket) {
+function canUserAccessTicket(
+  user: DirectoryUser | null,
+  currentUserEmail: string,
+  ticket: Ticket,
+  regions: CatalogRegion[],
+  sites: CatalogSite[]
+) {
   if (!currentUserEmail) return true;
   if (!user) return false;
   if (user.role === 'Admin' || user.role === 'Diretor') return true;
@@ -122,8 +176,10 @@ function canUserAccessTicket(user: DirectoryUser | null, currentUserEmail: strin
   const regionIds = user.regionIds || [];
   const siteIds = user.siteIds || [];
   if (regionIds.length === 0 && siteIds.length === 0) return false;
-  if (siteIds.includes(ticket.sede)) return true;
-  if (regionIds.includes(ticket.region)) return true;
+  const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
+  const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
+  if (siteIds.some(siteId => ticketSiteIds.includes(siteId))) return true;
+  if (regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
   return false;
 }
 
@@ -132,7 +188,7 @@ async function resolveAuthorizedUser(email: string) {
   try {
     users = await fetchUsers();
   } catch {
-    users = FALLBACK_DIRECTORY_USERS;
+    users = shouldUseLocalDirectoryFallback() ? FALLBACK_DIRECTORY_USERS : [];
   }
 
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
@@ -161,6 +217,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
+  const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
+  const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
 
   useEffect(() => {
     if (!authEnabled) return undefined;
@@ -188,6 +246,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } finally {
         if (!cancelled) {
           setTicketsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await fetchCatalog();
+        if (!cancelled) {
+          setCatalogRegions(catalog.regions);
+          setCatalogSites(catalog.sites);
+        }
+      } catch {
+        if (!cancelled) {
+          setCatalogRegions([]);
+          setCatalogSites([]);
         }
       }
     })();
@@ -253,8 +333,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentUserEmail]);
 
   const tickets = useMemo(
-    () => allTickets.filter(ticket => canUserAccessTicket(currentUser, currentUserEmail, ticket)),
-    [allTickets, currentUser, currentUserEmail]
+    () => allTickets.filter(ticket => canUserAccessTicket(currentUser, currentUserEmail, ticket, catalogRegions, catalogSites)),
+    [allTickets, currentUser, currentUserEmail, catalogRegions, catalogSites]
   );
 
   useEffect(() => {

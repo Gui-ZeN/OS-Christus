@@ -65,6 +65,32 @@ async function upsertAuthUser(user, password) {
   return finalRecord.uid;
 }
 
+async function upsertAuthUserByExistingRecord(user, password, existingAuthUid) {
+  const auth = getAuth();
+
+  if (existingAuthUid) {
+    try {
+      const existingRecord = await auth.getUser(existingAuthUid);
+      const payload = {
+        email: user.email,
+        displayName: user.name,
+        disabled: user.status !== 'Ativo',
+      };
+      const updatePayload = password ? { ...payload, password } : payload;
+      await auth.updateUser(existingRecord.uid, updatePayload);
+      await auth.setCustomUserClaims(existingRecord.uid, {
+        role: mapRoleToClaim(user.role),
+        appRole: user.role,
+      });
+      return existingRecord.uid;
+    } catch (error) {
+      if (error?.code !== 'auth/user-not-found') throw error;
+    }
+  }
+
+  return upsertAuthUser(user, password);
+}
+
 export default async function handler(req, res) {
   try {
     const db = getAdminDb();
@@ -97,7 +123,7 @@ export default async function handler(req, res) {
       const beforeSnap = await docRef.get();
       const before = beforeSnap.exists ? beforeSnap.data() : null;
 
-      const authUid = await upsertAuthUser(user, password);
+      const authUid = await upsertAuthUserByExistingRecord(user, password, before?.authUid || null);
       await docRef.set(
         {
           id,

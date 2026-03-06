@@ -125,6 +125,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       const newId = `OS-${String(nextNum).padStart(4, '0')}`;
       const newToken = `trk_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
       const now = new Date();
+      const selectedRegion = catalogRegions.find(region => region.name === formData.region) || null;
+      const selectedSite = availableSites.find(site => site.code === formData.sede) || null;
       const newTicket: Ticket = {
         id: newId,
         trackingToken: newToken,
@@ -134,7 +136,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         time: now,
         status: TICKET_STATUS.NEW,
         type: formData.type,
+        regionId: selectedRegion?.id,
         region: formData.region,
+        siteId: selectedSite?.id,
         sede: formData.sede,
         sector: formData.sector,
         priority: 'Normal',

@@ -2,6 +2,11 @@ import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
 import { normalizeTicketForStorage, serializeTicketForApi } from './_lib/tickets.js';
 
+function sortTimeValue(value) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
 export default async function handler(req, res) {
   try {
     const db = getAdminDb();
@@ -12,7 +17,7 @@ export default async function handler(req, res) {
       const tickets = snap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .map(serializeTicketForApi)
-        .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time));
       return sendJson(res, 200, { ok: true, tickets });
     }
 

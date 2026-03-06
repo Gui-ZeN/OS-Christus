@@ -35,7 +35,9 @@ export interface Ticket {
   time: Date;
   status: TicketStatus;
   type: string;
+  regionId?: string;
   region: string;
+  siteId?: string;
   sede: string;
   sector: string;
   priority: string;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Mail, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
+import { formatDateTimeSafe } from '../utils/date';
 
 type EmailHealthResponse = {
   ok: boolean;
@@ -26,13 +27,7 @@ type EmailHealthResponse = {
 };
 
 function formatDate(value: unknown) {
-  if (!value) return '-';
-  if (typeof value === 'string') return new Date(value).toLocaleString('pt-BR');
-  if (typeof value === 'object' && value !== null && '_seconds' in value) {
-    const seconds = Number((value as { _seconds?: number })._seconds || 0);
-    return new Date(seconds * 1000).toLocaleString('pt-BR');
-  }
-  return '-';
+  return formatDateTimeSafe(value);
 }
 
 export function EmailHealthView() {
