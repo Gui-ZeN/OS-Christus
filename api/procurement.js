@@ -57,6 +57,18 @@ async function writeContract(db, ticketId, contract, classification) {
       status: String(contract.status || 'pending_signature'),
       viewingBy: contract.viewingBy ? String(contract.viewingBy) : null,
       signedFileName: contract.signedFileName ? String(contract.signedFileName) : null,
+      items: Array.isArray(contract.items)
+        ? contract.items.map(item => ({
+            id: String(item.id || '').trim() || `item-${Date.now()}`,
+            description: String(item.description || '').trim(),
+            materialId: item.materialId ? String(item.materialId).trim() : null,
+            materialName: item.materialName ? String(item.materialName).trim() : null,
+            unit: item.unit ? String(item.unit).trim() : null,
+            quantity: item.quantity != null ? Number(item.quantity) : null,
+            unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
+            totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
+          }))
+        : [],
       classification: contract.classification || classification || null,
       updatedAt: now,
       createdAt: now,

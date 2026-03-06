@@ -33,6 +33,10 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
     status: 'pending_signature',
     viewingBy: 'Diretor Pedro',
     signedFileName: null,
+    items: [
+      { id: 'item-1', description: 'Manutenção preventiva do gerador', unit: 'vb', quantity: 1, unitPrice: 'R$ 6.500,00', totalPrice: 'R$ 6.500,00' },
+      { id: 'item-2', description: 'Substituição de filtros e insumos', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.000,00', totalPrice: 'R$ 2.000,00' },
+    ],
   },
   'OS-0046': {
     id: 'contract-1',
@@ -41,6 +45,10 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
     status: 'pending_signature',
     viewingBy: 'Diretor Pedro',
     signedFileName: null,
+    items: [
+      { id: 'item-1', description: 'Fornecimento e instalação de carpete', unit: 'm²', quantity: 80, unitPrice: 'R$ 120,00', totalPrice: 'R$ 9.600,00' },
+      { id: 'item-2', description: 'Rodapé e acabamento', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.800,00', totalPrice: 'R$ 2.800,00' },
+    ],
   },
 };
 
@@ -124,12 +132,42 @@ export function ApprovalsView() {
           recommended: quote.id === selectedQuote?.id,
           status: quote.id === selectedQuote?.id ? 'approved' : 'rejected',
         }));
+        const approvedQuote = nextQuotes.find(quote => quote.id === selectedQuote?.id);
         try {
           await saveQuotes(id, nextQuotes, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
+          if (approvedQuote) {
+            await saveContract(
+              id,
+              {
+                id: 'contract-1',
+                vendor: approvedQuote.vendor,
+                value: approvedQuote.value,
+                status: 'pending_signature',
+                viewingBy: currentUser?.name || 'Diretoria',
+                signedFileName: null,
+                items: approvedQuote.items || [],
+              },
+              targetTicket ? buildProcurementClassification(targetTicket) : undefined
+            );
+          }
         } catch {
           // Mantem o fluxo local mesmo se a API nao estiver disponivel no ambiente atual.
         }
         setQuotesByTicket(prev => ({ ...prev, [id]: nextQuotes }));
+        if (approvedQuote) {
+          setContractsByTicket(prev => ({
+            ...prev,
+            [id]: {
+              id: 'contract-1',
+              vendor: approvedQuote.vendor,
+              value: approvedQuote.value,
+              status: 'pending_signature',
+              viewingBy: currentUser?.name || 'Diretoria',
+              signedFileName: null,
+              items: approvedQuote.items || [],
+            },
+          }));
+        }
         const winner = selectedQuote?.vendor || 'Fornecedor vencedor';
         setToast(`Automacao: aprovacao enviada para ${winner}.`);
         setTimeout(() => setToast(null), 4000);
@@ -263,6 +301,7 @@ export function ApprovalsView() {
           serviceCatalogName: ticket.serviceCatalogName ?? null,
           value: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.value ?? 'A confirmar',
           vendor: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.vendor ?? 'A confirmar',
+          items: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.items ?? [],
           viewingBy: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.viewingBy ?? ticket.viewingBy?.name ?? null,
         })),
     [contractsByTicket, tickets]
@@ -541,6 +580,20 @@ export function ApprovalsView() {
                         {contract.serviceCatalogName}
                       </span>
                     )}
+                  </div>
+                )}
+                {contract.items && contract.items.length > 0 && (
+                  <div className="mb-4 rounded-sm border border-stone-300 bg-white/60 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-widest text-stone-500 mb-2">Escopo contratado</div>
+                    <div className="space-y-1">
+                      {contract.items.slice(0, 4).map(item => (
+                        <div key={item.id} className="flex items-start justify-between gap-3 text-[11px] text-stone-700">
+                          <span className="truncate">{item.description || item.materialName || 'Item sem descrição'}</span>
+                          <span className="shrink-0">{item.totalPrice || item.unitPrice || '-'}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 text-[11px] text-stone-500">{contract.items.length} item(ns) vinculados ao contrato</div>
                   </div>
                 )}
                 <button onClick={() => openAttachment(`Minuta: ${contract.vendor}`, 'pdf')} className="flex items-center gap-2 text-stone-800 hover:underline text-sm font-medium">

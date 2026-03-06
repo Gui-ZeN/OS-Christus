@@ -592,6 +592,28 @@ export function FinanceView() {
                       </div>
                     </section>
 
+                    {contract?.items && contract.items.length > 0 && (
+                      <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
+                        <div className="mb-3">
+                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><FileText size={15} /> Escopo contratado</h4>
+                          <p className="text-xs text-roman-text-sub mt-1">Itens aprovados na cotação vencedora e refletidos no contrato.</p>
+                        </div>
+                        <div className="space-y-2">
+                          {contract.items.map(item => (
+                            <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-medium text-roman-text-main">{item.description || item.materialName || 'Item sem descrição'}</div>
+                                <div className="text-xs text-roman-text-sub">
+                                  {(item.quantity ?? '-')}{item.unit ? ` ${item.unit}` : ''} | unitário {item.unitPrice || '-'}
+                                </div>
+                              </div>
+                              <div className="text-sm font-serif text-roman-text-main">{item.totalPrice || item.unitPrice || '-'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
                     <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
                       <div className="flex items-center justify-between mb-3">
                         <div>

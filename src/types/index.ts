@@ -115,6 +115,7 @@ export interface ContractRecord {
   status: string;
   viewingBy?: string | null;
   signedFileName?: string | null;
+  items?: QuoteItem[];
   classification?: ProcurementClassificationSnapshot;
 }
 

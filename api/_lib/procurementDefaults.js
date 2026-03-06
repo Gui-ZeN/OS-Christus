@@ -43,6 +43,10 @@ export const DEFAULT_CONTRACTS = {
     value: 'R$ 8.500,00',
     status: 'pending_signature',
     viewingBy: 'Diretor Pedro',
+    items: [
+      { id: 'item-1', description: 'Manutenção preventiva do gerador', unit: 'vb', quantity: 1, unitPrice: 'R$ 6.500,00', totalPrice: 'R$ 6.500,00' },
+      { id: 'item-2', description: 'Substituição de filtros e insumos', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.000,00', totalPrice: 'R$ 2.000,00' },
+    ],
   },
 };
 
