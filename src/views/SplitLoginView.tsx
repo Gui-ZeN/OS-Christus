@@ -11,8 +11,8 @@ interface SplitLoginViewProps {
 export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = false }: SplitLoginViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('rafael@empresa.com');
-  const [loginPassword, setLoginPassword] = useState('12345678');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {

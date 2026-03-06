@@ -99,14 +99,6 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
 ];
 
 const FALLBACK_DIRECTORY_USERS: DirectoryUser[] = [
-  { id: 'rafael', name: 'Rafael', role: 'Admin', email: 'rafael@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'leonardo', name: 'Leonardo', role: 'Diretor', email: 'leonardo@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'murilo', name: 'Murilo', role: 'Diretor', email: 'murilo@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'pedro', name: 'Pedro', role: 'Diretor', email: 'pedro@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'fernando', name: 'Fernando', role: 'Supervisor', email: 'fernando@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'geovana', name: 'Geovana', role: 'Admin', email: 'geovana@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'equipe-climatizacao', name: 'Equipe Climatizacao', role: 'Usuario', email: 'clima@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'eletrica-jose', name: 'Eletrica Jose', role: 'Usuario', email: 'contato@eletricajose.com.br', status: 'Inativo', regionIds: [], siteIds: [], active: true },
   { id: 'admin-os-christus', name: 'Administrador OS Christus', role: 'Admin', email: 'admin@os-christus.local', status: 'Ativo', regionIds: [], siteIds: [], active: true },
 ];
 
