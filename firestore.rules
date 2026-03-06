@@ -5,34 +5,90 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function hasRole(role) {
+      return isAuthenticated() && request.auth.token.role == role;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.role == "admin";
+      return hasRole('admin');
     }
 
     function isManager() {
-      return isAuthenticated() && request.auth.token.role in ["admin", "gestor"];
+      return isAuthenticated() && request.auth.token.role in ['admin', 'gestor'];
     }
 
-    // Configurações internas: leitura por usuários logados, escrita só admin.
+    // O app usa APIs serverless como canal principal para dados de negócio.
+    // No cliente Firebase direto, só liberamos o mínimo necessário.
+
+    // Configurações de sincronismo e controles internos.
     match /config/{docId} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
-    // Presença de visualização de ticket em tempo real.
+    // Presença em tempo real de quem está visualizando um ticket.
     match /ticketPresence/{ticketId}/viewers/{viewerId} {
       allow read: if isManager();
       allow create, update: if isAuthenticated() && request.auth.uid == viewerId;
       allow delete: if isAuthenticated() && (request.auth.uid == viewerId || isManager());
     }
 
-    // Metadados de anexos.
+    // Metadados de anexos, se o cliente vier a consultar isso diretamente.
     match /ticketAttachments/{attachmentId} {
       allow read: if isManager();
       allow create, update, delete: if isManager();
     }
 
-    // Fallback: bloquear tudo que não foi explicitamente liberado.
+    // Diretório interno não é exposto diretamente ao cliente.
+    match /users/{docId} {
+      allow read, write: if false;
+    }
+
+    match /teams/{docId} {
+      allow read, write: if false;
+    }
+
+    match /vendors/{docId} {
+      allow read, write: if false;
+    }
+
+    match /tickets/{docId} {
+      allow read, write: if false;
+    }
+
+    match /notifications/{docId} {
+      allow read, write: if false;
+    }
+
+    match /settings/{docId} {
+      allow read, write: if false;
+    }
+
+    match /auditLogs/{docId} {
+      allow read, write: if false;
+    }
+
+    match /emailEvents/{docId} {
+      allow read, write: if false;
+    }
+
+    match /emailThreads/{docId} {
+      allow read, write: if false;
+    }
+
+    match /ticketInbound/{docId} {
+      allow read, write: if false;
+    }
+
+    match /regions/{docId} {
+      allow read, write: if false;
+    }
+
+    match /sites/{docId} {
+      allow read, write: if false;
+    }
+
+    // Fallback global.
     match /{document=**} {
       allow read, write: if false;
     }

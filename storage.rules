@@ -5,8 +5,8 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isAdminOrManager() {
-      return isAuthenticated() && request.auth.token.role in ["admin", "gestor"];
+    function isManager() {
+      return isAuthenticated() && request.auth.token.role in ['admin', 'gestor'];
     }
 
     function isValidImage() {
@@ -21,28 +21,26 @@ service firebase.storage {
         && request.resource.contentType == 'application/pdf';
     }
 
-    // Imagens anexadas aos tickets.
+    // O upload/download público não é permitido. Tudo passa por usuário logado.
+
     match /attachments/tickets/images/{ticketId}/{fileName} {
-      allow read: if isAdminOrManager();
-      allow write: if isAdminOrManager() && isValidImage();
+      allow read: if isManager();
+      allow write: if isManager() && isValidImage();
     }
 
-    // PDFs anexados aos tickets.
     match /attachments/tickets/pdfs/{ticketId}/{fileName} {
-      allow read: if isAdminOrManager();
-      allow write: if isAdminOrManager() && isValidPdf();
+      allow read: if isManager();
+      allow write: if isManager() && isValidPdf();
     }
 
-    // Contratos assinados.
     match /attachments/contracts/{ticketId}/{fileName} {
-      allow read: if isAdminOrManager();
-      allow write: if isAdminOrManager() && isValidPdf();
+      allow read: if isManager();
+      allow write: if isManager() && isValidPdf();
     }
 
-    // Cotações e documentos de fornecedores.
     match /attachments/quotes/{ticketId}/{fileName} {
-      allow read: if isAdminOrManager();
-      allow write: if isAdminOrManager() && (isValidPdf() || isValidImage());
+      allow read: if isManager();
+      allow write: if isManager() && (isValidPdf() || isValidImage());
     }
 
     match /{allPaths=**} {
