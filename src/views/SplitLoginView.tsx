@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, Landmark, Loader2, Lock } from 'lucide-react';
 
 interface SplitLoginViewProps {
@@ -67,7 +67,12 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
         <p className="text-center text-roman-text-sub font-serif italic mb-8">Painel de Gestão e Triagem</p>
 
         <div className="space-y-5">
-          {error && <div className="border border-red-200 bg-red-50 text-red-700 rounded-sm px-4 py-3 text-sm">{error}</div>}
+          {error && (
+            <div className="border border-red-200 bg-red-50 text-red-800 rounded-sm px-4 py-4 text-sm">
+              <div className="font-semibold text-red-900 mb-1">N?o foi poss?vel entrar</div>
+              <div>{error}</div>
+            </div>
+          )}
           <div>
             <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">
               Identificação (E-mail)
@@ -119,3 +124,4 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
     </div>
   );
 }
+

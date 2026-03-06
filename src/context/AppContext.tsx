@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+﻿import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { subDays, subHours } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { MOCK_TICKETS } from '../data/mockTickets';
@@ -540,7 +540,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogleAccount = async () => {
     if (!authEnabled) {
-      throw new Error('Login com Google indisponível sem Firebase configurado.');
+      throw new Error('Login com Google indisponível neste ambiente. A autenticação Firebase ainda não foi configurada no frontend.');
     }
 
     try {
@@ -635,3 +635,4 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
+
