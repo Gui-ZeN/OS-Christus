@@ -30,3 +30,103 @@ export const DEFAULT_SITES = [
   { id: 'bn-uni', code: 'BN', name: 'Benfica (BN)', regionId: 'universidade', active: true },
   { id: 'ald', code: 'ALD', name: 'Aldeota (ALD)', regionId: 'universidade', active: true },
 ];
+
+export const DEFAULT_MACRO_SERVICES = [
+  { id: 'estrutura-civil', code: 'EST', name: 'Estrutura Civil', active: true },
+  { id: 'coberta-fachada', code: 'COB', name: 'Coberta e Fachada', active: true },
+  { id: 'hidraulica', code: 'HID', name: 'Hidráulica', active: true },
+  { id: 'eletrica', code: 'ELE', name: 'Elétrica', active: true },
+  { id: 'climatizacao', code: 'CLI', name: 'Climatização', active: true },
+  { id: 'acabamento-divisorias', code: 'ACA', name: 'Acabamentos e Divisórias', active: true },
+  { id: 'paisagismo-poda', code: 'PAI', name: 'Paisagismo e Poda', active: true },
+];
+
+export const DEFAULT_MATERIALS = [
+  { id: 'tinta-acrilica', code: 'MAT-001', name: 'Tinta acrílica', unit: 'lata', active: true },
+  { id: 'abrasivo', code: 'MAT-002', name: 'Abrasivo / lixa', unit: 'un', active: true },
+  { id: 'massa-corrida', code: 'MAT-003', name: 'Massa corrida', unit: 'balde', active: true },
+  { id: 'telha-metalica', code: 'MAT-004', name: 'Telha metálica', unit: 'm²', active: true },
+  { id: 'parafuso-estrutura', code: 'MAT-005', name: 'Parafusos para estrutura', unit: 'cx', active: true },
+  { id: 'tubo-pvc', code: 'MAT-006', name: 'Tubo PVC', unit: 'barra', active: true },
+  { id: 'registro-hidraulico', code: 'MAT-007', name: 'Registro hidráulico', unit: 'un', active: true },
+  { id: 'luminaria-led', code: 'MAT-008', name: 'Luminária LED', unit: 'un', active: true },
+  { id: 'fio-cabo', code: 'MAT-009', name: 'Cabo elétrico', unit: 'rolo', active: true },
+  { id: 'gesso-acartonado', code: 'MAT-010', name: 'Gesso acartonado', unit: 'chapa', active: true },
+  { id: 'divisoria-drywall', code: 'MAT-011', name: 'Divisória drywall', unit: 'm²', active: true },
+  { id: 'split-12000', code: 'MAT-012', name: 'Split 12.000 BTUs', unit: 'un', active: true },
+];
+
+export const DEFAULT_SERVICE_CATALOG = [
+  {
+    id: 'pintura-fachada',
+    code: 'SRV-001',
+    macroServiceId: 'coberta-fachada',
+    name: 'Pintura de fachada',
+    suggestedMaterialIds: ['tinta-acrilica', 'abrasivo', 'massa-corrida'],
+    active: true,
+  },
+  {
+    id: 'recuperacao-coberta',
+    code: 'SRV-002',
+    macroServiceId: 'coberta-fachada',
+    name: 'Recuperação de coberta',
+    suggestedMaterialIds: ['telha-metalica', 'parafuso-estrutura'],
+    active: true,
+  },
+  {
+    id: 'forro-pvc',
+    code: 'SRV-003',
+    macroServiceId: 'acabamento-divisorias',
+    name: 'Instalação ou troca de forro PVC',
+    suggestedMaterialIds: ['gesso-acartonado'],
+    active: true,
+  },
+  {
+    id: 'divisoria-drywall',
+    code: 'SRV-004',
+    macroServiceId: 'acabamento-divisorias',
+    name: 'Instalação de divisória drywall',
+    suggestedMaterialIds: ['divisoria-drywall', 'gesso-acartonado'],
+    active: true,
+  },
+  {
+    id: 'correcao-vazamento',
+    code: 'SRV-005',
+    macroServiceId: 'hidraulica',
+    name: 'Correção de vazamento',
+    suggestedMaterialIds: ['tubo-pvc', 'registro-hidraulico'],
+    active: true,
+  },
+  {
+    id: 'troca-luminarias',
+    code: 'SRV-006',
+    macroServiceId: 'eletrica',
+    name: 'Troca de luminárias',
+    suggestedMaterialIds: ['luminaria-led', 'fio-cabo'],
+    active: true,
+  },
+  {
+    id: 'instalacao-split',
+    code: 'SRV-007',
+    macroServiceId: 'climatizacao',
+    name: 'Instalação de ar-condicionado split',
+    suggestedMaterialIds: ['split-12000', 'fio-cabo'],
+    active: true,
+  },
+  {
+    id: 'poda-arvore',
+    code: 'SRV-008',
+    macroServiceId: 'paisagismo-poda',
+    name: 'Poda de árvore',
+    suggestedMaterialIds: [],
+    active: true,
+  },
+  {
+    id: 'reforco-estrutural',
+    code: 'SRV-009',
+    macroServiceId: 'estrutura-civil',
+    name: 'Reforço estrutural',
+    suggestedMaterialIds: ['parafuso-estrutura'],
+    active: true,
+  },
+];

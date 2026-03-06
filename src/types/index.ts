@@ -68,6 +68,10 @@ export interface Ticket {
   time: Date;
   status: TicketStatus;
   type: string;
+  macroServiceId?: string;
+  macroServiceName?: string;
+  serviceCatalogId?: string;
+  serviceCatalogName?: string;
   regionId?: string;
   region: string;
   siteId?: string;

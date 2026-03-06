@@ -64,7 +64,17 @@ function normalizeText(value: string) {
 }
 
 function extractKeywords(ticket: Ticket) {
-  const source = normalizeText([ticket.type, ticket.subject, ticket.sector].filter(Boolean).join(' '));
+  const source = normalizeText(
+    [
+      ticket.type,
+      ticket.subject,
+      ticket.sector,
+      ticket.macroServiceName,
+      ticket.serviceCatalogName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
   return Array.from(
     new Set(
       source
@@ -136,6 +146,12 @@ export function buildBudgetHistorySummary(
       const candidateKeywords = extractKeywords(ticket);
       const sharedTerms = candidateKeywords.filter(term => currentKeywordSet.has(term));
       const sameType = normalizeText(ticket.type) === normalizeText(currentTicket.type);
+      const sameMacroService =
+        (ticket.macroServiceId && currentTicket.macroServiceId && ticket.macroServiceId === currentTicket.macroServiceId) ||
+        normalizeText(ticket.macroServiceName || '') === normalizeText(currentTicket.macroServiceName || '');
+      const sameService =
+        (ticket.serviceCatalogId && currentTicket.serviceCatalogId && ticket.serviceCatalogId === currentTicket.serviceCatalogId) ||
+        normalizeText(ticket.serviceCatalogName || '') === normalizeText(currentTicket.serviceCatalogName || '');
       const sameSector = normalizeText(ticket.sector) === normalizeText(currentTicket.sector);
       const sameRegion =
         (ticket.regionId && currentTicket.regionId && ticket.regionId === currentTicket.regionId) ||
@@ -146,6 +162,8 @@ export function buildBudgetHistorySummary(
       const score =
         sharedTerms.length +
         (sameType ? 3 : 0) +
+        (sameMacroService ? 4 : 0) +
+        (sameService ? 5 : 0) +
         (sameSector ? 2 : 0) +
         (sameRegion ? 1 : 0) +
         (sameSite ? 1 : 0);

@@ -4,7 +4,14 @@ import { useApp } from '../context/AppContext';
 import { Ticket, HistoryItem } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketCreated } from '../services/ticketEmail';
-import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
+import {
+  CatalogMacroService,
+  CatalogMaterial,
+  CatalogRegion,
+  CatalogServiceItem,
+  CatalogSite,
+  fetchCatalog,
+} from '../services/catalogApi';
 
 interface PublicFormViewProps {
   onBack: () => void;
@@ -43,6 +50,37 @@ const FALLBACK_SITES: CatalogSite[] = [
   { id: 'ald', code: 'ALD', name: 'Aldeota (ALD)', regionId: 'universidade' },
 ];
 
+const FALLBACK_MACRO_SERVICES: CatalogMacroService[] = [
+  { id: 'estrutura-civil', code: 'EST', name: 'Estrutura Civil' },
+  { id: 'coberta-fachada', code: 'COB', name: 'Coberta e Fachada' },
+  { id: 'hidraulica', code: 'HID', name: 'Hidráulica' },
+  { id: 'eletrica', code: 'ELE', name: 'Elétrica' },
+  { id: 'climatizacao', code: 'CLI', name: 'Climatização' },
+  { id: 'acabamento-divisorias', code: 'ACA', name: 'Acabamentos e Divisórias' },
+  { id: 'paisagismo-poda', code: 'PAI', name: 'Paisagismo e Poda' },
+];
+
+const FALLBACK_MATERIALS: CatalogMaterial[] = [
+  { id: 'tinta-acrilica', code: 'MAT-001', name: 'Tinta acrílica', unit: 'lata' },
+  { id: 'abrasivo', code: 'MAT-002', name: 'Abrasivo / lixa', unit: 'un' },
+  { id: 'massa-corrida', code: 'MAT-003', name: 'Massa corrida', unit: 'balde' },
+  { id: 'telha-metalica', code: 'MAT-004', name: 'Telha metálica', unit: 'm²' },
+  { id: 'tubo-pvc', code: 'MAT-006', name: 'Tubo PVC', unit: 'barra' },
+  { id: 'luminaria-led', code: 'MAT-008', name: 'Luminária LED', unit: 'un' },
+  { id: 'split-12000', code: 'MAT-012', name: 'Split 12.000 BTUs', unit: 'un' },
+];
+
+const FALLBACK_SERVICE_CATALOG: CatalogServiceItem[] = [
+  { id: 'pintura-fachada', code: 'SRV-001', macroServiceId: 'coberta-fachada', name: 'Pintura de fachada', suggestedMaterialIds: ['tinta-acrilica', 'abrasivo', 'massa-corrida'] },
+  { id: 'recuperacao-coberta', code: 'SRV-002', macroServiceId: 'coberta-fachada', name: 'Recuperação de coberta', suggestedMaterialIds: ['telha-metalica'] },
+  { id: 'forro-pvc', code: 'SRV-003', macroServiceId: 'acabamento-divisorias', name: 'Instalação ou troca de forro PVC', suggestedMaterialIds: ['massa-corrida'] },
+  { id: 'divisoria-drywall', code: 'SRV-004', macroServiceId: 'acabamento-divisorias', name: 'Instalação de divisória drywall', suggestedMaterialIds: [] },
+  { id: 'correcao-vazamento', code: 'SRV-005', macroServiceId: 'hidraulica', name: 'Correção de vazamento', suggestedMaterialIds: ['tubo-pvc'] },
+  { id: 'troca-luminarias', code: 'SRV-006', macroServiceId: 'eletrica', name: 'Troca de luminárias', suggestedMaterialIds: ['luminaria-led'] },
+  { id: 'instalacao-split', code: 'SRV-007', macroServiceId: 'climatizacao', name: 'Instalação de ar-condicionado split', suggestedMaterialIds: ['split-12000'] },
+  { id: 'poda-arvore', code: 'SRV-008', macroServiceId: 'paisagismo-poda', name: 'Poda de árvore', suggestedMaterialIds: [] },
+];
+
 export function PublicFormView({ onBack }: PublicFormViewProps) {
   const { tickets, addTicket } = useApp();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -56,6 +94,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     subject: '',
     description: '',
     type: '',
+    macroServiceId: '',
+    serviceCatalogId: '',
     sector: '',
     region: '',
     sede: '',
@@ -65,6 +105,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
+  const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
+  const [catalogServiceItems, setCatalogServiceItems] = useState<CatalogServiceItem[]>([]);
+  const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,11 +117,17 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         if (!cancelled) {
           setCatalogRegions(catalog.regions);
           setCatalogSites(catalog.sites);
+          setCatalogMacroServices(catalog.macroServices);
+          setCatalogServiceItems(catalog.serviceCatalog);
+          setCatalogMaterials(catalog.materials);
         }
       } catch {
         if (!cancelled) {
           setCatalogRegions(FALLBACK_REGIONS);
           setCatalogSites(FALLBACK_SITES);
+          setCatalogMacroServices(FALLBACK_MACRO_SERVICES);
+          setCatalogServiceItems(FALLBACK_SERVICE_CATALOG);
+          setCatalogMaterials(FALLBACK_MATERIALS);
         }
       }
     })();
@@ -98,6 +147,28 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     return catalogSites.filter(site => site.regionId === selectedRegion.id);
   }, [catalogSites, selectedRegion]);
 
+  const availableServiceItems = useMemo(() => {
+    if (!formData.macroServiceId) return [];
+    return catalogServiceItems.filter(item => item.macroServiceId === formData.macroServiceId);
+  }, [catalogServiceItems, formData.macroServiceId]);
+
+  const selectedMacroService = useMemo(
+    () => catalogMacroServices.find(item => item.id === formData.macroServiceId) || null,
+    [catalogMacroServices, formData.macroServiceId]
+  );
+
+  const selectedServiceItem = useMemo(
+    () => catalogServiceItems.find(item => item.id === formData.serviceCatalogId) || null,
+    [catalogServiceItems, formData.serviceCatalogId]
+  );
+
+  const suggestedMaterials = useMemo(() => {
+    if (!selectedServiceItem?.suggestedMaterialIds?.length) return [];
+    return selectedServiceItem.suggestedMaterialIds
+      .map(materialId => catalogMaterials.find(material => material.id === materialId))
+      .filter((value): value is CatalogMaterial => Boolean(value));
+  }, [catalogMaterials, selectedServiceItem]);
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório';
@@ -106,6 +177,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!formData.subject.trim()) newErrors.subject = 'Assunto é obrigatório';
     if (!formData.description.trim()) newErrors.description = 'Descrição é obrigatória';
     if (!formData.type) newErrors.type = 'Selecione o tipo';
+    if (!formData.macroServiceId) newErrors.macroServiceId = 'Selecione o macroserviço';
+    if (!formData.serviceCatalogId) newErrors.serviceCatalogId = 'Selecione o serviço';
     if (!formData.sector.trim()) newErrors.sector = 'Setor é obrigatório';
     if (!formData.region) newErrors.region = 'Selecione a região';
     if (!formData.sede) newErrors.sede = 'Selecione a sede';
@@ -136,6 +209,10 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         time: now,
         status: TICKET_STATUS.NEW,
         type: formData.type,
+        macroServiceId: selectedMacroService?.id,
+        macroServiceName: selectedMacroService?.name,
+        serviceCatalogId: selectedServiceItem?.id,
+        serviceCatalogName: selectedServiceItem?.name,
         regionId: selectedRegion?.id,
         region: formData.region,
         siteId: selectedSite?.id,
@@ -153,7 +230,18 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       setCreatedToken(newToken);
       setIsSubmitting(false);
       setIsSubmitted(true);
-      setFormData({ name: '', email: '', subject: '', description: '', type: '', sector: '', region: '', sede: '' });
+      setFormData({
+        name: '',
+        email: '',
+        subject: '',
+        description: '',
+        type: '',
+        macroServiceId: '',
+        serviceCatalogId: '',
+        sector: '',
+        region: '',
+        sede: '',
+      });
       setFiles([]);
     }, 2000);
   };
@@ -163,6 +251,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     setFormData(prev => {
       if (name === 'region') {
         return { ...prev, region: value, sede: '' };
+      }
+      if (name === 'macroServiceId') {
+        return { ...prev, macroServiceId: value, serviceCatalogId: '' };
       }
       return { ...prev, [name]: value };
     });
@@ -313,6 +404,37 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.type && <span className="text-xs text-red-500 mt-1 block">{errors.type}</span>}
                 </div>
                 <div>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço</label>
+                  <select
+                    name="macroServiceId"
+                    value={formData.macroServiceId}
+                    onChange={handleInputChange}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.macroServiceId ? 'border-red-500' : 'border-roman-border'}`}
+                  >
+                    <option value="">Selecione...</option>
+                    {catalogMacroServices.map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                  {errors.macroServiceId && <span className="text-xs text-red-500 mt-1 block">{errors.macroServiceId}</span>}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço</label>
+                  <select
+                    name="serviceCatalogId"
+                    value={formData.serviceCatalogId}
+                    onChange={handleInputChange}
+                    disabled={!formData.macroServiceId}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.serviceCatalogId ? 'border-red-500' : 'border-roman-border'}`}
+                  >
+                    <option value="">Selecione...</option>
+                    {availableServiceItems.map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                  {errors.serviceCatalogId && <span className="text-xs text-red-500 mt-1 block">{errors.serviceCatalogId}</span>}
+                </div>
+                <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor / Local exato</label>
                   <input
                     type="text"
@@ -323,6 +445,26 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.sector && <span className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Materiais de referência</label>
+                  <div className="min-h-11 w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] text-roman-text-main">
+                    {selectedServiceItem ? (
+                      suggestedMaterials.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedMaterials.map(material => (
+                            <span key={material.id} className="rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-2 py-1 text-xs font-medium text-roman-primary">
+                              {material.name}{material.unit ? ` · ${material.unit}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-roman-text-sub">Este serviço ainda não tem materiais sugeridos cadastrados.</span>
+                      )
+                    ) : (
+                      <span className="text-roman-text-sub">Selecione um serviço para ver materiais de apoio e padronização.</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>

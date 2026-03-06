@@ -1186,6 +1186,8 @@ export function InboxView() {
               </div>
 
               <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
+              {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
+              {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
               <PropertyField label="Região" value={activeTicket.region} />
               <PropertyField label="Sede" value={activeTicket.sede} />
               <PropertyField label="Setor" value={activeTicket.sector} />
