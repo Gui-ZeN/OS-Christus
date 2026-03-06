@@ -5,9 +5,10 @@ import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { InboxFilter, HistoryItem, PreliminaryActions, Quote, Ticket } from '../types';
+import { InboxFilter, HistoryItem, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
+import { CatalogMaterial, CatalogServiceItem, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -28,6 +29,30 @@ const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'refrigeracao', name: 'Refrigeracao', type: 'internal' },
   { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external' },
 ];
+
+const FALLBACK_CATALOG_MATERIALS: CatalogMaterial[] = [
+  { id: 'tinta-acrilica', code: 'MAT-001', name: 'Tinta acrílica', unit: 'lata' },
+  { id: 'abrasivo', code: 'MAT-002', name: 'Abrasivo / lixa', unit: 'un' },
+  { id: 'massa-corrida', code: 'MAT-003', name: 'Massa corrida', unit: 'balde' },
+  { id: 'telha-metalica', code: 'MAT-004', name: 'Telha metálica', unit: 'm²' },
+  { id: 'tubo-pvc', code: 'MAT-006', name: 'Tubo PVC', unit: 'barra' },
+  { id: 'luminaria-led', code: 'MAT-008', name: 'Luminária LED', unit: 'un' },
+  { id: 'split-12000', code: 'MAT-012', name: 'Split 12.000 BTUs', unit: 'un' },
+];
+
+const FALLBACK_SERVICE_CATALOG: CatalogServiceItem[] = [
+  { id: 'pintura-fachada', code: 'SRV-001', macroServiceId: 'coberta-fachada', name: 'Pintura de fachada', suggestedMaterialIds: ['tinta-acrilica', 'abrasivo', 'massa-corrida'] },
+  { id: 'recuperacao-coberta', code: 'SRV-002', macroServiceId: 'coberta-fachada', name: 'Recuperação de coberta', suggestedMaterialIds: ['telha-metalica'] },
+  { id: 'correcao-vazamento', code: 'SRV-005', macroServiceId: 'hidraulica', name: 'Correção de vazamento', suggestedMaterialIds: ['tubo-pvc'] },
+  { id: 'troca-luminarias', code: 'SRV-006', macroServiceId: 'eletrica', name: 'Troca de luminárias', suggestedMaterialIds: ['luminaria-led'] },
+  { id: 'instalacao-split', code: 'SRV-007', macroServiceId: 'climatizacao', name: 'Instalação de ar-condicionado split', suggestedMaterialIds: ['split-12000'] },
+];
+
+type QuoteDraft = {
+  vendor: string;
+  value: string;
+  items: QuoteItem[];
+};
 
 const EMPTY_TICKET: Ticket = {
   id: '',
@@ -116,6 +141,44 @@ function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
   return parts.join(' | ');
 }
 
+function createEmptyQuoteItem(defaultDescription = '', defaultUnit = ''): QuoteItem {
+  return {
+    id: crypto.randomUUID(),
+    description: defaultDescription,
+    materialId: null,
+    materialName: null,
+    unit: defaultUnit || null,
+    quantity: null,
+    unitPrice: null,
+    totalPrice: null,
+  };
+}
+
+function createEmptyQuoteDraft(): QuoteDraft {
+  return {
+    vendor: '',
+    value: '',
+    items: [createEmptyQuoteItem()],
+  };
+}
+
+function parseCurrencyInput(value: string) {
+  const normalized = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrencyInput(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+  }).format(value);
+}
+
 // Z7: Renders a filter section with checkboxes for a given dimension
 function renderFilterSection(
   label: string,
@@ -176,6 +239,8 @@ export function InboxView() {
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
   const [teams, setTeams] = useState<DirectoryTeam[]>(FALLBACK_TEAMS);
+  const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>(FALLBACK_CATALOG_MATERIALS);
+  const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>(FALLBACK_SERVICE_CATALOG);
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -210,6 +275,28 @@ export function InboxView() {
       } catch {
         if (!cancelled) {
           setTeams(FALLBACK_TEAMS);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await fetchCatalog();
+        if (!cancelled) {
+          setCatalogMaterials(catalog.materials);
+          setServiceCatalog(catalog.serviceCatalog);
+        }
+      } catch {
+        if (!cancelled) {
+          setCatalogMaterials(FALLBACK_CATALOG_MATERIALS);
+          setServiceCatalog(FALLBACK_SERVICE_CATALOG);
         }
       }
     })();
@@ -474,21 +561,34 @@ export function InboxView() {
   const filterMenuRef = useClickOutside<HTMLDivElement>(() => setShowFilterMenu(false));
   const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
-  const [quotes, setQuotes] = useState([
-    { vendor: '', value: '' },
-    { vendor: '', value: '' },
-    { vendor: '', value: '' },
+  const [quotes, setQuotes] = useState<QuoteDraft[]>([
+    createEmptyQuoteDraft(),
+    createEmptyQuoteDraft(),
+    createEmptyQuoteDraft(),
   ]);
 
   // Reseta cotações ao trocar de ticket
   useEffect(() => {
     const currentQuotes = storedQuotesByTicket[activeTicketId] || [];
-    const fallbackQuotes = [{ vendor: '', value: '' }, { vendor: '', value: '' }, { vendor: '', value: '' }];
+    const fallbackQuotes = [createEmptyQuoteDraft(), createEmptyQuoteDraft(), createEmptyQuoteDraft()];
     const nextQuotes =
       currentQuotes.length > 0
         ? [0, 1, 2].map(index => ({
             vendor: currentQuotes[index]?.vendor || '',
             value: currentQuotes[index]?.value || '',
+            items:
+              currentQuotes[index]?.items?.length
+                ? currentQuotes[index].items!.map(item => ({
+                    id: item.id || crypto.randomUUID(),
+                    description: item.description || '',
+                    materialId: item.materialId || null,
+                    materialName: item.materialName || null,
+                    unit: item.unit || null,
+                    quantity: item.quantity ?? null,
+                    unitPrice: item.unitPrice || null,
+                    totalPrice: item.totalPrice || null,
+                  }))
+                : [createEmptyQuoteItem()],
           }))
         : fallbackQuotes;
     setQuotes(nextQuotes);
@@ -514,6 +614,14 @@ export function InboxView() {
     () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket),
     [activeTicket, tickets, storedQuotesByTicket]
   );
+
+  const suggestedQuoteMaterials = useMemo(() => {
+    const service = serviceCatalog.find(item => item.id === activeTicket.serviceCatalogId);
+    if (!service?.suggestedMaterialIds?.length) return [];
+    return service.suggestedMaterialIds
+      .map(materialId => catalogMaterials.find(material => material.id === materialId))
+      .filter((value): value is CatalogMaterial => Boolean(value));
+  }, [activeTicket.serviceCatalogId, catalogMaterials, serviceCatalog]);
 
   const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setReplyFiles(Array.from(e.target.files));
@@ -551,6 +659,65 @@ export function InboxView() {
     const newQuotes = [...quotes];
     newQuotes[index][field] = value;
     setQuotes(newQuotes);
+  };
+
+  const recalculateQuoteValue = (draft: QuoteDraft) => {
+    const computedTotal = draft.items.reduce((sum, item) => {
+      const totalPrice = item.totalPrice ? parseCurrencyInput(item.totalPrice) : 0;
+      if (totalPrice > 0) return sum + totalPrice;
+      const quantity = item.quantity ?? 0;
+      const unitPrice = item.unitPrice ? parseCurrencyInput(item.unitPrice) : 0;
+      return sum + quantity * unitPrice;
+    }, 0);
+
+    return {
+      ...draft,
+      value: computedTotal > 0 ? formatCurrencyInput(computedTotal) : draft.value,
+    };
+  };
+
+  const handleQuoteItemChange = (quoteIndex: number, itemId: string, field: keyof QuoteItem, value: string | number | null) => {
+    setQuotes(current =>
+      current.map((quote, index) => {
+        if (index !== quoteIndex) return quote;
+        const items = quote.items.map(item => {
+          if (item.id !== itemId) return item;
+          const nextItem: QuoteItem = { ...item, [field]: value as never };
+          if (field === 'materialId') {
+            const material = catalogMaterials.find(entry => entry.id === value);
+            nextItem.materialId = material?.id || null;
+            nextItem.materialName = material?.name || null;
+            nextItem.unit = material?.unit || item.unit || null;
+            if (!nextItem.description) {
+              nextItem.description = material?.name || '';
+            }
+          }
+          return nextItem;
+        });
+        return recalculateQuoteValue({ ...quote, items });
+      })
+    );
+  };
+
+  const handleAddQuoteItem = (quoteIndex: number) => {
+    setQuotes(current =>
+      current.map((quote, index) =>
+        index === quoteIndex ? { ...quote, items: [...quote.items, createEmptyQuoteItem(activeTicket.serviceCatalogName || '', suggestedQuoteMaterials[0]?.unit || '')] } : quote
+      )
+    );
+  };
+
+  const handleRemoveQuoteItem = (quoteIndex: number, itemId: string) => {
+    setQuotes(current =>
+      current.map((quote, index) => {
+        if (index !== quoteIndex) return quote;
+        const remaining = quote.items.filter(item => item.id !== itemId);
+        return recalculateQuoteValue({
+          ...quote,
+          items: remaining.length > 0 ? remaining : [createEmptyQuoteItem()],
+        });
+      })
+    );
   };
 
   const handleQuoteAttachmentChange = (index: number, file: File | null) => {
@@ -591,6 +758,16 @@ export function InboxView() {
         recommended: index === 0,
         status: 'pending',
         attachmentName: quoteAttachments[index]?.name || null,
+        items: quote.items
+          .map(item => ({
+            ...item,
+            description: String(item.description || '').trim(),
+            unit: item.unit ? String(item.unit).trim() : null,
+            materialName: item.materialName ? String(item.materialName).trim() : null,
+            unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
+            totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
+          }))
+          .filter(item => item.description || item.totalPrice || item.unitPrice || item.quantity),
       }));
       try {
         await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
@@ -1325,16 +1502,25 @@ export function InboxView() {
           aria-modal="true"
           aria-label="Gestão de orçamentos"
         >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-2xl overflow-hidden">
+          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Gestão de Orçamentos</h3>
               <button onClick={() => setShowQuotesModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-roman-text-sub">Preencha os dados dos 3 orçamentos obrigatórios para enviar para aprovação da diretoria.</p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">Rodada 1</span>
               </div>
+
+              {(activeTicket.macroServiceName || activeTicket.serviceCatalogName) && (
+                <div className="mb-6 rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-4 py-3 text-sm text-roman-text-main">
+                  <div className="font-medium">Classificação da OS</div>
+                  <div className="mt-1 text-roman-text-sub">
+                    {activeTicket.macroServiceName || 'Sem macroserviço'} {activeTicket.serviceCatalogName ? `· ${activeTicket.serviceCatalogName}` : ''}
+                  </div>
+                </div>
+              )}
 
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
                 <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
@@ -1396,7 +1582,7 @@ export function InboxView() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
                 {[0, 1, 2].map(i => (
                   <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
@@ -1432,6 +1618,107 @@ export function InboxView() {
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
                       </div>
+                      <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Itens do orçamento</label>
+                          <button
+                            type="button"
+                            onClick={() => handleAddQuoteItem(i)}
+                            className="text-[11px] font-medium text-roman-primary hover:underline"
+                          >
+                            + Adicionar item
+                          </button>
+                        </div>
+
+                        {suggestedQuoteMaterials.length > 0 && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {suggestedQuoteMaterials.slice(0, 4).map(material => (
+                              <button
+                                key={`${i}-${material.id}`}
+                                type="button"
+                                onClick={() => {
+                                  const targetItem = quotes[i].items[quotes[i].items.length - 1];
+                                  if (!targetItem) return;
+                                  handleQuoteItemChange(i, targetItem.id, 'materialId', material.id);
+                                }}
+                                className="rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-2 py-1 text-[11px] text-roman-primary"
+                              >
+                                {material.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="space-y-3">
+                          {quotes[i].items.map((item, itemIndex) => (
+                            <div key={item.id} className="rounded-sm border border-roman-border bg-roman-bg p-3">
+                              <div className="mb-2 flex items-center justify-between">
+                                <div className="text-[11px] font-medium text-roman-text-main">Item {itemIndex + 1}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveQuoteItem(i, item.id)}
+                                  className="text-[11px] text-red-700 hover:underline"
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                              <div className="space-y-2">
+                                <select
+                                  value={item.materialId || ''}
+                                  onChange={event => handleQuoteItemChange(i, item.id, 'materialId', event.target.value)}
+                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                >
+                                  <option value="">Selecionar material</option>
+                                  {catalogMaterials.map(material => (
+                                    <option key={material.id} value={material.id}>{material.name}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="Descrição do item"
+                                  value={item.description}
+                                  onChange={event => handleQuoteItemChange(i, item.id, 'description', event.target.value)}
+                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="Qtd."
+                                    value={item.quantity ?? ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'quantity', event.target.value ? Number(event.target.value) : null)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Unidade"
+                                    value={item.unit || ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'unit', event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Valor unitário"
+                                    value={item.unitPrice || ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Valor total"
+                                    value={item.totalPrice || ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'totalPrice', event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                       {quoteAttachments[i] && (
                         <div className="text-[11px] text-roman-text-sub truncate">
                           PDF: {quoteAttachments[i]!.name}
@@ -1442,7 +1729,7 @@ export function InboxView() {
                 ))}
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-roman-border">
+              <div className="sticky bottom-0 mt-6 flex justify-end gap-3 pt-4 border-t border-roman-border bg-roman-surface">
                 <button onClick={() => setShowQuotesModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
                   Fechar
                 </button>

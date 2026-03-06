@@ -1,8 +1,38 @@
 export const DEFAULT_QUOTES = {
   'OS-0046': [
-    { id: 'quote-1', vendor: 'Decor Interiores', value: 'R$ 12.400,00', recommended: true, status: 'pending' },
-    { id: 'quote-2', vendor: 'Ambientes & Cia', value: 'R$ 14.200,00', recommended: false, status: 'pending' },
-    { id: 'quote-3', vendor: 'Reforma Facil LTDA', value: 'R$ 15.800,00', recommended: false, status: 'pending' },
+    {
+      id: 'quote-1',
+      vendor: 'Decor Interiores',
+      value: 'R$ 12.400,00',
+      recommended: true,
+      status: 'pending',
+      items: [
+        { id: 'item-1', description: 'Fornecimento e instalação de carpete', unit: 'm²', quantity: 80, unitPrice: 'R$ 120,00', totalPrice: 'R$ 9.600,00' },
+        { id: 'item-2', description: 'Rodapé e acabamento', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.800,00', totalPrice: 'R$ 2.800,00' },
+      ],
+    },
+    {
+      id: 'quote-2',
+      vendor: 'Ambientes & Cia',
+      value: 'R$ 14.200,00',
+      recommended: false,
+      status: 'pending',
+      items: [
+        { id: 'item-1', description: 'Carpete modular premium', unit: 'm²', quantity: 80, unitPrice: 'R$ 142,50', totalPrice: 'R$ 11.400,00' },
+        { id: 'item-2', description: 'Acabamentos e instalação', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.800,00', totalPrice: 'R$ 2.800,00' },
+      ],
+    },
+    {
+      id: 'quote-3',
+      vendor: 'Reforma Facil LTDA',
+      value: 'R$ 15.800,00',
+      recommended: false,
+      status: 'pending',
+      items: [
+        { id: 'item-1', description: 'Carpete em manta', unit: 'm²', quantity: 80, unitPrice: 'R$ 150,00', totalPrice: 'R$ 12.000,00' },
+        { id: 'item-2', description: 'Remoção e descarte', unit: 'vb', quantity: 1, unitPrice: 'R$ 3.800,00', totalPrice: 'R$ 3.800,00' },
+      ],
+    },
   ],
 };
 

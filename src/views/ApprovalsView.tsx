@@ -416,6 +416,22 @@ export function ApprovalsView() {
                     {quote.recommended && <div className="text-[10px] font-serif uppercase tracking-widest text-roman-primary mb-2 font-bold flex items-center gap-1"><CheckCircle size={12} /> Recomendado pelo Gestor</div>}
                     <div className="text-sm text-roman-text-sub mb-1">{quote.vendor}</div>
                     <div className="text-2xl font-serif text-roman-text-main mb-4">{quote.value}</div>
+                    {quote.items && quote.items.length > 0 && (
+                      <div className="mb-4 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-widest text-roman-text-sub mb-2">Composição</div>
+                        <div className="space-y-1">
+                          {quote.items.slice(0, 3).map(item => (
+                            <div key={item.id} className="text-[11px] text-roman-text-sub flex items-start justify-between gap-3">
+                              <span className="truncate">{item.description || item.materialName || 'Item sem descrição'}</span>
+                              <span className="shrink-0 text-roman-text-main">{item.totalPrice || item.unitPrice || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 text-[11px] text-roman-text-sub">
+                          {quote.items.length} item(ns) no orçamento
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-auto flex flex-col gap-2">
                       <button onClick={() => openAttachment(`OrÃ§amento: ${quote.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
                         <FileText size={14} /> Ver PDF

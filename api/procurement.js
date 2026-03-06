@@ -22,6 +22,18 @@ async function writeQuotes(db, ticketId, quotes) {
         recommended: Boolean(quote.recommended),
         status: String(quote.status || 'pending'),
         attachmentName: quote.attachmentName ? String(quote.attachmentName) : null,
+        items: Array.isArray(quote.items)
+          ? quote.items.map(item => ({
+              id: String(item.id || '').trim() || `item-${Date.now()}`,
+              description: String(item.description || '').trim(),
+              materialId: item.materialId ? String(item.materialId).trim() : null,
+              materialName: item.materialName ? String(item.materialName).trim() : null,
+              unit: item.unit ? String(item.unit).trim() : null,
+              quantity: item.quantity != null ? Number(item.quantity) : null,
+              unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
+              totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
+            }))
+          : [],
         classification: quote.classification || classification,
         updatedAt: now,
         createdAt: now,

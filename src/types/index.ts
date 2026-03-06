@@ -86,6 +86,17 @@ export interface Ticket {
   guarantee?: GuaranteeInfo;
 }
 
+export interface QuoteItem {
+  id: string;
+  description: string;
+  materialId?: string | null;
+  materialName?: string | null;
+  unit?: string | null;
+  quantity?: number | null;
+  unitPrice?: string | null;
+  totalPrice?: string | null;
+}
+
 export interface Quote {
   id: number | string;
   vendor: string;
@@ -93,6 +104,7 @@ export interface Quote {
   recommended: boolean;
   status?: string;
   attachmentName?: string | null;
+  items?: QuoteItem[];
   classification?: ProcurementClassificationSnapshot;
 }
 
