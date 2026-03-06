@@ -3,7 +3,7 @@ import { CheckCircle, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, 
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord } from '../types';
+import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
 import { buildProcurementClassification } from '../utils/procurementClassification';
@@ -77,6 +77,164 @@ function addMonths(date: Date, months: number) {
   const next = new Date(date);
   next.setMonth(next.getMonth() + months);
   return next;
+}
+
+function escapeHtml(value: string) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildClosureExportHtml(
+  ticket: Ticket,
+  contract: ContractRecord | undefined,
+  measurements: MeasurementRecord[],
+  payments: PaymentRecord[],
+  plannedValue: number,
+  paidValue: number
+) {
+  const closureDocuments = ticket.closureChecklist?.documents || [];
+  const contractItems = contract?.items || [];
+
+  const measurementRows = measurements.length === 0
+    ? '<tr><td colspan="4">Nenhuma medição registrada.</td></tr>'
+    : measurements
+        .map(
+          measurement => `
+            <tr>
+              <td>${escapeHtml(measurement.label)}</td>
+              <td>${measurement.progressPercent}%</td>
+              <td>${measurement.releasePercent}%</td>
+              <td>${escapeHtml(formatDateLabel(measurement.requestedAt))}</td>
+            </tr>
+          `
+        )
+        .join('');
+
+  const paymentRows = payments.length === 0
+    ? '<tr><td colspan="5">Nenhuma parcela registrada.</td></tr>'
+    : payments
+        .map(
+          payment => `
+            <tr>
+              <td>${escapeHtml(payment.label || `Parcela ${payment.installmentNumber || '-'}`)}</td>
+              <td>${escapeHtml(payment.value)}</td>
+              <td>${payment.releasedPercent || 0}%</td>
+              <td>${payment.status === 'paid' ? 'Pago' : 'Pendente'}</td>
+              <td>${escapeHtml(formatDateLabel(payment.paidAt || payment.dueAt))}</td>
+            </tr>
+          `
+        )
+        .join('');
+
+  const contractRows = contractItems.length === 0
+    ? '<tr><td colspan="4">Escopo contratado não informado.</td></tr>'
+    : contractItems
+        .map(
+          item => `
+            <tr>
+              <td>${escapeHtml(item.description || item.materialName || 'Item sem descrição')}</td>
+              <td>${escapeHtml(String(item.quantity ?? '-'))} ${escapeHtml(item.unit || '')}</td>
+              <td>${escapeHtml(item.unitPrice || '-')}</td>
+              <td>${escapeHtml(item.totalPrice || item.unitPrice || '-')}</td>
+            </tr>
+          `
+        )
+        .join('');
+
+  const documentRows = closureDocuments.length === 0
+    ? '<li>Nenhum laudo anexado.</li>'
+    : closureDocuments
+        .map(
+          document => `
+            <li>
+              <a href="${escapeHtml(document.url)}" target="_blank" rel="noreferrer">${escapeHtml(document.name)}</a>
+              - ${escapeHtml(formatDateLabel(document.uploadedAt))}
+            </li>
+          `
+        )
+        .join('');
+
+  return `<!DOCTYPE html>
+  <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Encerramento ${escapeHtml(ticket.id)}</title>
+      <style>
+        body { font-family: Georgia, serif; color: #1f1712; margin: 32px; line-height: 1.5; }
+        h1, h2, h3 { margin: 0 0 12px; }
+        h1 { font-size: 28px; }
+        h2 { font-size: 18px; border-bottom: 1px solid #d6cdc4; padding-bottom: 6px; margin-top: 28px; }
+        .meta, .grid { display: grid; gap: 12px; }
+        .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 18px; }
+        .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .card { border: 1px solid #d6cdc4; padding: 12px; border-radius: 4px; background: #faf7f2; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th, td { border: 1px solid #d6cdc4; padding: 8px; text-align: left; font-size: 13px; vertical-align: top; }
+        th { background: #f2ece4; }
+        ul { padding-left: 18px; }
+        .muted { color: #6f6257; }
+      </style>
+    </head>
+    <body>
+      <h1>Encerramento da Ordem de Serviço ${escapeHtml(ticket.id)}</h1>
+      <div class="meta">
+        <div><strong>Assunto:</strong> ${escapeHtml(ticket.subject)}</div>
+        <div><strong>Status:</strong> ${escapeHtml(ticket.status)}</div>
+        <div><strong>Solicitante:</strong> ${escapeHtml(ticket.requester)}</div>
+        <div><strong>Sede:</strong> ${escapeHtml(ticket.sede)}</div>
+        <div><strong>Região:</strong> ${escapeHtml(ticket.region)}</div>
+        <div><strong>Classificação:</strong> ${escapeHtml(ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida')}</div>
+      </div>
+
+      <div class="grid">
+        <div class="card"><strong>Fornecedor</strong><br />${escapeHtml(contract?.vendor || payments[0]?.vendor || 'Não definido')}</div>
+        <div class="card"><strong>Previsto</strong><br />${escapeHtml(formatCurrency(plannedValue))}</div>
+        <div class="card"><strong>Pago</strong><br />${escapeHtml(formatCurrency(paidValue))}</div>
+      </div>
+
+      <h2>Encerramento e garantia</h2>
+      <div class="meta">
+        <div><strong>Início do serviço:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceStartedAt))}</div>
+        <div><strong>Término do serviço:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceCompletedAt))}</div>
+        <div><strong>Solicitante aprovou:</strong> ${ticket.closureChecklist?.requesterApproved ? 'Sim' : 'Não'}</div>
+        <div><strong>Rafael aprovou:</strong> ${ticket.closureChecklist?.infrastructureApprovedByRafael ? 'Sim' : 'Não'}</div>
+        <div><strong>Fernando aprovou:</strong> ${ticket.closureChecklist?.infrastructureApprovedByFernando ? 'Sim' : 'Não'}</div>
+        <div><strong>Garantia:</strong> ${escapeHtml(formatDateLabel(ticket.guarantee?.startAt))} até ${escapeHtml(formatDateLabel(ticket.guarantee?.endAt))}</div>
+      </div>
+      <div class="card"><strong>Observações finais</strong><br /><span class="muted">${escapeHtml(ticket.closureChecklist?.closureNotes || 'Sem observações registradas.')}</span></div>
+
+      <h2>Escopo contratado</h2>
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Quantidade</th><th>Valor unitário</th><th>Valor total</th></tr>
+        </thead>
+        <tbody>${contractRows}</tbody>
+      </table>
+
+      <h2>Medições</h2>
+      <table>
+        <thead>
+          <tr><th>Descrição</th><th>% executado</th><th>% liberado</th><th>Data</th></tr>
+        </thead>
+        <tbody>${measurementRows}</tbody>
+      </table>
+
+      <h2>Pagamentos</h2>
+      <table>
+        <thead>
+          <tr><th>Parcela</th><th>Valor</th><th>% liberado</th><th>Status</th><th>Data</th></tr>
+        </thead>
+        <tbody>${paymentRows}</tbody>
+      </table>
+
+      <h2>Laudos e anexos</h2>
+      <ul>${documentRows}</ul>
+    </body>
+  </html>`;
 }
 
 function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState {
@@ -320,6 +478,50 @@ export function FinanceView() {
     } finally {
       setUploadingTicketId(null);
     }
+  };
+
+  const handleExportClosureHtml = (
+    ticket: Ticket,
+    contract: ContractRecord | undefined,
+    measurements: MeasurementRecord[],
+    payments: PaymentRecord[],
+    plannedValue: number,
+    paidValue: number
+  ) => {
+    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${ticket.id}-encerramento.html`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintClosure = (
+    ticket: Ticket,
+    contract: ContractRecord | undefined,
+    measurements: MeasurementRecord[],
+    payments: PaymentRecord[],
+    plannedValue: number,
+    paidValue: number
+  ) => {
+    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue);
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
+    if (!printWindow) {
+      setToast('Erro: não foi possível abrir a janela de impressão.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   const generatePaymentPlan = async (ticketId: string, totalValue: number, vendor: string, parts: number) => {
@@ -570,9 +772,23 @@ export function FinanceView() {
                 <div className="flex flex-col lg:flex-row gap-6">
                   <div className="flex-1 space-y-5">
                     <div>
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
                         <span className="text-roman-primary font-serif italic text-sm">{ticket.id}</span>
                         <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Pagamento</span>
+                        <button
+                          type="button"
+                          onClick={() => handleExportClosureHtml(ticket, contract, measurements, payments, plannedValue, paidValue)}
+                          className="text-xs font-medium text-roman-primary hover:underline"
+                        >
+                          Exportar HTML
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintClosure(ticket, contract, measurements, payments, plannedValue, paidValue)}
+                          className="text-xs font-medium text-roman-primary hover:underline"
+                        >
+                          Imprimir / PDF
+                        </button>
                       </div>
                       <h3 className="text-xl font-serif text-roman-text-main mb-1">{ticket.subject}</h3>
                       {(ticket.macroServiceName || ticket.serviceCatalogName) && (

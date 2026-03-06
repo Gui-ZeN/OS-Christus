@@ -1,5 +1,5 @@
-import { getAuthenticatedActorHeaders } from './actorHeaders';
-import { ClosureChecklist, GuaranteeInfo, PreliminaryActions, Ticket } from '../types';
+﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 
 type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
@@ -13,17 +13,50 @@ type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
     actualStartAt?: string | null;
     updatedAt?: string | null;
   } | null;
-  closureChecklist?: Omit<ClosureChecklist, 'requesterApprovedAt' | 'serviceStartedAt' | 'serviceCompletedAt' | 'closedAt'> & {
+  closureChecklist?: Omit<ClosureChecklist, 'requesterApprovedAt' | 'serviceStartedAt' | 'serviceCompletedAt' | 'closedAt' | 'documents'> & {
     requesterApprovedAt?: string | null;
     serviceStartedAt?: string | null;
     serviceCompletedAt?: string | null;
     closedAt?: string | null;
+    documents?: Array<{
+      id: string;
+      name: string;
+      path: string;
+      url: string;
+      contentType?: string | null;
+      size?: number | null;
+      uploadedAt?: string | null;
+      category?: 'closure_report' | 'closure_evidence' | 'attachment';
+    }> | null;
   } | null;
   guarantee?: Omit<GuaranteeInfo, 'startAt' | 'endAt'> & {
     startAt?: string | null;
     endAt?: string | null;
   } | null;
 };
+
+type ApiMeasurement = Omit<MeasurementRecord, 'requestedAt' | 'approvedAt'> & {
+  requestedAt?: string | null;
+  approvedAt?: string | null;
+};
+
+type ApiPayment = Omit<PaymentRecord, 'dueAt' | 'paidAt'> & {
+  dueAt?: string | null;
+  paidAt?: string | null;
+};
+
+type ApiContract = ContractRecord;
+
+export interface TrackingProcurementSummary {
+  contract: ContractRecord | null;
+  measurements: MeasurementRecord[];
+  payments: PaymentRecord[];
+}
+
+export interface TrackingTicketPayload {
+  ticket: Ticket;
+  procurement: TrackingProcurementSummary;
+}
 
 function hydrateTicket(ticket: ApiTicket): Ticket {
   return {
@@ -48,6 +81,12 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
           serviceStartedAt: ticket.closureChecklist.serviceStartedAt ? coerceDate(ticket.closureChecklist.serviceStartedAt) : null,
           serviceCompletedAt: ticket.closureChecklist.serviceCompletedAt ? coerceDate(ticket.closureChecklist.serviceCompletedAt) : null,
           closedAt: ticket.closureChecklist.closedAt ? coerceDate(ticket.closureChecklist.closedAt) : null,
+          documents: Array.isArray(ticket.closureChecklist.documents)
+            ? ticket.closureChecklist.documents.map(document => ({
+                ...document,
+                uploadedAt: document.uploadedAt ? coerceDate(document.uploadedAt) : null,
+              }))
+            : [],
         }
       : undefined,
     guarantee: ticket.guarantee
@@ -57,6 +96,22 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
           endAt: ticket.guarantee.endAt ? coerceDate(ticket.guarantee.endAt) : null,
         }
       : undefined,
+  };
+}
+
+function hydrateMeasurement(item: ApiMeasurement): MeasurementRecord {
+  return {
+    ...item,
+    requestedAt: item.requestedAt ? coerceDate(item.requestedAt) : null,
+    approvedAt: item.approvedAt ? coerceDate(item.approvedAt) : null,
+  };
+}
+
+function hydratePayment(item: ApiPayment): PaymentRecord {
+  return {
+    ...item,
+    dueAt: item.dueAt ? coerceDate(item.dueAt) : null,
+    paidAt: item.paidAt ? coerceDate(item.paidAt) : null,
   };
 }
 
@@ -76,14 +131,30 @@ export async function fetchTicketsFromApi(): Promise<Ticket[]> {
   return json.tickets.map((ticket: ApiTicket) => hydrateTicket(ticket));
 }
 
-export async function fetchTrackingTicketFromApi(trackingToken: string): Promise<Ticket> {
+export async function fetchTrackingDetailsFromApi(trackingToken: string): Promise<TrackingTicketPayload> {
   const response = await fetch(`/api/tickets?tracking=${encodeURIComponent(trackingToken)}`);
   const json = await response.json();
   if (!response.ok || !json.ok || !json.ticket) {
     throw new Error(json.error || 'Falha ao buscar ticket de acompanhamento.');
   }
 
-  return hydrateTicket(json.ticket as ApiTicket);
+  return {
+    ticket: hydrateTicket(json.ticket as ApiTicket),
+    procurement: {
+      contract: (json.procurement?.contract as ApiContract | null) || null,
+      measurements: Array.isArray(json.procurement?.measurements)
+        ? json.procurement.measurements.map((item: ApiMeasurement) => hydrateMeasurement(item))
+        : [],
+      payments: Array.isArray(json.procurement?.payments)
+        ? json.procurement.payments.map((item: ApiPayment) => hydratePayment(item))
+        : [],
+    },
+  };
+}
+
+export async function fetchTrackingTicketFromApi(trackingToken: string): Promise<Ticket> {
+  const payload = await fetchTrackingDetailsFromApi(trackingToken);
+  return payload.ticket;
 }
 
 export async function createTicketInApi(ticket: Ticket) {
