@@ -763,64 +763,62 @@ export function SettingsView() {
                         Carregando estrutura...
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        <section className="rounded-[1.5rem] border border-stone-200/80 bg-[linear-gradient(180deg,#fffaf3_0%,#fff 100%)] p-5 space-y-4 shadow-[0_18px_40px_rgba(15,23,42,0.04)]">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5 space-y-4">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
                           </div>
-                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                             {regions.map(item => (
-                              <div key={item.id} className="rounded-2xl border border-roman-border/80 bg-white px-3 py-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                    <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                    <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
-                                  </div>
+                              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-stone-200 px-4 py-3 last:border-b-0">
+                                <div>
+                                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                                  <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
                             ))}
+                            {regions.length === 0 && <div className="px-4 py-6 text-sm text-roman-text-sub">Nenhuma região cadastrada.</div>}
                           </div>
-                          <div className="space-y-3 border-t border-roman-border pt-4">
-                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <button onClick={() => void handleSaveRegion()} className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium">{regionDraft.id ? 'Salvar região' : 'Criar região'}</button>
+                          <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_auto]">
+                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <button onClick={() => void handleSaveRegion()} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800">{regionDraft.id ? 'Salvar' : 'Criar'}</button>
                           </div>
                         </section>
 
-                        <section className="rounded-[1.5rem] border border-stone-200/80 bg-[linear-gradient(180deg,#f7fbff_0%,#fff 100%)] p-5 space-y-4 shadow-[0_18px_40px_rgba(15,23,42,0.04)]">
+                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5 space-y-4">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
                           </div>
-                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                             {sites.map(item => (
-                              <div key={item.id} className="rounded-2xl border border-roman-border/80 bg-white px-3 py-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                    <div className="text-[11px] text-roman-text-sub">{item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}</div>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                    <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
-                                  </div>
+                              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-stone-200 px-4 py-3 last:border-b-0">
+                                <div>
+                                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                                  <div className="text-[11px] text-roman-text-sub">{item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}</div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
                             ))}
+                            {sites.length === 0 && <div className="px-4 py-6 text-sm text-roman-text-sub">Nenhuma sede cadastrada.</div>}
                           </div>
-                          <div className="space-y-3 border-t border-roman-border pt-4">
-                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+                          <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)_auto]">
+                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
                               <option value="">Selecione a região</option>
                               {regions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
-                            <button onClick={() => void handleSaveSite()} className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium">{siteDraft.id ? 'Salvar sede' : 'Criar sede'}</button>
+                            <button onClick={() => void handleSaveSite()} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800">{siteDraft.id ? 'Salvar' : 'Criar'}</button>
                           </div>
                         </section>
                       </div>
@@ -830,60 +828,94 @@ export function SettingsView() {
 
                 {section === 'templates' && (
                   <>
-                    <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Templates de Comunicação</h2>
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Gatilho</label>
-                        <select
-                          value={template.trigger}
-                          onChange={event => {
-                            const nextTrigger = event.target.value;
-                            const nextTemplate = emailTemplatesCatalog.find(item => item.trigger === nextTrigger);
-                            setTemplate(nextTemplate || { trigger: nextTrigger, subject: '', body: '' });
-                          }}
-                          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                        >
+                    <h2 className="mb-6 font-serif text-xl font-medium text-roman-text-main">Templates de Comunicação</h2>
+                    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+                      <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                        <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Gatilhos</div>
+                        <div className="mt-4 overflow-hidden rounded-xl border border-stone-200 bg-white">
                           {emailTemplatesCatalog.map(item => (
-                            <option key={item.trigger} value={item.trigger}>
-                              {item.trigger}
-                            </option>
+                            <button
+                              key={item.trigger}
+                              onClick={() => setTemplate(item)}
+                              className={`flex w-full items-start justify-between gap-3 border-b border-stone-200 px-4 py-3 text-left last:border-b-0 ${
+                                template.trigger === item.trigger ? 'bg-stone-900 text-white' : 'bg-white text-roman-text-main hover:bg-stone-50'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium">{item.trigger}</div>
+                                <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/70' : 'text-roman-text-sub'}`}>
+                                  {item.subject || 'Sem assunto definido'}
+                                </div>
+                              </div>
+                            </button>
                           ))}
-                        </select>
-                      </div>
+                        </div>
+                      </section>
 
-                      <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto do E-mail</label>
-                        <input
-                          type="text"
-                          value={template.subject}
-                          onChange={event => setTemplate(current => ({ ...current, subject: event.target.value }))}
-                          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                        />
-                      </div>
+                      <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
+                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Assunto</label>
+                              <input
+                                type="text"
+                                value={template.subject}
+                                onChange={event => setTemplate(current => ({ ...current, subject: event.target.value }))}
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Corpo do e-mail</label>
+                              <textarea
+                                className="h-72 w-full rounded-xl border border-stone-200 bg-white p-3 font-mono text-[13px] text-roman-text-sub outline-none focus:border-roman-primary"
+                                value={template.body}
+                                onChange={event => setTemplate(current => ({ ...current, body: event.target.value }))}
+                              />
+                            </div>
+                          </div>
 
-                      <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Corpo do E-mail (HTML/Texto)</label>
-                        <textarea
-                          className="w-full h-40 border border-roman-border rounded-sm p-3 bg-roman-bg text-[13px] font-mono text-roman-text-sub outline-none focus:border-roman-primary"
-                          value={template.body}
-                          onChange={event => setTemplate(current => ({ ...current, body: event.target.value }))}
-                        />
-                      </div>
+                          <div className="rounded-xl border border-stone-200 bg-white p-4">
+                            <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Preview</div>
+                            <div className="mt-4 space-y-3">
+                              <div>
+                                <div className="text-[11px] text-roman-text-sub">Assunto</div>
+                                <div className="mt-1 text-sm font-medium text-roman-text-main">{template.subject || 'Sem assunto definido'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[11px] text-roman-text-sub">Variáveis úteis</div>
+                                <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                                  {['{{ticket.id}}', '{{ticket.subject}}', '{{ticket.status}}', '{{tracking.url}}', '{{requester.name}}', '{{message.body}}'].map(token => (
+                                    <span key={token} className="rounded-full border border-stone-200 bg-stone-50 px-2 py-1 text-roman-text-sub">
+                                      {token}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[11px] text-roman-text-sub">Prévia do texto</div>
+                                <div className="mt-2 whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm leading-6 text-roman-text-main">
+                                  {template.body || 'Sem corpo definido.'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
 
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => void handleSaveTemplate()}
-                          className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
-                        >
-                          {templateSaved ? (
-                            <>
-                              <CheckCircle size={15} /> Salvo!
-                            </>
-                          ) : (
-                            'Salvar Template'
-                          )}
-                        </button>
-                      </div>
+                        <div className="mt-5 flex justify-end">
+                          <button
+                            onClick={() => void handleSaveTemplate()}
+                            className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
+                          >
+                            {templateSaved ? (
+                              <>
+                                <CheckCircle size={15} /> Salvo
+                              </>
+                            ) : (
+                              'Salvar template'
+                            )}
+                          </button>
+                        </div>
+                      </section>
                     </div>
                   </>
                 )}
