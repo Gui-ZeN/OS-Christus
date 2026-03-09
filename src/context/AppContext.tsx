@@ -186,11 +186,11 @@ async function resolveAuthorizedUser(email: string) {
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
 
   if (!found) {
-    throw new Error('Usuário sem cadastro no sistema. Solicite liberação ao admin.');
+    throw new Error('Acesso não autorizado. Seu e-mail ainda não foi liberado no sistema. Solicite o cadastro ao administrador.');
   }
 
   if (found.status !== 'Ativo' || found.active === false) {
-    throw new Error('Usuário inativo no sistema.');
+    throw new Error('Acesso indisponível. Seu usuário está inativo no sistema. Procure o administrador para reativação.');
   }
 
   return found;
@@ -530,7 +530,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } else {
       if (!localFallbackAllowed) {
-        throw new Error('Firebase Auth não está configurado no frontend deste ambiente.');
+        throw new Error('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
       }
       const authorizedUser = await resolveAuthorizedUser(normalized);
       setCurrentUserEmail(normalized);
@@ -547,7 +547,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const credential = await loginWithGoogle();
       const email = credential.user.email?.trim().toLowerCase();
       if (!email) {
-        throw new Error('Conta Google sem e-mail disponível.');
+        throw new Error('Não foi possível identificar o e-mail da conta Google utilizada.');
       }
       const authorizedUser = await resolveAuthorizedUser(email);
       setCurrentUserEmail(email);

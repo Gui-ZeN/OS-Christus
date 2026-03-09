@@ -69,7 +69,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
         <div className="space-y-5">
           {error && (
             <div className="border border-red-200 bg-red-50 text-red-800 rounded-sm px-4 py-4 text-sm">
-              <div className="font-semibold text-red-900 mb-1">N?o foi poss?vel entrar</div>
+              <div className="font-semibold text-red-900 mb-1">Não foi possível entrar</div>
               <div>{error}</div>
             </div>
           )}

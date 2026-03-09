@@ -16,7 +16,7 @@ export async function loginWithEmailPassword(email: string, password: string) {
 export async function loginWithGoogle() {
   const auth = await getFirebaseClientAuth();
   if (!auth) {
-    throw new Error('Login com Google indisponível sem Firebase configurado.');
+    throw new Error('Login com Google indisponível neste ambiente. A autenticação Firebase ainda não foi configurada no frontend.');
   }
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
