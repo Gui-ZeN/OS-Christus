@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
-import { createUser, deleteUser, DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
+import { createUser, deleteUser, type DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 
@@ -49,7 +49,7 @@ function normalizeUserForm(user: DirectoryUser): UserForm {
   };
 }
 
-export function UsersView() {
+export function UsersView({ embedded = false }: { embedded?: boolean }) {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin';
   const canManageUsers = canAccess;
@@ -61,20 +61,6 @@ export function UsersView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
-
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={Plus}
-            title="Acesso restrito"
-            description="A administração de usuários está disponível apenas para perfis Admin."
-          />
-        </div>
-      </div>
-    );
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -121,9 +107,7 @@ export function UsersView() {
   const toggleRegion = (regionId: string) => {
     setForm(current => {
       const hasRegion = current.regionIds.includes(regionId);
-      const nextRegionIds = hasRegion
-        ? current.regionIds.filter(id => id !== regionId)
-        : [...current.regionIds, regionId];
+      const nextRegionIds = hasRegion ? current.regionIds.filter(id => id !== regionId) : [...current.regionIds, regionId];
       const nextSiteIds = current.siteIds.filter(siteId => {
         const site = siteMap.get(siteId);
         return site ? nextRegionIds.includes(site.regionId) : false;
@@ -138,9 +122,7 @@ export function UsersView() {
       if (!site) return current;
       const hasSite = current.siteIds.includes(siteId);
       const nextSiteIds = hasSite ? current.siteIds.filter(id => id !== siteId) : [...current.siteIds, siteId];
-      const nextRegionIds = current.regionIds.includes(site.regionId)
-        ? current.regionIds
-        : [...current.regionIds, site.regionId];
+      const nextRegionIds = current.regionIds.includes(site.regionId) ? current.regionIds : [...current.regionIds, site.regionId];
       return { ...current, regionIds: nextRegionIds, siteIds: nextSiteIds };
     });
   };
@@ -165,15 +147,11 @@ export function UsersView() {
     try {
       if (editingId) {
         const result = await updateUser(editingId, payload, form.password.trim() || undefined);
-        if (result?.authUid) {
-          payload.authUid = result.authUid as string;
-        }
+        if (result?.authUid) payload.authUid = result.authUid as string;
         setUsers(prev => prev.map(user => (user.id === editingId ? { ...user, ...payload } : user)));
       } else {
         const result = await createUser(payload, form.password.trim());
-        if (result?.authUid) {
-          payload.authUid = result.authUid as string;
-        }
+        if (result?.authUid) payload.authUid = result.authUid as string;
         setUsers(prev => [...prev, payload].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
       }
       setModalOpen(false);
@@ -201,12 +179,22 @@ export function UsersView() {
     }
   };
 
+  if (!canAccess) {
+    return (
+      <div className={embedded ? '' : 'flex-1 overflow-y-auto bg-roman-bg p-8'}>
+        <div className={embedded ? '' : 'max-w-4xl mx-auto min-h-[60vh]'}>
+          <EmptyState icon={Plus} title="Acesso restrito" description="A administração de usuários está disponível apenas para perfis Admin." />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className={embedded ? '' : 'flex-1 overflow-y-auto bg-roman-bg p-8'}>
+      <div className={embedded ? '' : 'max-w-6xl mx-auto'}>
         <header className="flex justify-between items-end mb-8 border-b border-roman-border pb-4 gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Usuários</h1>
+            <h1 className={`${embedded ? 'text-2xl' : 'text-3xl'} font-serif font-medium text-roman-text-main mb-2`}>Usuários</h1>
             <p className="text-roman-text-sub font-serif italic">Gestão de acesso por papel, região e sede.</p>
           </div>
           <button onClick={openNew} disabled={!canManageUsers} className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -248,11 +236,7 @@ export function UsersView() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className={`px-2 py-1 rounded-sm text-xs font-medium ${
-                          user.status === 'Ativo'
-                            ? 'bg-green-100 text-green-800 border border-green-200'
-                            : 'bg-stone-100 text-stone-600 border border-stone-200'
-                        }`}>
+                        <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-stone-100 text-stone-600 border border-stone-200'}`}>
                           {user.status}
                         </span>
                       </td>
@@ -261,11 +245,7 @@ export function UsersView() {
                           <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
                             Editar
                           </button>
-                          <button
-                            onClick={() => void handleDelete(user)}
-                            disabled={!canManageUsers || saving}
-                            className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
+                          <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                             <Trash2 size={14} />
                             Excluir
                           </button>
@@ -294,63 +274,33 @@ export function UsersView() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Nome</label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                  />
+                  <input type="text" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail</label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={event => setForm(current => ({ ...current, email: event.target.value }))}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                  />
+                  <input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">
-                  {editingId ? 'Nova senha (opcional)' : 'Senha inicial'}
-                </label>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={event => setForm(current => ({ ...current, password: event.target.value }))}
-                  placeholder={editingId ? 'Preencha apenas para redefinir' : 'Mínimo de 6 caracteres'}
-                  className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                />
-                <p className="mt-2 text-xs text-roman-text-sub font-serif italic">
-                  {editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessária para criar o acesso no Firebase Auth.'}
-                </p>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha inicial'}</label>
+                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Mínimo de 6 caracteres'} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessária para criar o acesso no Firebase Auth.'}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Papel</label>
-                  <select
-                    value={form.role}
-                    onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                  >
+                  <select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     {ROLE_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
-                  <p className="mt-2 text-xs text-roman-text-sub font-serif italic">
-                    {ROLE_OPTIONS.find(option => option.value === form.role)?.description}
-                  </p>
+                  <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{ROLE_OPTIONS.find(option => option.value === form.role)?.description}</p>
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Status</label>
-                  <select
-                    value={form.status}
-                    onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                  >
+                  <select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     <option value="Ativo">Ativo</option>
                     <option value="Inativo">Inativo</option>
                   </select>
@@ -363,12 +313,7 @@ export function UsersView() {
                   {regions.map(region => {
                     const checked = form.regionIds.includes(region.id);
                     return (
-                      <button
-                        key={region.id}
-                        type="button"
-                        onClick={() => toggleRegion(region.id)}
-                        className={`border rounded-sm px-3 py-3 text-left transition-colors ${checked ? 'border-roman-primary bg-roman-primary/10' : 'border-roman-border bg-roman-bg hover:border-roman-primary/50'}`}
-                      >
+                      <button key={region.id} type="button" onClick={() => toggleRegion(region.id)} className={`border rounded-sm px-3 py-3 text-left transition-colors ${checked ? 'border-roman-primary bg-roman-primary/10' : 'border-roman-border bg-roman-bg hover:border-roman-primary/50'}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-sm font-medium text-roman-text-main">{region.name}</div>
@@ -385,20 +330,13 @@ export function UsersView() {
               <div>
                 <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Sedes</label>
                 {form.regionIds.length === 0 ? (
-                  <div className="border border-dashed border-roman-border rounded-sm p-4 text-sm text-roman-text-sub font-serif italic">
-                    Selecione ao menos uma região para vincular as sedes.
-                  </div>
+                  <div className="border border-dashed border-roman-border rounded-sm p-4 text-sm text-roman-text-sub font-serif italic">Selecione ao menos uma região para vincular as sedes.</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {filteredSites.map(site => {
                       const checked = form.siteIds.includes(site.id);
                       return (
-                        <button
-                          key={site.id}
-                          type="button"
-                          onClick={() => toggleSite(site.id)}
-                          className={`border rounded-sm px-3 py-3 text-left transition-colors ${checked ? 'border-roman-primary bg-roman-primary/10' : 'border-roman-border bg-roman-bg hover:border-roman-primary/50'}`}
-                        >
+                        <button key={site.id} type="button" onClick={() => toggleSite(site.id)} className={`border rounded-sm px-3 py-3 text-left transition-colors ${checked ? 'border-roman-primary bg-roman-primary/10' : 'border-roman-border bg-roman-bg hover:border-roman-primary/50'}`}>
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <div className="text-sm font-medium text-roman-text-main">{site.name}</div>
@@ -415,16 +353,10 @@ export function UsersView() {
             </div>
 
             <div className="flex justify-end gap-3 p-4 border-t border-roman-border bg-roman-bg">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-surface rounded-sm font-medium transition-colors text-sm">
-                Cancelar
-              </button>
-              <button
-                onClick={() => void handleSave()}
-                disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)}
-                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-surface rounded-sm font-medium transition-colors text-sm">Cancelar</button>
+              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-                {editingId ? 'Salvar Alterações' : 'Criar Usuário'}
+                {editingId ? 'Salvar alterações' : 'Criar usuário'}
               </button>
             </div>
           </div>

@@ -18,8 +18,9 @@ import {
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
 import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
 import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
+import { UsersView } from './UsersView';
 
-type SettingsSection = 'templates' | 'daily-digest' | 'sla' | 'catalog' | 'integrations';
+type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily-digest' | 'sla' | 'integrations';
 
 const DEFAULT_TEMPLATE: EmailTemplateSettings = {
   trigger: 'EMAIL-NOVA-OS',
@@ -81,7 +82,7 @@ export function SettingsView() {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin';
   const canEditSettings = canAccess;
-  const [section, setSection] = useState<SettingsSection>('templates');
+  const [section, setSection] = useState<SettingsSection>('access');
   const [loading, setLoading] = useState(true);
   const [templateSaved, setTemplateSaved] = useState(false);
   const [digestSaved, setDigestSaved] = useState(false);
@@ -178,7 +179,7 @@ export function SettingsView() {
   }, [section]);
 
   useEffect(() => {
-    if (section !== 'catalog') return;
+    if (!['territory', 'catalog'].includes(section)) return;
     void loadCatalog();
   }, [section]);
 
@@ -379,16 +380,18 @@ export function SettingsView() {
       <div className="max-w-5xl mx-auto">
         <header className="mb-8 border-b border-roman-border pb-4">
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Configurações do Sistema</h1>
-          <p className="text-roman-text-sub font-serif italic">Ajustes de e-mail, templates, integrações e regras de negócio.</p>
+          <p className="text-roman-text-sub font-serif italic">Acessos, estrutura operacional, comunicação, SLA e integrações.</p>
         </header>
 
         <div className="flex gap-8">
           <div className="w-64 shrink-0 space-y-2">
             {[
+              { key: 'access', label: 'Acessos' },
+              { key: 'territory', label: 'Regiões e Sedes' },
+              { key: 'catalog', label: 'Serviços e Materiais' },
               { key: 'templates', label: 'Templates de E-mail' },
               { key: 'daily-digest', label: 'Resumo Diário (Z6)' },
               { key: 'sla', label: 'Regras de SLA' },
-              { key: 'catalog', label: 'Catálogo Operacional' },
               { key: 'integrations', label: 'Integrações e Legado' },
             ].map(item => (
               <button
@@ -413,6 +416,135 @@ export function SettingsView() {
               </div>
             ) : (
               <>
+                {section === 'access' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
+                        <div className="text-lg font-serif text-roman-text-main">Usuários e papéis</div>
+                        <p className="mt-2 text-sm text-roman-text-sub">Cadastro, edição, exclusão e vínculo por região e sede.</p>
+                      </div>
+                      <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
+                        <div className="text-lg font-serif text-roman-text-main">Firebase Auth</div>
+                        <p className="mt-2 text-sm text-roman-text-sub">A conta do usuário acompanha o cadastro e o status operacional.</p>
+                      </div>
+                      <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
+                        <div className="text-lg font-serif text-roman-text-main">Regiões e sedes</div>
+                        <p className="mt-2 text-sm text-roman-text-sub">Supervisores e usuários enxergam apenas a estrutura vinculada.</p>
+                      </div>
+                    </div>
+
+                    <div className="border border-roman-border rounded-sm p-6 bg-roman-surface">
+                      <UsersView embedded />
+                    </div>
+                  </div>
+                )}
+
+                {section === 'territory' && (
+                  <>
+                    <div className="flex items-center justify-between mb-6 gap-4">
+                      <div>
+                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Regiões e Sedes</h2>
+                        <p className="text-sm text-roman-text-sub font-serif italic">Estrutura territorial usada em usuários, OS e dashboards.</p>
+                      </div>
+
+                      <button
+                        onClick={() => void loadCatalog()}
+                        className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
+                        disabled={catalogLoading}
+                      >
+                        <RefreshCw size={14} className={catalogLoading ? 'animate-spin' : ''} />
+                        Atualizar
+                      </button>
+                    </div>
+
+                    {catalogError && (
+                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {catalogError}
+                      </div>
+                    )}
+
+                    {catalogSaved && (
+                      <div className="mb-4 p-4 border border-green-200 bg-green-50 text-green-700 rounded-sm flex items-center gap-2">
+                        <CheckCircle size={16} />
+                        {catalogSaved}
+                      </div>
+                    )}
+
+                    {catalogLoading ? (
+                      <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
+                        <Loader2 size={18} className="animate-spin" />
+                        Carregando estrutura...
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                          <div>
+                            <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
+                            <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
+                          </div>
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {regions.map(item => (
+                              <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                                    <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                    <button onClick={() => void handleDeleteCatalogItem('regions', item.id, `a região ${item.name}`)} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="space-y-3 border-t border-roman-border pt-4">
+                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <button onClick={() => void handleSaveRegion()} className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium">{regionDraft.id ? 'Salvar região' : 'Criar região'}</button>
+                          </div>
+                        </section>
+
+                        <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                          <div>
+                            <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
+                            <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
+                          </div>
+                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            {sites.map(item => (
+                              <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                                    <div className="text-[11px] text-roman-text-sub">{item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}</div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                    <button onClick={() => void handleDeleteCatalogItem('sites', item.id, `a sede ${item.name}`)} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="space-y-3 border-t border-roman-border pt-4">
+                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+                              <option value="">Selecione a região</option>
+                              {regions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                            </select>
+                            <button onClick={() => void handleSaveSite()} className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium">{siteDraft.id ? 'Salvar sede' : 'Criar sede'}</button>
+                          </div>
+                        </section>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {section === 'templates' && (
                   <>
                     <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Templates de Comunicação</h2>
@@ -584,7 +716,7 @@ export function SettingsView() {
                   <>
                     <div className="flex items-center justify-between mb-6 gap-4">
                       <div>
-                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Catálogo Operacional</h2>
+                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Serviços e Materiais</h2>
                         <p className="text-sm text-roman-text-sub font-serif italic">
                           Base de macroserviços, serviços e materiais usada no formulário, histórico e procurement.
                         </p>
@@ -621,128 +753,6 @@ export function SettingsView() {
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
-                            <div>
-                              <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
-                              <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
-                            </div>
-                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                              {regions.map(item => (
-                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                      <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
-                                    </div>
-                                    <button
-                                      onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })}
-                                      className="text-xs font-medium text-roman-primary hover:underline"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      onClick={() => void handleDeleteCatalogItem('regions', item.id, `a região ${item.name}`)}
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"
-                                    >
-                                      <Trash2 size={12} />
-                                      Excluir
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
-                              <input
-                                type="text"
-                                value={regionDraft.name}
-                                onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))}
-                                placeholder="Nome da região"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <input
-                                type="text"
-                                value={regionDraft.code}
-                                onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))}
-                                placeholder="Código"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <button
-                                onClick={() => void handleSaveRegion()}
-                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
-                              >
-                                {regionDraft.id ? 'Salvar Região' : 'Criar Região'}
-                              </button>
-                            </div>
-                          </section>
-
-                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
-                            <div>
-                              <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
-                              <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
-                            </div>
-                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                              {sites.map(item => (
-                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                      <div className="text-[11px] text-roman-text-sub">
-                                        {item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })}
-                                      className="text-xs font-medium text-roman-primary hover:underline"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      onClick={() => void handleDeleteCatalogItem('sites', item.id, `a sede ${item.name}`)}
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"
-                                    >
-                                      <Trash2 size={12} />
-                                      Excluir
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
-                              <input
-                                type="text"
-                                value={siteDraft.name}
-                                onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))}
-                                placeholder="Nome da sede"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <input
-                                type="text"
-                                value={siteDraft.code}
-                                onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))}
-                                placeholder="Código"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <select
-                                value={siteDraft.regionId}
-                                onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))}
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              >
-                                <option value="">Selecione a região</option>
-                                {regions.map(item => (
-                                  <option key={item.id} value={item.id}>{item.name}</option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => void handleSaveSite()}
-                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
-                              >
-                                {siteDraft.id ? 'Salvar Sede' : 'Criar Sede'}
-                              </button>
-                            </div>
-                          </section>
-                        </div>
-
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                           <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
                             <div>

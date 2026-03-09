@@ -13,7 +13,6 @@ import {
   ScrollText,
   Settings,
   Shield,
-  Users,
   X,
 } from 'lucide-react';
 
@@ -22,7 +21,6 @@ import { useApp } from './context/AppContext';
 import { ViewState } from './types';
 import { formatDistanceToNowSafe } from './utils/date';
 
-const UsersView = lazy(async () => ({ default: (await import('./views/UsersView')).UsersView }));
 const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
 const SettingsView = lazy(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
 const TrackingView = lazy(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
@@ -98,7 +96,6 @@ export default function App() {
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessAudit = currentRole === 'Admin';
-  const canAccessUsers = currentRole === 'Admin';
   const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessSettings = currentRole === 'Admin';
   const restrictedViews = useMemo(
@@ -109,12 +106,11 @@ export default function App() {
           !canAccessFinance ? VIEWS.FINANCE : null,
           !canAccessEmailHealth ? VIEWS.EMAIL_HEALTH : null,
           !canAccessAudit ? VIEWS.AUDIT_LOGS : null,
-          !canAccessUsers ? VIEWS.USERS : null,
           !canAccessKpi ? VIEWS.KPI : null,
           !canAccessSettings ? VIEWS.SETTINGS : null,
         ].filter(Boolean) as ViewState[]
       ),
-    [canAccessApprovals, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessUsers, canAccessKpi, canAccessSettings]
+    [canAccessApprovals, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessKpi, canAccessSettings]
   );
   const initials =
     (currentUser?.name || currentUserEmail || 'RG')
@@ -163,6 +159,12 @@ export default function App() {
       navigateTo(VIEWS.HOME);
     }
   }, [currentView, navigateTo, restrictedViews]);
+
+  useEffect(() => {
+    if (currentView === VIEWS.USERS) {
+      navigateTo(VIEWS.SETTINGS);
+    }
+  }, [currentView, navigateTo]);
 
   useEffect(() => {
     const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
@@ -239,7 +241,6 @@ export default function App() {
           {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
           {canAccessEmailHealth && <SidebarIcon icon={<Mail size={20} />} active={currentView === VIEWS.EMAIL_HEALTH} onClick={() => navigateTo(VIEWS.EMAIL_HEALTH)} title="Saúde de E-mail" />}
           {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
-          {canAccessUsers && <SidebarIcon icon={<Users size={20} />} active={currentView === VIEWS.USERS} onClick={() => navigateTo(VIEWS.USERS)} title="Usuários" />}
           {canAccessKpi && <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />}
           {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />}
         </nav>
@@ -366,7 +367,6 @@ export default function App() {
           {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
           {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
           {currentView === VIEWS.AUDIT_LOGS && canAccessAudit && <AuditLogsView />}
-          {currentView === VIEWS.USERS && canAccessUsers && <UsersView />}
           {currentView === VIEWS.KPI && canAccessKpi && <KpiView />}
           {currentView === VIEWS.SETTINGS && canAccessSettings && <SettingsView />}
         </Suspense>
