@@ -100,26 +100,31 @@ function resolveStatusTrigger(status: string) {
 async function postEmail(payload: Record<string, unknown>) {
   try {
     const headers = await getAuthenticatedActorHeaders();
-    await fetch('/api/mail?route=send', {
+    const response = await fetch('/api/mail?route=send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(payload),
     });
-  } catch {
-    // Não interrompe o fluxo da UI se o e-mail falhar.
+    if (!response.ok) {
+      const json = await response.json().catch(() => null);
+      throw new Error(json?.error || 'Falha ao enviar e-mail.');
+    }
+  } catch (error) {
+    console.error('[ticketEmail] envio falhou', error);
   }
 }
 
 export async function notifyTicketCreated(ticket: Ticket) {
-  const toEmail = resolveTicketEmail(ticket);
-  if (!toEmail) return;
+  const requesterEmail = resolveTicketEmail(ticket);
+  if (!requesterEmail) return;
 
+  const variables = await buildVariables(ticket);
   await postEmail({
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
-    toEmail,
+    toEmail: requesterEmail,
     trigger: 'EMAIL-NOVA-OS',
-    variables: await buildVariables(ticket),
+    variables,
     templateData: {
       title: `OS ${ticket.id} registrada`,
       intro: 'Recebemos sua solicitação e ela já está em análise pela equipe.',
@@ -127,6 +132,23 @@ export async function notifyTicketCreated(ticket: Ticket) {
       status: ticket.status,
       ctaUrl: buildTrackingUrl(ticket),
       ctaLabel: 'Acompanhar OS',
+    },
+  });
+
+  await postEmail({
+    ticketId: ticket.id,
+    trackingToken: ticket.trackingToken,
+    trigger: 'EMAIL-NOVA-OS',
+    internalCopy: true,
+    skipThread: true,
+    variables,
+    templateData: {
+      title: `OS ${ticket.id} registrada`,
+      intro: 'Uma nova OS foi registrada no sistema e já entrou na fila de triagem.',
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      ctaUrl: buildTrackingUrl(ticket),
+      ctaLabel: 'Abrir acompanhamento',
     },
   });
 }

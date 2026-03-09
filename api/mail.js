@@ -112,6 +112,30 @@ async function resolveEmailTemplate(db, trigger) {
   return DEFAULT_SETTINGS.emailTemplates.items[normalized] || null;
 }
 
+function getInternalNotificationEmail() {
+  const candidate =
+    process.env.TICKET_NOTIFICATION_EMAIL ||
+    process.env.GMAIL_FROM_EMAIL ||
+    process.env.SENDGRID_FROM_EMAIL ||
+    '';
+  return String(candidate || '').trim().toLowerCase() || null;
+}
+
+async function canSendPublicCreationEmail(db, ticketId, toEmail, internalCopy) {
+  if (!ticketId) return false;
+
+  const ticketSnap = await db.collection('tickets').doc(ticketId).get();
+  if (!ticketSnap.exists) return false;
+
+  const ticket = ticketSnap.data() || {};
+  const requesterEmail = String(ticket.requesterEmail || '').trim().toLowerCase();
+  const internalEmail = getInternalNotificationEmail();
+  const normalizedRecipient = String(toEmail || '').trim().toLowerCase();
+
+  if (internalCopy && internalEmail) return true;
+  return Boolean(requesterEmail && normalizedRecipient && requesterEmail === normalizedRecipient);
+}
+
 async function buildNextTicketId(db) {
   const snap = await db.collection('tickets').get();
   let max = 0;
@@ -254,8 +278,6 @@ async function handleSend(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
-    await requireAuthenticatedUser(req);
-
     const body = await readJsonBody(req);
     const ticketId = required(body.ticketId, 'ticketId');
     ticketIdForLog = ticketId;
@@ -269,12 +291,27 @@ async function handleSend(req, res) {
     const templateData = body.templateData && typeof body.templateData === 'object' ? body.templateData : {};
     const variables = body.variables && typeof body.variables === 'object' ? body.variables : {};
     const trackingToken = body.trackingToken ? String(body.trackingToken) : null;
+    const skipThread = body.skipThread === true;
+    const internalCopy = body.internalCopy === true;
+    const internalEmail = getInternalNotificationEmail();
+
+    if (internalCopy && !internalEmail) {
+      return sendJson(res, 200, { ok: true, skipped: 'internal-copy-without-recipient' });
+    }
 
     if (!templateId && !trigger && !text && !html) {
       throw new Error('Informe text, html, templateId ou trigger para envio.');
     }
 
     const db = getAdminDb();
+    const isPublicCreationEmail =
+      trigger === 'EMAIL-NOVA-OS' &&
+      (await canSendPublicCreationEmail(db, ticketId, toEmailInput, internalCopy));
+
+    if (!isPublicCreationEmail) {
+      await requireAuthenticatedUser(req);
+    }
+
     const storedTemplate = await resolveEmailTemplate(db, trigger);
     const resolvedSubject = storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject;
     const resolvedBody = storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text;
@@ -304,7 +341,7 @@ async function handleSend(req, res) {
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
 
-    const toEmail = toEmailInput || thread?.toEmail || null;
+    const toEmail = internalCopy ? internalEmail : toEmailInput || thread?.toEmail || null;
     toEmailForLog = toEmail;
     if (!toEmail) {
       throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
@@ -349,34 +386,36 @@ async function handleSend(req, res) {
     const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
     const mergedReferences = [...new Set([...nextReferences, messageId])].slice(-20);
 
-    await threadRef.set(
-      {
-        ticketId,
-        toEmail,
-        lastMessageId: messageId,
-        references: mergedReferences,
-        lastDirection: 'outbound',
-        lastOutboundAt: now,
-        updatedAt: now,
-        participants: FieldValue.arrayUnion(toEmail),
-      },
-      { merge: true }
-    );
+    if (!skipThread) {
+      await threadRef.set(
+        {
+          ticketId,
+          toEmail,
+          lastMessageId: messageId,
+          references: mergedReferences,
+          lastDirection: 'outbound',
+          lastOutboundAt: now,
+          updatedAt: now,
+          participants: FieldValue.arrayUnion(toEmail),
+        },
+        { merge: true }
+      );
 
-    await threadRef.collection('messages').add({
-      direction: 'outbound',
-      toEmail,
-      subject: resolvedSubject,
-      text: finalText || null,
-      html: finalHtml || null,
-      templateId: templateId || null,
-      trigger: trigger || null,
-      messageId,
-      inReplyTo: priorMessageId,
-      references: mergedReferences,
-      headers,
-      createdAt: now,
-    });
+      await threadRef.collection('messages').add({
+        direction: 'outbound',
+        toEmail,
+        subject: resolvedSubject,
+        text: finalText || null,
+        html: finalHtml || null,
+        templateId: templateId || null,
+        trigger: trigger || null,
+        messageId,
+        inReplyTo: priorMessageId,
+        references: mergedReferences,
+        headers,
+        createdAt: now,
+      });
+    }
 
     await logEmailEvent({
       type: 'outbound',
