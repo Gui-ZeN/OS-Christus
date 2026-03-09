@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, TrackingProcurementSummary } from '../services/ticketsApi';
 import type { HistoryItem, Ticket } from '../types';
-import { formatDistanceToNowSafe } from '../utils/date';
+import { formatDateTimeSafe } from '../utils/date';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 
 interface TrackingViewProps {
@@ -351,7 +351,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-roman-text-main">{item.title}</div>
                       <div className="text-sm text-roman-text-sub mt-1">{item.description}</div>
-                      <div className="text-xs text-roman-text-sub mt-2">{item.date ? formatDistanceToNowSafe(item.date) : 'Sem data registrada'}</div>
+                      <div className="text-xs text-roman-text-sub mt-2">{item.date ? formatDateTimeSafe(item.date) : 'Sem data registrada'}</div>
                     </div>
                   </div>
                 </div>
@@ -470,7 +470,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     <div className="w-full md:w-[calc(50%-2.5rem)] bg-roman-surface border border-roman-border p-4 rounded-sm shadow-sm md:group-odd:text-right">
                       <div className="flex items-center justify-between md:group-odd:flex-row-reverse mb-1">
                         <div className="font-serif font-medium text-roman-text-main">{item.sender || 'Sistema'}</div>
-                        {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDistanceToNowSafe(item.time)}</div>}
+                        {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(item.time)}</div>}
                       </div>
                       <div className="text-sm text-roman-text-main leading-relaxed">{item.text}</div>
                     </div>

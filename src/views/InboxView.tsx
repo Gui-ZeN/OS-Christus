@@ -13,7 +13,7 @@ import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
-import { formatDistanceToNowSafe } from '../utils/date';
+import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
@@ -1307,7 +1307,7 @@ export function InboxView() {
               </div>
               <div className="flex flex-wrap items-center gap-4 text-roman-text-sub font-serif italic text-sm">
                 <span>via Formulário do Sistema</span>
-                <span>{formatDistanceToNowSafe(activeTicket.time)}</span>
+                <span>{formatDateTimeSafe(activeTicket.time)}</span>
                 <span>{getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)}</span>
                 <button onClick={() => openAttachment(`Fotos: ${activeTicket.subject}`, 'image')} className="ml-auto text-roman-primary hover:underline flex items-center gap-1 not-italic font-medium text-xs">
                   <ImageIcon size={14} /> Ver Fotos Anexadas
@@ -1338,7 +1338,7 @@ export function InboxView() {
                           <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
                           de <span className="line-through opacity-70">{item.from}</span>
                           para <span className="font-medium text-roman-text-main">{item.to}</span>
-                          <span className="text-[10px] opacity-50 ml-1">{formatDistanceToNowSafe(item.time)}</span>
+                          <span className="text-[10px] opacity-50 ml-1">{formatDateTimeSafe(item.time)}</span>
                         </div>
                       </div>
                     );
@@ -1353,7 +1353,7 @@ export function InboxView() {
                         <div className="flex items-baseline gap-2 mb-1">
                           <span className="font-semibold text-[14px]">{item.sender}</span>
                           <span className="text-roman-text-sub text-xs font-serif italic">
-                            {formatDistanceToNowSafe(item.time)}
+                            {formatDateTimeSafe(item.time)}
                           </span>
                         </div>
                         <div className="bg-roman-surface border border-roman-border rounded-sm p-5 text-[14px] leading-relaxed shadow-sm">
@@ -1784,7 +1784,7 @@ export function InboxView() {
                         <div>
                           <div className="text-sm font-medium text-roman-text-main">{item.ticketId} · {item.subject}</div>
                           <div className="text-[11px] text-roman-text-sub">
-                            {item.vendor} · {item.sede} / {item.region} · {formatDistanceToNowSafe(item.date)}
+                            {item.vendor} · {item.sede} / {item.region} · {formatDateTimeSafe(item.date)}
                           </div>
                         </div>
                         <div className="text-right">

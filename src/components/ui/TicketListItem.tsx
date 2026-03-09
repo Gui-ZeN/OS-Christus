@@ -2,7 +2,7 @@ import React from 'react';
 import { AlertCircle, Clock, Eye } from 'lucide-react';
 import { TICKET_STATUS } from '../../constants/ticketStatus';
 import { SLAStatus } from '../../types';
-import { formatDistanceToNowSafe } from '../../utils/date';
+import { formatDateTimeSafe } from '../../utils/date';
 import { StatusBadge } from './StatusBadge';
 
 interface TicketListItemProps {
@@ -49,7 +49,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
           <span className="truncate font-semibold text-roman-text-main">{requester}</span>
         </div>
         <span className="whitespace-nowrap text-xs font-serif italic text-roman-text-sub">
-          {formatDistanceToNowSafe(time)}
+          {formatDateTimeSafe(time)}
         </span>
       </div>
 
