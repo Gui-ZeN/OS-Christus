@@ -138,6 +138,7 @@ export function SettingsView() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogSaved, setCatalogSaved] = useState<string | null>(null);
+  const [catalogDeleting, setCatalogDeleting] = useState(false);
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [macroServices, setMacroServices] = useState<CatalogMacroService[]>([]);
@@ -356,6 +357,7 @@ export function SettingsView() {
   };
 
   const handleDeleteCatalogItem = async (entity: 'regions' | 'sites', id: string, label: string) => {
+    setCatalogDeleting(true);
     try {
       const catalog = await deleteCatalogEntry(entity, id);
       setRegions(catalog.regions);
@@ -375,6 +377,7 @@ export function SettingsView() {
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao excluir item do catálogo.');
     } finally {
+      setCatalogDeleting(false);
       setPendingCatalogDelete(null);
     }
   };
@@ -1189,12 +1192,20 @@ export function SettingsView() {
               </div>
             </div>
             <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4">
-              <button onClick={() => setPendingCatalogDelete(null)} className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50">
+              <button
+                onClick={() => setPendingCatalogDelete(null)}
+                disabled={catalogDeleting}
+                className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 Cancelar
               </button>
-              <button onClick={() => void handleDeleteCatalogItem(pendingCatalogDelete.entity, pendingCatalogDelete.id, pendingCatalogDelete.label)} className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800">
-                <Trash2 size={14} />
-                Confirmar exclusão
+              <button
+                onClick={() => void handleDeleteCatalogItem(pendingCatalogDelete.entity, pendingCatalogDelete.id, pendingCatalogDelete.label)}
+                disabled={catalogDeleting}
+                className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {catalogDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {catalogDeleting ? 'Excluindo...' : 'Confirmar exclusão'}
               </button>
             </div>
           </div>

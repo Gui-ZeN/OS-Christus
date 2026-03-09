@@ -276,9 +276,9 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('tickets').where('regionId', '==', id).limit(1).get(),
     ]);
 
-    if (!sitesSnap.empty) throw new Error('N?o ? poss?vel excluir a regi?o enquanto existirem sedes vinculadas.');
-    if (!usersSnap.empty) throw new Error('N?o ? poss?vel excluir a regi?o enquanto houver usu?rios vinculados.');
-    if (!ticketsSnap.empty) throw new Error('N?o ? poss?vel excluir a regi?o porque ela j? est? vinculada a tickets.');
+    if (!sitesSnap.empty) throw new Error('Não é possível excluir a região enquanto existirem sedes vinculadas.');
+    if (!usersSnap.empty) throw new Error('Não é possível excluir a região enquanto houver usuários vinculados.');
+    if (!ticketsSnap.empty) throw new Error('Não é possível excluir a região porque ela já está vinculada a tickets.');
     return;
   }
 
@@ -288,8 +288,8 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('tickets').where('siteId', '==', id).limit(1).get(),
     ]);
 
-    if (!usersSnap.empty) throw new Error('N?o ? poss?vel excluir a sede enquanto houver usu?rios vinculados.');
-    if (!ticketsSnap.empty) throw new Error('N?o ? poss?vel excluir a sede porque ela j? est? vinculada a tickets.');
+    if (!usersSnap.empty) throw new Error('Não é possível excluir a sede enquanto houver usuários vinculados.');
+    if (!ticketsSnap.empty) throw new Error('Não é possível excluir a sede porque ela já está vinculada a tickets.');
   }
 }
 
@@ -386,7 +386,7 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Allow', 'GET, POST, DELETE');
-    return sendJson(res, 405, { ok: false, error: 'M?todo n?o permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no catalogo.' });
   }
