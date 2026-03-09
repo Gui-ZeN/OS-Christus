@@ -10,8 +10,7 @@ import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/bu
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
 
-const APPROVAL_STATUS: Record<string, TicketStatus> = {
-  new_os: TICKET_STATUS.WAITING_TECH_OPINION,
+const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
   solutions: TICKET_STATUS.WAITING_BUDGET,
   budgets: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
   contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
@@ -74,7 +73,7 @@ export function ApprovalsView() {
   const { openAttachment, updateTicket, tickets, currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
-  const [activeTab, setActiveTab] = useState<'new_os' | 'solutions' | 'budgets' | 'contracts'>('new_os');
+  const [activeTab, setActiveTab] = useState<'solutions' | 'budgets' | 'contracts'>('solutions');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
@@ -138,7 +137,7 @@ export function ApprovalsView() {
     };
   }, [attachContractModalId]);
 
-  const handleApprove = (id: string, tab: 'new_os' | 'solutions' | 'budgets', selectedQuote?: Quote) => {
+  const handleApprove = (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
     if (!canApprove) return;
     setProcessingId(id);
     setTimeout(async () => {
@@ -335,20 +334,6 @@ export function ApprovalsView() {
     window.setTimeout(() => setToast(null), 3000);
   };
 
-  const newOSList = useMemo(
-    () =>
-      tickets
-        .filter(ticket => ticket.status === TICKET_STATUS.NEW)
-        .map(ticket => ({
-          id: ticket.id,
-          subject: ticket.subject,
-          requester: ticket.requester,
-          date: ticket.time,
-          description: ticket.history.find(item => item.type === 'customer')?.text ?? 'Sem descrição.',
-        })),
-    [tickets]
-  );
-
   const solutions = useMemo(
     () =>
       tickets
@@ -415,9 +400,6 @@ export function ApprovalsView() {
             <p className="text-roman-text-sub font-serif italic">Aprovações rápidas de orçamentos e assinaturas de contratos.</p>
           </div>
           <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1 shadow-sm overflow-x-auto hide-scrollbar">
-            <button onClick={() => setActiveTab('new_os')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'new_os' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
-              Novas OS ({newOSList.length})
-            </button>
             <button onClick={() => setActiveTab('solutions')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'solutions' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Soluções ({solutions.length})
             </button>
@@ -431,42 +413,6 @@ export function ApprovalsView() {
         </header>
 
         <div className="space-y-6">
-          {activeTab === 'new_os' && newOSList.map(os => (
-            <div key={os.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
-              {processingId === os.id && (
-                <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
-                  <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
-                  <span className="font-serif text-roman-text-main font-medium">Processando decisao...</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-4">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-roman-primary font-serif italic text-sm">{os.id}</span>
-                    <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Triagem (Diretoria)</span>
-                  </div>
-                  <h3 className="text-xl font-serif text-roman-text-main">{os.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {os.requester} · Enviado: {formatDistanceToNowSafe(os.date)}</p>
-                </div>
-              </div>
-              <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
-                <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Descrição do Problema</h4>
-                <p className="text-sm text-roman-text-main leading-relaxed">{os.description}</p>
-                <button onClick={() => openAttachment(`Fotos: ${os.subject}`, 'image')} className="mt-3 flex items-center gap-2 text-roman-primary hover:underline text-xs font-medium">
-                  <ImageIcon size={14} /> Ver Fotos Anexadas
-                </button>
-              </div>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => openRejectModal(os.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
-                  Reprovar (Cancelar OS)
-                </button>
-                <button onClick={() => handleApprove(os.id, 'new_os')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
-                  <CheckCircle size={16} /> Aprovar (Enviar para Rafael)
-                </button>
-              </div>
-            </div>
-          ))}
-
           {activeTab === 'solutions' && solutions.map(solution => (
             <div key={solution.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
               {processingId === solution.id && (

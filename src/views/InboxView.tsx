@@ -975,41 +975,63 @@ export function InboxView() {
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[86vw] max-w-80 md:w-80 bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="h-14 border-b border-roman-border flex items-center justify-between px-4 hover:bg-roman-bg cursor-pointer">
-          <div className="flex items-center gap-2">
-            <h2 className="font-serif text-[16px] font-semibold tracking-wide">Minhas Filas ({displayActor})</h2>
-            <ChevronDown size={16} className="text-roman-text-sub" />
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[88vw] max-w-96 md:w-[23rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="border-b border-roman-border px-4 py-4 bg-gradient-to-b from-roman-bg to-roman-surface">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="font-serif text-[18px] font-semibold tracking-wide text-roman-text-main">Fila de Triagem</h2>
+                <ChevronDown size={16} className="text-roman-text-sub" />
+              </div>
+              <p className="text-xs text-roman-text-sub mt-1">Responsável atual: {displayActor}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-full border border-roman-border bg-roman-bg text-sm font-medium text-roman-text-main">
+                {tickets.length}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMobileTicketList(false);
+                  setShowMobileContext(false);
+                }}
+                className="md:hidden text-roman-text-sub hover:text-roman-text-main"
+                aria-label="Fechar lista"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-roman-text-sub font-serif italic text-sm">{tickets.length}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMobileTicketList(false);
-                setShowMobileContext(false);
-              }}
-              className="md:hidden text-roman-text-sub hover:text-roman-text-main"
-              aria-label="Fechar lista"
-            >
-              <X size={16} />
-            </button>
+
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+              <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Novas</div>
+              <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
+            </div>
+            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+              <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Orçamento</div>
+              <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length}</div>
+            </div>
+            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+              <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Execução</div>
+              <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length}</div>
+            </div>
           </div>
         </div>
 
         {/* Toolbar */}
-        <div className="p-2 border-b border-roman-border flex gap-2 bg-roman-bg/50 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.NEW] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes(TICKET_STATUS.NEW) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+        <div className="p-3 border-b border-roman-border bg-roman-bg/50 grid grid-cols-1 gap-2">
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.NEW] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.NEW) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
             Novas OS ({tickets.filter(t => t.status === TICKET_STATUS.NEW).length})
           </button>
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.WAITING_BUDGET] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes(TICKET_STATUS.WAITING_BUDGET) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Aguard. Orçamento ({tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length})
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.WAITING_BUDGET] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.WAITING_BUDGET) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+            Aguardando orçamento ({tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length})
           </button>
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.IN_PROGRESS] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.includes(TICKET_STATUS.IN_PROGRESS) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Em Execução ({tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length})
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.IN_PROGRESS] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.IN_PROGRESS) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+            Em execução ({tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length})
           </button>
-          <button onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })} className={`border rounded px-3 py-1.5 text-center transition-colors font-medium whitespace-nowrap ${inboxFilter.status.length === 0 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Limpar Filtros
+          <button onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.length === 0 && inboxFilter.priority.length === 0 && inboxFilter.region.length === 0 && inboxFilter.type.length === 0 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+            Limpar filtros
           </button>
         </div>
 
