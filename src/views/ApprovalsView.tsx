@@ -191,7 +191,21 @@ export function ApprovalsView() {
       }
 
       setProcessingId(null);
-      updateTicket(id, { status: APPROVAL_STATUS[tab] });
+      const targetTicket = tickets.find(ticket => ticket.id === id);
+      const historyItem = {
+        id: crypto.randomUUID(),
+        type: 'system' as const,
+        sender: 'Diretoria',
+        time: new Date(),
+        text:
+          tab === 'budgets'
+            ? `Orçamento aprovado. ${selectedQuote?.vendor || 'Fornecedor vencedor'} definido para seguir com o contrato.`
+            : 'Solução técnica aprovada. OS liberada para a etapa de orçamentação.',
+      };
+      updateTicket(id, {
+        status: APPROVAL_STATUS[tab],
+        history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+      });
     }, 1500);
   };
 
@@ -253,7 +267,17 @@ export function ApprovalsView() {
       }
       setContractsByTicket(prev => ({ ...prev, [attachContractModalId]: nextContract }));
       setProcessingId(null);
-      updateTicket(attachContractModalId, { status: APPROVAL_STATUS.contracts });
+      const historyItem = {
+        id: crypto.randomUUID(),
+        type: 'system' as const,
+        sender: 'Diretoria',
+        time: new Date(),
+        text: `Contrato assinado e anexado${nextContract.signedFileName ? `: ${nextContract.signedFileName}` : '.'}`,
+      };
+      updateTicket(attachContractModalId, {
+        status: APPROVAL_STATUS.contracts,
+        history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+      });
       setAttachContractModalId(null);
       setAttachedFile(null);
     }, 1500);
