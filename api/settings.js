@@ -4,14 +4,29 @@ import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
+function repairMojibake(value) {
+  const input = String(value || '');
+  if (!input || (!input.includes('Ã') && !input.includes('Â') && !input.includes('â'))) {
+    return input;
+  }
+
+  try {
+    const repaired = Buffer.from(input, 'latin1').toString('utf8');
+    if (!repaired || repaired.includes('�')) return input;
+    return repaired;
+  } catch {
+    return input;
+  }
+}
+
 function normalizeEmailTemplate(data, fallback = null) {
   const source = data && typeof data === 'object' ? data : {};
   const fallbackTemplate = fallback && typeof fallback === 'object' ? fallback : {};
 
   return {
     trigger: String(source.trigger || fallbackTemplate.trigger || '').trim(),
-    subject: String(source.subject || fallbackTemplate.subject || '').trim(),
-    body: String(source.body || fallbackTemplate.body || '').trim(),
+    subject: repairMojibake(String(source.subject || fallbackTemplate.subject || '').trim()),
+    body: repairMojibake(String(source.body || fallbackTemplate.body || '').trim()),
   };
 }
 

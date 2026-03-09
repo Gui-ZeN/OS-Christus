@@ -16,6 +16,7 @@ function normalizeToken(value) {
 
 function getStageMeta(trigger, status) {
   const token = normalizeToken(trigger || status);
+
   if (token.includes('nova-os') || token.includes('nova os')) {
     return { eyebrow: 'Recebimento', label: 'Nova solicitação', accent: '#9a6b33' };
   }
@@ -52,6 +53,7 @@ function getStageMeta(trigger, status) {
   if (token.includes('mensagem')) {
     return { eyebrow: 'Comunicação', label: 'Nova mensagem registrada', accent: '#4e5f7f' };
   }
+
   return { eyebrow: 'Atualização', label: 'Atualização da OS', accent: '#6f4f1e' };
 }
 
@@ -63,7 +65,10 @@ function renderBodyText(text) {
 
   return blocks
     .map(block => {
-      const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+      const lines = block
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
       const isList = lines.length > 1 && lines.every(line => line.startsWith('- ') || line.startsWith('• '));
 
       if (isList) {
@@ -119,23 +124,23 @@ export function buildTicketEmailTemplate({
         <td align="center">
           <table width="680" cellpadding="0" cellspacing="0" style="max-width:680px;background:#fffdf9;border:1px solid #d7cbb7;box-shadow:0 18px 42px rgba(34,27,21,0.08);">
             <tr>
-              <td style="padding:22px 28px;background:#1f1a15;color:#f8f2e9;">
+              <td style="padding:24px 28px;background:#1f1a15;color:#f8f2e9;">
                 <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">OS Christus</div>
-                <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div style="margin-top:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                   <div>
                     <div style="display:inline-block;padding:5px 10px;border:1px solid rgba(255,255,255,0.16);border-radius:999px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;">${esc(stage.eyebrow)}</div>
-                    <div style="margin-top:12px;font-size:28px;line-height:1.2;">${esc(title || stage.label)}</div>
+                    <div style="margin-top:12px;font-size:30px;line-height:1.18;">${esc(title || stage.label)}</div>
                   </div>
-                  <div style="padding:10px 14px;border:1px solid rgba(255,255,255,0.16);border-radius:16px;text-align:right;min-width:130px;">
+                  <div style="padding:12px 16px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;text-align:right;min-width:132px;">
                     <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.72;">Ticket</div>
-                    <div style="margin-top:6px;font-size:18px;font-weight:bold;">${esc(ticketId || '-')}</div>
+                    <div style="margin-top:6px;font-size:22px;font-weight:bold;">${esc(ticketId || '-')}</div>
                   </div>
                 </div>
               </td>
             </tr>
             <tr>
               <td style="padding:28px;">
-                <div style="border-left:4px solid ${esc(stage.accent)};background:#f7f1e7;padding:16px 18px;margin-bottom:24px;">
+                <div style="border-left:4px solid ${esc(stage.accent)};background:#f7f1e7;padding:16px 18px;margin-bottom:24px;border-radius:0 18px 18px 0;">
                   <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#7d6b56;">${esc(stage.label)}</div>
                   <div style="margin-top:8px;font-size:16px;line-height:1.7;color:#3d332b;">${esc(intro || 'Sua solicitação recebeu uma nova atualização.')}</div>
                 </div>
@@ -190,12 +195,19 @@ export function buildTicketEmailTemplate({
                     : ''
                 }
 
+                <div style="margin-top:18px;padding:14px 16px;background:#f8f4ed;border:1px dashed #d8ccb9;border-radius:16px;color:#5f5246;font-size:13px;line-height:1.7;">
+                  Você pode responder este e-mail. A resposta será registrada na OS quando a caixa monitorada sincronizar a nova mensagem.
+                </div>
+
                 ${
                   ctaUrl
                     ? `<div style="margin-top:26px;text-align:left;">
                         <a href="${esc(ctaUrl)}" style="display:inline-block;background:#241c15;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:999px;font-size:14px;font-weight:bold;letter-spacing:0.2px;">
                           ${esc(ctaLabel)}
                         </a>
+                        <div style="margin-top:12px;color:#6f6256;font-size:12px;line-height:1.7;">
+                          Se o botão não abrir, use este link: <a href="${esc(ctaUrl)}" style="color:#855922;">${esc(ctaUrl)}</a>
+                        </div>
                       </div>`
                     : ''
                 }
@@ -203,7 +215,7 @@ export function buildTicketEmailTemplate({
             </tr>
             <tr>
               <td style="padding:16px 28px;border-top:1px solid #e9dfd0;background:#faf6ef;color:#7d6b56;font-size:12px;line-height:1.7;">
-                Este é um comunicado automático do sistema OS Christus. Em caso de atualização, utilize o link de acompanhamento para manter o histórico centralizado.
+                Este é um comunicado automático do sistema OS Christus. Para manter o histórico centralizado, acompanhe a OS pelo link acima ou responda este e-mail.
               </td>
             </tr>
           </table>
@@ -226,6 +238,8 @@ export function buildTicketEmailTemplate({
     service ? `Serviço: ${service}` : '',
     guaranteeSummary && guaranteeSummary !== 'Não informada' ? `Garantia: ${guaranteeSummary}` : '',
     bodyText ? `\n${bodyText}` : '',
+    '',
+    'Você pode responder este e-mail. A resposta será registrada na OS quando a caixa monitorada sincronizar a nova mensagem.',
     ctaUrl ? `\n${ctaLabel}: ${ctaUrl}` : '',
   ]
     .filter(Boolean)

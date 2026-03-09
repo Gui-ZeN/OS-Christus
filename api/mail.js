@@ -103,13 +103,37 @@ function renderTemplateString(template, variables) {
   });
 }
 
+function repairMojibake(value) {
+  const input = String(value || '');
+  if (!input || (!input.includes('?') && !input.includes('?') && !input.includes('?'))) {
+    return input;
+  }
+
+  try {
+    const repaired = Buffer.from(input, 'latin1').toString('utf8');
+    if (!repaired || repaired.includes('?')) return input;
+    return repaired;
+  } catch {
+    return input;
+  }
+}
+
+function normalizeResolvedTemplate(template) {
+  if (!template || typeof template !== 'object') return null;
+  return {
+    ...template,
+    subject: repairMojibake(template.subject),
+    body: repairMojibake(template.body),
+  };
+}
+
 async function resolveEmailTemplate(db, trigger) {
   const normalized = String(trigger || '').trim();
   if (!normalized) return null;
 
   const snap = await db.collection('settings').doc('emailTemplates').collection('items').doc(normalized).get();
-  if (snap.exists) return snap.data();
-  return DEFAULT_SETTINGS.emailTemplates.items[normalized] || null;
+  if (snap.exists) return normalizeResolvedTemplate(snap.data());
+  return normalizeResolvedTemplate(DEFAULT_SETTINGS.emailTemplates.items[normalized] || null);
 }
 
 function getInternalNotificationEmail() {
@@ -313,8 +337,10 @@ async function handleSend(req, res) {
     }
 
     const storedTemplate = await resolveEmailTemplate(db, trigger);
-    const resolvedSubject = storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject;
-    const resolvedBody = storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text;
+    const resolvedSubject = repairMojibake(
+      storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject
+    );
+    const resolvedBody = repairMojibake(storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text);
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
 
