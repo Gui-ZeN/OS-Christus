@@ -1,0 +1,34 @@
+name: Gmail Watch Renew
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    steps:
+      - name: Call Gmail watch renew endpoint
+        env:
+          WATCH_URL: ${{ secrets.GMAIL_WATCH_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$WATCH_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing required secrets: GMAIL_WATCH_URL or CRON_SECRET"
+            exit 1
+          fi
+
+          HTTP_CODE=$(curl -L -sS -o /tmp/watch-response.txt -w "%{http_code}" -X POST "$WATCH_URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json")
+
+          cat /tmp/watch-response.txt
+          echo "HTTP $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Watch endpoint returned non-success status"
+            exit 1
+          fi

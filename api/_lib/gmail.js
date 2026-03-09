@@ -17,6 +17,10 @@ function createOAuthClient() {
   return oauth2Client;
 }
 
+function createGmailClient() {
+  return google.gmail({ version: 'v1', auth: createOAuthClient() });
+}
+
 function toBase64Url(input) {
   return Buffer.from(input)
     .toString('base64')
@@ -27,7 +31,7 @@ function toBase64Url(input) {
 
 function fromBase64Url(input) {
   if (!input) return '';
-  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const normalized = String(input).replace(/-/g, '+').replace(/_/g, '/');
   return Buffer.from(normalized, 'base64').toString('utf8');
 }
 
@@ -41,7 +45,7 @@ function buildRawMessage({ from, to, subject, text, html, inReplyTo, references,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
     ...(references && references.length > 0 ? [`References: ${references.join(' ')}`] : []),
-    ...Object.entries(extraHeaders).map(([k, v]) => `${k}: ${v}`),
+    ...Object.entries(extraHeaders).map(([key, value]) => `${key}: ${value}`),
     '',
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
@@ -59,7 +63,7 @@ function buildRawMessage({ from, to, subject, text, html, inReplyTo, references,
 }
 
 function extractHeader(headers, name) {
-  const found = (headers || []).find(h => h.name?.toLowerCase() === name.toLowerCase());
+  const found = (headers || []).find(header => header.name?.toLowerCase() === name.toLowerCase());
   return found?.value || null;
 }
 
@@ -119,8 +123,7 @@ async function gmailGetAttachment(gmail, messageId, attachmentId) {
 }
 
 export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken }) {
-  const oauth2Client = createOAuthClient();
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
 
   const raw = buildRawMessage({
@@ -150,8 +153,7 @@ export async function gmailSend({ toEmail, subject, text, html, inReplyTo, refer
 }
 
 export async function gmailListRecentInbox(maxResults = 30) {
-  const oauth2Client = createOAuthClient();
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = createGmailClient();
 
   const list = await gmail.users.messages.list({
     userId: 'me',
@@ -164,8 +166,7 @@ export async function gmailListRecentInbox(maxResults = 30) {
 }
 
 export async function gmailGetMessage(messageId) {
-  const oauth2Client = createOAuthClient();
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = createGmailClient();
   const result = await gmail.users.messages.get({
     userId: 'me',
     id: messageId,
@@ -191,6 +192,7 @@ export async function gmailGetMessage(messageId) {
   return {
     id: result.data.id || null,
     threadId: result.data.threadId || null,
+    historyId: result.data.historyId || null,
     internalDate: result.data.internalDate ? new Date(Number(result.data.internalDate)) : new Date(),
     from: extractHeader(headers, 'From'),
     to: extractHeader(headers, 'To'),
@@ -206,13 +208,70 @@ export async function gmailGetMessage(messageId) {
 }
 
 export async function gmailGetProfile() {
-  const oauth2Client = createOAuthClient();
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = createGmailClient();
   const result = await gmail.users.getProfile({ userId: 'me' });
 
   return {
     emailAddress: result.data.emailAddress || null,
     messagesTotal: Number(result.data.messagesTotal || 0),
     threadsTotal: Number(result.data.threadsTotal || 0),
+    historyId: result.data.historyId || null,
+  };
+}
+
+export async function gmailStartWatch({
+  topicName,
+  labelIds = ['INBOX'],
+  labelFilterBehavior = 'INCLUDE',
+} = {}) {
+  const gmail = createGmailClient();
+  const resolvedTopic = topicName || requiredEnv('GMAIL_PUBSUB_TOPIC_NAME');
+
+  const result = await gmail.users.watch({
+    userId: 'me',
+    requestBody: {
+      topicName: resolvedTopic,
+      labelIds,
+      labelFilterBehavior,
+    },
+  });
+
+  return {
+    historyId: result.data.historyId || null,
+    expiration: result.data.expiration ? Number(result.data.expiration) : null,
+  };
+}
+
+export async function gmailListHistory({
+  startHistoryId,
+  labelId = 'INBOX',
+  historyTypes = ['messageAdded'],
+  maxResults = 100,
+} = {}) {
+  if (!startHistoryId) throw new Error('startHistoryId é obrigatório.');
+
+  const gmail = createGmailClient();
+  const history = [];
+  let pageToken;
+  let latestHistoryId = null;
+
+  do {
+    const result = await gmail.users.history.list({
+      userId: 'me',
+      startHistoryId: String(startHistoryId),
+      pageToken,
+      labelId,
+      historyTypes,
+      maxResults,
+    });
+
+    history.push(...(result.data.history || []));
+    latestHistoryId = result.data.historyId || latestHistoryId;
+    pageToken = result.data.nextPageToken || null;
+  } while (pageToken);
+
+  return {
+    history,
+    historyId: latestHistoryId,
   };
 }

@@ -6,9 +6,18 @@ import { logEmailEvent } from './_lib/emailLogs.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { gmailGetMessage, gmailGetProfile, gmailListRecentInbox, gmailSend } from './_lib/gmail.js';
+import {
+  gmailGetMessage,
+  gmailGetProfile,
+  gmailListHistory,
+  gmailListRecentInbox,
+  gmailSend,
+  gmailStartWatch,
+} from './_lib/gmail.js';
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
 import { sendWithSendGrid } from './_lib/sendgrid.js';
+
+const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -105,13 +114,13 @@ function renderTemplateString(template, variables) {
 
 function repairMojibake(value) {
   const input = String(value || '');
-  if (!input || (!input.includes('?') && !input.includes('?') && !input.includes('?'))) {
+  if (!input || (!input.includes('Ã') && !input.includes('Â') && !input.includes('â'))) {
     return input;
   }
 
   try {
     const repaired = Buffer.from(input, 'latin1').toString('utf8');
-    if (!repaired || repaired.includes('?')) return input;
+    if (!repaired || repaired.includes('�')) return input;
     return repaired;
   } catch {
     return input;
@@ -143,6 +152,123 @@ function getInternalNotificationEmail() {
     process.env.SENDGRID_FROM_EMAIL ||
     '';
   return String(candidate || '').trim().toLowerCase() || null;
+}
+
+function getGmailStateRef(db) {
+  return db.collection('config').doc(GMAIL_SYNC_STATE_DOC);
+}
+
+function decodeBase64Any(input) {
+  if (!input) return '';
+  const normalized = String(input).replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(normalized, 'base64').toString('utf8');
+}
+
+function decodePubSubPayload(input) {
+  const decoded = decodeBase64Any(input);
+  return safeJsonParse(decoded);
+}
+
+async function authorizeGmailAutomation(req) {
+  const watchSecret = process.env.GMAIL_PUSH_SECRET;
+  const syncSecret = process.env.GMAIL_SYNC_SECRET;
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization || '';
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const provided = req.query?.secret || req.headers['x-sync-secret'] || req.headers['x-gmail-push-secret'] || bearer;
+  const validSecrets = [watchSecret, syncSecret, cronSecret].filter(Boolean);
+
+  if (validSecrets.length === 0) {
+    await requireUserWithRoles(req, ['Admin']);
+    return;
+  }
+
+  if (!provided || !validSecrets.includes(provided)) {
+    throw new Error('Segredo inválido.');
+  }
+}
+
+async function processGmailInboundMessage(db, msg, source) {
+  const createdTicket =
+    msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) ? null : await createTicketFromInbound(db, msg);
+  const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
+  if (!ticketId) return false;
+
+  const threadRef = db.collection('emailThreads').doc(ticketId);
+  const now = msg.internalDate || new Date();
+  const fromEmail = firstEmail(msg.from);
+  const toEmail = firstEmail(msg.to);
+  const references = String(msg.references || '')
+    .split(/\s+/)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .slice(-20);
+  const participants = [fromEmail, toEmail].filter(Boolean);
+
+  await threadRef.set(
+    {
+      ticketId,
+      lastMessageId: msg.messageId || msg.id,
+      lastDirection: 'inbound',
+      lastInboundAt: now,
+      updatedAt: now,
+      references,
+      gmailThreadId: msg.threadId || null,
+      ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
+    },
+    { merge: true }
+  );
+
+  await threadRef.collection('messages').add({
+    direction: 'inbound',
+    fromEmail: fromEmail || null,
+    toEmail: toEmail || null,
+    subject: msg.subject || '',
+    text: msg.text || null,
+    html: msg.html || null,
+    messageId: msg.messageId || msg.id || null,
+    inReplyTo: msg.inReplyTo || null,
+    references,
+    provider: 'gmail',
+    attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+    createdAt: now,
+  });
+
+  await db.collection('ticketInbound').add({
+    ticketId,
+    fromEmail: fromEmail || null,
+    subject: msg.subject || '',
+    text: msg.text || null,
+    html: msg.html || null,
+    attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+    createdAt: now,
+    source,
+  });
+
+  await logEmailEvent({
+    type: 'inbound',
+    status: 'success',
+    provider: 'gmail',
+    ticketId,
+    fromEmail: fromEmail || null,
+    subject: msg.subject || '',
+    messageId: msg.messageId || msg.id || null,
+  });
+
+  return true;
+}
+
+async function processGmailInboundMessageIds(db, messageIds, source) {
+  let processed = 0;
+
+  for (const messageId of messageIds) {
+    if (!messageId) continue;
+    const msg = await gmailGetMessage(messageId);
+    const ok = await processGmailInboundMessage(db, msg, source);
+    if (ok) processed += 1;
+  }
+
+  return processed;
 }
 
 async function canSendPublicCreationEmail(db, ticketId, toEmail, internalCopy) {
@@ -347,7 +473,9 @@ async function handleSend(req, res) {
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
       title: templateData.title || `Atualização da OS ${ticketId}`,
-      intro: templateData.intro || 'Sua solicitação recebeu uma nova atualização.',
+      intro:
+        templateData.intro ||
+        'Sua solicitação recebeu uma nova atualização. Você pode responder este e-mail para continuar a conversa no sistema.',
       ticketId,
       subject: templateData.ticketSubject || resolvedSubject,
       status: templateData.status || 'Atualizada',
@@ -541,21 +669,10 @@ async function handleGmailSync(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
-    const syncSecret = process.env.GMAIL_SYNC_SECRET;
-    const cronSecret = process.env.CRON_SECRET;
-    const authHeader = req.headers.authorization || '';
-    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-    if (syncSecret || cronSecret) {
-      const provided = req.query?.secret || req.headers['x-sync-secret'] || bearer;
-      const validSecrets = [syncSecret, cronSecret].filter(Boolean);
-      if (!provided || !validSecrets.includes(provided)) {
-        return sendJson(res, 401, { ok: false, error: 'Segredo inválido.' });
-      }
-    }
+    await authorizeGmailAutomation(req);
 
     const db = getAdminDb();
-    const stateRef = db.collection('config').doc('gmailSync');
+    const stateRef = getGmailStateRef(db);
     const stateSnap = await stateRef.get();
     const state = stateSnap.exists ? stateSnap.data() : {};
     const seenIds = new Set(Array.isArray(state.seenMessageIds) ? state.seenMessageIds : []);
@@ -566,76 +683,7 @@ async function handleGmailSync(req, res) {
 
     for (const ref of refs) {
       if (!ref.id || seenIds.has(ref.id)) continue;
-      const msg = await gmailGetMessage(ref.id);
-      const createdTicket =
-        msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text)
-          ? null
-          : await createTicketFromInbound(db, msg);
-      const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
-      if (!ticketId) continue;
-
-      const threadRef = db.collection('emailThreads').doc(ticketId);
-      const now = msg.internalDate || new Date();
-      const fromEmail = firstEmail(msg.from);
-      const toEmail = firstEmail(msg.to);
-      const references = String(msg.references || '')
-        .split(/\s+/)
-        .map(value => value.trim())
-        .filter(Boolean)
-        .slice(-20);
-      const participants = [fromEmail, toEmail].filter(Boolean);
-
-      await threadRef.set(
-        {
-          ticketId,
-          lastMessageId: msg.messageId || msg.id,
-          lastDirection: 'inbound',
-          lastInboundAt: now,
-          updatedAt: now,
-          references,
-          gmailThreadId: msg.threadId || null,
-          ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
-        },
-        { merge: true }
-      );
-
-      await threadRef.collection('messages').add({
-        direction: 'inbound',
-        fromEmail: fromEmail || null,
-        toEmail: toEmail || null,
-        subject: msg.subject || '',
-        text: msg.text || null,
-        html: msg.html || null,
-        messageId: msg.messageId || msg.id || null,
-        inReplyTo: msg.inReplyTo || null,
-        references,
-        provider: 'gmail',
-        attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
-        createdAt: now,
-      });
-
-      await db.collection('ticketInbound').add({
-        ticketId,
-        fromEmail: fromEmail || null,
-        subject: msg.subject || '',
-        text: msg.text || null,
-        html: msg.html || null,
-        attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
-        createdAt: now,
-        source: createdTicket ? 'gmail-api-new-ticket' : 'gmail-api-sync',
-      });
-
-      await logEmailEvent({
-        type: 'inbound',
-        status: 'success',
-        provider: 'gmail',
-        ticketId,
-        fromEmail: fromEmail || null,
-        subject: msg.subject || '',
-        messageId: msg.messageId || msg.id || null,
-      });
-
-      processed += 1;
+      processed += await processGmailInboundMessageIds(db, [ref.id], 'gmail-api-sync');
       newSeen.push(ref.id);
       seenIds.add(ref.id);
     }
@@ -643,6 +691,7 @@ async function handleGmailSync(req, res) {
     await stateRef.set(
       {
         seenMessageIds: newSeen.slice(-200),
+        lastSyncAt: new Date(),
         updatedAt: new Date(),
       },
       { merge: true }
@@ -664,6 +713,161 @@ async function handleGmailSync(req, res) {
       error: error.message || 'Falha no sync do Gmail.',
     });
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no sync do Gmail.' });
+  }
+}
+
+async function handleGmailWatch(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+
+    await authorizeGmailAutomation(req);
+
+    const watch = await gmailStartWatch({
+      topicName: process.env.GMAIL_PUBSUB_TOPIC_NAME,
+    });
+
+    const db = getAdminDb();
+    await getGmailStateRef(db).set(
+      {
+        watchHistoryId: watch.historyId || null,
+        lastHistoryId: watch.historyId || null,
+        watchExpiration: watch.expiration ? new Date(Number(watch.expiration)) : null,
+        lastWatchRenewedAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+
+    await logEmailEvent({
+      type: 'sync',
+      status: 'success',
+      provider: 'gmail',
+      action: 'watch-renew',
+      historyId: watch.historyId || null,
+    });
+
+    return sendJson(res, 200, {
+      ok: true,
+      historyId: watch.historyId || null,
+      expiration: watch.expiration || null,
+    });
+  } catch (error) {
+    await logEmailEvent({
+      type: 'sync',
+      status: 'error',
+      provider: 'gmail',
+      action: 'watch-renew',
+      error: error.message || 'Falha ao renovar watch do Gmail.',
+    });
+    return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao renovar watch do Gmail.' });
+  }
+}
+
+async function handleGmailPush(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+
+    await authorizeGmailAutomation(req);
+
+    const body = await readJsonBody(req);
+    const envelope = body?.message;
+    const payload = decodePubSubPayload(envelope?.data);
+
+    if (!payload?.historyId) {
+      return sendJson(res, 200, { ok: true, skipped: 'empty-push' });
+    }
+
+    const db = getAdminDb();
+    const stateRef = getGmailStateRef(db);
+    const stateSnap = await stateRef.get();
+    const state = stateSnap.exists ? stateSnap.data() : {};
+    const previousHistoryId = state.lastHistoryId || state.watchHistoryId || null;
+    const nextHistoryId = String(payload.historyId);
+
+    if (!previousHistoryId) {
+      await stateRef.set(
+        {
+          lastHistoryId: nextHistoryId,
+          lastPushAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+
+      return sendJson(res, 200, { ok: true, bootstrap: true, processed: 0, historyId: nextHistoryId });
+    }
+
+    let processed = 0;
+
+    try {
+      const historyResult = await gmailListHistory({
+        startHistoryId: previousHistoryId,
+      });
+
+      const messageIds = [
+        ...new Set(
+          historyResult.history.flatMap(item =>
+            (item.messagesAdded || [])
+              .map(entry => entry?.message?.id)
+              .filter(Boolean)
+          )
+        ),
+      ];
+
+      processed = await processGmailInboundMessageIds(db, messageIds, 'gmail-api-push');
+
+      await stateRef.set(
+        {
+          lastHistoryId: String(historyResult.historyId || nextHistoryId),
+          lastPushAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      if (error?.code !== 404) throw error;
+
+      const refs = await gmailListRecentInbox(20);
+      processed = await processGmailInboundMessageIds(
+        db,
+        refs.map(item => item.id).filter(Boolean),
+        'gmail-api-push-recovery'
+      );
+
+      await stateRef.set(
+        {
+          lastHistoryId: nextHistoryId,
+          lastPushAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+    }
+
+    await logEmailEvent({
+      type: 'sync',
+      status: 'success',
+      provider: 'gmail',
+      action: 'push',
+      processed,
+    });
+
+    return sendJson(res, 200, { ok: true, processed, historyId: nextHistoryId });
+  } catch (error) {
+    await logEmailEvent({
+      type: 'sync',
+      status: 'error',
+      provider: 'gmail',
+      action: 'push',
+      error: error.message || 'Falha no push do Gmail.',
+    });
+    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no push do Gmail.' });
   }
 }
 
@@ -798,6 +1002,8 @@ export default async function handler(req, res) {
   if (route === 'send') return handleSend(req, res);
   if (route === 'health') return handleHealth(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
+  if (route === 'gmail-watch') return handleGmailWatch(req, res);
+  if (route === 'gmail-push') return handleGmailPush(req, res);
   if (route === 'inbound') return handleInbound(req, res);
 
   res.setHeader('Allow', 'GET, POST');

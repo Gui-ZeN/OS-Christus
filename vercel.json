@@ -13,6 +13,14 @@
       "destination": "/api/mail?route=gmail-sync"
     },
     {
+      "source": "/api/email/gmail-watch",
+      "destination": "/api/mail?route=gmail-watch"
+    },
+    {
+      "source": "/api/email/gmail-push",
+      "destination": "/api/mail?route=gmail-push"
+    },
+    {
       "source": "/api/email/inbound",
       "destination": "/api/mail?route=inbound"
     },
