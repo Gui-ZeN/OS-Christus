@@ -365,6 +365,19 @@ export function FinanceView() {
     [contractsByTicket, measurementsByTicket, paymentsByTicket, tickets]
   );
 
+  const financeSummary = useMemo(() => {
+    return financeTickets.reduce(
+      (acc, entry) => {
+        acc.tickets += 1;
+        acc.planned += entry.plannedValue;
+        acc.paid += entry.paidValue;
+        acc.remaining += entry.remainingValue;
+        return acc;
+      },
+      { tickets: 0, planned: 0, paid: 0, remaining: 0 }
+    );
+  }, [financeTickets]);
+
   const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
     measurementDraftByTicket[ticketId] || {
       label: '',
@@ -763,6 +776,25 @@ export function FinanceView() {
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel Financeiro</h1>
           <p className="text-roman-text-sub font-serif italic">Medições, geração de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
         </header>
+
+        <div className="mb-6 grid gap-3 md:grid-cols-4">
+          <div className="rounded-sm border border-roman-border bg-roman-surface p-4 shadow-sm">
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">OS em pagamento</div>
+            <div className="mt-2 text-2xl font-semibold text-roman-text-main">{financeSummary.tickets}</div>
+          </div>
+          <div className="rounded-sm border border-roman-border bg-roman-surface p-4 shadow-sm">
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Previsto</div>
+            <div className="mt-2 text-xl font-semibold text-roman-text-main">{formatCurrency(financeSummary.planned)}</div>
+          </div>
+          <div className="rounded-sm border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-emerald-700">Pago</div>
+            <div className="mt-2 text-xl font-semibold text-emerald-900">{formatCurrency(financeSummary.paid)}</div>
+          </div>
+          <div className="rounded-sm border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-amber-700">Saldo a liberar</div>
+            <div className="mt-2 text-xl font-semibold text-amber-900">{formatCurrency(financeSummary.remaining)}</div>
+          </div>
+        </div>
 
         <div className="space-y-5">
           {financeTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment }) => {

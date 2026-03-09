@@ -1,6 +1,8 @@
 ﻿import { TICKET_STATUS } from '../constants/ticketStatus';
 import { Ticket } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { fetchCatalog } from './catalogApi';
+import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function requesterEmailFallback(requester: string): string | null {
   const key = requester.toLowerCase();
@@ -30,7 +32,18 @@ function guaranteeSummary(ticket: Ticket) {
   return `${ticket.guarantee.months} mês(es) - até ${ticket.guarantee.endAt.toLocaleDateString('pt-BR')}`;
 }
 
-function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {}) {
+async function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {}) {
+  let regionLabel = ticket.region;
+  let siteLabel = ticket.sede;
+
+  try {
+    const catalog = await fetchCatalog();
+    regionLabel = getTicketRegionLabel(ticket, catalog.regions, catalog.sites);
+    siteLabel = getTicketSiteLabel(ticket, catalog.sites);
+  } catch {
+    // Mant?m fallback com os dados atuais do ticket.
+  }
+
   return {
     requester: {
       name: ticket.requester,
@@ -40,9 +53,11 @@ function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {}) {
       id: ticket.id,
       subject: ticket.subject,
       status: ticket.status,
-      region: ticket.region,
-      sede: ticket.sede,
+      region: regionLabel,
+      sede: siteLabel,
       sector: ticket.sector,
+      macroService: ticket.macroServiceName || '',
+      service: ticket.serviceCatalogName || '',
     },
     tracking: {
       url: buildTrackingUrl(ticket),
@@ -104,7 +119,7 @@ export async function notifyTicketCreated(ticket: Ticket) {
     trackingToken: ticket.trackingToken,
     toEmail,
     trigger: 'EMAIL-NOVA-OS',
-    variables: buildVariables(ticket),
+    variables: await buildVariables(ticket),
     templateData: {
       title: `OS ${ticket.id} registrada`,
       intro: 'Recebemos sua solicitação e ela já está em análise pela equipe.',
@@ -127,7 +142,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     trackingToken: ticket.trackingToken,
     toEmail,
     trigger: trigger || 'EMAIL-NOVA-MENSAGEM',
-    variables: buildVariables(ticket, {
+    variables: await buildVariables(ticket, {
       previousStatus,
       currentStatus: ticket.status,
       message: {
@@ -155,7 +170,7 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
     trackingToken: ticket.trackingToken,
     toEmail,
     trigger: 'EMAIL-NOVA-MENSAGEM',
-    variables: buildVariables(ticket, {
+    variables: await buildVariables(ticket, {
       message: {
         sender,
         body: message.trim(),

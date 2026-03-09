@@ -35,47 +35,47 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
   {
     trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
     subject: '[Triagem] {{ticket.id}} em análise',
-    body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-PARECER-TECNICO',
     subject: '[Parecer Técnico] {{ticket.id}} pronta para solução',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
     subject: '[Orçamento] {{ticket.id}} em cotação',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-EM-APROVACAO',
     subject: '[Aprovação] {{ticket.id}} em validação',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
     subject: '[Planejamento] {{ticket.id}} em ações preliminares',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-EXECUCAO-INICIADA',
     subject: '[Execução] {{ticket.id}} em andamento',
-    body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
     subject: '[Validação] {{ticket.id}} aguardando sua confirmação',
-    body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
     subject: '[Pagamento] {{ticket.id}} em finalização financeira',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-OS-ENCERRADA',
     subject: '[Encerrada] {{ticket.id}} concluída',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-OS-CANCELADA',

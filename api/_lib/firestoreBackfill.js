@@ -81,6 +81,16 @@ function resolveRegionId(ticket, regions, sites) {
   return sites.find(site => site.id === siteId)?.regionId || null;
 }
 
+function resolveSite(ticket, sites) {
+  const siteId = resolveSiteId(ticket, sites);
+  return sites.find(site => site.id === siteId) || null;
+}
+
+function resolveRegion(ticket, regions, sites) {
+  const regionId = resolveRegionId(ticket, regions, sites);
+  return regions.find(region => region.id === regionId) || null;
+}
+
 export async function runFirestoreLegacyBackfill(db, actor = 'sistema') {
   const [regionsSnap, sitesSnap, usersSnap, ticketsSnap, notificationsSnap, slaSnap] = await Promise.all([
     db.collection('regions').get(),
@@ -126,12 +136,16 @@ export async function runFirestoreLegacyBackfill(db, actor = 'sistema') {
 
   for (const doc of ticketsSnap.docs) {
     const data = doc.data();
-    const siteId = resolveSiteId(data, sites);
-    const regionId = resolveRegionId(data, regions, sites);
+    const site = resolveSite(data, sites);
+    const region = resolveRegion(data, regions, sites);
+    const siteId = site?.id || null;
+    const regionId = region?.id || null;
     const patch = {};
 
     if (siteId && data.siteId !== siteId) patch.siteId = siteId;
     if (regionId && data.regionId !== regionId) patch.regionId = regionId;
+    if (site?.code && data.sede !== site.code) patch.sede = site.code;
+    if (region?.name && data.region !== region.name) patch.region = region.name;
 
     if (Object.keys(patch).length === 0) continue;
 
