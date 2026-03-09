@@ -95,6 +95,7 @@ export interface Ticket {
   sla?: SLAStatus;
   preliminaryActions?: PreliminaryActions;
   closureChecklist?: ClosureChecklist;
+  attachments?: TicketAttachment[];
   guarantee?: GuaranteeInfo;
 }
 

@@ -75,6 +75,49 @@ function extractPlainText(payload) {
   return '';
 }
 
+function extractHtml(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/html' && payload.body?.data) {
+    return fromBase64Url(payload.body.data);
+  }
+  for (const part of payload.parts || []) {
+    const value = extractHtml(part);
+    if (value) return value;
+  }
+  return '';
+}
+
+function collectAttachments(payload, items = []) {
+  if (!payload) return items;
+
+  if (payload.filename && payload.body?.attachmentId) {
+    items.push({
+      filename: payload.filename,
+      mimeType: payload.mimeType || 'application/octet-stream',
+      attachmentId: payload.body.attachmentId,
+      size: Number(payload.body.size || 0),
+    });
+  }
+
+  for (const part of payload.parts || []) {
+    collectAttachments(part, items);
+  }
+
+  return items;
+}
+
+async function gmailGetAttachment(gmail, messageId, attachmentId) {
+  const result = await gmail.users.messages.attachments.get({
+    userId: 'me',
+    messageId,
+    id: attachmentId,
+  });
+
+  const data = result.data?.data || '';
+  const normalized = data.replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(normalized, 'base64');
+}
+
 export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken }) {
   const oauth2Client = createOAuthClient();
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
@@ -131,6 +174,20 @@ export async function gmailGetMessage(messageId) {
 
   const payload = result.data.payload;
   const headers = payload?.headers || [];
+  const attachmentMetas = collectAttachments(payload);
+  const attachments = [];
+
+  for (const item of attachmentMetas) {
+    if (!item.attachmentId) continue;
+    const buffer = await gmailGetAttachment(gmail, messageId, item.attachmentId);
+    attachments.push({
+      filename: item.filename,
+      mimeType: item.mimeType,
+      size: item.size || buffer.length,
+      buffer,
+    });
+  }
+
   return {
     id: result.data.id || null,
     threadId: result.data.threadId || null,
@@ -143,6 +200,8 @@ export async function gmailGetMessage(messageId) {
     references: extractHeader(headers, 'References') || '',
     ticketId: extractHeader(headers, 'X-OS-Ticket-ID') || null,
     text: extractPlainText(payload),
+    html: extractHtml(payload),
+    attachments,
   };
 }
 

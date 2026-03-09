@@ -50,7 +50,19 @@ export function normalizeTicketForStorage(ticket) {
       serviceStartedAt: toDate(next.closureChecklist.serviceStartedAt) || null,
       serviceCompletedAt: toDate(next.closureChecklist.serviceCompletedAt) || null,
       closedAt: toDate(next.closureChecklist.closedAt) || null,
+      documents: Array.isArray(next.closureChecklist.documents)
+        ? next.closureChecklist.documents.map(item => ({
+            ...item,
+            uploadedAt: toDate(item?.uploadedAt) || null,
+          }))
+        : [],
     };
+  }
+  if (Array.isArray(next.attachments)) {
+    next.attachments = next.attachments.map(item => ({
+      ...item,
+      uploadedAt: toDate(item?.uploadedAt) || null,
+    }));
   }
   if (next.guarantee) {
     next.guarantee = {
@@ -100,8 +112,20 @@ export function serializeTicketForApi(ticket) {
           serviceStartedAt: serializeDate(ticket.closureChecklist.serviceStartedAt),
           serviceCompletedAt: serializeDate(ticket.closureChecklist.serviceCompletedAt),
           closedAt: serializeDate(ticket.closureChecklist.closedAt),
+          documents: Array.isArray(ticket.closureChecklist.documents)
+            ? ticket.closureChecklist.documents.map(item => ({
+                ...item,
+                uploadedAt: serializeDate(item?.uploadedAt),
+              }))
+            : [],
         }
       : null,
+    attachments: Array.isArray(ticket.attachments)
+      ? ticket.attachments.map(item => ({
+          ...item,
+          uploadedAt: serializeDate(item?.uploadedAt),
+        }))
+      : [],
     guarantee: ticket.guarantee
       ? {
           ...ticket.guarantee,

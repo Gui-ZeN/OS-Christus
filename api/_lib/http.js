@@ -57,17 +57,36 @@ export async function parseInboundBody(req) {
 function parseMultipartForm(req) {
   return new Promise((resolve, reject) => {
     const fields = {};
+    const attachments = [];
     const busboy = Busboy({ headers: req.headers });
 
     busboy.on('field', (name, value) => {
       fields[name] = value;
     });
 
-    busboy.on('file', (_name, file) => {
-      file.resume();
+    busboy.on('file', (name, file, info) => {
+      const chunks = [];
+      let size = 0;
+
+      file.on('data', chunk => {
+        chunks.push(chunk);
+        size += chunk.length;
+      });
+
+      file.on('end', () => {
+        if (size === 0) return;
+        attachments.push({
+          fieldName: name,
+          filename: info?.filename || `${name}-${attachments.length + 1}`,
+          mimeType: info?.mimeType || 'application/octet-stream',
+          encoding: info?.encoding || null,
+          size,
+          buffer: Buffer.concat(chunks),
+        });
+      });
     });
 
-    busboy.on('finish', () => resolve(fields));
+    busboy.on('finish', () => resolve({ ...fields, attachments }));
     busboy.on('error', reject);
     req.pipe(busboy);
   });

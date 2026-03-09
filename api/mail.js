@@ -1,4 +1,6 @@
-﻿import { FieldValue } from 'firebase-admin/firestore';
+﻿import { randomUUID } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
@@ -19,6 +21,50 @@ function parseTicketId(text) {
   return match ? match[0].toUpperCase() : null;
 }
 
+function parseNewTicketSubject(text) {
+  if (!text) return null;
+  const match = String(text).match(/^\s*\[([^\]]+)\]\s*-\s*(.+?)\s*$/);
+  if (!match) return null;
+  return {
+    siteCode: String(match[1] || '').trim(),
+    subject: String(match[2] || '').trim(),
+  };
+}
+
+function displayNameFromEmail(raw) {
+  const email = firstEmail(raw);
+  if (!email) return 'Solicitante por e-mail';
+  return email
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function normalizeKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function slugFilename(value) {
+  return String(value || 'arquivo')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function firstEmail(raw) {
   if (!raw) return null;
   const match = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
@@ -64,6 +110,137 @@ async function resolveEmailTemplate(db, trigger) {
   const snap = await db.collection('settings').doc('emailTemplates').collection('items').doc(normalized).get();
   if (snap.exists) return snap.data();
   return DEFAULT_SETTINGS.emailTemplates.items[normalized] || null;
+}
+
+async function buildNextTicketId(db) {
+  const snap = await db.collection('tickets').get();
+  let max = 0;
+  for (const doc of snap.docs) {
+    const match = String(doc.id || '').match(/^OS-(\d+)$/i);
+    if (!match) continue;
+    max = Math.max(max, Number(match[1] || 0));
+  }
+  return `OS-${String(max + 1).padStart(4, '0')}`;
+}
+
+async function resolveSiteContext(db, siteCode) {
+  const normalized = normalizeKey(siteCode);
+  const [sitesSnap, regionsSnap] = await Promise.all([
+    db.collection('sites').get(),
+    db.collection('regions').get(),
+  ]);
+
+  const sites = sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const regions = regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  const site =
+    sites.find(item => [item.id, item.code, item.name].some(value => normalizeKey(value) === normalized)) || null;
+  const region = site ? regions.find(item => item.id === site.regionId) || null : null;
+
+  return { site, region };
+}
+
+async function uploadInboundAttachments(ticketId, attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return [];
+
+  const bucket = getStorage().bucket();
+  const uploadedAt = new Date();
+  const results = [];
+
+  for (let index = 0; index < attachments.length; index += 1) {
+    const attachment = attachments[index];
+    if (!attachment?.buffer) continue;
+
+    const filename = slugFilename(attachment.filename || `anexo-${index + 1}`);
+    const path = `attachments/tickets/inbound/${ticketId}/${Date.now()}-${index + 1}-${filename}`;
+    const file = bucket.file(path);
+
+    await file.save(attachment.buffer, {
+      resumable: false,
+      contentType: attachment.mimeType || 'application/octet-stream',
+      metadata: {
+        contentType: attachment.mimeType || 'application/octet-stream',
+      },
+    });
+
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: '2035-01-01',
+    });
+
+    results.push({
+      id: randomUUID(),
+      name: attachment.filename || filename,
+      path,
+      url,
+      contentType: attachment.mimeType || 'application/octet-stream',
+      size: Number(attachment.size || attachment.buffer.length || 0),
+      uploadedAt,
+      category: 'attachment',
+    });
+  }
+
+  return results;
+}
+
+async function createTicketFromInbound(db, message) {
+  const parsedSubject = parseNewTicketSubject(message.subject);
+  if (!parsedSubject?.siteCode || !parsedSubject?.subject) return null;
+
+  const ticketId = await buildNextTicketId(db);
+  const trackingToken = `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  const now = message.internalDate || new Date();
+  const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
+  const attachments = await uploadInboundAttachments(ticketId, message.attachments || []);
+  const fromEmail = firstEmail(message.from);
+  const requester = displayNameFromEmail(message.from);
+  const description = String(message.text || '').trim() || stripHtml(message.html) || parsedSubject.subject;
+
+  const ticket = {
+    id: ticketId,
+    trackingToken,
+    subject: parsedSubject.subject,
+    requester,
+    requesterEmail: fromEmail || '',
+    time: now,
+    status: 'Nova OS',
+    type: 'Manutenção Predial Estrutural',
+    macroServiceId: null,
+    macroServiceName: null,
+    serviceCatalogId: null,
+    serviceCatalogName: null,
+    regionId: region?.id || null,
+    region: region?.name || 'Não definida',
+    siteId: site?.id || null,
+    sede: site?.code || parsedSubject.siteCode,
+    sector: 'E-mail',
+    priority: 'Normal',
+    attachments,
+    history: [
+      {
+        id: `${ticketId}-c1`,
+        type: 'customer',
+        sender: requester,
+        time: now,
+        text: description,
+      },
+      {
+        id: `${ticketId}-s1`,
+        type: 'system',
+        sender: 'Sistema',
+        time: now,
+        text: `${ticketId} registrada automaticamente por e-mail.`,
+      },
+    ],
+  };
+
+  await db.collection('tickets').doc(ticketId).set({
+    ...ticket,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return ticket;
 }
 
 async function handleSend(req, res) {
@@ -325,7 +502,11 @@ async function handleGmailSync(req, res) {
     for (const ref of refs) {
       if (!ref.id || seenIds.has(ref.id)) continue;
       const msg = await gmailGetMessage(ref.id);
-      const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text);
+      const createdTicket =
+        msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text)
+          ? null
+          : await createTicketFromInbound(db, msg);
+      const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
       if (!ticketId) continue;
 
       const threadRef = db.collection('emailThreads').doc(ticketId);
@@ -359,10 +540,12 @@ async function handleGmailSync(req, res) {
         toEmail: toEmail || null,
         subject: msg.subject || '',
         text: msg.text || null,
+        html: msg.html || null,
         messageId: msg.messageId || msg.id || null,
         inReplyTo: msg.inReplyTo || null,
         references,
         provider: 'gmail',
+        attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
         createdAt: now,
       });
 
@@ -371,8 +554,10 @@ async function handleGmailSync(req, res) {
         fromEmail: fromEmail || null,
         subject: msg.subject || '',
         text: msg.text || null,
+        html: msg.html || null,
+        attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
         createdAt: now,
-        source: 'gmail-api-sync',
+        source: createdTicket ? 'gmail-api-new-ticket' : 'gmail-api-sync',
       });
 
       await logEmailEvent({
@@ -434,20 +619,35 @@ async function handleInbound(req, res) {
 
     const body = await parseInboundBody(req);
     const headers = normalizeHeaders(body.headers);
+    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
 
     const explicitTicketId = body.ticketId || body.ticket_id || headers['x-os-ticket-id'];
     const subjectTicketId = parseTicketId(body.subject);
-    const ticketId = (explicitTicketId || subjectTicketId || '').toString().trim().toUpperCase();
-
-    if (!ticketId) {
-      return sendJson(res, 422, { ok: false, error: 'Não foi possível identificar o ticket no inbound.' });
-    }
 
     const fromEmail = firstEmail(body.from);
     const toEmail = firstEmail(body.to);
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
     const subject = body.subject ? String(body.subject) : '';
+    const db = getAdminDb();
+    const createdTicket =
+      explicitTicketId || subjectTicketId
+        ? null
+        : await createTicketFromInbound(db, {
+            from: body.from,
+            to: body.to,
+            subject,
+            text,
+            html,
+            attachments,
+            internalDate: new Date(),
+          });
+    const ticketId = (explicitTicketId || subjectTicketId || createdTicket?.id || '').toString().trim().toUpperCase();
+
+    if (!ticketId) {
+      return sendJson(res, 422, { ok: false, error: 'Não foi possível identificar o ticket no inbound.' });
+    }
+
     const messageId =
       body['Message-Id'] ||
       body['message-id'] ||
@@ -462,7 +662,6 @@ async function handleInbound(req, res) {
       .filter(Boolean)
       .slice(-20);
 
-    const db = getAdminDb();
     const threadRef = db.collection('emailThreads').doc(ticketId);
     const now = new Date();
     const participants = [fromEmail, toEmail].filter(Boolean);
@@ -491,6 +690,7 @@ async function handleInbound(req, res) {
       inReplyTo,
       references,
       headers,
+      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
       createdAt: now,
     });
 
@@ -500,8 +700,9 @@ async function handleInbound(req, res) {
       subject: subject,
       text: text || null,
       html: html || null,
+      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
       createdAt: now,
-      source: 'sendgrid-inbound',
+      source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
     });
 
     await logEmailEvent({
@@ -537,4 +738,6 @@ export default async function handler(req, res) {
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota de mail inválida.' });
 }
+
+
 

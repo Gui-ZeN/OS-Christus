@@ -71,6 +71,9 @@ async function deleteTicketCascade(db, ticketId) {
   }
 
   const ticketData = ticketSnap.data() || {};
+  const rootAttachments = Array.isArray(ticketData?.attachments)
+    ? ticketData.attachments.map(item => item?.path).filter(Boolean)
+    : [];
   const closureDocuments = Array.isArray(ticketData?.closureChecklist?.documents)
     ? ticketData.closureChecklist.documents.map(item => item?.path).filter(Boolean)
     : [];
@@ -88,7 +91,7 @@ async function deleteTicketCascade(db, ticketId) {
     deleteCollectionDocs(db.collection('ticketInbound').where('ticketId', '==', ticketId)),
     deleteCollectionDocs(db.collection('emailEvents').where('ticketId', '==', ticketId)),
     deleteCollectionDocs(db.collection('vendorPreferenceEvents').where('ticketId', '==', ticketId)),
-    deleteStoragePaths(closureDocuments),
+    deleteStoragePaths([...rootAttachments, ...closureDocuments]),
   ]);
 
   await Promise.all([
