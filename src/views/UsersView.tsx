@@ -61,6 +61,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<DirectoryUser | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,9 +172,6 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
 
   const handleDelete = async (user: DirectoryUser) => {
     if (!canManageUsers) return;
-    const confirmed = window.confirm(`Excluir o usuário ${user.name} (${user.email})?`);
-    if (!confirmed) return;
-
     setSaving(true);
     try {
       await deleteUser(user.id);
@@ -185,6 +183,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
       }
     } finally {
       setSaving(false);
+      setPendingDeleteUser(null);
     }
   };
 
@@ -275,7 +274,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                           <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-sm font-medium text-roman-primary hover:underline disabled:opacity-50 disabled:no-underline">
                             Editar
                           </button>
-                          <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50">
+                          <button onClick={() => setPendingDeleteUser(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50">
                             <Trash2 size={14} />
                             Excluir
                           </button>
@@ -435,6 +434,35 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
                 {editingId ? 'Salvar alterações' : 'Criar usuário'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
+            <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fff 100%)] px-6 py-5">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-red-700">Confirmação</div>
+              <h3 className="mt-3 text-2xl font-serif text-roman-text-main">Excluir usuário</h3>
+              <p className="mt-2 text-sm text-roman-text-sub">
+                Essa ação remove o cadastro de <strong>{pendingDeleteUser.name}</strong> e também tenta remover o acesso no Firebase Auth.
+              </p>
+            </div>
+            <div className="px-6 py-5 text-sm text-roman-text-sub">
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+                <div><strong>Nome:</strong> {pendingDeleteUser.name}</div>
+                <div><strong>E-mail:</strong> {pendingDeleteUser.email}</div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4">
+              <button onClick={() => setPendingDeleteUser(null)} className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50">
+                Cancelar
+              </button>
+              <button onClick={() => void handleDelete(pendingDeleteUser)} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Excluir usuário
               </button>
             </div>
           </div>

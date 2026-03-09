@@ -103,6 +103,13 @@ const FALLBACK_DIRECTORY_USERS: DirectoryUser[] = [
   { id: 'admin-os-christus', name: 'Administrador OS Christus', role: 'Admin', email: 'admin@os-christus.local', status: 'Ativo', regionIds: [], siteIds: [], active: true },
 ];
 
+function getInitialView(): ViewState {
+  if (typeof window === 'undefined') return 'landing';
+  const stored = window.localStorage.getItem('os-christus-current-view');
+  const allowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
+  return allowed.includes(stored as ViewState) ? (stored as ViewState) : 'landing';
+}
+
 function normalizeKey(value: string | null | undefined) {
   return String(value || '')
     .normalize('NFD')
@@ -201,7 +208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
   const localFallbackAllowed = shouldUseLocalDirectoryFallback();
   const [authResolved, setAuthResolved] = useState(!authEnabled);
-  const [currentView, setCurrentView] = useState<ViewState>('landing');
+  const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [activeTicketId, setActiveTicketId] = useState('OS-0050');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -358,6 +365,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.localStorage.removeItem('os-christus-user-email');
     }
   }, [currentUserEmail]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('os-christus-current-view', currentView);
+  }, [currentView]);
 
   const tickets = useMemo(
     () => allTickets.filter(ticket => canUserAccessTicket(currentUser, currentUserEmail, ticket, catalogRegions, catalogSites)),

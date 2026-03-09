@@ -149,6 +149,7 @@ export function SettingsView() {
   const [macroDraft, setMacroDraft] = useState({ code: '', name: '' });
   const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
   const [materialDraft, setMaterialDraft] = useState({ code: '', name: '', unit: '' });
+  const [pendingCatalogDelete, setPendingCatalogDelete] = useState<{ entity: 'regions' | 'sites'; id: string; label: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -355,9 +356,6 @@ export function SettingsView() {
   };
 
   const handleDeleteCatalogItem = async (entity: 'regions' | 'sites', id: string, label: string) => {
-    const confirmed = window.confirm(`Excluir ${label}?`);
-    if (!confirmed) return;
-
     try {
       const catalog = await deleteCatalogEntry(entity, id);
       setRegions(catalog.regions);
@@ -376,6 +374,8 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao excluir item do catálogo.');
+    } finally {
+      setPendingCatalogDelete(null);
     }
   };
 
@@ -573,7 +573,7 @@ export function SettingsView() {
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                    <button onClick={() => void handleDeleteCatalogItem('regions', item.id, `a região ${item.name}`)} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
+                                    <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
                                   </div>
                                 </div>
                               </div>
@@ -601,7 +601,7 @@ export function SettingsView() {
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                    <button onClick={() => void handleDeleteCatalogItem('sites', item.id, `a sede ${item.name}`)} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
+                                    <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
                                   </div>
                                 </div>
                               </div>
@@ -1170,6 +1170,36 @@ export function SettingsView() {
           </div>
         </div>
       </div>
+
+      {pendingCatalogDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
+            <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fff 100%)] px-6 py-5">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-red-700">Confirmação</div>
+              <h3 className="mt-3 text-2xl font-serif text-roman-text-main">
+                {pendingCatalogDelete.entity === 'regions' ? 'Excluir região' : 'Excluir sede'}
+              </h3>
+              <p className="mt-2 text-sm text-roman-text-sub">
+                Essa ação remove permanentemente {pendingCatalogDelete.label}. Se houver vínculo operacional, a exclusão será bloqueada pelo sistema.
+              </p>
+            </div>
+            <div className="px-6 py-5 text-sm text-roman-text-sub">
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+                <strong>Item:</strong> {pendingCatalogDelete.label}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4">
+              <button onClick={() => setPendingCatalogDelete(null)} className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50">
+                Cancelar
+              </button>
+              <button onClick={() => void handleDeleteCatalogItem(pendingCatalogDelete.entity, pendingCatalogDelete.id, pendingCatalogDelete.label)} className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800">
+                <Trash2 size={14} />
+                Confirmar exclusão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
