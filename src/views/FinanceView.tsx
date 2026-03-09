@@ -3,11 +3,13 @@ import { CheckCircle, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, 
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
+import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 interface MeasurementFormState {
   label: string;
@@ -94,10 +96,14 @@ function buildClosureExportHtml(
   measurements: MeasurementRecord[],
   payments: PaymentRecord[],
   plannedValue: number,
-  paidValue: number
+  paidValue: number,
+  regions: CatalogRegion[],
+  sites: CatalogSite[]
 ) {
   const closureDocuments = ticket.closureChecklist?.documents || [];
   const contractItems = contract?.items || [];
+  const siteLabel = getTicketSiteLabel(ticket, sites);
+  const regionLabel = getTicketRegionLabel(ticket, regions, sites);
 
   const measurementRows = measurements.length === 0
     ? '<tr><td colspan="4">Nenhuma medição registrada.</td></tr>'
@@ -185,8 +191,8 @@ function buildClosureExportHtml(
         <div><strong>Assunto:</strong> ${escapeHtml(ticket.subject)}</div>
         <div><strong>Status:</strong> ${escapeHtml(ticket.status)}</div>
         <div><strong>Solicitante:</strong> ${escapeHtml(ticket.requester)}</div>
-        <div><strong>Sede:</strong> ${escapeHtml(ticket.sede)}</div>
-        <div><strong>Região:</strong> ${escapeHtml(ticket.region)}</div>
+        <div><strong>Sede:</strong> ${escapeHtml(siteLabel)}</div>
+        <div><strong>Região:</strong> ${escapeHtml(regionLabel)}</div>
         <div><strong>Classificação:</strong> ${escapeHtml(ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida')}</div>
       </div>
 
@@ -258,6 +264,8 @@ export function FinanceView() {
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [measurementsByTicket, setMeasurementsByTicket] = useState<Record<string, MeasurementRecord[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+  const [regions, setRegions] = useState<CatalogRegion[]>([]);
+  const [sites, setSites] = useState<CatalogSite[]>([]);
   const [measurementDraftByTicket, setMeasurementDraftByTicket] = useState<Record<string, MeasurementFormState>>({});
   const [measurementFormOpen, setMeasurementFormOpen] = useState<Record<string, boolean>>({});
   const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
@@ -281,14 +289,19 @@ export function FinanceView() {
     let cancelled = false;
     (async () => {
       try {
+        const catalog = await fetchCatalog();
         const data = await fetchProcurementData();
         if (!cancelled) {
+          setRegions(catalog.regions);
+          setSites(catalog.sites);
           setPaymentsByTicket(data.paymentsByTicket);
           setMeasurementsByTicket(data.measurementsByTicket);
           setContractsByTicket(data.contractsByTicket);
         }
       } catch {
         if (!cancelled) {
+          setRegions([]);
+          setSites([]);
           setPaymentsByTicket({});
           setMeasurementsByTicket({});
           setContractsByTicket({});
@@ -488,7 +501,7 @@ export function FinanceView() {
     plannedValue: number,
     paidValue: number
   ) => {
-    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue);
+    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue, regions, sites);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -508,7 +521,7 @@ export function FinanceView() {
     plannedValue: number,
     paidValue: number
   ) => {
-    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue);
+    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue, regions, sites);
     const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
     if (!printWindow) {
       setToast('Erro: não foi possível abrir a janela de impressão.');

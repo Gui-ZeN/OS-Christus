@@ -3,9 +3,11 @@ import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activit
 import { v4 as uuidv4 } from 'uuid';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
+import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, TrackingProcurementSummary } from '../services/ticketsApi';
 import type { HistoryItem, Ticket } from '../types';
 import { formatDistanceToNowSafe } from '../utils/date';
+import { getTicketSiteLabel } from '../utils/ticketTerritory';
 
 interface TrackingViewProps {
   ticketToken: string | null;
@@ -53,17 +55,18 @@ function getTimelineIcon(icon: PublicTimelineItem['icon']) {
   }
 }
 
-function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary): PublicTimelineItem[] {
+function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary, sites: CatalogSite[]): PublicTimelineItem[] {
   const measurements = procurement.measurements || [];
   const payments = procurement.payments || [];
   const paidCount = payments.filter(payment => payment.status === 'paid').length;
   const totalPayments = payments.length;
+  const siteLabel = getTicketSiteLabel(ticket, sites);
 
   return [
     {
       id: 'opened',
       title: 'Solicitação registrada',
-      description: `OS aberta para ${ticket.sede}.`,
+      description: `OS aberta para ${siteLabel}.`,
       date: ticket.time,
       status: 'done',
       icon: 'opened',
@@ -152,8 +155,30 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const { tickets } = useApp();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [procurement, setProcurement] = useState<TrackingProcurementSummary>({ contract: null, measurements: [], payments: [] });
+  const [sites, setSites] = useState<CatalogSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const catalog = await fetchCatalog();
+        if (!cancelled) {
+          setSites(catalog.sites);
+        }
+      } catch {
+        if (!cancelled) {
+          setSites([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,8 +217,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
 
   const timeline = useMemo(() => {
     if (!ticket) return [];
-    return buildPublicTimeline(ticket, procurement);
-  }, [ticket, procurement]);
+    return buildPublicTimeline(ticket, procurement, sites);
+  }, [ticket, procurement, sites]);
 
   if (loading) {
     return (
@@ -224,6 +249,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   }
 
   const closureDocuments = ticket.closureChecklist?.documents || [];
+  const siteLabel = getTicketSiteLabel(ticket, sites);
 
   const handleValidate = async (approved: boolean) => {
     setIsProcessing(true);
@@ -302,7 +328,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           <div className="mb-8">
             <h2 className="text-xl font-serif text-roman-text-main mb-2">{ticket.subject}</h2>
             <p className="text-roman-text-sub">
-              Solicitado por: {ticket.requester} • Setor: {ticket.sector} ({ticket.sede})
+              Solicitado por: {ticket.requester} • Setor: {ticket.sector} ({siteLabel})
             </p>
           </div>
 
