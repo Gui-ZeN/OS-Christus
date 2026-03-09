@@ -366,7 +366,7 @@ export function InboxView() {
     if (isSending) return;
     setIsSending(true);
     const now = new Date();
-    const sender = 'Rafael (Gestor)';
+    const sender = displayActorLabel;
 
     if (replyMode === 'internal') {
       const items: HistoryItem[] = [];
@@ -498,7 +498,7 @@ export function InboxView() {
     const item: HistoryItem = {
       id: crypto.randomUUID(),
       type: 'system',
-      sender: 'Rafael (Gestor)',
+      sender: displayActorLabel,
       time: now,
       text: historyText,
     };
@@ -530,7 +530,7 @@ export function InboxView() {
       ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || new Date(), updatedAt: new Date() }
       : undefined;
     const item: HistoryItem = {
-      id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
+      id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
       time: new Date(), text: 'Execução da obra iniciada.',
     };
     updateTicket(activeTicket.id, {
@@ -545,7 +545,7 @@ export function InboxView() {
     if (isSending) return;
     setIsSending(true);
     const item: HistoryItem = {
-      id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
+      id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
       time: new Date(), text: 'Serviço concluído. Aguardando validação do solicitante.',
     };
     updateTicket(activeTicket.id, {
@@ -872,7 +872,7 @@ export function InboxView() {
       const historyItem: HistoryItem = {
         id: crypto.randomUUID(),
         type: 'system',
-        sender: 'Rafael (Gestor)',
+        sender: displayActorLabel,
         time: new Date(),
         text: 'Orçamentos consolidados e enviados para aprovação da Diretoria.',
       };
@@ -940,7 +940,7 @@ export function InboxView() {
           {
             id: crypto.randomUUID(),
             type: 'system',
-            sender: 'Rafael (Gestor)',
+            sender: displayActorLabel,
             time: now,
             text: `OS duplicada para ${createdTicket.id}.`,
           },
@@ -966,7 +966,7 @@ export function InboxView() {
         {
           id: crypto.randomUUID(),
           type: 'system',
-          sender: 'Rafael (Gestor)',
+          sender: displayActorLabel,
           time: new Date(),
           text: 'OS cancelada pelo gestor através do menu de ações.',
         },
@@ -985,7 +985,7 @@ export function InboxView() {
         {
           id: crypto.randomUUID(),
           type: 'system',
-          sender: 'Rafael (Gestor)',
+          sender: displayActorLabel,
           time: new Date(),
           text: 'OS reaberta pelo gestor para continuação do atendimento.',
         },
@@ -1339,20 +1339,35 @@ export function InboxView() {
                     );
                   }
 
+                  const isExternalMessage = item.type === 'customer';
+                  const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
+
                   return (
-                    <div key={index} className="flex gap-4">
-                      <div className="w-10 h-10 rounded-sm bg-roman-border-light text-roman-text-main border border-roman-border flex items-center justify-center font-serif text-lg shrink-0">
-                        {item.sender?.charAt(0) || 'U'}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-baseline gap-2 mb-1">
-                          <span className="font-semibold text-[14px]">{item.sender}</span>
-                          <span className="text-roman-text-sub text-xs font-serif italic">
-                            {formatDateTimeSafe(item.time)}
-                          </span>
+                    <div key={index} className={`flex gap-4 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex w-full max-w-[85%] gap-4 ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <div className={`w-10 h-10 rounded-sm border flex items-center justify-center font-serif text-lg shrink-0 ${
+                          isExternalMessage
+                            ? 'bg-roman-primary/10 text-roman-primary border-roman-primary/20'
+                            : 'bg-roman-border-light text-roman-text-main border-roman-border'
+                        }`}>
+                          {senderInitial}
                         </div>
-                        <div className="bg-roman-surface border border-roman-border rounded-sm p-5 text-[14px] leading-relaxed shadow-sm">
-                          {item.text}
+                        <div className={`flex-1 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
+                          <div className={`flex items-baseline gap-2 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
+                            <span className="font-semibold text-[14px]">{item.sender}</span>
+                            <span className="text-roman-text-sub text-xs font-serif italic">
+                              {formatDateTimeSafe(item.time)}
+                            </span>
+                          </div>
+                          <div
+                            className={`rounded-sm p-5 text-[14px] leading-relaxed shadow-sm border ${
+                              isExternalMessage
+                                ? 'bg-roman-primary/5 border-roman-primary/20'
+                                : 'bg-roman-surface border-roman-border'
+                            }`}
+                          >
+                            {item.text}
+                          </div>
                         </div>
                       </div>
                     </div>

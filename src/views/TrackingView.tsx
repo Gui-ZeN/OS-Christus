@@ -462,20 +462,41 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             <div className="space-y-6 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
               {ticket.history
                 .filter(item => item.type !== 'field_change' && item.text)
-                .map((item, index) => (
-                  <div key={index} className="relative flex flex-col md:flex-row items-start md:items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active gap-4 md:gap-0">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-roman-surface text-roman-primary shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 self-start md:self-center">
-                      {item.type === 'customer' ? <Users size={16} /> : item.type === 'tech' ? <Activity size={16} /> : <CheckCircle size={16} />}
-                    </div>
-                    <div className="w-full md:w-[calc(50%-2.5rem)] bg-roman-surface border border-roman-border p-4 rounded-sm shadow-sm md:group-odd:text-right">
-                      <div className="flex items-center justify-between md:group-odd:flex-row-reverse mb-1">
-                        <div className="font-serif font-medium text-roman-text-main">{item.sender || 'Sistema'}</div>
-                        {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(item.time)}</div>}
+                .map((item, index) => {
+                  const isExternalMessage = item.type === 'customer';
+
+                  return (
+                    <div
+                      key={index}
+                      className={`relative flex flex-col md:flex-row items-start md:items-center justify-between md:justify-normal gap-4 md:gap-0 ${
+                        isExternalMessage ? 'md:flex-row-reverse' : ''
+                      }`}
+                    >
+                      <div
+                        className={`flex items-center justify-center w-10 h-10 rounded-full border border-white shadow shrink-0 md:order-1 z-10 self-start md:self-center ${
+                          isExternalMessage
+                            ? 'bg-roman-primary text-white md:-translate-x-1/2'
+                            : 'bg-roman-surface text-roman-primary md:translate-x-1/2'
+                        }`}
+                      >
+                        {item.type === 'customer' ? <Users size={16} /> : item.type === 'tech' ? <Activity size={16} /> : <CheckCircle size={16} />}
                       </div>
-                      <div className="text-sm text-roman-text-main leading-relaxed">{item.text}</div>
+                      <div
+                        className={`w-full md:w-[calc(50%-2.5rem)] border p-4 rounded-sm shadow-sm ${
+                          isExternalMessage
+                            ? 'bg-roman-primary/5 border-roman-primary/20 text-right'
+                            : 'bg-roman-surface border-roman-border text-left'
+                        }`}
+                      >
+                        <div className={`flex items-center gap-3 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-between'}`}>
+                          <div className="font-serif font-medium text-roman-text-main">{item.sender || 'Sistema'}</div>
+                          {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(item.time)}</div>}
+                        </div>
+                        <div className="text-sm text-roman-text-main leading-relaxed">{item.text}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </div>
         </div>
