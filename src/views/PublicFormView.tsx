@@ -82,9 +82,10 @@ const FALLBACK_SERVICE_CATALOG: CatalogServiceItem[] = [
 ];
 
 export function PublicFormView({ onBack }: PublicFormViewProps) {
-  const { tickets, addTicket } = useApp();
+  const { addTicket } = useApp();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState('');
   const [createdToken, setCreatedToken] = useState('');
 
@@ -186,23 +187,17 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
     setIsSubmitting(true);
-    setTimeout(() => {
-      const maxNum = tickets.reduce((max, t) => {
-        const n = parseInt(t.id.replace('OS-', ''), 10);
-        return isNaN(n) ? max : Math.max(max, n);
-      }, 0);
-      const nextNum = maxNum + 1;
-      const newId = `OS-${String(nextNum).padStart(4, '0')}`;
-      const newToken = `trk_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    setSubmitError(null);
+    try {
       const now = new Date();
       const selectedRegion = catalogRegions.find(region => region.name === formData.region) || null;
       const selectedSite = availableSites.find(site => site.code === formData.sede) || null;
-      const newTicket: Ticket = {
-        id: newId,
-        trackingToken: newToken,
+      const draftTicket: Ticket = {
+        id: '',
+        trackingToken: '',
         subject: formData.subject,
         requester: formData.name,
         requesterEmail: formData.email,
@@ -220,14 +215,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         sector: formData.sector,
         priority: 'Normal',
         history: [
-          { id: `${newId}-c1`, type: 'customer', sender: formData.name, time: now, text: formData.description },
-          { id: `${newId}-s1`, type: 'system', sender: 'Sistema', time: now, text: `${newId} registrada via formulário público. Aguardando triagem.` },
+          { id: crypto.randomUUID(), type: 'customer', sender: formData.name, time: now, text: formData.description },
+          { id: crypto.randomUUID(), type: 'system', sender: 'Sistema', time: now, text: 'Solicitação registrada via formulário público. Aguardando triagem.' },
         ] as HistoryItem[],
       };
-      addTicket(newTicket);
-      void notifyTicketCreated(newTicket);
-      setCreatedId(newId);
-      setCreatedToken(newToken);
+      const createdTicket = await addTicket(draftTicket);
+      void notifyTicketCreated(createdTicket);
+      setCreatedId(createdTicket.id);
+      setCreatedToken(createdTicket.trackingToken);
       setIsSubmitting(false);
       setIsSubmitted(true);
       setFormData({
@@ -243,7 +238,10 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         sede: '',
       });
       setFiles([]);
-    }, 2000);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Não foi possível registrar a OS agora.');
+      setIsSubmitting(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -541,6 +539,12 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                 </div>
               )}
             </div>
+
+            {submitError && (
+              <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {submitError}
+              </div>
+            )}
 
             <button
               onClick={handleSubmit}

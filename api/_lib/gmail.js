@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+﻿import { google } from 'googleapis';
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -275,3 +275,4 @@ export async function gmailListHistory({
     historyId: latestHistoryId,
   };
 }
+

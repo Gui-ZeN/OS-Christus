@@ -1,9 +1,10 @@
-﻿import { getStorage } from 'firebase-admin/storage';
+﻿import { randomUUID } from 'node:crypto';
+import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
-import { normalizeTicketForStorage, serializeTicketForApi } from './_lib/tickets.js';
+import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
 function sortTimeValue(value) {
   const parsed = new Date(value);
@@ -204,18 +205,30 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = await readJsonBody(req);
-      if (!body?.ticket?.id) {
-        return sendJson(res, 400, { ok: false, error: 'ticket.id é obrigatório.' });
+      if (!body?.ticket || typeof body.ticket !== 'object') {
+        return sendJson(res, 400, { ok: false, error: 'ticket é obrigatório.' });
       }
 
       const ticket = normalizeTicketForStorage(body.ticket);
-      await col.doc(ticket.id).set({
+      const now = new Date();
+      const ticketId =
+        body.preserveId === true && String(ticket.id || '').trim()
+          ? String(ticket.id || '').trim().toUpperCase()
+          : await reserveNextTicketId(db);
+      const trackingToken =
+        String(ticket.trackingToken || '').trim() || `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+      const createdTicket = {
         ...ticket,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+        id: ticketId,
+        trackingToken,
+        time: ticket.time || now,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-      return sendJson(res, 200, { ok: true });
+      await col.doc(ticketId).set(createdTicket);
+
+      return sendJson(res, 200, { ok: true, ticket: serializeTicketForApi(createdTicket) });
     }
 
     if (req.method === 'PATCH') {
@@ -325,3 +338,4 @@ export default async function handler(req, res) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de tickets.' });
   }
 }
+

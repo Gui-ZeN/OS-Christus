@@ -6,6 +6,7 @@ import { logEmailEvent } from './_lib/emailLogs.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
+import { reserveNextTicketId } from './_lib/tickets.js';
 import {
   gmailGetMessage,
   gmailGetProfile,
@@ -74,6 +75,29 @@ function stripHtml(value) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+function stripQuotedReply(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+
+  const markers = [/^\s*On .+ wrote:\s*$/im, /^\s*Em .+ escreveu:\s*$/im, /^\s*-----Original Message-----\s*$/im];
+  let next = text;
+
+  for (const marker of markers) {
+    const match = marker.exec(next);
+    if (match?.index != null && match.index > 0) {
+      next = next.slice(0, match.index).trim();
+      break;
+    }
+  }
+
+  return next
+    .split('\n')
+    .filter(line => !line.trim().startsWith('>'))
+    .join('\n')
+    .trim();
+}
+
 function firstEmail(raw) {
   if (!raw) return null;
   const match = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
@@ -154,6 +178,55 @@ function getInternalNotificationEmail() {
   return String(candidate || '').trim().toLowerCase() || null;
 }
 
+function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
+  const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
+  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
+  if (!cleanSubject) return `${ticketId} - Atualização da OS`;
+  if (cleanSubject.toUpperCase().startsWith(`${ticketId.toUpperCase()} - `)) {
+    return repairMojibake(cleanSubject);
+  }
+  return repairMojibake(`${ticketId} - ${cleanSubject}`);
+}
+
+function buildInboundHistoryId(messageId, fallbackKey) {
+  const base = String(messageId || fallbackKey || Date.now())
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `mail-${base || Date.now()}`;
+}
+
+function buildInboundHistoryEntry(message, fallbackSender) {
+  const sender = displayNameFromEmail(message.from) || fallbackSender || 'Solicitante';
+  const text = stripQuotedReply(message.text) || stripQuotedReply(stripHtml(message.html)) || 'Resposta recebida por e-mail.';
+  return {
+    id: buildInboundHistoryId(message.messageId || message.id, sender),
+    type: 'customer',
+    sender,
+    time: message.internalDate || new Date(),
+    text,
+  };
+}
+
+async function appendInboundMessageToTicketHistory(db, ticketId, message) {
+  const ticketRef = db.collection('tickets').doc(ticketId);
+  const ticketSnap = await ticketRef.get();
+  if (!ticketSnap.exists) return;
+
+  const ticket = ticketSnap.data() || {};
+  const history = Array.isArray(ticket.history) ? ticket.history : [];
+  const nextEntry = buildInboundHistoryEntry(message, ticket.requester || 'Solicitante');
+  if (history.some(item => item?.id === nextEntry.id)) return;
+
+  await ticketRef.set(
+    {
+      history: [...history, nextEntry],
+      updatedAt: new Date(),
+    },
+    { merge: true }
+  );
+}
+
 function getGmailStateRef(db) {
   return db.collection('config').doc(GMAIL_SYNC_STATE_DOC);
 }
@@ -177,6 +250,17 @@ async function authorizeGmailAutomation(req) {
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   const provided = req.query?.secret || req.headers['x-sync-secret'] || req.headers['x-gmail-push-secret'] || bearer;
   const validSecrets = [watchSecret, syncSecret, cronSecret].filter(Boolean);
+
+  if (provided && validSecrets.includes(provided)) {
+    return;
+  }
+
+  try {
+    await requireUserWithRoles(req, ['Admin']);
+    return;
+  } catch {
+    // Segue para validação por segredo abaixo.
+  }
 
   if (validSecrets.length === 0) {
     await requireUserWithRoles(req, ['Admin']);
@@ -245,6 +329,13 @@ async function processGmailInboundMessage(db, msg, source) {
     source,
   });
 
+  if (!createdTicket) {
+    await appendInboundMessageToTicketHistory(db, ticketId, {
+      ...msg,
+      internalDate: now,
+    });
+  }
+
   await logEmailEvent({
     type: 'inbound',
     status: 'success',
@@ -287,14 +378,7 @@ async function canSendPublicCreationEmail(db, ticketId, toEmail, internalCopy) {
 }
 
 async function buildNextTicketId(db) {
-  const snap = await db.collection('tickets').get();
-  let max = 0;
-  for (const doc of snap.docs) {
-    const match = String(doc.id || '').match(/^OS-(\d+)$/i);
-    if (!match) continue;
-    max = Math.max(max, Number(match[1] || 0));
-  }
-  return `OS-${String(max + 1).padStart(4, '0')}`;
+  return reserveNextTicketId(db);
 }
 
 async function resolveSiteContext(db, siteCode) {
@@ -463,12 +547,17 @@ async function handleSend(req, res) {
     }
 
     const storedTemplate = await resolveEmailTemplate(db, trigger);
-    const resolvedSubject = repairMojibake(
+    const templateSubject = repairMojibake(
       storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject
     );
     const resolvedBody = repairMojibake(storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text);
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
+    const resolvedSubject = buildConversationSubject(
+      ticketId,
+      templateData.ticketSubject || resolvedTicket.subject,
+      templateSubject
+    );
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
@@ -973,6 +1062,16 @@ async function handleInbound(req, res) {
       createdAt: now,
       source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
     });
+
+    if (!createdTicket) {
+      await appendInboundMessageToTicketHistory(db, ticketId, {
+        from: body.from,
+        text,
+        html,
+        messageId,
+        internalDate: now,
+      });
+    }
 
     await logEmailEvent({
       type: 'inbound',

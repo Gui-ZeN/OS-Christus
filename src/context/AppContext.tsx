@@ -40,7 +40,7 @@ interface AppContextType {
   tickets: Ticket[];
   ticketsLoading: boolean;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
-  addTicket: (ticket: Ticket) => void;
+  addTicket: (ticket: Ticket) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
   currentUserEmail: string;
   setCurrentUserEmail: (email: string) => void;
@@ -408,11 +408,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addTicket = (ticket: Ticket) => {
-    setAllTickets(prev => [ticket, ...prev]);
-    void createTicketInApi(ticket).catch(() => {
-      // Persistência remota falhou, mas não bloqueia o fluxo local.
-    });
+  const addTicket = async (ticket: Ticket) => {
+    const createdTicket = await createTicketInApi(ticket);
+    setAllTickets(prev => [createdTicket, ...prev.filter(item => item.id !== createdTicket.id)]);
+    return createdTicket;
   };
 
   const unreadCount = notifications.filter(notification => !notification.read).length;

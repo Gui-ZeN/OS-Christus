@@ -157,7 +157,7 @@ export async function fetchTrackingTicketFromApi(trackingToken: string): Promise
   return payload.ticket;
 }
 
-export async function createTicketInApi(ticket: Ticket) {
+export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket> {
   const response = await fetch('/api/tickets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -166,6 +166,13 @@ export async function createTicketInApi(ticket: Ticket) {
   if (!response.ok) {
     throw new Error('Falha ao criar ticket na API.');
   }
+
+  const json = await response.json();
+  if (!json.ok || !json.ticket) {
+    throw new Error('Resposta inválida ao criar ticket.');
+  }
+
+  return hydrateTicket(json.ticket as ApiTicket);
 }
 
 export async function patchTicketInApi(id: string, updates: Partial<Ticket>) {

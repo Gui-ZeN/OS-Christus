@@ -26,7 +26,7 @@ type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily
 
 const DEFAULT_TEMPLATE: EmailTemplateSettings = {
   trigger: 'EMAIL-NOVA-OS',
-  subject: '[Nova OS] {{ticket.id}} - {{ticket.subject}}',
+  subject: '{{ticket.id}} - {{ticket.subject}}',
   body:
     'Olá {{requester.name}},\n\nSua Ordem de Serviço foi registrada com sucesso.\n\nNúmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe fará a triagem em breve.\n\nAtenciosamente,\nGestão de Manutenção',
 };
@@ -35,57 +35,57 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
   DEFAULT_TEMPLATE,
   {
     trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
-    subject: '[Triagem] {{ticket.id}} em análise',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-PARECER-TECNICO',
-    subject: '[Parecer Técnico] {{ticket.id}} pronta para solução',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
-    subject: '[Orçamento] {{ticket.id}} em cotação',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-EM-APROVACAO',
-    subject: '[Aprovação] {{ticket.id}} em validação',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
-    subject: '[Planejamento] {{ticket.id}} em ações preliminares',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-EXECUCAO-INICIADA',
-    subject: '[Execução] {{ticket.id}} em andamento',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
-    subject: '[Validação] {{ticket.id}} aguardando sua confirmação',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
-    subject: '[Pagamento] {{ticket.id}} em finalização financeira',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-OS-ENCERRADA',
-    subject: '[Encerrada] {{ticket.id}} concluída',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-OS-CANCELADA',
-    subject: '[Cancelada] {{ticket.id}}',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi cancelada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nMotivo ou observação: {{message.body}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-NOVA-MENSAGEM',
-    subject: '[Mensagem] {{ticket.id}} recebeu uma atualização',
+    subject: '{{ticket.id}} - {{ticket.subject}}',
     body: 'Olá {{requester.name}},\n\n{{message.sender}} enviou uma nova atualização na OS {{ticket.id}}.\n\nMensagem:\n{{message.body}}\n\nAcompanhe: {{tracking.url}}',
   },
 ];
@@ -950,9 +950,12 @@ export function SettingsView() {
                               <input
                                 type="text"
                                 value={template.subject}
-                                onChange={event => setTemplate(current => ({ ...current, subject: event.target.value }))}
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                disabled
+                                className="w-full rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none"
                               />
+                              <div className="mt-2 text-xs text-roman-text-sub">
+                                O assunto fica fixo por OS para manter toda a conversa no mesmo thread do e-mail.
+                              </div>
                             </div>
                             <div>
                               <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Corpo do e-mail</label>
@@ -1563,6 +1566,7 @@ export function SettingsView() {
     </div>
   );
 }
+
 
 
 

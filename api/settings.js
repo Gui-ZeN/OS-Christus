@@ -4,6 +4,8 @@ import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
+const FIXED_TICKET_EMAIL_SUBJECT = '{{ticket.id}} - {{ticket.subject}}';
+
 function repairMojibake(value) {
   const input = String(value || '');
   if (!input || (!input.includes('Ã') && !input.includes('Â') && !input.includes('â'))) {
@@ -22,10 +24,13 @@ function repairMojibake(value) {
 function normalizeEmailTemplate(data, fallback = null) {
   const source = data && typeof data === 'object' ? data : {};
   const fallbackTemplate = fallback && typeof fallback === 'object' ? fallback : {};
+  const trigger = String(source.trigger || fallbackTemplate.trigger || '').trim();
 
   return {
-    trigger: String(source.trigger || fallbackTemplate.trigger || '').trim(),
-    subject: repairMojibake(String(source.subject || fallbackTemplate.subject || '').trim()),
+    trigger,
+    subject: trigger.startsWith('EMAIL-')
+      ? FIXED_TICKET_EMAIL_SUBJECT
+      : repairMojibake(String(source.subject || fallbackTemplate.subject || '').trim()),
     body: repairMojibake(String(source.body || fallbackTemplate.body || '').trim()),
   };
 }

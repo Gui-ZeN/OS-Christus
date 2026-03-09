@@ -1,9 +1,9 @@
-export const DEFAULT_SETTINGS = {
+﻿export const DEFAULT_SETTINGS = {
   emailTemplates: {
     items: {
       'EMAIL-NOVA-OS': {
         trigger: 'EMAIL-NOVA-OS',
-        subject: '[Nova OS] {{ticket.id}} - {{ticket.subject}}',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 Sua Ordem de Servi\u00e7o foi registrada com sucesso.
@@ -21,7 +21,7 @@ Gest\u00e3o de Manuten\u00e7\u00e3o`,
       },
       'EMAIL-TRIAGEM-EM-ANDAMENTO': {
         trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
-        subject: '[Triagem] {{ticket.id}} em an\u00e1lise',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 Sua OS {{ticket.id}} entrou em triagem com a equipe de manuten\u00e7\u00e3o.
@@ -37,7 +37,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-PARECER-TECNICO': {
         trigger: 'EMAIL-PARECER-TECNICO',
-        subject: '[Parecer T\u00e9cnico] {{ticket.id}} pronta para solu\u00e7\u00e3o',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} recebeu parecer t\u00e9cnico e seguiu para defini\u00e7\u00e3o da solu\u00e7\u00e3o.
@@ -51,7 +51,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-AGUARDANDO-ORCAMENTO': {
         trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
-        subject: '[Or\u00e7amento] {{ticket.id}} em cota\u00e7\u00e3o',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} entrou na etapa de or\u00e7amento e compara\u00e7\u00e3o com fornecedores.
@@ -65,7 +65,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-EM-APROVACAO': {
         trigger: 'EMAIL-EM-APROVACAO',
-        subject: '[Aprova\u00e7\u00e3o] {{ticket.id}} em valida\u00e7\u00e3o',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} avan\u00e7ou para a etapa de aprova\u00e7\u00e3o.
@@ -81,7 +81,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-ACOES-PRELIMINARES': {
         trigger: 'EMAIL-ACOES-PRELIMINARES',
-        subject: '[Planejamento] {{ticket.id}} em a\u00e7\u00f5es preliminares',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} teve or\u00e7amento e contrato encaminhados e entrou em a\u00e7\u00f5es preliminares.
@@ -95,7 +95,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-EXECUCAO-INICIADA': {
         trigger: 'EMAIL-EXECUCAO-INICIADA',
-        subject: '[Execu\u00e7\u00e3o] {{ticket.id}} em andamento',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A execu\u00e7\u00e3o da OS {{ticket.id}} foi iniciada.
@@ -109,7 +109,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-VALIDACAO-SOLICITANTE': {
         trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
-        subject: '[Valida\u00e7\u00e3o] {{ticket.id}} aguardando sua confirma\u00e7\u00e3o',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A manuten\u00e7\u00e3o da OS {{ticket.id}} foi conclu\u00edda pela equipe e agora aguarda sua valida\u00e7\u00e3o.
@@ -123,7 +123,7 @@ Acesse para revisar e responder: {{tracking.url}}`,
       },
       'EMAIL-AGUARDANDO-PAGAMENTO': {
         trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
-        subject: '[Pagamento] {{ticket.id}} em finaliza\u00e7\u00e3o financeira',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} foi validada e entrou na etapa de pagamento e encerramento.
@@ -137,7 +137,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-OS-ENCERRADA': {
         trigger: 'EMAIL-OS-ENCERRADA',
-        subject: '[Encerrada] {{ticket.id}} conclu\u00edda',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} foi encerrada com sucesso.
@@ -155,7 +155,7 @@ Gest\u00e3o de Manuten\u00e7\u00e3o`,
       },
       'EMAIL-OS-CANCELADA': {
         trigger: 'EMAIL-OS-CANCELADA',
-        subject: '[Cancelada] {{ticket.id}}',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 A OS {{ticket.id}} foi cancelada.
@@ -170,7 +170,7 @@ Acompanhe: {{tracking.url}}`,
       },
       'EMAIL-NOVA-MENSAGEM': {
         trigger: 'EMAIL-NOVA-MENSAGEM',
-        subject: '[Mensagem] {{ticket.id}} recebeu uma atualiza\u00e7\u00e3o',
+        subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Ol\u00e1 {{requester.name}},
 
 {{message.sender}} enviou uma nova atualiza\u00e7\u00e3o na OS {{ticket.id}}.
@@ -201,3 +201,4 @@ Acompanhe: {{tracking.url}}`,
     },
   },
 };
+

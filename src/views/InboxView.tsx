@@ -225,7 +225,6 @@ export function InboxView() {
   const {
     navigateTo,
     openAttachment,
-    setTrackingTicketToken,
     activeTicketId,
     setActiveTicketId,
     inboxFilter,
@@ -905,29 +904,20 @@ export function InboxView() {
   };
 
   const handleOpenTracking = () => {
-    setTrackingTicketToken(activeTicket.trackingToken);
-    navigateTo('tracking');
+    const trackingToken = encodeURIComponent(activeTicket.trackingToken);
+    const url = `${window.location.origin}/?tracking=${trackingToken}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
     setShowActionsMenu(false);
     setShowMobileContext(false);
   };
 
-  const getNextTicketNumber = () => {
-    return tickets.reduce((max, t) => {
-      const n = parseInt(t.id.replace('OS-', ''), 10);
-      return isNaN(n) ? max : Math.max(max, n);
-    }, 0) + 1;
-  };
-
-  const handleDuplicateTicket = () => {
-    const nextNum = getNextTicketNumber();
-    const newId = `OS-${String(nextNum).padStart(4, '0')}`;
-    const newToken = `trk_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  const handleDuplicateTicket = async () => {
     const now = new Date();
 
     const duplicated: Ticket = {
       ...activeTicket,
-      id: newId,
-      trackingToken: newToken,
+      id: '',
+      trackingToken: '',
       status: TICKET_STATUS.NEW,
       time: now,
       history: [
@@ -942,24 +932,29 @@ export function InboxView() {
       ],
     };
 
-    updateTicket(activeTicket.id, {
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: 'Rafael (Gestor)',
-          time: now,
-          text: `OS duplicada para ${newId}.`,
-        },
-      ],
-    });
+    try {
+      const createdTicket = await addTicket(duplicated);
+      updateTicket(activeTicket.id, {
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: 'Rafael (Gestor)',
+            time: now,
+            text: `OS duplicada para ${createdTicket.id}.`,
+          },
+        ],
+      });
 
-    addTicket(duplicated);
-    setActiveTicketId(newId);
-    setShowActionsMenu(false);
-    setToast(`OS ${activeTicket.id} duplicada como ${newId}.`);
-    setTimeout(() => setToast(null), 3000);
+      setActiveTicketId(createdTicket.id);
+      setShowActionsMenu(false);
+      setToast(`OS ${activeTicket.id} duplicada como ${createdTicket.id}.`);
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Não foi possível duplicar a OS.');
+      setTimeout(() => setToast(null), 3000);
+    }
   };
 
   const handleCancelTicket = () => {

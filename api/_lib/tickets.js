@@ -1,5 +1,10 @@
 import { Timestamp } from 'firebase-admin/firestore';
 
+function parseTicketSequence(value) {
+  const match = String(value || '').match(/^OS-(\d+)$/i);
+  return match ? Number(match[1] || 0) : 0;
+}
+
 function isIsoDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
 }
@@ -134,4 +139,31 @@ export function serializeTicketForApi(ticket) {
         }
       : null,
   };
+}
+
+export async function reserveNextTicketId(db) {
+  const sequenceRef = db.collection('config').doc('ticketSequence');
+
+  const nextNumber = await db.runTransaction(async transaction => {
+    const sequenceSnap = await transaction.get(sequenceRef);
+    let current = Number(sequenceSnap.data()?.lastNumber || 0);
+
+    if (!sequenceSnap.exists) {
+      const ticketsSnap = await transaction.get(db.collection('tickets'));
+      current = ticketsSnap.docs.reduce((max, doc) => Math.max(max, parseTicketSequence(doc.id)), 0);
+    }
+
+    const next = current + 1;
+    transaction.set(
+      sequenceRef,
+      {
+        lastNumber: next,
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+    return next;
+  });
+
+  return `OS-${String(nextNumber).padStart(4, '0')}`;
 }

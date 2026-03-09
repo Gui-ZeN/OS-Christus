@@ -35,7 +35,9 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [loading, setLoading] = useState(true);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [data, setData] = useState<EmailHealthResponse | null>(null);
 
   const load = async () => {
@@ -54,6 +56,28 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       setError(e instanceof Error ? e.message : 'Falha inesperada.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncInbox = async () => {
+    setSyncLoading(true);
+    setSyncMessage(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/mail?route=gmail-sync', {
+        method: 'POST',
+        headers: await getAuthenticatedActorHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || 'Falha ao sincronizar e-mails.');
+      }
+      setSyncMessage(`${Number(json.processed || 0)} mensagem(ns) processada(s) agora.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha inesperada ao sincronizar e-mails.');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -88,10 +112,18 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           <button
             onClick={() => void load()}
             className="flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary"
-            disabled={loading}
+            disabled={loading || syncLoading}
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             Atualizar
+          </button>
+          <button
+            onClick={() => void syncInbox()}
+            className="flex items-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-stone-900 disabled:opacity-60"
+            disabled={loading || syncLoading}
+          >
+            <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
+            Sincronizar e-mails
           </button>
         </header>
       )}
@@ -105,10 +137,18 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           <button
             onClick={() => void load()}
             className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary"
-            disabled={loading}
+            disabled={loading || syncLoading}
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             Atualizar
+          </button>
+          <button
+            onClick={() => void syncInbox()}
+            className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
+            disabled={loading || syncLoading}
+          >
+            <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
+            Sincronizar e-mails
           </button>
         </div>
       )}
@@ -117,6 +157,13 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <div>{error}</div>
+        </div>
+      )}
+
+      {syncMessage && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+          <div>{syncMessage}</div>
         </div>
       )}
 
