@@ -652,15 +652,15 @@ export function SettingsView() {
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[1.75rem] border border-stone-200 bg-white p-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
-            <div className="rounded-[1.4rem] border border-stone-200 bg-stone-50 px-5 py-5">
+        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="h-fit rounded-[1.5rem] border border-stone-200 bg-white p-3 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+            <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
               <div className="text-[10px] uppercase tracking-[0.3em] text-roman-text-sub">Navegação</div>
-              <div className="mt-3 text-2xl font-serif text-roman-text-main">Módulos de configuração</div>
-              <p className="mt-2 text-sm leading-6 text-roman-text-sub">A navegação foi condensada para reduzir ruído e destacar a frente que você está administrando agora.</p>
+              <div className="mt-3 text-xl font-serif text-roman-text-main">Módulos de configuração</div>
+              <p className="mt-2 text-sm leading-6 text-roman-text-sub">Escolha um bloco e concentre a edição sem espalhar ajustes pela operação.</p>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-2">
             {(Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>).map(([key, meta]) => {
               const Icon = meta.icon;
               const isActive = section === key;
@@ -668,19 +668,19 @@ export function SettingsView() {
                 <button
                   key={key}
                   onClick={() => setSection(key)}
-                  className={`w-full rounded-[1.2rem] border px-4 py-4 text-left transition-all ${
+                  className={`w-full rounded-[1rem] border px-3 py-3 text-left transition-all ${
                     isActive
-                      ? 'border-roman-primary/20 bg-stone-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.14)]'
+                      ? 'border-roman-primary/20 bg-stone-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]'
                       : 'border-stone-200 bg-stone-50 text-roman-text-sub hover:border-stone-300 hover:bg-white'
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${isActive ? 'bg-white/10' : 'bg-roman-bg text-roman-primary'}`}>
-                      <Icon size={18} />
+                    <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? 'bg-white/10' : 'bg-roman-bg text-roman-primary'}`}>
+                      <Icon size={17} />
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-semibold">{meta.navLabel}</div>
-                      <div className={`mt-1 text-xs leading-5 ${isActive ? 'text-white/72' : 'text-roman-text-sub/80'}`}>{meta.description}</div>
+                      <div className={`mt-1 text-[11px] leading-5 ${isActive ? 'text-white/72' : 'text-roman-text-sub/80'}`}>{meta.description}</div>
                     </div>
                   </div>
                 </button>
@@ -922,11 +922,13 @@ export function SettingsView() {
                         <div className="mt-5 flex justify-end">
                           <button
                             onClick={() => void handleSaveTemplate()}
-                            className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
+                            className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
+                              templateSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
+                            }`}
                           >
                             {templateSaved ? (
                               <>
-                                <CheckCircle size={15} /> Salvo
+                                <CheckCircle size={15} /> Template salvo
                               </>
                             ) : (
                               'Salvar template'
@@ -1003,14 +1005,16 @@ export function SettingsView() {
                         <p className="text-xs text-roman-text-sub font-serif italic">Configuração do resumo diário persistida no Firestore.</p>
                         <button
                           onClick={() => void handleSaveDigest()}
-                          className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
+                          className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
+                            digestSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
+                          }`}
                         >
                           {digestSaved ? (
                             <>
-                              <CheckCircle size={15} /> Salvo
+                              <CheckCircle size={15} /> Resumo salvo
                             </>
                           ) : (
-                            'Salvar resumo'
+                              'Salvar resumo'
                           )}
                         </button>
                       </div>
@@ -1038,11 +1042,13 @@ export function SettingsView() {
                         </p>
                         <button
                           onClick={() => void handleSaveSla()}
-                          className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
+                          className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
+                            slaSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
+                          }`}
                         >
                           {slaSaved ? (
                             <>
-                              <CheckCircle size={15} /> Salvo
+                              <CheckCircle size={15} /> Regras salvas
                             </>
                           ) : (
                             'Salvar regras'
