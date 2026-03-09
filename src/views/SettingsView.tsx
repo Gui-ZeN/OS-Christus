@@ -6,6 +6,8 @@ import { useApp } from '../context/AppContext';
 import { isFirebaseAuthConfigured } from '../lib/firebaseClient';
 import {
   fetchCatalog,
+  type CatalogRegion,
+  type CatalogSite,
   saveCatalogEntry,
   type CatalogMacroService,
   type CatalogMaterial,
@@ -96,10 +98,14 @@ export function SettingsView() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogSaved, setCatalogSaved] = useState<string | null>(null);
+  const [regions, setRegions] = useState<CatalogRegion[]>([]);
+  const [sites, setSites] = useState<CatalogSite[]>([]);
   const [macroServices, setMacroServices] = useState<CatalogMacroService[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [materials, setMaterials] = useState<CatalogMaterial[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
+  const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
+  const [siteDraft, setSiteDraft] = useState({ id: '', code: '', name: '', regionId: '' });
   const [macroDraft, setMacroDraft] = useState({ code: '', name: '' });
   const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
   const [materialDraft, setMaterialDraft] = useState({ code: '', name: '', unit: '' });
@@ -152,6 +158,8 @@ export function SettingsView() {
 
     try {
       const catalog = await fetchCatalog();
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
@@ -224,6 +232,8 @@ export function SettingsView() {
   const handleSaveMacroService = async () => {
     try {
       const catalog = await saveCatalogEntry('macroServices', macroDraft);
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
@@ -239,6 +249,8 @@ export function SettingsView() {
   const handleSaveService = async () => {
     try {
       const catalog = await saveCatalogEntry('serviceCatalog', serviceDraft);
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
@@ -254,6 +266,8 @@ export function SettingsView() {
   const handleSaveMaterial = async () => {
     try {
       const catalog = await saveCatalogEntry('materials', materialDraft);
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
@@ -263,6 +277,40 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar material.');
+    }
+  };
+
+  const handleSaveRegion = async () => {
+    try {
+      const catalog = await saveCatalogEntry('regions', regionDraft);
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
+      setMacroServices(catalog.macroServices);
+      setServiceCatalog(catalog.serviceCatalog);
+      setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
+      setRegionDraft({ id: '', code: '', name: '', group: 'operacao' });
+      setCatalogSaved('Região salva.');
+      setTimeout(() => setCatalogSaved(null), 3000);
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar região.');
+    }
+  };
+
+  const handleSaveSite = async () => {
+    try {
+      const catalog = await saveCatalogEntry('sites', siteDraft);
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
+      setMacroServices(catalog.macroServices);
+      setServiceCatalog(catalog.serviceCatalog);
+      setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
+      setSiteDraft({ id: '', code: '', name: '', regionId: '' });
+      setCatalogSaved('Sede salva.');
+      setTimeout(() => setCatalogSaved(null), 3000);
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar sede.');
     }
   };
 
@@ -547,6 +595,114 @@ export function SettingsView() {
                       </div>
                     ) : (
                       <div className="space-y-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                            <div>
+                              <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
+                              <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                              {regions.map(item => (
+                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                                      <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
+                                    </div>
+                                    <button
+                                      onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })}
+                                      className="text-xs font-medium text-roman-primary hover:underline"
+                                    >
+                                      Editar
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="space-y-3 border-t border-roman-border pt-4">
+                              <input
+                                type="text"
+                                value={regionDraft.name}
+                                onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))}
+                                placeholder="Nome da região"
+                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <input
+                                type="text"
+                                value={regionDraft.code}
+                                onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))}
+                                placeholder="Código"
+                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <button
+                                onClick={() => void handleSaveRegion()}
+                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
+                              >
+                                {regionDraft.id ? 'Salvar Região' : 'Criar Região'}
+                              </button>
+                            </div>
+                          </section>
+
+                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                            <div>
+                              <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
+                              <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                              {sites.map(item => (
+                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                                      <div className="text-[11px] text-roman-text-sub">
+                                        {item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })}
+                                      className="text-xs font-medium text-roman-primary hover:underline"
+                                    >
+                                      Editar
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="space-y-3 border-t border-roman-border pt-4">
+                              <input
+                                type="text"
+                                value={siteDraft.name}
+                                onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))}
+                                placeholder="Nome da sede"
+                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <input
+                                type="text"
+                                value={siteDraft.code}
+                                onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))}
+                                placeholder="Código"
+                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <select
+                                value={siteDraft.regionId}
+                                onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))}
+                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              >
+                                <option value="">Selecione a região</option>
+                                {regions.map(item => (
+                                  <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => void handleSaveSite()}
+                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
+                              >
+                                {siteDraft.id ? 'Salvar Sede' : 'Criar Sede'}
+                              </button>
+                            </div>
+                          </section>
+                        </div>
+
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                           <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
                             <div>

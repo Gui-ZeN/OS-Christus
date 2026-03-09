@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Plus, X } from 'lucide-react';
+import { Check, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
-import { createUser, DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
+import { createUser, deleteUser, DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 
@@ -182,6 +182,25 @@ export function UsersView() {
     }
   };
 
+  const handleDelete = async (user: DirectoryUser) => {
+    if (!canManageUsers) return;
+    const confirmed = window.confirm(`Excluir o usuário ${user.name} (${user.email})?`);
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      await deleteUser(user.id);
+      setUsers(prev => prev.filter(item => item.id !== user.id));
+      if (editingId === user.id) {
+        setModalOpen(false);
+        setEditingId(null);
+        setForm(EMPTY_FORM);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-6xl mx-auto">
@@ -238,9 +257,19 @@ export function UsersView() {
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
-                          Editar
-                        </button>
+                        <div className="inline-flex items-center gap-3">
+                          <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => void handleDelete(user)}
+                            disabled={!canManageUsers || saving}
+                            className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 size={14} />
+                            Excluir
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

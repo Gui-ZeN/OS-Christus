@@ -93,6 +93,28 @@ async function upsertAuthUserByExistingRecord(user, password, existingAuthUid) {
   return upsertAuthUser(user, password);
 }
 
+async function deleteAuthUser(existingAuthUid, email) {
+  const auth = getAuth();
+
+  if (existingAuthUid) {
+    try {
+      await auth.deleteUser(existingAuthUid);
+      return;
+    } catch (error) {
+      if (error?.code !== 'auth/user-not-found') throw error;
+    }
+  }
+
+  if (!email) return;
+
+  try {
+    const record = await auth.getUserByEmail(email);
+    await auth.deleteUser(record.uid);
+  } catch (error) {
+    if (error?.code !== 'auth/user-not-found') throw error;
+  }
+}
+
 export default async function handler(req, res) {
   try {
     const db = getAdminDb();

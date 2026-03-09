@@ -83,3 +83,16 @@ export async function updateUser(id: string, updates: Partial<DirectoryUser>, pa
   }
   return response.json();
 }
+
+export async function deleteUser(id: string) {
+  const headers = await getAuthenticatedActorHeaders();
+  const response = await fetch('/api/users', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
+    body: JSON.stringify({ id }),
+  });
+  if (!response.ok) {
+    throw new Error('Falha ao excluir usuario.');
+  }
+  return response.json();
+}
