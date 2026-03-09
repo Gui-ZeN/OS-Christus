@@ -436,11 +436,12 @@ export function ApprovalsView() {
                 <p className="text-sm text-roman-text-main leading-relaxed">{solution.technicalOpinion}</p>
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => openRejectModal(solution.id)} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
+                <button onClick={() => openRejectModal(solution.id)} disabled={processingId === solution.id} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
                   Reprovar Solução (Arquivar)
                 </button>
-                <button onClick={() => handleApprove(solution.id, 'solutions')} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2">
-                  <CheckCircle size={16} /> Aprovar (Ir para Cotação)
+                <button onClick={() => handleApprove(solution.id, 'solutions')} disabled={processingId === solution.id} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                  {processingId === solution.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                  {processingId === solution.id ? 'Processando...' : 'Aprovar (Ir para Cotação)'}
                 </button>
               </div>
             </div>
@@ -490,7 +491,7 @@ export function ApprovalsView() {
                   >
                     <Download size={14} /> Exportar CSV
                   </button>
-                  <button onClick={() => openRejectModal(budget.id)} className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm">
+                  <button onClick={() => openRejectModal(budget.id)} disabled={processingId === budget.id} className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
                     Reprovar Todas
                   </button>
                 </div>
@@ -527,8 +528,8 @@ export function ApprovalsView() {
                       <button onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
                         <FileText size={14} /> Ver PDF
                       </button>
-                      <button onClick={() => handleApprove(budget.id, 'budgets', quote)} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm">
-                        Aprovar Esta Opção
+                      <button onClick={() => handleApprove(budget.id, 'budgets', quote)} disabled={processingId === budget.id} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-60">
+                        {processingId === budget.id ? 'Processando...' : 'Aprovar esta opção'}
                       </button>
                     </div>
                   </div>
@@ -698,8 +699,9 @@ export function ApprovalsView() {
                   <button onClick={() => openAttachment(`Minuta: ${contract.vendor}`, 'pdf')} className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
                     Revisar
                   </button>
-                  <button onClick={() => setAttachContractModalId(contract.id)} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2">
-                    <Shield size={16} /> Assinar Contrato
+                  <button onClick={() => setAttachContractModalId(contract.id)} disabled={processingId === contract.id} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                    {processingId === contract.id ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
+                    {processingId === contract.id ? 'Processando...' : 'Assinar Contrato'}
                   </button>
                 </div>
               </div>
@@ -770,8 +772,8 @@ export function ApprovalsView() {
                 <button onClick={() => setAttachContractModalId(null)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
                   Cancelar
                 </button>
-                <button onClick={handleAttachContract} disabled={!attachedFile} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                  Confirmar e Enviar
+                <button onClick={handleAttachContract} disabled={!attachedFile || processingId === attachContractModalId} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                  {processingId === attachContractModalId ? 'Enviando...' : 'Confirmar e Enviar'}
                 </button>
               </div>
             </div>

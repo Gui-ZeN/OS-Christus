@@ -3,9 +3,11 @@ import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Ba
 import { Briefcase, Clock, DollarSign, TrendingDown, TrendingUp } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
+import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function parseCurrency(value: string) {
   const normalized = String(value || '')
@@ -48,6 +50,8 @@ export function KpiView() {
   const [selectedVendor, setSelectedVendor] = useState('all');
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
+  const [regions, setRegions] = useState<CatalogRegion[]>([]);
+  const [sites, setSites] = useState<CatalogSite[]>([]);
 
   if (!canAccess) {
     return (
@@ -84,6 +88,27 @@ export function KpiView() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await fetchCatalog();
+        if (!cancelled) {
+          setRegions(catalog.regions);
+          setSites(catalog.sites);
+        }
+      } catch {
+        if (!cancelled) {
+          setRegions([]);
+          setSites([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const periodTickets = useMemo(() => {
     const now = Date.now();
     const rangeDays = period === 'month' ? 30 : period === 'semester' ? 180 : 365;
@@ -92,21 +117,21 @@ export function KpiView() {
 
   const regionOptions = useMemo(
     () => {
-      const values: string[] = periodTickets.map(ticket => ticket.region).filter((value): value is string => Boolean(value));
+      const values: string[] = periodTickets.map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
       return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
-    [periodTickets]
+    [periodTickets, regions, sites]
   );
 
   const siteOptions = useMemo(
     () => {
       const values: string[] = periodTickets
-        .filter(ticket => selectedRegion === 'all' || ticket.region === selectedRegion)
-        .map(ticket => ticket.sede)
+        .filter(ticket => selectedRegion === 'all' || getTicketRegionLabel(ticket, regions, sites) === selectedRegion)
+        .map(ticket => getTicketSiteLabel(ticket, sites))
         .filter((value): value is string => Boolean(value));
       return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
-    [periodTickets, selectedRegion]
+    [periodTickets, regions, selectedRegion, sites]
   );
 
   const vendorOptions = useMemo(
@@ -139,28 +164,29 @@ export function KpiView() {
 
   const filteredTickets = useMemo(() => {
     return periodTickets.filter(ticket => {
-      if (selectedRegion !== 'all' && ticket.region !== selectedRegion) return false;
-      if (selectedSite !== 'all' && ticket.sede !== selectedSite) return false;
+      if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
+      if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
       if (selectedVendor !== 'all') {
         const vendor = contractsByTicket[ticket.id]?.vendor || '';
         if (vendor !== selectedVendor) return false;
       }
       return true;
     });
-  }, [contractsByTicket, periodTickets, selectedRegion, selectedSite, selectedVendor]);
+  }, [contractsByTicket, periodTickets, regions, selectedRegion, selectedSite, selectedVendor, sites]);
 
   const osPorRegiao = useMemo(() => {
     const grouped = new Map<string, { name: string; abertas: number; fechadas: number }>();
     for (const ticket of filteredTickets) {
-      if (!grouped.has(ticket.region)) {
-        grouped.set(ticket.region, { name: ticket.region, abertas: 0, fechadas: 0 });
+      const regionLabel = getTicketRegionLabel(ticket, regions, sites);
+      if (!grouped.has(regionLabel)) {
+        grouped.set(regionLabel, { name: regionLabel, abertas: 0, fechadas: 0 });
       }
-      const current = grouped.get(ticket.region)!;
+      const current = grouped.get(regionLabel)!;
       if (ticket.status === TICKET_STATUS.CLOSED) current.fechadas += 1;
       else current.abertas += 1;
     }
     return [...grouped.values()].sort((a, b) => b.abertas + b.fechadas - (a.abertas + a.fechadas));
-  }, [filteredTickets]);
+  }, [filteredTickets, regions, sites]);
 
   const tempoPorEtapa = useMemo(() => {
     const groups = [
@@ -224,20 +250,21 @@ export function KpiView() {
       id: target.ticket.id,
       subject: target.ticket.subject,
       valor: target.value,
-      sede: target.ticket.sede,
+      sede: getTicketSiteLabel(target.ticket, sites),
     };
-  }, [contractValues]);
+  }, [contractValues, sites]);
 
   const custoPorSede = useMemo(() => {
     const grouped = new Map<string, { name: string; custo: number }>();
     for (const entry of contractValues) {
-      if (!grouped.has(entry.ticket.sede)) {
-        grouped.set(entry.ticket.sede, { name: entry.ticket.sede, custo: 0 });
+      const siteLabel = getTicketSiteLabel(entry.ticket, sites);
+      if (!grouped.has(siteLabel)) {
+        grouped.set(siteLabel, { name: siteLabel, custo: 0 });
       }
-      grouped.get(entry.ticket.sede)!.custo += entry.value;
+      grouped.get(siteLabel)!.custo += entry.value;
     }
     return [...grouped.values()].sort((a, b) => b.custo - a.custo);
-  }, [contractValues]);
+  }, [contractValues, sites]);
 
   const custoPorServico = useMemo(() => {
     const grouped = new Map<string, { name: string; custo: number; contratos: number }>();

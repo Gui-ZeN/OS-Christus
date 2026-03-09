@@ -13,8 +13,10 @@ import { ActivityItem } from '../components/ui/ActivityItem';
 import { StatCard } from '../components/ui/StatCard';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
+import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
+import { getTicketRegionId, getTicketRegionLabel, getTicketSiteId, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 const ACTIVITY_TITLES: Record<string, string> = {
   customer: 'Mensagem do Solicitante',
@@ -84,6 +86,8 @@ export function HomeView() {
   const [selectedSite, setSelectedSite] = useState('all');
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
+  const [regions, setRegions] = useState<CatalogRegion[]>([]);
+  const [sites, setSites] = useState<CatalogSite[]>([]);
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const isSupervisor = currentUser?.role === 'Supervisor';
@@ -110,18 +114,39 @@ export function HomeView() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await fetchCatalog();
+        if (!cancelled) {
+          setRegions(catalog.regions);
+          setSites(catalog.sites);
+        }
+      } catch {
+        if (!cancelled) {
+          setRegions([]);
+          setSites([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const availableRegions = useMemo(() => {
-    const values: string[] = tickets.map(ticket => ticket.region).filter((value): value is string => Boolean(value));
+    const values: string[] = tickets.map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
     return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [tickets]);
+  }, [regions, sites, tickets]);
 
   const availableSites = useMemo(() => {
     const values: string[] = tickets
-      .filter(ticket => selectedRegion === 'all' || ticket.region === selectedRegion)
-      .map(ticket => ticket.sede)
+      .filter(ticket => selectedRegion === 'all' || getTicketRegionLabel(ticket, regions, sites) === selectedRegion)
+      .map(ticket => getTicketSiteLabel(ticket, sites))
       .filter((value): value is string => Boolean(value));
     return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [selectedRegion, tickets]);
+  }, [regions, selectedRegion, sites, tickets]);
 
   useEffect(() => {
     if (selectedRegion !== 'all' && !availableRegions.includes(selectedRegion)) {
@@ -137,11 +162,11 @@ export function HomeView() {
 
   const scopedTickets = useMemo(() => {
     return tickets.filter(ticket => {
-      if (selectedRegion !== 'all' && ticket.region !== selectedRegion) return false;
-      if (selectedSite !== 'all' && ticket.sede !== selectedSite) return false;
+      if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
+      if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
       return true;
     });
-  }, [selectedRegion, selectedSite, tickets]);
+  }, [regions, selectedRegion, selectedSite, sites, tickets]);
 
   const stats = useMemo(
     () => ({
@@ -179,12 +204,14 @@ export function HomeView() {
     }>();
 
     for (const ticket of scopedTickets) {
-      const label = selectedRegion === 'all' ? ticket.region : ticket.sede;
-      const key = selectedRegion === 'all' ? ticket.region : `${ticket.region}|${ticket.sede}`;
+      const regionLabel = getTicketRegionLabel(ticket, regions, sites);
+      const siteLabel = getTicketSiteLabel(ticket, sites);
+      const label = selectedRegion === 'all' ? regionLabel : siteLabel;
+      const key = selectedRegion === 'all' ? getTicketRegionId(ticket, regions, sites) || regionLabel : `${getTicketRegionId(ticket, regions, sites) || regionLabel}|${getTicketSiteId(ticket, sites) || siteLabel}`;
       if (!grouped.has(key)) {
         grouped.set(key, {
           label,
-          region: ticket.region,
+          region: regionLabel,
           open: 0,
           approvals: 0,
           waitingPayment: 0,
@@ -208,7 +235,7 @@ export function HomeView() {
     return [...grouped.values()]
       .sort((a, b) => b.open + b.approvals + b.waitingPayment - (a.open + a.approvals + a.waitingPayment))
       .slice(0, 8);
-  }, [contractsByTicket, paymentsByTicket, scopedTickets, selectedRegion]);
+  }, [contractsByTicket, paymentsByTicket, regions, scopedTickets, selectedRegion, sites]);
 
   const executiveFinancialSummary = useMemo(() => {
     let contracted = 0;
@@ -245,15 +272,15 @@ export function HomeView() {
       .map(ticket => ({
         id: ticket.id,
         subject: ticket.subject,
-        site: ticket.sede,
-        region: ticket.region,
+        site: getTicketSiteLabel(ticket, sites),
+        region: getTicketRegionLabel(ticket, regions, sites),
         endAt: ticket.guarantee!.endAt!,
         daysLeft: Math.ceil((ticket.guarantee!.endAt!.getTime() - Date.now()) / 86400000),
       }))
       .filter(item => item.daysLeft <= 45)
       .sort((a, b) => a.daysLeft - b.daysLeft)
       .slice(0, 5);
-  }, [scopedTickets]);
+  }, [regions, scopedTickets, sites]);
 
   const executiveQueue = useMemo(() => {
     return scopedTickets
@@ -295,10 +322,11 @@ export function HomeView() {
 
     const grouped = new Map<string, { site: string; open: number; waitingValidation: number; waitingPayment: number; closed: number }>();
     for (const ticket of scopedTickets) {
-      const key = ticket.sede;
+      const siteLabel = getTicketSiteLabel(ticket, sites);
+      const key = getTicketSiteId(ticket, sites) || siteLabel;
       if (!grouped.has(key)) {
         grouped.set(key, {
-          site: ticket.sede,
+          site: siteLabel,
           open: 0,
           waitingValidation: 0,
           waitingPayment: 0,
@@ -314,7 +342,7 @@ export function HomeView() {
     }
 
     return [...grouped.values()].sort((a, b) => b.open - a.open);
-  }, [isSupervisor, scopedTickets]);
+  }, [isSupervisor, scopedTickets, sites]);
 
   const pendingRequesterValidations = useMemo(() => {
     return scopedTickets
@@ -434,7 +462,7 @@ export function HomeView() {
                           <div className="text-xs text-roman-text-sub">{ticket.status}</div>
                         </div>
                         <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub mt-2">{ticket.sede} • {formatActivityTime(ticket.time)}</div>
+                        <div className="text-xs text-roman-text-sub mt-2">{getTicketSiteLabel(ticket, sites)} • {formatActivityTime(ticket.time)}</div>
                       </button>
                     ))}
                   </div>
@@ -462,7 +490,7 @@ export function HomeView() {
                       >
                         <div className="font-medium text-roman-text-main">{ticket.id} • aguardando validação do solicitante</div>
                         <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub mt-2">{ticket.sede} • {ticket.requester}</div>
+                        <div className="text-xs text-roman-text-sub mt-2">{getTicketSiteLabel(ticket, sites)} • {ticket.requester}</div>
                       </button>
                     ))}
                     {upcomingPreliminaries.slice(0, 3).map(ticket => (
@@ -478,7 +506,7 @@ export function HomeView() {
                             ? `Início previsto ${formatActivityTime(ticket.preliminaryActions.plannedStartAt)}`
                             : ticket.preliminaryActions?.materialEta
                               ? `Material previsto ${formatActivityTime(ticket.preliminaryActions.materialEta)}`
-                              : ticket.sede}
+                              : getTicketSiteLabel(ticket, sites)}
                         </div>
                       </button>
                     ))}
@@ -641,7 +669,7 @@ export function HomeView() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="font-medium text-roman-text-main">{ticket.id}</div>
-                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">{ticket.sede}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">{getTicketSiteLabel(ticket, sites)}</div>
                     </div>
                     <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
                     <div className="text-xs text-roman-text-sub mt-2">{ticket.status}</div>
@@ -681,7 +709,7 @@ export function HomeView() {
                       <div className={`text-xs ${ticket.sla?.status === 'overdue' ? 'text-red-700' : 'text-roman-text-sub'}`}>{ticket.sla?.status === 'overdue' ? 'SLA vencido' : ticket.status}</div>
                     </div>
                     <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
-                    <div className="text-xs text-roman-text-sub mt-2">{ticket.region} • {ticket.sede}</div>
+                    <div className="text-xs text-roman-text-sub mt-2">{getTicketRegionLabel(ticket, regions, sites)} • {getTicketSiteLabel(ticket, sites)}</div>
                   </button>
                 ))}
               </div>
@@ -714,7 +742,7 @@ export function HomeView() {
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
                         <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub">{ticket.requester} • {ticket.sede} • {ticket.region}</div>
+                        <div className="text-xs text-roman-text-sub">{ticket.requester} • {getTicketSiteLabel(ticket, sites)} • {getTicketRegionLabel(ticket, regions, sites)}</div>
                         <div className="text-xs text-roman-text-sub mt-1">Laudos anexados: {ticket.closureChecklist?.documents?.length || 0}</div>
                       </div>
                       <div className="text-xs text-roman-text-sub md:text-right">

@@ -8,12 +8,13 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import { InboxFilter, HistoryItem, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
-import { CatalogMaterial, CatalogServiceItem, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
+import { CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
+import { getTicketRegionLabel } from '../utils/ticketTerritory';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'construtora', name: 'Construtora', type: 'internal' },
@@ -240,6 +241,8 @@ export function InboxView() {
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
   const [teams, setTeams] = useState<DirectoryTeam[]>(FALLBACK_TEAMS);
+  const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
+  const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>(FALLBACK_CATALOG_MATERIALS);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>(FALLBACK_SERVICE_CATALOG);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
@@ -294,12 +297,16 @@ export function InboxView() {
       try {
         const catalog = await fetchCatalog();
         if (!cancelled) {
+          setCatalogRegions(catalog.regions);
+          setCatalogSites(catalog.sites);
           setCatalogMaterials(catalog.materials);
           setServiceCatalog(catalog.serviceCatalog);
           setVendorPreferences(catalog.vendorPreferences);
         }
       } catch {
         if (!cancelled) {
+          setCatalogRegions([]);
+          setCatalogSites([]);
           setCatalogMaterials(FALLBACK_CATALOG_MATERIALS);
           setServiceCatalog(FALLBACK_SERVICE_CATALOG);
           setVendorPreferences([]);
@@ -355,6 +362,8 @@ export function InboxView() {
 
   // Botão principal de ação: transição de status + registro no histórico
   const handleSend = () => {
+    if (isSending) return;
+    setIsSending(true);
     const now = new Date();
     const sender = 'Rafael (Gestor)';
 
@@ -399,7 +408,10 @@ export function InboxView() {
         updateTicket(activeTicket.id, { status: newStatus, history: [...activeTicket.history, ...items] });
       }
     } else {
-      if (!replyText.trim()) return;
+      if (!replyText.trim()) {
+        setIsSending(false);
+        return;
+      }
       const item: HistoryItem = { id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() };
       updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
       void notifyTicketPublicReply(activeTicket, sender, replyText.trim());
@@ -408,6 +420,7 @@ export function InboxView() {
     setReplyText('');
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
+    window.setTimeout(() => setIsSending(false), 400);
   };
 
   const handlePrelimFieldToggle = (field: PreliminaryChecklistKey) => {
@@ -433,6 +446,7 @@ export function InboxView() {
   });
 
   const handleSavePreliminaryActions = (startExecution: boolean) => {
+    if (isSending) return;
     const isReady = arePreliminaryActionsReady(prelimForm);
     if (startExecution && !isReady) {
       setToast('Erro: conclua todas as ações preliminares antes de iniciar a execução.');
@@ -446,6 +460,7 @@ export function InboxView() {
       return;
     }
 
+    setIsSending(true);
     const now = new Date();
     const preliminaryActions = buildPreliminaryActionsPayload(startExecution);
     const historyText = startExecution
@@ -471,15 +486,18 @@ export function InboxView() {
       setToast('Execução liberada com checklist preliminar concluído.');
       setTimeout(() => setToast(null), 3000);
     }
+    window.setTimeout(() => setIsSending(false), 500);
   };
 
   // Controle de Execução
   const handleStartExecution = () => {
+    if (isSending) return;
     if (activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) {
       setShowPrelimModal(true);
       return;
     }
 
+    setIsSending(true);
     const preliminaryActions = activeTicket.preliminaryActions
       ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || new Date(), updatedAt: new Date() }
       : undefined;
@@ -492,9 +510,12 @@ export function InboxView() {
       preliminaryActions,
       history: [...activeTicket.history, item],
     });
+    window.setTimeout(() => setIsSending(false), 500);
   };
 
   const handleSendForValidation = () => {
+    if (isSending) return;
+    setIsSending(true);
     const item: HistoryItem = {
       id: crypto.randomUUID(), type: 'system', sender: 'Rafael (Gestor)',
       time: new Date(), text: 'Serviço concluído. Aguardando validação do solicitante.',
@@ -518,6 +539,7 @@ export function InboxView() {
       },
       history: [...activeTicket.history, item],
     });
+    window.setTimeout(() => setIsSending(false), 500);
   };
 
   const [isSending, setIsSending] = useState(false);
@@ -605,7 +627,7 @@ export function InboxView() {
   const filteredTickets = useMemo(() => tickets.filter(t => {
     if (inboxFilter.status.length > 0 && !inboxFilter.status.includes(t.status)) return false;
     if (inboxFilter.priority.length > 0 && t.priority && !inboxFilter.priority.includes(t.priority)) return false;
-    if (inboxFilter.region.length > 0 && !inboxFilter.region.includes(t.region)) return false;
+    if (inboxFilter.region.length > 0 && !inboxFilter.region.includes(getTicketRegionLabel(t, catalogRegions, catalogSites))) return false;
     if (inboxFilter.type.length > 0 && !inboxFilter.type.includes(t.type)) return false;
     return true;
   }).sort((a, b) => {
@@ -614,7 +636,13 @@ export function InboxView() {
     if (isAUrgentCorrective && !isBUrgentCorrective) return -1;
     if (!isAUrgentCorrective && isBUrgentCorrective) return 1;
     return b.time.getTime() - a.time.getTime();
-  }), [tickets, inboxFilter]);
+  }), [tickets, inboxFilter, catalogRegions, catalogSites]);
+
+  const regionFilterOptions = useMemo(() => {
+    const catalogOptions = catalogRegions.map(region => region.name);
+    const ticketOptions = tickets.map(ticket => getTicketRegionLabel(ticket, catalogRegions, catalogSites));
+    return [...new Set([...catalogOptions, ...ticketOptions].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [catalogRegions, catalogSites, tickets]);
 
   const budgetHistory = useMemo(
     () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket),
@@ -1185,9 +1213,7 @@ export function InboxView() {
                   TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL, TICKET_STATUS.WAITING_PAYMENT, TICKET_STATUS.CLOSED,
                 ], inboxFilter, setInboxFilter)}
                 {renderFilterSection('Prioridade', 'priority', ['Urgente', 'Alta', 'Normal', 'Trivial'], inboxFilter, setInboxFilter)}
-                {renderFilterSection('Região', 'region', [
-                  'Dionísio Torres', 'Aldeota', 'Parquelândia', 'Sul', 'Benfica', 'Universidade',
-                ], inboxFilter, setInboxFilter)}
+                {renderFilterSection('Região', 'region', regionFilterOptions, inboxFilter, setInboxFilter)}
                 {renderFilterSection('Tipo', 'type', ['Corretiva', 'Preventiva', 'Melhoria'], inboxFilter, setInboxFilter)}
               </div>
             )}
@@ -1389,10 +1415,10 @@ export function InboxView() {
                       <button
                         onClick={handleSend}
                         className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-1.5 font-medium transition-colors tracking-wide flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={isClosed}
+                        disabled={isClosed || isSending}
                       >
-                        <CheckCircle size={16} />
-                        {replyMode === 'internal' ? internalButtonText : 'Enviar Mensagem'}
+                        {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                        {isSending ? 'Enviando...' : replyMode === 'internal' ? internalButtonText : 'Enviar Mensagem'}
                       </button>
                     </div>
                   </div>
