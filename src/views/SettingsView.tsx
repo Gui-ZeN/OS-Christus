@@ -1072,53 +1072,53 @@ export function SettingsView() {
                         Carregando catálogo...
                       </div>
                     ) : (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                      <div className="space-y-5">
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                          <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Macroserviços</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Classificação macro da manutenção.</p>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {macroServices.map(item => (
-                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
                                   <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
                                   <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
+                            <div className="space-y-3 border-t border-stone-200 pt-4">
                               <input
                                 type="text"
                                 value={macroDraft.name}
                                 onChange={event => setMacroDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do macroserviço"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={macroDraft.code}
                                 onChange={event => setMacroDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <button
                                 onClick={() => void handleSaveMacroService()}
-                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
+                                className="w-full rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
                               >
                                 Salvar Macroserviço
                               </button>
                             </div>
                           </section>
 
-                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                          <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Serviços</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Detalham o tipo real de intervenção.</p>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {serviceCatalog.map(item => (
-                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
                                   <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
                                   <div className="text-[11px] text-roman-text-sub">
                                     {(macroServices.find(macro => macro.id === item.macroServiceId)?.name || item.macroServiceId)} · {item.code || item.id}
@@ -1126,32 +1126,32 @@ export function SettingsView() {
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
+                            <div className="space-y-3 border-t border-stone-200 pt-4">
                               <input
                                 type="text"
                                 value={serviceDraft.name}
                                 onChange={event => setServiceDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do serviço"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={serviceDraft.code}
                                 onChange={event => setServiceDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <select
                                 value={serviceDraft.macroServiceId}
                                 onChange={event => setServiceDraft(current => ({ ...current, macroServiceId: event.target.value }))}
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               >
                                 <option value="">Selecione o macroserviço</option>
                                 {macroServices.map(item => (
                                   <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                               </select>
-                              <div className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2 max-h-28 overflow-y-auto space-y-2">
+                              <div className="max-h-28 space-y-2 overflow-y-auto rounded-xl border border-stone-200 bg-white px-3 py-2">
                                 {materials.map(item => {
                                   const checked = serviceDraft.suggestedMaterialIds.includes(item.id);
                                   return (
@@ -1175,51 +1175,51 @@ export function SettingsView() {
                               </div>
                               <button
                                 onClick={() => void handleSaveService()}
-                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
+                                className="w-full rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
                               >
                                 Salvar Serviço
                               </button>
                             </div>
                           </section>
 
-                          <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                          <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Materiais</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Materiais sugeridos para padronização de orçamento.</p>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {materials.map(item => (
-                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
                                   <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
                                   <div className="text-[11px] text-roman-text-sub">{item.code || item.id}{item.unit ? ` · ${item.unit}` : ''}</div>
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
+                            <div className="space-y-3 border-t border-stone-200 pt-4">
                               <input
                                 type="text"
                                 value={materialDraft.name}
                                 onChange={event => setMaterialDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do material"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={materialDraft.code}
                                 onChange={event => setMaterialDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={materialDraft.unit}
                                 onChange={event => setMaterialDraft(current => ({ ...current, unit: event.target.value }))}
                                 placeholder="Unidade (ex: m², un, lata)"
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <button
                                 onClick={() => void handleSaveMaterial()}
-                                className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm text-sm font-medium"
+                                className="w-full rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
                               >
                                 Salvar Material
                               </button>
@@ -1227,7 +1227,7 @@ export function SettingsView() {
                           </section>
                         </div>
 
-                        <section className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
                           <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Fornecedores preferenciais por histórico</h3>
@@ -1237,13 +1237,13 @@ export function SettingsView() {
                           </div>
 
                           {vendorPreferences.length === 0 ? (
-                            <div className="text-sm text-roman-text-sub border border-dashed border-roman-border rounded-sm p-4 bg-roman-surface">
+                            <div className="rounded-xl border border-dashed border-stone-300 bg-white p-4 text-sm text-roman-text-sub">
                               Ainda não há preferências persistidas. Elas passam a ser geradas quando a diretoria aprova uma cotação.
                             </div>
                           ) : (
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                               {vendorPreferences.slice(0, 12).map(item => (
-                                <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-4 py-3">
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
                                       <div className="text-sm font-medium text-roman-text-main">{item.vendor}</div>
@@ -1336,7 +1336,7 @@ export function SettingsView() {
                     )}
 
                     {!integrationsLoading && integrationsHealth && (
-                      <div className="space-y-6">
+                      <div className="space-y-5">
                         <EmailHealthView embedded />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1351,14 +1351,14 @@ export function SettingsView() {
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {legacyCards.map(card => (
-                                <div key={card.label} className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                                <div key={card.label} className="rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
                                   <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
                                   <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
                                 </div>
                               ))}
                             </div>
 
-                            <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                            <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
                               <div className="flex items-center gap-2 text-roman-text-main font-medium mb-3">
                                 <Database size={16} />
                                 Amostras de legado
