@@ -268,6 +268,49 @@ async function upsertCatalogEntry(db, entity, record) {
   };
 }
 
+async function assertCatalogEntryCanDelete(db, entity, id) {
+  if (entity === 'regions') {
+    const [sitesSnap, usersSnap, ticketsSnap] = await Promise.all([
+      db.collection('sites').where('regionId', '==', id).limit(1).get(),
+      db.collection('users').where('regionIds', 'array-contains', id).limit(1).get(),
+      db.collection('tickets').where('regionId', '==', id).limit(1).get(),
+    ]);
+
+    if (!sitesSnap.empty) throw new Error('N?o ? poss?vel excluir a regi?o enquanto existirem sedes vinculadas.');
+    if (!usersSnap.empty) throw new Error('N?o ? poss?vel excluir a regi?o enquanto houver usu?rios vinculados.');
+    if (!ticketsSnap.empty) throw new Error('N?o ? poss?vel excluir a regi?o porque ela j? est? vinculada a tickets.');
+    return;
+  }
+
+  if (entity === 'sites') {
+    const [usersSnap, ticketsSnap] = await Promise.all([
+      db.collection('users').where('siteIds', 'array-contains', id).limit(1).get(),
+      db.collection('tickets').where('siteId', '==', id).limit(1).get(),
+    ]);
+
+    if (!usersSnap.empty) throw new Error('N?o ? poss?vel excluir a sede enquanto houver usu?rios vinculados.');
+    if (!ticketsSnap.empty) throw new Error('N?o ? poss?vel excluir a sede porque ela j? est? vinculada a tickets.');
+  }
+}
+
+async function deleteCatalogEntry(db, entity, id) {
+  const collection = ENTITY_COLLECTION_MAP[entity];
+  if (!collection) {
+    throw new Error('Entidade de catalogo invalida.');
+  }
+
+  const ref = db.collection(collection).doc(id);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) {
+    throw new Error('Registro do catalogo nao encontrado.');
+  }
+
+  await assertCatalogEntryCanDelete(db, entity, id);
+  const before = { id: snapshot.id, ...snapshot.data() };
+  await ref.delete();
+  return before;
+}
+
 export default async function handler(req, res) {
   try {
     const db = getAdminDb();
@@ -319,8 +362,31 @@ export default async function handler(req, res) {
       return sendJson(res, 200, { ok: true, entity, record: after, ...catalog });
     }
 
-    res.setHeader('Allow', 'GET, POST');
-    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    if (req.method === 'DELETE') {
+      const adminUser = await requireAdminUser(req);
+      const actor = readActorFromHeaders(req) || adminUser.email || adminUser.name || 'admin';
+      const body = await readJsonBody(req);
+      const entity = String(body?.entity || '').trim();
+      const id = String(body?.id || '').trim();
+      if (!entity || !id) {
+        return sendJson(res, 400, { ok: false, error: 'entity e id sao obrigatorios.' });
+      }
+
+      const before = await deleteCatalogEntry(db, entity, id);
+      await writeAuditLog({
+        actor,
+        action: 'catalog.delete',
+        entity,
+        entityId: id,
+        before,
+        after: null,
+      });
+      const catalog = await readCatalog(db);
+      return sendJson(res, 200, { ok: true, entity, id, ...catalog });
+    }
+
+    res.setHeader('Allow', 'GET, POST, DELETE');
+    return sendJson(res, 405, { ok: false, error: 'M?todo n?o permitido.' });
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no catalogo.' });
   }

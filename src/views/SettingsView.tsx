@@ -1,11 +1,12 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw, ShieldCheck, TriangleAlert, Wrench } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Wrench } from 'lucide-react';
 import { runFirestoreLegacyBackfill, type FirestoreBackfillResult } from '../services/adminActionsApi';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApp } from '../context/AppContext';
 import { isFirebaseAuthConfigured } from '../lib/firebaseClient';
 import {
   fetchCatalog,
+  deleteCatalogEntry,
   type CatalogRegion,
   type CatalogSite,
   saveCatalogEntry,
@@ -314,6 +315,31 @@ export function SettingsView() {
     }
   };
 
+  const handleDeleteCatalogItem = async (entity: 'regions' | 'sites', id: string, label: string) => {
+    const confirmed = window.confirm(`Excluir ${label}?`);
+    if (!confirmed) return;
+
+    try {
+      const catalog = await deleteCatalogEntry(entity, id);
+      setRegions(catalog.regions);
+      setSites(catalog.sites);
+      setMacroServices(catalog.macroServices);
+      setServiceCatalog(catalog.serviceCatalog);
+      setMaterials(catalog.materials);
+      setVendorPreferences(catalog.vendorPreferences);
+      if (entity === 'regions' && regionDraft.id === id) {
+        setRegionDraft({ id: '', code: '', name: '', group: 'operacao' });
+      }
+      if (entity === 'sites' && siteDraft.id === id) {
+        setSiteDraft({ id: '', code: '', name: '', regionId: '' });
+      }
+      setCatalogSaved(entity === 'regions' ? 'Região excluída.' : 'Sede excluída.');
+      setTimeout(() => setCatalogSaved(null), 3000);
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao excluir item do catálogo.');
+    }
+  };
+
   const clientFirebaseCheck = useMemo(
     () => ({
       ok: isFirebaseAuthConfigured(),
@@ -615,6 +641,13 @@ export function SettingsView() {
                                     >
                                       Editar
                                     </button>
+                                    <button
+                                      onClick={() => void handleDeleteCatalogItem('regions', item.id, `a região ${item.name}`)}
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"
+                                    >
+                                      <Trash2 size={12} />
+                                      Excluir
+                                    </button>
                                   </div>
                                 </div>
                               ))}
@@ -663,6 +696,13 @@ export function SettingsView() {
                                       className="text-xs font-medium text-roman-primary hover:underline"
                                     >
                                       Editar
+                                    </button>
+                                    <button
+                                      onClick={() => void handleDeleteCatalogItem('sites', item.id, `a sede ${item.name}`)}
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"
+                                    >
+                                      <Trash2 size={12} />
+                                      Excluir
                                     </button>
                                   </div>
                                 </div>

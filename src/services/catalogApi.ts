@@ -106,3 +106,24 @@ export async function saveCatalogEntry(
     vendorPreferences: (json.vendorPreferences || []) as CatalogVendorPreference[],
   };
 }
+
+export async function deleteCatalogEntry(entity: 'regions' | 'sites', id: string) {
+  const headers = await getAuthenticatedActorHeaders();
+  const response = await fetch('/api/catalog', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
+    body: JSON.stringify({ entity, id }),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.ok) {
+    throw new Error(json?.error || 'Falha ao excluir item do catálogo.');
+  }
+  return {
+    regions: json.regions as CatalogRegion[],
+    sites: json.sites as CatalogSite[],
+    macroServices: (json.macroServices || []) as CatalogMacroService[],
+    serviceCatalog: (json.serviceCatalog || []) as CatalogServiceItem[],
+    materials: (json.materials || []) as CatalogMaterial[],
+    vendorPreferences: (json.vendorPreferences || []) as CatalogVendorPreference[],
+  };
+}
