@@ -14,7 +14,7 @@ import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDistanceToNowSafe } from '../utils/date';
-import { getTicketRegionLabel } from '../utils/ticketTerritory';
+import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 const FALLBACK_TEAMS: DirectoryTeam[] = [
   { id: 'construtora', name: 'Construtora', type: 'internal' },
@@ -1467,8 +1467,8 @@ export function InboxView() {
               <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
               {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
               {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
-              <PropertyField label="Região" value={activeTicket.region} />
-              <PropertyField label="Sede" value={activeTicket.sede} />
+              <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
+              <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
               <PropertyField label="Setor" value={activeTicket.sector} />
 
               <div className="pt-4 border-t border-roman-border">
@@ -1627,11 +1627,11 @@ export function InboxView() {
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
                 <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h4 className="text-sm font-serif text-roman-text-main">Base historica (24 meses)</h4>
+                    <h4 className="text-sm font-serif text-roman-text-main">Base histórica (24 meses)</h4>
                     <p className="text-xs text-roman-text-sub">
                       {budgetHistory.comparableTicketCount > 0
                         ? `${budgetHistory.comparableTicketCount} OS similares encontradas para comparacao.`
-                        : 'Sem base historica suficiente para comparar esta OS.'}
+                        : 'Sem base histórica suficiente para comparar esta OS.'}
                     </p>
                   </div>
                   <div className="text-xs text-roman-text-sub">
@@ -1651,14 +1651,14 @@ export function InboxView() {
                     </div>
                   </div>
                   <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Ultimo comparavel</div>
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Último comparável</div>
                     <div className="mt-1 text-sm font-medium text-roman-text-main">{budgetHistory.latestComparableValueLabel ?? '-'}</div>
                     <div className="text-[11px] text-roman-text-sub">{budgetHistory.latestComparableVendor ?? 'Sem fornecedor'}</div>
                   </div>
                   <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
                     <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Referencias</div>
                     <div className="mt-1 text-lg font-serif text-roman-text-main">{budgetHistory.comparableQuoteCount}</div>
-                    <div className="text-[11px] text-roman-text-sub">cotacoes aproveitaveis</div>
+                    <div className="text-[11px] text-roman-text-sub">cotações aproveitáveis</div>
                   </div>
                 </div>
 

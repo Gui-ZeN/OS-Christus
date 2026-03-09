@@ -418,7 +418,7 @@ export function ApprovalsView() {
               {processingId === solution.id && (
                 <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
-                  <span className="font-serif text-roman-text-main font-medium">Processando decisao...</span>
+                  <span className="font-serif text-roman-text-main font-medium">Processando decisão...</span>
                 </div>
               )}
               <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-4">
@@ -452,7 +452,7 @@ export function ApprovalsView() {
               {processingId === budget.id && (
                 <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
-                  <span className="font-serif text-roman-text-main font-medium">Processando decisao...</span>
+                  <span className="font-serif text-roman-text-main font-medium">Processando decisão...</span>
                 </div>
               )}
               <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-4">
@@ -463,7 +463,7 @@ export function ApprovalsView() {
                     {budget.viewingBy && (
                       <span className="text-xs font-medium px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-sm flex items-center gap-1.5 shadow-sm">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        Em analise por {budget.viewingBy}
+                        Em análise por {budget.viewingBy}
                       </span>
                     )}
                   </div>
@@ -539,11 +539,11 @@ export function ApprovalsView() {
               <div className="mt-4 rounded-sm border border-roman-border bg-roman-bg p-4">
                 <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Base historica</div>
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Base histórica</div>
                     <div className="text-sm text-roman-text-main">
                       {budget.historySummary.comparableTicketCount > 0
-                        ? `${budget.historySummary.comparableTicketCount} OS comparaveis nos ultimos 24 meses`
-                        : 'Sem OS comparaveis suficientes nos ultimos 24 meses'}
+                        ? `${budget.historySummary.comparableTicketCount} OS comparáveis nos últimos 24 meses`
+                        : 'Sem OS comparáveis suficientes nos últimos 24 meses'}
                     </div>
                   </div>
                   <div className="text-xs text-roman-text-sub">
@@ -563,14 +563,14 @@ export function ApprovalsView() {
                     </div>
                   </div>
                   <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Ultimo fornecedor</div>
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Último fornecedor</div>
                     <div className="mt-1 text-sm font-medium text-roman-text-main">{budget.historySummary.latestComparableVendor ?? '-'}</div>
                     <div className="text-[11px] text-roman-text-sub">{budget.historySummary.latestComparableValueLabel ?? '-'}</div>
                   </div>
                   <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
                     <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Volume</div>
                     <div className="mt-1 text-base font-serif text-roman-text-main">{budget.historySummary.comparableQuoteCount}</div>
-                    <div className="text-[11px] text-roman-text-sub">cotacoes consideradas</div>
+                    <div className="text-[11px] text-roman-text-sub">cotações consideradas</div>
                   </div>
                 </div>
 
@@ -721,9 +721,9 @@ export function ApprovalsView() {
         isOpen={rejectModalOpen}
         onClose={() => setRejectModalOpen(false)}
         onConfirm={handleReject}
-        title="Reprovar Solicitacao"
-        description="Informe o motivo da reprovacao para o gestor buscar novas opcoes."
-        confirmText="Confirmar Reprovacao"
+        title="Reprovar Solicitação"
+        description="Informe o motivo da reprovação para o gestor buscar novas opções."
+        confirmText="Confirmar Reprovação"
         isDestructive={true}
         requireReason={true}
       />
@@ -744,7 +744,7 @@ export function ApprovalsView() {
               <button onClick={() => setAttachContractModalId(null)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-roman-text-sub mb-4">Faca o upload do contrato assinado para prosseguir com a OS.</p>
+              <p className="text-sm text-roman-text-sub mb-4">Faça o upload do contrato assinado para prosseguir com a OS.</p>
 
               <div className="border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg mb-6 relative hover:bg-roman-border-light transition-colors cursor-pointer">
                 <input
