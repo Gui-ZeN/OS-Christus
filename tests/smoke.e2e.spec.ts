@@ -13,7 +13,7 @@ test('login and sidebar navigation smoke', async ({ page }) => {
   await loginAsManager(page);
 
   await page.locator('button[title="Caixa de Entrada"]').click();
-  await expect(page.getByText(/Minhas Filas/i)).toBeVisible();
+  await expect(page.getByText(/Caixa de Entrada/i)).toBeVisible();
 
   await page.locator('button[title="Painel da Diretoria"]').click();
   await expect(page.getByRole('heading', { name: /painel da diretoria/i })).toBeVisible();
@@ -25,7 +25,7 @@ test('login and sidebar navigation smoke', async ({ page }) => {
 test('inbox actions and modals smoke', async ({ page }) => {
   await loginAsManager(page);
   await page.locator('button[title="Caixa de Entrada"]').click();
-  await expect(page.getByText(/Minhas Filas/i)).toBeVisible();
+  await expect(page.getByText(/Caixa de Entrada/i)).toBeVisible();
 
   await page.getByLabel('Ações da OS').click();
   await page.getByRole('button', { name: /duplicar os/i }).click();
@@ -54,14 +54,14 @@ test('notifications and tracking smoke', async ({ page }) => {
   await page.locator('button[title="Visualizar como solicitante"]').click();
   await expect(page.getByRole('heading', { name: /acompanhamento de os/i })).toBeVisible();
   await page.getByRole('button', { name: /voltar ao sistema interno/i }).click();
-  await expect(page.getByText(/Minhas Filas/i)).toBeVisible();
+  await expect(page.getByText(/Caixa de Entrada/i)).toBeVisible();
 });
 
 test('mobile drawers and modal dismissal smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAsManager(page);
   await page.locator('button[title="Caixa de Entrada"]').click();
-  await expect(page.getByText(/Minhas Filas/i)).toBeVisible();
+  await expect(page.getByText(/Caixa de Entrada/i)).toBeVisible();
 
   await page.getByRole('button', { name: /^filas$/i }).click();
   await expect(page.getByLabel(/fechar lista/i)).toBeVisible();
