@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, Database, Loader2, Mail, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Wrench } from 'lucide-react';
+import { AlertCircle, Boxes, CheckCircle, Clock, Database, Loader2, Mail, MapPinned, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
 import { runFirestoreLegacyBackfill, type FirestoreBackfillResult } from '../services/adminActionsApi';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApp } from '../context/AppContext';
@@ -46,41 +46,72 @@ const DEFAULT_SLA: SlaSettings = {
   ],
 };
 
-const SECTION_META: Record<SettingsSection, { eyebrow: string; title: string; description: string }> = {
+const SECTION_META: Record<
+  SettingsSection,
+  {
+    eyebrow: string;
+    title: string;
+    description: string;
+    navLabel: string;
+    accent: string;
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+  }
+> = {
   access: {
-    eyebrow: 'Governança',
+    eyebrow: 'Governan?a',
     title: 'Acessos e perfis',
     description: 'Controle quem entra, qual papel assume e qual estrutura territorial cada pessoa enxerga.',
+    navLabel: 'Acessos',
+    accent: 'from-amber-100 via-white to-stone-100',
+    icon: Users,
   },
   territory: {
     eyebrow: 'Estrutura',
-    title: 'Regiões e sedes',
-    description: 'Organize a malha operacional que alimenta usuários, OS, filtros e dashboards.',
+    title: 'Regi?es e sedes',
+    description: 'Organize a malha operacional que alimenta usu?rios, OS, filtros e dashboards.',
+    navLabel: 'Regi?es e Sedes',
+    accent: 'from-sky-100 via-white to-cyan-50',
+    icon: MapPinned,
   },
   catalog: {
     eyebrow: 'Base operacional',
-    title: 'Serviços e materiais',
-    description: 'Mantenha o catálogo de classificação, referência de orçamento e histórico técnico.',
+    title: 'Servi?os e materiais',
+    description: 'Mantenha o cat?logo de classifica??o, refer?ncia de or?amento e hist?rico t?cnico.',
+    navLabel: 'Servi?os e Materiais',
+    accent: 'from-orange-100 via-white to-amber-50',
+    icon: Boxes,
   },
   templates: {
-    eyebrow: 'Comunicação',
+    eyebrow: 'Comunica??o',
     title: 'Templates de e-mail',
     description: 'Padronize mensagens disparadas pelo sistema em cada etapa do fluxo.',
+    navLabel: 'Templates de E-mail',
+    accent: 'from-rose-100 via-white to-orange-50',
+    icon: Mail,
   },
   'daily-digest': {
     eyebrow: 'Rotina',
-    title: 'Resumo diário',
-    description: 'Defina a cadência do consolidado operacional enviado automaticamente.',
+    title: 'Resumo di?rio',
+    description: 'Defina a cad?ncia do consolidado operacional enviado automaticamente.',
+    navLabel: 'Resumo Di?rio',
+    accent: 'from-lime-100 via-white to-emerald-50',
+    icon: Clock,
   },
   sla: {
     eyebrow: 'Regras',
     title: 'SLA e prazos',
     description: 'Ajuste as metas por prioridade e mantenha a esteira sob controle.',
+    navLabel: 'Regras de SLA',
+    accent: 'from-violet-100 via-white to-fuchsia-50',
+    icon: ShieldCheck,
   },
   integrations: {
     eyebrow: 'Observabilidade',
-    title: 'Integrações e legado',
-    description: 'Acompanhe saúde do ambiente, compatibilidade de dados e ações técnicas de saneamento.',
+    title: 'Integra??es e legado',
+    description: 'Acompanhe sa?de do ambiente, compatibilidade de dados e a??es t?cnicas de saneamento.',
+    navLabel: 'Integra??es e Legado',
+    accent: 'from-stone-200 via-white to-slate-100',
+    icon: Database,
   },
 };
 
@@ -417,86 +448,189 @@ export function SettingsView() {
       ]
     : [];
   const sectionMeta = SECTION_META[section];
+  const sectionHighlights = useMemo(() => {
+    if (section === 'access') {
+      return [
+        { label: 'Administra??o', value: 'Usu?rios', hint: 'Pap?is, status e escopo territorial' },
+        { label: 'Autentica??o', value: 'Firebase Auth', hint: 'Conta acompanha o cadastro' },
+        { label: 'Estrutura', value: 'Regi?es e sedes', hint: 'Visibilidade controlada por v?nculo' },
+      ];
+    }
+    if (section === 'territory') {
+      return [
+        { label: 'Regi?es', value: String(regions.length), hint: 'Agrupamentos territoriais ativos' },
+        { label: 'Sedes', value: String(sites.length), hint: 'Unidades dispon?veis na opera??o' },
+        { label: 'Sincronismo', value: catalogLoading ? 'Atualizando' : 'Est?vel', hint: 'Compartilhado com usu?rios, OS e dashboards' },
+      ];
+    }
+    if (section === 'catalog') {
+      return [
+        { label: 'Macroservi?os', value: String(macroServices.length), hint: 'Camada macro de classifica??o' },
+        { label: 'Servi?os', value: String(serviceCatalog.length), hint: 'Cat?logo detalhado para triagem e or?amento' },
+        { label: 'Materiais', value: String(materials.length), hint: 'Base sugerida para composi??o' },
+      ];
+    }
+    if (section === 'templates') {
+      return [
+        { label: 'Gatilho', value: template.trigger || 'Template', hint: 'Fluxo ativo no momento' },
+        { label: 'Assunto', value: template.subject ? 'Personalizado' : 'Padr?o', hint: 'Linha usada nas mensagens' },
+        { label: 'Corpo', value: template.body ? 'Ativo' : 'Vazio', hint: 'Conte?do operacional enviado' },
+      ];
+    }
+    if (section === 'daily-digest') {
+      return [
+        { label: 'Resumo', value: digest.enabled ? 'Ativado' : 'Desativado', hint: 'Rotina autom?tica de envio' },
+        { label: 'Hor?rio', value: digest.time || '--:--', hint: 'Janela configurada para disparo' },
+        { label: 'Destinat?rios', value: digest.recipients ? String(digest.recipients.split(',').filter(Boolean).length) : '0', hint: 'Quantidade atual na lista' },
+      ];
+    }
+    if (section === 'sla') {
+      return [
+        { label: 'Regras', value: String(sla.rules.length), hint: 'Faixas de prioridade configuradas' },
+        { label: 'Urgente', value: sla.rules[0]?.prazo || '-', hint: 'Prazo mais cr?tico' },
+        { label: 'Normal', value: sla.rules[2]?.prazo || '-', hint: 'Refer?ncia padr?o da opera??o' },
+      ];
+    }
+    return [
+      { label: 'Health checks', value: integrationsHealth ? 'Ativos' : 'Pendente', hint: 'Leitura do ambiente t?cnico' },
+      { label: 'Backfill', value: backfillResult ? 'Executado' : 'Dispon?vel', hint: 'Saneamento legado sob demanda' },
+      { label: 'Legado', value: legacyHealth ? String(legacyCards.reduce((sum, card) => sum + Number(card.value || 0), 0)) : '--', hint: 'Sinais antigos encontrados no projeto' },
+    ];
+  }, [
+    backfillResult,
+    catalogLoading,
+    digest.enabled,
+    digest.recipients,
+    digest.time,
+    integrationsHealth,
+    legacyCards,
+    legacyHealth,
+    macroServices.length,
+    materials.length,
+    section,
+    serviceCatalog.length,
+    sites.length,
+    sla.rules,
+    template.body,
+    template.subject,
+    template.trigger,
+    regions.length,
+  ]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,#f7f1e6_0%,#f5f1e9_28%,#f3efe8_100%)] p-6 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <section className="overflow-hidden rounded-[2rem] border border-stone-200/80 bg-[linear-gradient(135deg,#fffaf2_0%,#f4ede3_48%,#efe7db_100%)] shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
-          <div className="grid gap-8 px-8 py-8 lg:grid-cols-[1.3fr_0.7fr] lg:px-10">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.32em] text-roman-primary">Centro de Configuração</div>
-              <h1 className="mt-4 text-4xl font-serif font-medium tracking-tight text-roman-text-main">Configurações do Sistema</h1>
-              <p className="mt-4 max-w-2xl text-base text-roman-text-sub">
-                Organize acessos, estrutura operacional, comunicação, SLA e integrações em um único painel administrativo.
+    <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,#f6ead1_0%,#f4efe8_34%,#f1ede6_100%)] p-5 md:p-8">
+      <div className="mx-auto max-w-[1500px] space-y-7">
+        <section className="overflow-hidden rounded-[2.4rem] border border-stone-200/80 bg-[linear-gradient(135deg,#1f2937_0%,#2f241f_42%,#efe4cf_42.1%,#f8f1e6_100%)] shadow-[0_30px_90px_rgba(15,23,42,0.12)]">
+          <div className="grid gap-0 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="px-8 py-9 text-white md:px-10">
+              <div className="text-[11px] uppercase tracking-[0.36em] text-white/55">Configura??o Central</div>
+              <h1 className="mt-4 max-w-2xl text-4xl font-serif tracking-tight">Painel de Estrutura e Governan?a</h1>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/72">
+                Um centro administrativo para controlar pessoas, territ?rio, cat?logo operacional, comunica??o e observabilidade sem espalhar configura??o pelo sistema.
               </p>
+
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Escopo</div>
+                  <div className="mt-2 text-xl font-serif">Governan?a</div>
+                  <div className="mt-1 text-sm text-white/65">Usu?rios, pap?is e visibilidade territorial.</div>
+                </div>
+                <div className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Base</div>
+                  <div className="mt-2 text-xl font-serif">Opera??o</div>
+                  <div className="mt-1 text-sm text-white/65">Cat?logos, templates e SLA em um s? lugar.</div>
+                </div>
+                <div className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Health</div>
+                  <div className="mt-2 text-xl font-serif">Ambiente</div>
+                  <div className="mt-1 text-sm text-white/65">Status t?cnico, e-mail e legado monitorados.</div>
+                </div>
+              </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              <div className="rounded-[1.5rem] border border-white/80 bg-white/80 px-5 py-4 backdrop-blur">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Acessos</div>
-                <div className="mt-2 text-2xl font-serif text-roman-text-main">Usuários, papéis e escopo</div>
-              </div>
-              <div className="rounded-[1.5rem] border border-white/80 bg-white/80 px-5 py-4 backdrop-blur">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Estrutura</div>
-                <div className="mt-2 text-2xl font-serif text-roman-text-main">Regiões, sedes e catálogo</div>
-              </div>
-              <div className="rounded-[1.5rem] border border-white/80 bg-white/80 px-5 py-4 backdrop-blur">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Operação</div>
-                <div className="mt-2 text-2xl font-serif text-roman-text-main">Templates, SLA e integrações</div>
-              </div>
+
+            <div className="grid gap-4 px-6 py-6 md:grid-cols-2 md:px-8 xl:grid-cols-1 xl:content-center">
+              {sectionHighlights.map(card => (
+                <div key={card.label} className="rounded-[1.6rem] border border-stone-200/80 bg-white/88 px-5 py-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">{card.label}</div>
+                  <div className="mt-3 text-2xl font-serif text-roman-text-main">{card.value}</div>
+                  <div className="mt-2 text-sm text-roman-text-sub">{card.hint}</div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[1.75rem] border border-stone-200/80 bg-white/80 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">
-            <div className="px-3 pb-4">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">Navegação</div>
-              <div className="mt-2 text-xl font-serif text-roman-text-main">Áreas administrativas</div>
-              <p className="mt-2 text-sm text-roman-text-sub">Cada bloco consolida uma frente do sistema e reduz a fragmentação da operação.</p>
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="h-fit rounded-[2rem] border border-stone-200/80 bg-[linear-gradient(180deg,#fffdf9_0%,#f5efe6_100%)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+            <div className="rounded-[1.5rem] border border-stone-200/70 bg-white px-5 py-5">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-roman-text-sub">Navega??o</div>
+              <div className="mt-3 text-2xl font-serif text-roman-text-main">M?dulos de configura??o</div>
+              <p className="mt-2 text-sm leading-6 text-roman-text-sub">A navega??o foi condensada para reduzir ru?do e destacar a frente que voc? est? administrando agora.</p>
             </div>
 
-            <div className="space-y-2">
-            {[
-              { key: 'access', label: 'Acessos' },
-              { key: 'territory', label: 'Regiões e Sedes' },
-              { key: 'catalog', label: 'Serviços e Materiais' },
-              { key: 'templates', label: 'Templates de E-mail' },
-              { key: 'daily-digest', label: 'Resumo Diário (Z6)' },
-              { key: 'sla', label: 'Regras de SLA' },
-              { key: 'integrations', label: 'Integrações e Legado' },
-            ].map(item => (
-              <button
-                key={item.key}
-                onClick={() => setSection(item.key as SettingsSection)}
-                className={`w-full rounded-2xl px-4 py-3 text-left transition-all ${
-                  section === item.key
-                    ? 'bg-roman-sidebar text-white shadow-[0_16px_40px_rgba(24,24,27,0.18)]'
-                    : 'text-roman-text-sub hover:bg-roman-bg'
-                }`}
-              >
-                <div className="text-sm font-semibold">{item.label}</div>
-                <div className={`mt-1 text-xs ${section === item.key ? 'text-white/70' : 'text-roman-text-sub/80'}`}>
-                  {SECTION_META[item.key as SettingsSection].eyebrow}
-                </div>
-              </button>
-            ))}
+            <div className="mt-4 space-y-3">
+            {(Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>).map(([key, meta]) => {
+              const Icon = meta.icon;
+              const isActive = section === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSection(key)}
+                  className={`w-full rounded-[1.6rem] border px-4 py-4 text-left transition-all ${
+                    isActive
+                      ? 'border-transparent bg-roman-sidebar text-white shadow-[0_18px_40px_rgba(24,24,27,0.20)]'
+                      : 'border-stone-200 bg-white text-roman-text-sub hover:border-roman-primary/35 hover:bg-stone-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${isActive ? 'bg-white/10' : 'bg-roman-bg text-roman-primary'}`}>
+                      <Icon size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold">{meta.navLabel}</div>
+                      <div className={`mt-1 text-xs leading-5 ${isActive ? 'text-white/72' : 'text-roman-text-sub/80'}`}>{meta.description}</div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
             </div>
           </aside>
 
-          <div className="min-w-0 rounded-[1.75rem] border border-stone-200/80 bg-white/85 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur md:p-8">
+          <div className="min-w-0 rounded-[2rem] border border-stone-200/80 bg-white/90 p-6 shadow-[0_28px_80px_rgba(15,23,42,0.08)] backdrop-blur md:p-8">
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                 <Loader2 size={18} className="animate-spin" />
-                Carregando configurações...
+                Carregando configura??es...
               </div>
             ) : (
               <>
-                <div className="mb-8 rounded-[1.5rem] border border-roman-border/70 bg-[linear-gradient(135deg,#fffaf2_0%,#f8f2e8_100%)] px-6 py-6">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-roman-primary">{sectionMeta.eyebrow}</div>
-                  <div className="mt-3 text-3xl font-serif text-roman-text-main">{sectionMeta.title}</div>
-                  <p className="mt-3 max-w-3xl text-sm text-roman-text-sub">{sectionMeta.description}</p>
-                </div>
+                <div className={`mb-8 rounded-[1.8rem] border border-stone-200/80 bg-gradient-to-br ${sectionMeta.accent} px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]`}>
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-[0.32em] text-roman-primary">{sectionMeta.eyebrow}</div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-roman-primary shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+                          <sectionMeta.icon size={22} />
+                        </div>
+                        <div>
+                          <div className="text-3xl font-serif text-roman-text-main">{sectionMeta.title}</div>
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-roman-text-sub">{sectionMeta.description}</p>
+                        </div>
+                      </div>
+                    </div>
 
+                    <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
+                      {sectionHighlights.map(item => (
+                        <div key={item.label} className="rounded-[1.2rem] border border-white/70 bg-white/70 px-4 py-4 backdrop-blur">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">{item.label}</div>
+                          <div className="mt-2 text-lg font-serif text-roman-text-main">{item.value}</div>
+                          <div className="mt-2 text-xs leading-5 text-roman-text-sub">{item.hint}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 {section === 'access' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
