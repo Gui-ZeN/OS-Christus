@@ -10,6 +10,29 @@ function sortTimeValue(value) {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
+function buildActorLabel(user, fallbackActor) {
+  if (user?.name) return user.name;
+  if (fallbackActor) return fallbackActor;
+  if (user?.email) return user.email;
+  return 'Sistema';
+}
+
+function buildAutomaticStatusHistoryEntry(sender, previousStatus, nextStatus) {
+  return {
+    id: `status-${Date.now()}`,
+    type: 'system',
+    sender,
+    time: new Date(),
+    text: `Status atualizado de "${previousStatus}" para "${nextStatus}".`,
+  };
+}
+
+function shouldAppendAutomaticHistory(previousHistory, nextHistory) {
+  const previousLength = Array.isArray(previousHistory) ? previousHistory.length : 0;
+  const nextLength = Array.isArray(nextHistory) ? nextHistory.length : 0;
+  return nextLength <= previousLength;
+}
+
 function serializeValue(value) {
   if (value instanceof Date) {
     return value.toISOString();
@@ -218,18 +241,59 @@ export default async function handler(req, res) {
           return sendJson(res, 400, { ok: false, error: 'Nenhuma atualização pública permitida foi enviada.' });
         }
 
+        const beforeData = trackingSnap.docs[0].data() || {};
+        if (
+          normalized.status &&
+          normalized.status !== beforeData.status &&
+          shouldAppendAutomaticHistory(beforeData.history, normalized.history)
+        ) {
+          allowedUpdates.history = [
+            ...(Array.isArray(beforeData.history) ? beforeData.history : []),
+            buildAutomaticStatusHistoryEntry(
+              beforeData.requester || 'Solicitante',
+              beforeData.status || 'Sem status',
+              normalized.status
+            ),
+          ];
+        }
+
         await trackingSnap.docs[0].ref.set({ ...allowedUpdates, updatedAt: new Date() }, { merge: true });
         return sendJson(res, 200, { ok: true });
       }
 
-      await requireAuthenticatedUser(req);
+      const user = await requireAuthenticatedUser(req);
+      const actor = readActorFromHeaders(req) || user.email || user.name || 'painel';
 
       if (!body?.id) {
         return sendJson(res, 400, { ok: false, error: 'id e updates são obrigatórios.' });
       }
 
       const updates = normalizeTicketForStorage(body.updates);
-      await col.doc(body.id).set({ ...updates, updatedAt: new Date() }, { merge: true });
+      const docRef = col.doc(body.id);
+      const beforeSnap = await docRef.get();
+      if (!beforeSnap.exists) {
+        return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
+      }
+
+      const beforeData = beforeSnap.data() || {};
+      const payload = { ...updates, updatedAt: new Date() };
+
+      if (
+        updates.status &&
+        updates.status !== beforeData.status &&
+        shouldAppendAutomaticHistory(beforeData.history, updates.history)
+      ) {
+        payload.history = [
+          ...(Array.isArray(beforeData.history) ? beforeData.history : []),
+          buildAutomaticStatusHistoryEntry(
+            buildActorLabel(user, actor),
+            beforeData.status || 'Sem status',
+            updates.status
+          ),
+        ];
+      }
+
+      await docRef.set(payload, { merge: true });
       return sendJson(res, 200, { ok: true });
     }
 
