@@ -45,6 +45,44 @@ const DEFAULT_SLA: SlaSettings = {
   ],
 };
 
+const SECTION_META: Record<SettingsSection, { eyebrow: string; title: string; description: string }> = {
+  access: {
+    eyebrow: 'Governança',
+    title: 'Acessos e perfis',
+    description: 'Controle quem entra, qual papel assume e qual estrutura territorial cada pessoa enxerga.',
+  },
+  territory: {
+    eyebrow: 'Estrutura',
+    title: 'Regiões e sedes',
+    description: 'Organize a malha operacional que alimenta usuários, OS, filtros e dashboards.',
+  },
+  catalog: {
+    eyebrow: 'Base operacional',
+    title: 'Serviços e materiais',
+    description: 'Mantenha o catálogo de classificação, referência de orçamento e histórico técnico.',
+  },
+  templates: {
+    eyebrow: 'Comunicação',
+    title: 'Templates de e-mail',
+    description: 'Padronize mensagens disparadas pelo sistema em cada etapa do fluxo.',
+  },
+  'daily-digest': {
+    eyebrow: 'Rotina',
+    title: 'Resumo diário',
+    description: 'Defina a cadência do consolidado operacional enviado automaticamente.',
+  },
+  sla: {
+    eyebrow: 'Regras',
+    title: 'SLA e prazos',
+    description: 'Ajuste as metas por prioridade e mantenha a esteira sob controle.',
+  },
+  integrations: {
+    eyebrow: 'Observabilidade',
+    title: 'Integrações e legado',
+    description: 'Acompanhe saúde do ambiente, compatibilidade de dados e ações técnicas de saneamento.',
+  },
+};
+
 function IntegrationStatusCard({
   title,
   check,
@@ -374,17 +412,46 @@ export function SettingsView() {
         { label: 'SLA com compatibilidade legada', value: legacyHealth.summary.slaLegacy },
       ]
     : [];
+  const sectionMeta = SECTION_META[section];
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-8 border-b border-roman-border pb-4">
-          <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Configurações do Sistema</h1>
-          <p className="text-roman-text-sub font-serif italic">Acessos, estrutura operacional, comunicação, SLA e integrações.</p>
-        </header>
+    <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,#f7f1e6_0%,#f5f1e9_28%,#f3efe8_100%)] p-6 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <section className="overflow-hidden rounded-[2rem] border border-stone-200/80 bg-[linear-gradient(135deg,#fffaf2_0%,#f4ede3_48%,#efe7db_100%)] shadow-[0_30px_90px_rgba(15,23,42,0.08)]">
+          <div className="grid gap-8 px-8 py-8 lg:grid-cols-[1.3fr_0.7fr] lg:px-10">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.32em] text-roman-primary">Centro de Configuração</div>
+              <h1 className="mt-4 text-4xl font-serif font-medium tracking-tight text-roman-text-main">Configurações do Sistema</h1>
+              <p className="mt-4 max-w-2xl text-base text-roman-text-sub">
+                Organize acessos, estrutura operacional, comunicação, SLA e integrações em um único painel administrativo.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="rounded-[1.5rem] border border-white/80 bg-white/80 px-5 py-4 backdrop-blur">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Acessos</div>
+                <div className="mt-2 text-2xl font-serif text-roman-text-main">Usuários, papéis e escopo</div>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/80 bg-white/80 px-5 py-4 backdrop-blur">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Estrutura</div>
+                <div className="mt-2 text-2xl font-serif text-roman-text-main">Regiões, sedes e catálogo</div>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/80 bg-white/80 px-5 py-4 backdrop-blur">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Operação</div>
+                <div className="mt-2 text-2xl font-serif text-roman-text-main">Templates, SLA e integrações</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <div className="flex gap-8">
-          <div className="w-64 shrink-0 space-y-2">
+        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="h-fit rounded-[1.75rem] border border-stone-200/80 bg-white/80 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">
+            <div className="px-3 pb-4">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">Navegação</div>
+              <div className="mt-2 text-xl font-serif text-roman-text-main">Áreas administrativas</div>
+              <p className="mt-2 text-sm text-roman-text-sub">Cada bloco consolida uma frente do sistema e reduz a fragmentação da operação.</p>
+            </div>
+
+            <div className="space-y-2">
             {[
               { key: 'access', label: 'Acessos' },
               { key: 'territory', label: 'Regiões e Sedes' },
@@ -397,18 +464,22 @@ export function SettingsView() {
               <button
                 key={item.key}
                 onClick={() => setSection(item.key as SettingsSection)}
-                className={`w-full text-left px-4 py-2 border-l-2 font-medium transition-colors ${
+                className={`w-full rounded-2xl px-4 py-3 text-left transition-all ${
                   section === item.key
-                    ? 'bg-roman-primary/10 text-roman-primary border-roman-primary'
-                    : 'text-roman-text-sub hover:bg-roman-surface border-transparent hover:border-roman-border'
+                    ? 'bg-roman-sidebar text-white shadow-[0_16px_40px_rgba(24,24,27,0.18)]'
+                    : 'text-roman-text-sub hover:bg-roman-bg'
                 }`}
               >
-                {item.label}
+                <div className="text-sm font-semibold">{item.label}</div>
+                <div className={`mt-1 text-xs ${section === item.key ? 'text-white/70' : 'text-roman-text-sub/80'}`}>
+                  {SECTION_META[item.key as SettingsSection].eyebrow}
+                </div>
               </button>
             ))}
-          </div>
+            </div>
+          </aside>
 
-          <div className="flex-1 bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+          <div className="min-w-0 rounded-[1.75rem] border border-stone-200/80 bg-white/85 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur md:p-8">
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                 <Loader2 size={18} className="animate-spin" />
@@ -416,27 +487,33 @@ export function SettingsView() {
               </div>
             ) : (
               <>
+                <div className="mb-8 rounded-[1.5rem] border border-roman-border/70 bg-[linear-gradient(135deg,#fffaf2_0%,#f8f2e8_100%)] px-6 py-6">
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-roman-primary">{sectionMeta.eyebrow}</div>
+                  <div className="mt-3 text-3xl font-serif text-roman-text-main">{sectionMeta.title}</div>
+                  <p className="mt-3 max-w-3xl text-sm text-roman-text-sub">{sectionMeta.description}</p>
+                </div>
+
                 {section === 'access' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                      <div className="rounded-[1.5rem] border border-amber-200/70 bg-amber-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
                         <div className="text-lg font-serif text-roman-text-main">Usuários e papéis</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cadastro, edição, exclusão e vínculo por região e sede.</p>
                       </div>
-                      <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                      <div className="rounded-[1.5rem] border border-sky-200/70 bg-sky-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
                         <div className="text-lg font-serif text-roman-text-main">Firebase Auth</div>
                         <p className="mt-2 text-sm text-roman-text-sub">A conta do usuário acompanha o cadastro e o status operacional.</p>
                       </div>
-                      <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
+                      <div className="rounded-[1.5rem] border border-emerald-200/70 bg-emerald-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
                         <div className="text-lg font-serif text-roman-text-main">Regiões e sedes</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Supervisores e usuários enxergam apenas a estrutura vinculada.</p>
                       </div>
                     </div>
 
-                    <div className="border border-roman-border rounded-sm p-6 bg-roman-surface">
+                    <div className="rounded-[1.75rem] border border-stone-200/80 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
                       <UsersView embedded />
                     </div>
                   </div>
@@ -481,14 +558,14 @@ export function SettingsView() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                        <section className="rounded-[1.5rem] border border-stone-200/80 bg-[linear-gradient(180deg,#fffaf3_0%,#fff 100%)] p-5 space-y-4 shadow-[0_18px_40px_rgba(15,23,42,0.04)]">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
                           </div>
                           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                             {regions.map(item => (
-                              <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                              <div key={item.id} className="rounded-2xl border border-roman-border/80 bg-white px-3 py-3">
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
@@ -509,14 +586,14 @@ export function SettingsView() {
                           </div>
                         </section>
 
-                        <section className="border border-roman-border rounded-sm p-4 bg-roman-bg space-y-4">
+                        <section className="rounded-[1.5rem] border border-stone-200/80 bg-[linear-gradient(180deg,#f7fbff_0%,#fff 100%)] p-5 space-y-4 shadow-[0_18px_40px_rgba(15,23,42,0.04)]">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
                           </div>
                           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                             {sites.map(item => (
-                              <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-3 py-2">
+                              <div key={item.id} className="rounded-2xl border border-roman-border/80 bg-white px-3 py-3">
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="text-sm font-medium text-roman-text-main">{item.name}</div>

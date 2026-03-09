@@ -86,6 +86,15 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
 
   const regionMap = useMemo(() => new Map(regions.map(region => [region.id, region])), [regions]);
   const siteMap = useMemo(() => new Map(sites.map(site => [site.id, site])), [sites]);
+  const userStats = useMemo(
+    () => ({
+      total: users.length,
+      active: users.filter(user => user.status === 'Ativo').length,
+      inactive: users.filter(user => user.status === 'Inativo').length,
+      multiSite: users.filter(user => (user.siteIds || []).length > 1).length,
+    }),
+    [users]
+  );
 
   const filteredSites = useMemo(() => {
     if (form.regionIds.length === 0) return [];
@@ -202,60 +211,129 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
           </button>
         </header>
 
-        <div className="bg-roman-surface border border-roman-border rounded-sm overflow-hidden shadow-sm">
+        <div className={`bg-roman-surface border border-roman-border overflow-hidden ${embedded ? 'rounded-[1.5rem] shadow-[0_24px_80px_rgba(15,23,42,0.08)]' : 'rounded-sm shadow-sm'}`}>
           {loading ? (
             <div className="p-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
               <Loader2 size={18} className="animate-spin" />
               Carregando usuários...
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-roman-bg/50 border-b border-roman-border">
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Nome</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Papel</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">E-mail</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Região / Sedes</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Status</th>
-                  <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(user => {
-                  const userRegions = (user.regionIds || []).map(regionId => regionMap.get(regionId)?.code || regionId).filter(Boolean);
-                  const userSites = (user.siteIds || []).map(siteId => siteMap.get(siteId)?.code || siteId).filter(Boolean);
-                  return (
-                    <tr key={user.id} className="border-b border-roman-border hover:bg-roman-bg/50 transition-colors align-top">
-                      <td className="p-4 font-medium text-roman-text-main">{user.name}</td>
-                      <td className="p-4 text-roman-text-sub">{user.role || '-'}</td>
-                      <td className="p-4 text-roman-text-sub">{user.email}</td>
-                      <td className="p-4 text-roman-text-sub">
-                        <div className="space-y-1">
-                          <div>{userRegions.length > 0 ? userRegions.join(', ') : '-'}</div>
-                          <div className="text-xs text-roman-text-sub/80">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
+            embedded ? (
+              <div className="p-6 space-y-6 bg-[linear-gradient(180deg,rgba(245,241,233,0.6),rgba(255,255,255,0.98))]">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-2xl border border-amber-200/70 bg-white px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
+                    <div className="mt-2 text-3xl font-serif text-roman-text-main">{userStats.total}</div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
+                    <div className="mt-2 text-3xl font-serif text-emerald-900">{userStats.active}</div>
+                  </div>
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-stone-600">Inativos</div>
+                    <div className="mt-2 text-3xl font-serif text-stone-800">{userStats.inactive}</div>
+                  </div>
+                  <div className="rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
+                    <div className="mt-2 text-3xl font-serif text-sky-900">{userStats.multiSite}</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {users.map(user => {
+                    const userRegions = (user.regionIds || []).map(regionId => regionMap.get(regionId)?.code || regionId).filter(Boolean);
+                    const userSites = (user.siteIds || []).map(siteId => siteMap.get(siteId)?.code || siteId).filter(Boolean);
+                    return (
+                      <article key={user.id} className="rounded-2xl border border-roman-border/80 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <h3 className="text-lg font-semibold text-roman-text-main">{user.name}</h3>
+                            <p className="mt-1 text-sm text-roman-text-sub break-all">{user.email}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'}`}>
+                            {user.status}
+                          </span>
                         </div>
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-stone-100 text-stone-600 border border-stone-200'}`}>
-                          {user.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="inline-flex items-center gap-3">
-                          <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-roman-primary/10 px-3 py-1 text-xs font-medium text-roman-primary">{user.role || '-'}</span>
+                          {(userRegions.length > 0 ? userRegions : ['Sem região']).map(region => (
+                            <span key={`${user.id}-${region}`} className="rounded-full bg-stone-100 px-3 py-1 text-xs text-roman-text-sub">{region}</span>
+                          ))}
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-roman-border/70 bg-roman-bg/55 p-4">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Sedes vinculadas</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(userSites.length > 0 ? userSites : ['Nenhuma sede vinculada']).map(site => (
+                              <span key={`${user.id}-${site}`} className="rounded-full border border-roman-border bg-white px-3 py-1 text-xs text-roman-text-main">{site}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-end gap-4">
+                          <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-sm font-medium text-roman-primary hover:underline disabled:opacity-50 disabled:no-underline">
                             Editar
                           </button>
-                          <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                          <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50">
                             <Trash2 size={14} />
                             Excluir
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-roman-bg/50 border-b border-roman-border">
+                    <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Nome</th>
+                    <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Papel</th>
+                    <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">E-mail</th>
+                    <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Região / Sedes</th>
+                    <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Status</th>
+                    <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(user => {
+                    const userRegions = (user.regionIds || []).map(regionId => regionMap.get(regionId)?.code || regionId).filter(Boolean);
+                    const userSites = (user.siteIds || []).map(siteId => siteMap.get(siteId)?.code || siteId).filter(Boolean);
+                    return (
+                      <tr key={user.id} className="border-b border-roman-border hover:bg-roman-bg/50 transition-colors align-top">
+                        <td className="p-4 font-medium text-roman-text-main">{user.name}</td>
+                        <td className="p-4 text-roman-text-sub">{user.role || '-'}</td>
+                        <td className="p-4 text-roman-text-sub">{user.email}</td>
+                        <td className="p-4 text-roman-text-sub">
+                          <div className="space-y-1">
+                            <div>{userRegions.length > 0 ? userRegions.join(', ') : '-'}</div>
+                            <div className="text-xs text-roman-text-sub/80">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-stone-100 text-stone-600 border border-stone-200'}`}>
+                            {user.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="inline-flex items-center gap-3">
+                            <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
+                              Editar
+                            </button>
+                            <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                              <Trash2 size={14} />
+                              Excluir
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
           )}
         </div>
       </div>
