@@ -1,6 +1,8 @@
-﻿import { requireAuthenticatedUser } from './_lib/authz.js';
+﻿import { getStorage } from 'firebase-admin/storage';
+import { writeAuditLog } from './_lib/auditLogs.js';
+import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { normalizeTicketForStorage, serializeTicketForApi } from './_lib/tickets.js';
 
 function sortTimeValue(value) {
@@ -27,6 +29,88 @@ function serializeValue(value) {
   }
 
   return value ?? null;
+}
+
+async function deleteCollectionDocs(query) {
+  const snap = await query.get();
+  if (snap.empty) return 0;
+  const batch = query.firestore.batch();
+  snap.docs.forEach(doc => batch.delete(doc.ref));
+  await batch.commit();
+  return snap.size;
+}
+
+async function deleteSubcollection(ticketRef, name) {
+  return deleteCollectionDocs(ticketRef.collection(name));
+}
+
+async function deleteStoragePaths(paths) {
+  if (!Array.isArray(paths) || paths.length === 0) return 0;
+  const bucket = getStorage().bucket();
+  let deleted = 0;
+
+  for (const rawPath of paths) {
+    const path = String(rawPath || '').trim();
+    if (!path) continue;
+    try {
+      await bucket.file(path).delete({ ignoreNotFound: true });
+      deleted += 1;
+    } catch {
+      // Não interrompe a exclusão da OS por falha pontual no Storage.
+    }
+  }
+
+  return deleted;
+}
+
+async function deleteTicketCascade(db, ticketId) {
+  const ticketRef = db.collection('tickets').doc(ticketId);
+  const ticketSnap = await ticketRef.get();
+  if (!ticketSnap.exists) {
+    throw new Error('Ticket não encontrado.');
+  }
+
+  const ticketData = ticketSnap.data() || {};
+  const closureDocuments = Array.isArray(ticketData?.closureChecklist?.documents)
+    ? ticketData.closureChecklist.documents.map(item => item?.path).filter(Boolean)
+    : [];
+
+  const [quotesDeleted, contractsDeleted, paymentsDeleted, measurementsDeleted] = await Promise.all([
+    deleteSubcollection(ticketRef, 'quotes'),
+    deleteSubcollection(ticketRef, 'contracts'),
+    deleteSubcollection(ticketRef, 'payments'),
+    deleteSubcollection(ticketRef, 'measurements'),
+  ]);
+
+  const threadRef = db.collection('emailThreads').doc(ticketId);
+  const [threadMessagesDeleted, inboundDeleted, emailEventsDeleted, preferenceEventsDeleted, filesDeleted] = await Promise.all([
+    deleteSubcollection(threadRef, 'messages'),
+    deleteCollectionDocs(db.collection('ticketInbound').where('ticketId', '==', ticketId)),
+    deleteCollectionDocs(db.collection('emailEvents').where('ticketId', '==', ticketId)),
+    deleteCollectionDocs(db.collection('vendorPreferenceEvents').where('ticketId', '==', ticketId)),
+    deleteStoragePaths(closureDocuments),
+  ]);
+
+  await Promise.all([
+    threadRef.delete().catch(() => undefined),
+    ticketRef.delete(),
+  ]);
+
+  return {
+    before: { id: ticketSnap.id, ...ticketData },
+    deleted: {
+      ticket: true,
+      quotes: quotesDeleted,
+      contracts: contractsDeleted,
+      payments: paymentsDeleted,
+      measurements: measurementsDeleted,
+      threadMessages: threadMessagesDeleted,
+      inbound: inboundDeleted,
+      emailEvents: emailEventsDeleted,
+      preferenceEvents: preferenceEventsDeleted,
+      storageFiles: filesDeleted,
+    },
+  };
 }
 
 async function readPublicTrackingProcurement(ticketRef) {
@@ -146,7 +230,29 @@ export default async function handler(req, res) {
       return sendJson(res, 200, { ok: true });
     }
 
-    res.setHeader('Allow', 'GET, POST, PATCH');
+    if (req.method === 'DELETE') {
+      const admin = await requireAdminUser(req);
+      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const body = await readJsonBody(req);
+      const id = String(body?.id || '').trim();
+      if (!id) {
+        return sendJson(res, 400, { ok: false, error: 'id é obrigatório.' });
+      }
+
+      const result = await deleteTicketCascade(db, id);
+      await writeAuditLog({
+        actor,
+        action: 'tickets.delete',
+        entity: 'ticket',
+        entityId: id,
+        before: result.before,
+        after: result.deleted,
+      });
+
+      return sendJson(res, 200, { ok: true, id, deleted: result.deleted });
+    }
+
+    res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
     return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de tickets.' });

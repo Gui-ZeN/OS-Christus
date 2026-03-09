@@ -218,7 +218,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             </div>
           ) : (
             embedded ? (
-              <div className="p-6 space-y-6 bg-[linear-gradient(180deg,rgba(245,241,233,0.6),rgba(255,255,255,0.98))]">
+              <div className="space-y-5 bg-[linear-gradient(180deg,rgba(245,241,233,0.45),rgba(255,255,255,0.98))] p-6">
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-2xl border border-amber-200/70 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
@@ -238,39 +238,37 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                   </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white">
+                  <div className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-roman-text-sub">
+                    <div>Usuário</div>
+                    <div>Papel</div>
+                    <div>Região / Sedes</div>
+                    <div>Status</div>
+                    <div className="text-right">Ações</div>
+                  </div>
+                  <div className="divide-y divide-stone-200">
                   {users.map(user => {
                     const userRegions = (user.regionIds || []).map(regionId => regionMap.get(regionId)?.code || regionId).filter(Boolean);
                     const userSites = (user.siteIds || []).map(siteId => siteMap.get(siteId)?.code || siteId).filter(Boolean);
                     return (
-                      <article key={user.id} className="rounded-2xl border border-roman-border/80 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <h3 className="text-lg font-semibold text-roman-text-main">{user.name}</h3>
-                            <p className="mt-1 text-sm text-roman-text-sub break-all">{user.email}</p>
-                          </div>
+                      <div key={user.id} className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 px-5 py-4 text-sm">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-roman-text-main">{user.name}</div>
+                          <p className="mt-1 break-all text-roman-text-sub">{user.email}</p>
+                        </div>
+                        <div className="flex items-start">
+                          <span className="rounded-full bg-roman-primary/10 px-3 py-1 text-xs font-medium text-roman-primary">{user.role || '-'}</span>
+                        </div>
+                        <div className="text-roman-text-sub">
+                          <div>{userRegions.length > 0 ? userRegions.join(', ') : 'Sem região'}</div>
+                          <div className="mt-1 text-xs">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
+                        </div>
+                        <div className="flex items-start">
                           <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'}`}>
                             {user.status}
                           </span>
                         </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <span className="rounded-full bg-roman-primary/10 px-3 py-1 text-xs font-medium text-roman-primary">{user.role || '-'}</span>
-                          {(userRegions.length > 0 ? userRegions : ['Sem região']).map(region => (
-                            <span key={`${user.id}-${region}`} className="rounded-full bg-stone-100 px-3 py-1 text-xs text-roman-text-sub">{region}</span>
-                          ))}
-                        </div>
-
-                        <div className="mt-4 rounded-2xl border border-roman-border/70 bg-roman-bg/55 p-4">
-                          <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Sedes vinculadas</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {(userSites.length > 0 ? userSites : ['Nenhuma sede vinculada']).map(site => (
-                              <span key={`${user.id}-${site}`} className="rounded-full border border-roman-border bg-white px-3 py-1 text-xs text-roman-text-main">{site}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-end gap-4">
+                        <div className="flex items-start justify-end gap-3">
                           <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-sm font-medium text-roman-primary hover:underline disabled:opacity-50 disabled:no-underline">
                             Editar
                           </button>
@@ -279,9 +277,10 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                             Excluir
                           </button>
                         </div>
-                      </article>
+                      </div>
                     );
                   })}
+                  </div>
                 </div>
               </div>
             ) : (

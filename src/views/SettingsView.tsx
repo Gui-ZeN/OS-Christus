@@ -18,6 +18,7 @@ import {
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
 import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
 import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
+import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
 
 type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily-digest' | 'sla' | 'integrations';
@@ -1097,6 +1098,8 @@ export function SettingsView() {
 
                     {!integrationsLoading && integrationsHealth && (
                       <div className="space-y-6">
+                        <EmailHealthView embedded />
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <IntegrationStatusCard title="Firebase Web" check={clientFirebaseCheck} />
                           <IntegrationStatusCard title="Firebase Admin" check={integrationsHealth.checks.firebaseAdmin} />
