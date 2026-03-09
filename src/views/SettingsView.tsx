@@ -943,8 +943,8 @@ export function SettingsView() {
                       </label>
                     </div>
 
-                    <div className="space-y-6">
-                      <div className="bg-roman-bg border border-roman-border rounded-sm p-4">
+                    <div className="space-y-5">
+                      <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-3 flex items-center gap-2">
                           <Clock size={12} /> Horário de Envio (Cron)
                         </label>
@@ -953,13 +953,13 @@ export function SettingsView() {
                             type="time"
                             value={digest.time}
                             onChange={event => setDigest(current => ({ ...current, time: event.target.value }))}
-                            className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                           />
                           <span className="text-xs text-roman-text-sub">Fuso: America/Fortaleza (BRT -3)</span>
                         </div>
                       </div>
 
-                      <div>
+                      <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5 flex items-center gap-2">
                           <Mail size={12} /> Destinatários (separados por vírgula)
                         </label>
@@ -967,17 +967,17 @@ export function SettingsView() {
                           type="text"
                           value={digest.recipients}
                           onChange={event => setDigest(current => ({ ...current, recipients: event.target.value }))}
-                          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                         />
                       </div>
 
-                      <div>
+                      <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto do E-mail</label>
                         <input
                           type="text"
                           value={digest.subject}
                           onChange={event => setDigest(current => ({ ...current, subject: event.target.value }))}
-                          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-mono text-roman-text-sub outline-none focus:border-roman-primary"
+                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 font-mono text-[13px] text-roman-text-sub outline-none focus:border-roman-primary"
                         />
                       </div>
 
@@ -985,14 +985,14 @@ export function SettingsView() {
                         <p className="text-xs text-roman-text-sub font-serif italic">Configuração do resumo diário persistida no Firestore.</p>
                         <button
                           onClick={() => void handleSaveDigest()}
-                          className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
+                          className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
                         >
                           {digestSaved ? (
                             <>
-                              <CheckCircle size={15} /> Salvo!
+                              <CheckCircle size={15} /> Salvo
                             </>
                           ) : (
-                            'Salvar Configuração'
+                            'Salvar resumo'
                           )}
                         </button>
                       </div>
@@ -1003,11 +1003,11 @@ export function SettingsView() {
                 {section === 'sla' && (
                   <>
                     <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Regras de SLA</h2>
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       {(sla.rules || []).map(rule => (
-                        <div key={rule.priority} className="flex items-center justify-between p-4 border rounded-sm bg-roman-bg border-roman-border">
-                          <span className="font-medium text-sm">{rule.priority}</span>
-                          <span className="font-mono text-sm">{rule.prazo}</span>
+                        <div key={rule.priority} className="flex items-center justify-between rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
+                          <span className="font-medium text-sm text-roman-text-main">{rule.priority}</span>
+                          <span className="rounded-full border border-stone-200 bg-white px-3 py-1 font-mono text-sm text-roman-text-main">{rule.prazo}</span>
                         </div>
                       ))}
 
@@ -1017,14 +1017,14 @@ export function SettingsView() {
                         </p>
                         <button
                           onClick={() => void handleSaveSla()}
-                          className="bg-roman-sidebar hover:bg-stone-900 text-white px-6 py-2 rounded-sm font-medium transition-colors flex items-center gap-2"
+                          className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
                         >
                           {slaSaved ? (
                             <>
-                              <CheckCircle size={15} /> Salvo!
+                              <CheckCircle size={15} /> Salvo
                             </>
                           ) : (
-                            'Salvar SLA'
+                            'Salvar regras'
                           )}
                         </button>
                       </div>
