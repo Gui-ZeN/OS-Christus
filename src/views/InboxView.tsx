@@ -1914,11 +1914,11 @@ export function InboxView() {
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atualizar Status</div>
                           <div className="mt-1 text-xs text-roman-text-sub">O Admin pode corrigir manualmente a etapa atual da OS quando necessário.</div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2">
                           <select
                             value={statusDraft}
                             onChange={event => setStatusDraft(event.target.value)}
-                            className="flex-1 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             disabled={isSending}
                           >
                             {EXECUTION_STATUS_OPTIONS.map(status => (
@@ -1928,7 +1928,7 @@ export function InboxView() {
                           <button
                             onClick={handleManualStatusUpdate}
                             disabled={isSending || !statusDraft || statusDraft === activeTicket.status}
-                            className="px-3 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full px-3 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                             Atualizar
@@ -1952,7 +1952,10 @@ export function InboxView() {
                       </button>
                     )}
 
-                    {canManageStatus && activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
+                    {canManageStatus &&
+                      activeTicket.executionProgress &&
+                      activeTicket.status !== TICKET_STATUS.CLOSED &&
+                      activeTicket.status !== TICKET_STATUS.CANCELED && (
                       <button
                         onClick={handleOpenProgressModal}
                         className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
