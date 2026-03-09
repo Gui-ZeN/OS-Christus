@@ -101,13 +101,21 @@ async function handleSend(req, res) {
     const storedTemplate = await resolveEmailTemplate(db, trigger);
     const resolvedSubject = storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject;
     const resolvedBody = storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text;
+    const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
+    const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
 
     const fallbackTemplate = buildTicketEmailTemplate({
+      trigger: trigger || templateId || resolvedSubject,
       title: templateData.title || `Atualização da OS ${ticketId}`,
       intro: templateData.intro || 'Sua solicitação recebeu uma nova atualização.',
       ticketId,
       subject: templateData.ticketSubject || resolvedSubject,
       status: templateData.status || 'Atualizada',
+      region: templateData.region || resolvedTicket.region || null,
+      site: templateData.site || resolvedTicket.sede || null,
+      sector: templateData.sector || resolvedTicket.sector || null,
+      service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
+      guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
       ctaUrl: templateData.ctaUrl || null,
       ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
       bodyText: resolvedBody || templateData.bodyText || '',

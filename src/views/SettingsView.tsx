@@ -18,6 +18,7 @@ import {
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
 import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
 import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
+import { buildEmailPreviewHtml, getTemplateTriggerLabel, SAMPLE_EMAIL_VARIABLES } from '../utils/emailTemplatePreview';
 import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
 
@@ -599,6 +600,8 @@ export function SettingsView() {
       ]
     : [];
   const sectionMeta = SECTION_META[section];
+  const selectedTemplateLabel = useMemo(() => getTemplateTriggerLabel(template.trigger), [template.trigger]);
+  const renderedTemplatePreview = useMemo(() => buildEmailPreviewHtml(template, SAMPLE_EMAIL_VARIABLES), [template]);
   const sectionHighlights = useMemo(() => {
     if (section === 'access') {
       return [
@@ -623,7 +626,7 @@ export function SettingsView() {
     }
     if (section === 'templates') {
       return [
-        { label: 'Gatilho', value: template.trigger || 'Template', hint: 'Fluxo ativo no momento' },
+        { label: 'Gatilho', value: selectedTemplateLabel || 'Template', hint: template.trigger || 'Fluxo ativo no momento' },
         { label: 'Assunto', value: template.subject ? 'Personalizado' : 'Padrão', hint: 'Linha usada nas mensagens' },
         { label: 'Corpo', value: template.body ? 'Ativo' : 'Vazio', hint: 'Conteúdo operacional enviado' },
       ];
@@ -665,6 +668,7 @@ export function SettingsView() {
     template.body,
     template.subject,
     template.trigger,
+    selectedTemplateLabel,
     regions.length,
   ]);
 
@@ -925,9 +929,12 @@ export function SettingsView() {
                               }`}
                             >
                               <div className="min-w-0">
-                                <div className="text-sm font-medium">{item.trigger}</div>
+                                <div className="text-sm font-medium">{getTemplateTriggerLabel(item.trigger)}</div>
                                 <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/70' : 'text-roman-text-sub'}`}>
                                   {item.subject || 'Sem assunto definido'}
+                                </div>
+                                <div className={`mt-1 text-[10px] uppercase tracking-[0.2em] ${template.trigger === item.trigger ? 'text-white/50' : 'text-roman-text-sub/80'}`}>
+                                  {item.trigger}
                                 </div>
                               </div>
                             </button>
@@ -967,7 +974,7 @@ export function SettingsView() {
                               <div>
                                 <div className="text-[11px] text-roman-text-sub">Variáveis úteis</div>
                                 <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                                  {['{{ticket.id}}', '{{ticket.subject}}', '{{ticket.status}}', '{{tracking.url}}', '{{requester.name}}', '{{message.body}}'].map(token => (
+                                  {['{{ticket.id}}', '{{ticket.subject}}', '{{ticket.status}}', '{{ticket.region}}', '{{ticket.sede}}', '{{tracking.url}}', '{{requester.name}}', '{{message.body}}', '{{guarantee.summary}}'].map(token => (
                                     <span key={token} className="rounded-full border border-stone-200 bg-stone-50 px-2 py-1 text-roman-text-sub">
                                       {token}
                                     </span>
@@ -975,9 +982,13 @@ export function SettingsView() {
                                 </div>
                               </div>
                               <div>
-                                <div className="text-[11px] text-roman-text-sub">Prévia do texto</div>
-                                <div className="mt-2 whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm leading-6 text-roman-text-main">
-                                  {template.body || 'Sem corpo definido.'}
+                                <div className="text-[11px] text-roman-text-sub">Prévia visual renderizada</div>
+                                <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-[#efe8de]">
+                                  <iframe
+                                    title="Prévia do e-mail"
+                                    srcDoc={renderedTemplatePreview}
+                                    className="h-[620px] w-full bg-transparent"
+                                  />
                                 </div>
                               </div>
                             </div>
