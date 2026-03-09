@@ -16,11 +16,11 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
     bgColor = 'bg-blue-50';
     textColor = 'text-blue-700';
     dotColor = 'bg-blue-500';
-  } else if (s.includes('aguardando parecer') || s.includes('aguardando aprovação')) {
+  } else if (s.includes('aguardando parecer') || s.includes('aguardando aprova??o')) {
     bgColor = 'bg-amber-50';
     textColor = 'text-amber-700';
     dotColor = 'bg-amber-500';
-  } else if (s.includes('orçamento') || s.includes('cotação')) {
+  } else if (s.includes('or?amento') || s.includes('cota??o')) {
     bgColor = 'bg-orange-50';
     textColor = 'text-orange-700';
     dotColor = 'bg-orange-500';
@@ -28,7 +28,7 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
     bgColor = 'bg-indigo-50';
     textColor = 'text-indigo-700';
     dotColor = 'bg-indigo-500';
-  } else if (s.includes('em andamento') || s.includes('execução')) {
+  } else if (s.includes('em andamento') || s.includes('execu??o')) {
     bgColor = 'bg-purple-50';
     textColor = 'text-purple-700';
     dotColor = 'bg-purple-500';
@@ -47,8 +47,8 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   }
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs font-medium border border-black/5 ${bgColor} ${textColor} ${className}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></span>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border border-black/5 px-2.5 py-1 text-xs font-medium ${bgColor} ${textColor} ${className}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`}></span>
       {status}
     </span>
   );

@@ -385,6 +385,30 @@ export function ApprovalsView() {
     [contractsByTicket, tickets]
   );
 
+  const approvalSummary = useMemo(
+    () => [
+      {
+        label: 'Soluções',
+        value: solutions.length,
+        hint: 'Pareceres aguardando decisão',
+        active: activeTab === 'solutions',
+      },
+      {
+        label: 'Orçamentos',
+        value: budgets.length,
+        hint: 'Rodadas prontas para escolha',
+        active: activeTab === 'budgets',
+      },
+      {
+        label: 'Contratos',
+        value: contracts.length,
+        hint: 'Assinaturas pendentes',
+        active: activeTab === 'contracts',
+      },
+    ],
+    [activeTab, budgets.length, contracts.length, solutions.length]
+  );
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
       {toast && (
@@ -394,12 +418,12 @@ export function ApprovalsView() {
         </div>
       )}
       <div className="max-w-5xl mx-auto">
-        <header className="mb-8 border-b border-roman-border pb-4 flex justify-between items-end">
+        <header className="mb-6 border-b border-roman-border pb-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel da Diretoria</h1>
             <p className="text-roman-text-sub font-serif italic">Aprovações rápidas de orçamentos e assinaturas de contratos.</p>
           </div>
-          <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1 shadow-sm overflow-x-auto hide-scrollbar">
+          <div className="flex bg-roman-surface border border-roman-border rounded-full p-1 shadow-sm overflow-x-auto hide-scrollbar">
             <button onClick={() => setActiveTab('solutions')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'solutions' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Soluções ({solutions.length})
             </button>
@@ -411,6 +435,25 @@ export function ApprovalsView() {
             </button>
           </div>
         </header>
+
+        <div className="mb-6 grid gap-3 md:grid-cols-3">
+          {approvalSummary.map(item => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => setActiveTab(item.label.toLowerCase() === 'soluções' ? 'solutions' : item.label.toLowerCase() === 'orçamentos' ? 'budgets' : 'contracts')}
+              className={`rounded-sm border p-4 text-left transition-colors ${
+                item.active
+                  ? 'border-roman-primary/30 bg-roman-primary/5'
+                  : 'border-roman-border bg-roman-surface hover:border-roman-primary/20'
+              }`}
+            >
+              <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">{item.label}</div>
+              <div className="mt-2 text-2xl font-semibold text-roman-text-main">{item.value}</div>
+              <div className="mt-1 text-sm text-roman-text-sub">{item.hint}</div>
+            </button>
+          ))}
+        </div>
 
         <div className="space-y-6">
           {activeTab === 'solutions' && solutions.map(solution => (

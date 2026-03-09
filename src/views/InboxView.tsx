@@ -1168,7 +1168,7 @@ export function InboxView() {
               Dados
             </button>
           </div>
-          <div className="hidden md:flex h-full">
+        <div className="hidden md:flex h-full">
             <div className="h-full px-4 border-r border-roman-border flex items-center gap-2 bg-roman-bg border-t-2 border-t-roman-primary font-medium">
               <span className="w-2 h-2 rounded-full bg-roman-primary"></span>
               <span className="font-serif italic text-roman-text-sub mr-1">#{activeTicket.id}</span>
@@ -1182,7 +1182,7 @@ export function InboxView() {
             </button>
           </div>
           <div className="ml-auto flex items-center gap-3 px-4 relative">
-            <div className="hidden md:flex items-center gap-2 mr-4 text-xs text-roman-text-sub">
+            <div className="hidden md:flex items-center gap-2 mr-4 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs text-roman-text-sub">
               <User size={14} />
               <span>Visualizando como: <strong>{displayActorLabel}</strong></span>
             </div>
@@ -1229,8 +1229,19 @@ export function InboxView() {
 
             {/* Ticket Header */}
             <div className="bg-roman-surface p-6 border-b border-roman-border">
-              <div className="flex items-start justify-between mb-4">
-                <h1 className="text-3xl font-serif font-medium text-roman-text-main">{activeTicket.subject}</h1>
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1 text-[11px] font-medium text-roman-text-sub">
+                      {activeTicket.id}
+                    </span>
+                    <StatusBadge status={activeTicket.status} />
+                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1 text-[11px] text-roman-text-sub">
+                      {getTicketSiteLabel(activeTicket, catalogSites)}
+                    </span>
+                  </div>
+                  <h1 className="text-3xl font-serif font-medium text-roman-text-main">{activeTicket.subject}</h1>
+                </div>
                 <div className="relative">
                   <button
                     onClick={() => setShowActionsMenu(v => !v)}
@@ -1265,10 +1276,10 @@ export function InboxView() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-roman-text-sub font-serif italic text-sm">
-                <StatusBadge status={activeTicket.status} />
+              <div className="flex flex-wrap items-center gap-4 text-roman-text-sub font-serif italic text-sm">
                 <span>via Formulário do Sistema</span>
                 <span>{formatDistanceToNowSafe(activeTicket.time)}</span>
+                <span>{getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)}</span>
                 <button onClick={() => openAttachment(`Fotos: ${activeTicket.subject}`, 'image')} className="ml-auto text-roman-primary hover:underline flex items-center gap-1 not-italic font-medium text-xs">
                   <ImageIcon size={14} /> Ver Fotos Anexadas
                 </button>
