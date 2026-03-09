@@ -1,4 +1,4 @@
-export const TICKET_STATUS = {
+﻿export const TICKET_STATUS = {
   NEW: 'Nova OS',
   WAITING_TECH_OPINION: 'Aguardando Parecer Técnico',
   WAITING_SOLUTION_APPROVAL: 'Aguardando Aprovação da Solução',

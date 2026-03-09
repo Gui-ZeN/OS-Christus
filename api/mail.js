@@ -178,6 +178,16 @@ function getInternalNotificationEmail() {
   return String(candidate || '').trim().toLowerCase() || null;
 }
 
+function getSystemMailboxEmails() {
+  return [
+    process.env.GMAIL_FROM_EMAIL,
+    process.env.SENDGRID_FROM_EMAIL,
+    process.env.TICKET_NOTIFICATION_EMAIL,
+  ]
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
   if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
@@ -206,6 +216,21 @@ function buildInboundHistoryEntry(message, fallbackSender) {
     time: message.internalDate || new Date(),
     text,
   };
+}
+
+function shouldIgnoreInboundMessage(message) {
+  const fromEmail = firstEmail(message.from);
+  const labelIds = Array.isArray(message.labelIds) ? message.labelIds.map(value => String(value || '').toUpperCase()) : [];
+  const autoSubmitted = String(message.autoSubmitted || '').trim().toLowerCase();
+  const precedence = String(message.precedence || '').trim().toLowerCase();
+  const systemEmails = getSystemMailboxEmails();
+
+  if (labelIds.includes('SENT') || labelIds.includes('DRAFT')) return true;
+  if (fromEmail && systemEmails.includes(fromEmail)) return true;
+  if (autoSubmitted && autoSubmitted !== 'no') return true;
+  if (['bulk', 'list', 'junk', 'auto_reply'].includes(precedence)) return true;
+
+  return false;
 }
 
 async function appendInboundMessageToTicketHistory(db, ticketId, message) {
@@ -273,6 +298,20 @@ async function authorizeGmailAutomation(req) {
 }
 
 async function processGmailInboundMessage(db, msg, source) {
+  if (shouldIgnoreInboundMessage(msg)) {
+    await logEmailEvent({
+      type: 'inbound',
+      status: 'skipped',
+      provider: 'gmail',
+      ticketId: msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || null,
+      fromEmail: firstEmail(msg.from),
+      subject: msg.subject || '',
+      messageId: msg.messageId || msg.id || null,
+      error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
+    });
+    return false;
+  }
+
   const createdTicket =
     msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) ? null : await createTicketFromInbound(db, msg);
   const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
@@ -302,6 +341,17 @@ async function processGmailInboundMessage(db, msg, source) {
     },
     { merge: true }
   );
+
+  if (msg.messageId) {
+    const duplicateSnap = await threadRef
+      .collection('messages')
+      .where('messageId', '==', msg.messageId)
+      .limit(1)
+      .get();
+    if (!duplicateSnap.empty) {
+      return false;
+    }
+  }
 
   await threadRef.collection('messages').add({
     direction: 'inbound',
@@ -989,6 +1039,29 @@ async function handleInbound(req, res) {
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
     const subject = body.subject ? String(body.subject) : '';
+    const inboundPreview = {
+      from: body.from,
+      to: body.to,
+      subject,
+      text,
+      html,
+      autoSubmitted: headers['auto-submitted'] || null,
+      precedence: headers.precedence || null,
+    };
+
+    if (shouldIgnoreInboundMessage(inboundPreview)) {
+      await logEmailEvent({
+        type: 'inbound',
+        status: 'skipped',
+        provider: 'sendgrid',
+        fromEmail: fromEmail || null,
+        subject,
+        messageId: body['message-id'] || headers['message-id'] || null,
+        error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
+      });
+      return sendJson(res, 200, { ok: true, skipped: true });
+    }
+
     const db = getAdminDb();
     const createdTicket =
       explicitTicketId || subjectTicketId
@@ -1038,6 +1111,17 @@ async function handleInbound(req, res) {
       },
       { merge: true }
     );
+
+    if (messageId) {
+      const duplicateSnap = await threadRef
+        .collection('messages')
+        .where('messageId', '==', messageId)
+        .limit(1)
+        .get();
+      if (!duplicateSnap.empty) {
+        return sendJson(res, 200, { ok: true, duplicate: true });
+      }
+    }
 
     await threadRef.collection('messages').add({
       direction: 'inbound',

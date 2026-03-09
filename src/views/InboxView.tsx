@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Search, Filter, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign } from 'lucide-react';
+import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Search, Filter, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw } from 'lucide-react';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -46,6 +46,15 @@ const PRELIMINARY_ITEMS = [
   { id: 'scheduleDefined', label: 'Cronograma de atividades definido' },
   { id: 'stakeholderAligned', label: 'Alinhamento com direção/supervisão concluído' },
   { id: 'accessReleased', label: 'Acesso ao local liberado pela unidade' },
+] as const;
+
+const EXECUTION_STATUS_OPTIONS = [
+  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+  TICKET_STATUS.IN_PROGRESS,
+  TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+  TICKET_STATUS.WAITING_PAYMENT,
+  TICKET_STATUS.CLOSED,
+  TICKET_STATUS.CANCELED,
 ] as const;
 
 type PreliminaryChecklistKey = (typeof PRELIMINARY_ITEMS)[number]['id'];
@@ -207,6 +216,7 @@ export function InboxView() {
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
   const [ticketPriority, setTicketPriority] = useState('');
+  const [statusDraft, setStatusDraft] = useState('');
   const [teams, setTeams] = useState<DirectoryTeam[]>([]);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
@@ -215,6 +225,7 @@ export function InboxView() {
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
+  const canManageStatus = currentUser?.role === 'Admin';
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -231,6 +242,7 @@ export function InboxView() {
     setTechTeam(activeTicket.assignedTeam || '');
     setCustomEmail(activeTicket.assignedEmail || '');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
+    setStatusDraft(activeTicket.status || '');
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
   }, [activeTicketId, activeTicket.assignedEmail, activeTicket.assignedTeam, activeTicket.priority, activeTicket.status]);
@@ -534,6 +546,66 @@ export function InboxView() {
       },
       history: [...activeTicket.history, item],
     });
+    window.setTimeout(() => setIsSending(false), 500);
+  };
+
+  const handleManualStatusUpdate = () => {
+    if (!canManageStatus || isSending) return;
+    if (!statusDraft || statusDraft === activeTicket.status) {
+      setToast('Selecione um novo status para atualizar a OS.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    setIsSending(true);
+    const now = new Date();
+    const nextPreliminaryActions =
+      statusDraft === TICKET_STATUS.IN_PROGRESS
+        ? {
+            ...(activeTicket.preliminaryActions || {}),
+            actualStartAt: activeTicket.preliminaryActions?.actualStartAt || now,
+            updatedAt: now,
+          }
+        : activeTicket.preliminaryActions;
+
+    const nextClosureChecklist =
+      statusDraft === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+        ? {
+            requesterApproved: activeTicket.closureChecklist?.requesterApproved ?? false,
+            requesterApprovedBy: activeTicket.closureChecklist?.requesterApprovedBy || null,
+            requesterApprovedAt: activeTicket.closureChecklist?.requesterApprovedAt || null,
+            infrastructureApprovalPrimary: activeTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
+            infrastructureApprovalSecondary: activeTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
+            closureNotes: activeTicket.closureChecklist?.closureNotes || '',
+            serviceStartedAt:
+              activeTicket.closureChecklist?.serviceStartedAt ||
+              activeTicket.preliminaryActions?.actualStartAt ||
+              activeTicket.preliminaryActions?.plannedStartAt ||
+              null,
+            serviceCompletedAt: activeTicket.closureChecklist?.serviceCompletedAt || now,
+            closedAt: activeTicket.closureChecklist?.closedAt || null,
+            documents: activeTicket.closureChecklist?.documents || [],
+          }
+        : activeTicket.closureChecklist;
+
+    updateTicket(activeTicket.id, {
+      status: statusDraft,
+      preliminaryActions: nextPreliminaryActions,
+      closureChecklist: nextClosureChecklist,
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: displayActorLabel,
+          time: now,
+          text: `Status atualizado manualmente de "${activeTicket.status}" para "${statusDraft}".`,
+        },
+      ],
+    });
+
+    setToast(`Status atualizado para "${statusDraft}".`);
+    setTimeout(() => setToast(null), 3000);
     window.setTimeout(() => setIsSending(false), 500);
   };
 
@@ -1590,6 +1662,35 @@ export function InboxView() {
                     </div>
                   )}
                   <div className="space-y-2">
+                    {canManageStatus && EXECUTION_STATUS_OPTIONS.includes(activeTicket.status as (typeof EXECUTION_STATUS_OPTIONS)[number]) && (
+                      <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-3 space-y-3">
+                        <div>
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atualizar Status</div>
+                          <div className="mt-1 text-xs text-roman-text-sub">O Admin pode corrigir manualmente a etapa atual da OS quando necessário.</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <select
+                            value={statusDraft}
+                            onChange={event => setStatusDraft(event.target.value)}
+                            className="flex-1 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
+                          >
+                            {EXECUTION_STATUS_OPTIONS.map(status => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={handleManualStatusUpdate}
+                            disabled={isSending || !statusDraft || statusDraft === activeTicket.status}
+                            className="px-3 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-xs flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                            Atualizar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
                       <button onClick={() => setShowPrelimModal(true)} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
                         <List size={14} /> Ações Preliminares (Compras)
