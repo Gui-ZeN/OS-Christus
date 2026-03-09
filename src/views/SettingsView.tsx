@@ -35,47 +35,47 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
   {
     trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
     subject: '[Triagem] {{ticket.id}} em análise',
-    body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-PARECER-TECNICO',
     subject: '[Parecer Técnico] {{ticket.id}} pronta para solução',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
     subject: '[Orçamento] {{ticket.id}} em cotação',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-EM-APROVACAO',
     subject: '[Aprovação] {{ticket.id}} em validação',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
     subject: '[Planejamento] {{ticket.id}} em ações preliminares',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-EXECUCAO-INICIADA',
     subject: '[Execução] {{ticket.id}} em andamento',
-    body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
     subject: '[Validação] {{ticket.id}} aguardando sua confirmação',
-    body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
     subject: '[Pagamento] {{ticket.id}} em finalização financeira',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-OS-ENCERRADA',
     subject: '[Encerrada] {{ticket.id}} concluída',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nRegi?o: {{ticket.region}}\nSede: {{ticket.sede}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
   },
   {
     trigger: 'EMAIL-OS-CANCELADA',
@@ -104,6 +104,37 @@ const DEFAULT_SLA: SlaSettings = {
     { priority: 'Trivial', prazo: '10 dias úteis' },
   ],
 };
+
+function normalizeDigestRecipients(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value
+      .map(item => String(item || '').trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+  if (value && typeof value === 'object' && 'recipients' in value) {
+    return normalizeDigestRecipients((value as { recipients?: unknown }).recipients);
+  }
+  return '';
+}
+
+function countDigestRecipients(value: unknown): number {
+  return normalizeDigestRecipients(value)
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean).length;
+}
+
+function normalizeDigestSettings(value: unknown): DailyDigestSettings {
+  const digest = (value || {}) as Partial<DailyDigestSettings> & { recipients?: unknown };
+  return {
+    enabled: typeof digest.enabled === 'boolean' ? digest.enabled : DEFAULT_DIGEST.enabled,
+    time: typeof digest.time === 'string' && digest.time.trim() ? digest.time : DEFAULT_DIGEST.time,
+    recipients: normalizeDigestRecipients(digest.recipients),
+    subject: typeof digest.subject === 'string' && digest.subject.trim() ? digest.subject : DEFAULT_DIGEST.subject,
+  };
+}
 
 const SECTION_META: Record<
   SettingsSection,
@@ -282,7 +313,7 @@ export function SettingsView() {
         const remoteTemplates = remote.emailTemplates?.length ? remote.emailTemplates : DEFAULT_EMAIL_TEMPLATES;
         setEmailTemplatesCatalog(remoteTemplates);
         setTemplate(remote.emailTemplate || remoteTemplates[0] || DEFAULT_TEMPLATE);
-        setDigest(remote.dailyDigest || DEFAULT_DIGEST);
+        setDigest(normalizeDigestSettings(remote.dailyDigest));
         setSla(remote.sla || DEFAULT_SLA);
       } catch {
         if (cancelled) return;
@@ -601,7 +632,7 @@ export function SettingsView() {
       return [
         { label: 'Resumo', value: digest.enabled ? 'Ativado' : 'Desativado', hint: 'Rotina automática de envio' },
         { label: 'Horário', value: digest.time || '--:--', hint: 'Janela configurada para disparo' },
-        { label: 'Destinatários', value: digest.recipients ? String(digest.recipients.split(',').filter(Boolean).length) : '0', hint: 'Quantidade atual na lista' },
+        { label: 'Destinatários', value: String(countDigestRecipients(digest.recipients)), hint: 'Quantidade atual na lista' },
       ];
     }
     if (section === 'sla') {
@@ -1521,6 +1552,7 @@ export function SettingsView() {
     </div>
   );
 }
+
 
 
 

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
+﻿import React, { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import {
   BarChart2,
   Bell,
@@ -9,7 +9,6 @@ import {
   Inbox,
   Landmark,
   LogOut,
-  Mail,
   ScrollText,
   Settings,
   Shield,
@@ -239,7 +238,6 @@ export default function App() {
           <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           {canAccessApprovals && <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />}
           {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
-          {canAccessEmailHealth && <SidebarIcon icon={<Mail size={20} />} active={currentView === VIEWS.EMAIL_HEALTH} onClick={() => navigateTo(VIEWS.EMAIL_HEALTH)} title="Saúde de E-mail" />}
           {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
           {canAccessKpi && <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />}
           {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />}

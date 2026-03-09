@@ -137,16 +137,28 @@ export function HomeView() {
 
   const availableRegions = useMemo(() => {
     const values: string[] = tickets.map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
-    return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const fallbackValues: string[] = regions.map(region => region.name).filter((value): value is string => Boolean(value));
+    const source = values.length ? values : fallbackValues;
+    return [...new Set(source)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [regions, sites, tickets]);
+
+  const selectedRegionId = useMemo(() => {
+    if (selectedRegion === 'all') return null;
+    return regions.find(region => region.name === selectedRegion)?.id || null;
+  }, [regions, selectedRegion]);
 
   const availableSites = useMemo(() => {
     const values: string[] = tickets
       .filter(ticket => selectedRegion === 'all' || getTicketRegionLabel(ticket, regions, sites) === selectedRegion)
       .map(ticket => getTicketSiteLabel(ticket, sites))
       .filter((value): value is string => Boolean(value));
-    return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [regions, selectedRegion, sites, tickets]);
+    const fallbackValues: string[] = sites
+      .filter(site => selectedRegion === 'all' || !selectedRegionId || site.regionId === selectedRegionId)
+      .map(site => site.code || site.name)
+      .filter((value): value is string => Boolean(value));
+    const source = values.length ? values : fallbackValues;
+    return [...new Set(source)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [selectedRegion, selectedRegionId, sites, tickets, regions]);
 
   useEffect(() => {
     if (selectedRegion !== 'all' && !availableRegions.includes(selectedRegion)) {

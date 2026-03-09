@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 interface StatusBadgeProps {
   status: string;
@@ -10,37 +10,40 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   let textColor = 'text-stone-800';
   let dotColor = 'bg-stone-400';
 
-  const s = status.toLowerCase();
+  const normalizedStatus = status
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
-  if (s.includes('nova os')) {
+  if (normalizedStatus.includes('nova os')) {
     bgColor = 'bg-blue-50';
     textColor = 'text-blue-700';
     dotColor = 'bg-blue-500';
-  } else if (s.includes('aguardando parecer') || s.includes('aguardando aprovação')) {
+  } else if (normalizedStatus.includes('aguardando parecer') || normalizedStatus.includes('aguardando aprovacao')) {
     bgColor = 'bg-amber-50';
     textColor = 'text-amber-700';
     dotColor = 'bg-amber-500';
-  } else if (s.includes('orçamento') || s.includes('cotação')) {
+  } else if (normalizedStatus.includes('orcamento') || normalizedStatus.includes('cotacao')) {
     bgColor = 'bg-orange-50';
     textColor = 'text-orange-700';
     dotColor = 'bg-orange-500';
-  } else if (s.includes('contrato') || s.includes('preliminares')) {
+  } else if (normalizedStatus.includes('contrato') || normalizedStatus.includes('preliminares')) {
     bgColor = 'bg-indigo-50';
     textColor = 'text-indigo-700';
     dotColor = 'bg-indigo-500';
-  } else if (s.includes('em andamento') || s.includes('execução')) {
+  } else if (normalizedStatus.includes('em andamento') || normalizedStatus.includes('execucao')) {
     bgColor = 'bg-purple-50';
     textColor = 'text-purple-700';
     dotColor = 'bg-purple-500';
-  } else if (s.includes('pagamento')) {
+  } else if (normalizedStatus.includes('pagamento')) {
     bgColor = 'bg-emerald-50';
     textColor = 'text-emerald-700';
     dotColor = 'bg-emerald-500';
-  } else if (s.includes('encerrada')) {
+  } else if (normalizedStatus.includes('encerrada')) {
     bgColor = 'bg-stone-100';
     textColor = 'text-stone-500';
     dotColor = 'bg-stone-400';
-  } else if (s.includes('cancelada') || s.includes('reprovad')) {
+  } else if (normalizedStatus.includes('cancelada') || normalizedStatus.includes('reprovad')) {
     bgColor = 'bg-red-50';
     textColor = 'text-red-700';
     dotColor = 'bg-red-500';

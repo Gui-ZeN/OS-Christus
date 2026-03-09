@@ -1,4 +1,4 @@
-import type { CatalogRegion, CatalogSite } from '../services/catalogApi';
+﻿import type { CatalogRegion, CatalogSite } from '../services/catalogApi';
 import type { Ticket } from '../types';
 
 function normalizeKey(value: string | null | undefined) {
