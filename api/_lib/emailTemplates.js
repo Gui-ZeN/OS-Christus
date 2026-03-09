@@ -126,12 +126,12 @@ export function buildTicketEmailTemplate({
             <tr>
               <td style="padding:24px 28px;background:#1f1a15;color:#f8f2e9;">
                 <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">OS Christus</div>
-                <div style="margin-top:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-                  <div>
+                <div style="margin-top:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:22px;">
+                  <div style="max-width:430px;padding-right:8px;">
                     <div style="display:inline-block;padding:5px 10px;border:1px solid rgba(255,255,255,0.16);border-radius:999px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;">${esc(stage.eyebrow)}</div>
-                    <div style="margin-top:12px;font-size:30px;line-height:1.18;">${esc(title || stage.label)}</div>
+                    <div style="margin-top:14px;font-size:28px;line-height:1.22;letter-spacing:-0.2px;">${esc(title || stage.label)}</div>
                   </div>
-                  <div style="padding:12px 16px;border:1px solid rgba(255,255,255,0.16);border-radius:18px;text-align:right;min-width:132px;">
+                  <div style="padding:14px 18px;border:1px solid rgba(255,255,255,0.16);border-radius:20px;text-align:right;min-width:148px;flex-shrink:0;background:rgba(255,255,255,0.02);">
                     <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.72;">Ticket</div>
                     <div style="margin-top:6px;font-size:22px;font-weight:bold;">${esc(ticketId || '-')}</div>
                   </div>

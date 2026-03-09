@@ -126,7 +126,7 @@ export async function notifyTicketCreated(ticket: Ticket) {
     trigger: 'EMAIL-NOVA-OS',
     variables,
     templateData: {
-      title: `OS ${ticket.id} registrada`,
+      title: 'Nova solicitação registrada',
       intro: 'Recebemos sua solicitação e ela já está em análise pela equipe.',
       ticketSubject: ticket.subject,
       status: ticket.status,
@@ -143,7 +143,7 @@ export async function notifyTicketCreated(ticket: Ticket) {
     skipThread: true,
     variables,
     templateData: {
-      title: `OS ${ticket.id} registrada`,
+      title: 'Nova OS registrada no sistema',
       intro: 'Uma nova OS foi registrada no sistema e já entrou na fila de triagem.',
       ticketSubject: ticket.subject,
       status: ticket.status,
@@ -173,7 +173,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       },
     }),
     templateData: {
-      title: `Atualização da OS ${ticket.id}`,
+      title: 'Atualização da solicitação',
       intro: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
       ticketSubject: ticket.subject,
       status: ticket.status,
@@ -199,7 +199,7 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
       },
     }),
     templateData: {
-      title: `Nova mensagem na OS ${ticket.id}`,
+      title: 'Nova mensagem registrada',
       intro: `${sender} enviou uma nova mensagem no ticket.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
