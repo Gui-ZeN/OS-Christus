@@ -1004,9 +1004,9 @@ export function InboxView() {
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-4">
-            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
-              <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Novas</div>
-              <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
+            <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
+              <div className="text-[10px] uppercase tracking-widest text-amber-700">Novas</div>
+              <div className="text-lg font-semibold text-amber-900">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
             </div>
             <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Orçamento</div>
@@ -1021,7 +1021,7 @@ export function InboxView() {
 
         {/* Toolbar */}
         <div className="p-3 border-b border-roman-border bg-roman-bg/50 grid grid-cols-1 gap-2">
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.NEW] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.NEW) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
+          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.NEW] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.NEW) && inboxFilter.status.length === 1 ? 'border-amber-300 bg-amber-50 text-amber-900 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]' : 'border-roman-border hover:bg-amber-50/60 hover:border-amber-200 text-roman-text-sub'}`}>
             Novas OS ({tickets.filter(t => t.status === TICKET_STATUS.NEW).length})
           </button>
           <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.WAITING_BUDGET] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.WAITING_BUDGET) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>

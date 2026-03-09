@@ -18,13 +18,18 @@ interface TicketListItemProps {
 }
 
 export const TicketListItem: React.FC<TicketListItemProps> = ({ id, subject, requester, time, status, priority, viewingBy, sla, active, onClick }) => {
+  const isNew = status === 'Nova OS';
+
   return (
     <button 
       onClick={onClick}
-      className={`w-full text-left p-4 border-b border-roman-border cursor-pointer transition-colors ${active ? 'bg-roman-bg border-l-2 border-l-roman-primary' : 'hover:bg-roman-bg border-l-2 border-l-transparent'}`}
+      className={`w-full text-left p-4 border-b border-roman-border cursor-pointer transition-colors ${active ? 'bg-roman-bg border-l-2 border-l-roman-primary' : isNew ? 'bg-amber-50/50 border-l-2 border-l-amber-500 hover:bg-amber-50' : 'hover:bg-roman-bg border-l-2 border-l-transparent'}`}
     >
       <div className="flex justify-between items-start mb-1">
-        <span className="font-semibold text-roman-text-main truncate pr-2">{requester}</span>
+        <div className="flex items-center gap-2 min-w-0 pr-2">
+          {isNew && <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />}
+          <span className="font-semibold text-roman-text-main truncate">{requester}</span>
+        </div>
         <span className="text-xs text-roman-text-sub font-serif italic whitespace-nowrap">
           {formatDistanceToNowSafe(time)}
         </span>
