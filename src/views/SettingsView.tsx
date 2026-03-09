@@ -588,29 +588,29 @@ export function SettingsView() {
   return (
     <div className="flex-1 overflow-y-auto bg-stone-50 p-5 md:p-8">
       <div className="mx-auto max-w-[1500px] space-y-7">
-        <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+        <section className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
           <div className="grid gap-0 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="px-8 py-8 md:px-10">
-              <div className="text-[11px] uppercase tracking-[0.32em] text-roman-primary">Configuração Central</div>
-              <h1 className="mt-4 max-w-2xl text-4xl font-serif tracking-tight text-roman-text-main">Painel de Estrutura e Governança</h1>
+              <div className="text-[11px] uppercase tracking-[0.28em] text-roman-primary">Configuração Central</div>
+              <h1 className="mt-4 max-w-2xl text-[2.35rem] font-serif tracking-tight text-roman-text-main">Painel de Estrutura e Governança</h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-roman-text-sub">
                 Um centro administrativo para controlar pessoas, território, catálogo operacional, comunicação e observabilidade sem espalhar configuração pelo sistema.
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.3rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
                   <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Escopo</div>
-                  <div className="mt-2 text-xl font-serif">Governança</div>
+                  <div className="mt-2 text-lg font-serif text-roman-text-main">Governança</div>
                   <div className="mt-1 text-sm text-roman-text-sub">Usuários, papéis e visibilidade territorial.</div>
                 </div>
-                <div className="rounded-[1.3rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
                   <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Base</div>
-                  <div className="mt-2 text-xl font-serif">Operação</div>
+                  <div className="mt-2 text-lg font-serif text-roman-text-main">Operação</div>
                   <div className="mt-1 text-sm text-roman-text-sub">Catálogos, templates e SLA em um só lugar.</div>
                 </div>
-                <div className="rounded-[1.3rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
                   <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Health</div>
-                  <div className="mt-2 text-xl font-serif">Ambiente</div>
+                  <div className="mt-2 text-lg font-serif text-roman-text-main">Ambiente</div>
                   <div className="mt-1 text-sm text-roman-text-sub">Status técnico, e-mail e legado monitorados.</div>
                 </div>
               </div>
@@ -618,7 +618,7 @@ export function SettingsView() {
 
             <div className="grid gap-4 px-6 py-6 md:grid-cols-2 md:px-8 xl:grid-cols-1 xl:content-start">
               {sectionHighlights.map(card => (
-                <div key={card.label} className="rounded-[1.4rem] border border-stone-200 bg-stone-50 px-5 py-5">
+                <div key={card.label} className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-5 py-5">
                   <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">{card.label}</div>
                   <div className="mt-3 text-2xl font-serif text-roman-text-main">{card.value}</div>
                   <div className="mt-2 text-sm text-roman-text-sub">{card.hint}</div>
@@ -629,7 +629,7 @@ export function SettingsView() {
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[2rem] border border-stone-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+          <aside className="h-fit rounded-[1.75rem] border border-stone-200 bg-white p-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
             <div className="rounded-[1.4rem] border border-stone-200 bg-stone-50 px-5 py-5">
               <div className="text-[10px] uppercase tracking-[0.3em] text-roman-text-sub">Navegação</div>
               <div className="mt-3 text-2xl font-serif text-roman-text-main">Módulos de configuração</div>
@@ -644,9 +644,9 @@ export function SettingsView() {
                 <button
                   key={key}
                   onClick={() => setSection(key)}
-                  className={`w-full rounded-[1.6rem] border px-4 py-4 text-left transition-all ${
+                  className={`w-full rounded-[1.2rem] border px-4 py-4 text-left transition-all ${
                     isActive
-                      ? 'border-roman-primary/20 bg-stone-900 text-white shadow-[0_16px_36px_rgba(15,23,42,0.16)]'
+                      ? 'border-roman-primary/20 bg-stone-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.14)]'
                       : 'border-stone-200 bg-stone-50 text-roman-text-sub hover:border-stone-300 hover:bg-white'
                   }`}
                 >
@@ -665,7 +665,7 @@ export function SettingsView() {
             </div>
           </aside>
 
-          <div className="min-w-0 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.06)] md:p-8">
+          <div className="min-w-0 rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:p-8">
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                 <Loader2 size={18} className="animate-spin" />
@@ -673,12 +673,12 @@ export function SettingsView() {
               </div>
             ) : (
               <>
-                <div className={`mb-8 rounded-[1.8rem] border border-stone-200/80 bg-stone-50 px-6 py-6 `}>
+                <div className="mb-8 rounded-[1.35rem] border border-stone-200 bg-stone-50 px-6 py-6">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-[0.32em] text-roman-primary">{sectionMeta.eyebrow}</div>
                       <div className="mt-3 flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-roman-primary shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-stone-200 bg-white text-roman-primary">
                           <sectionMeta.icon size={22} />
                         </div>
                         <div>
