@@ -9,6 +9,21 @@ function normalizeTimestamp(value) {
   return value;
 }
 
+function normalizeValue(value) {
+  if (value == null) return null;
+  if (typeof value?.toDate === 'function') return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(normalizeValue);
+  if (typeof value === 'object') {
+    if ('_seconds' in value) {
+      const seconds = Number(value._seconds || 0);
+      return new Date(seconds * 1000).toISOString();
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, normalizeValue(entry)]));
+  }
+  return value;
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -35,9 +50,9 @@ export default async function handler(req, res) {
           action: data.action || 'unknown',
           entity: data.entity || 'unknown',
           entityId: data.entityId || null,
-          before: data.before || null,
-          after: data.after || null,
-          metadata: data.metadata || null,
+          before: normalizeValue(data.before || null),
+          after: normalizeValue(data.after || null),
+          metadata: normalizeValue(data.metadata || null),
           createdAt: normalizeTimestamp(data.createdAt),
         };
       })

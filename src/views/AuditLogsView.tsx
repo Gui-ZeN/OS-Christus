@@ -9,10 +9,98 @@ function formatDate(value: string | null) {
   return formatDateTimeSafe(value);
 }
 
+const ENTITY_LABELS: Record<string, string> = {
+  regions: 'Regiões',
+  sites: 'Sedes',
+  users: 'Usuários',
+  user: 'Usuário',
+  ticket: 'OS',
+  tickets: 'OS',
+  settings: 'Configurações',
+  catalog: 'Catálogo',
+  notifications: 'Notificações',
+  procurement: 'Procurement',
+  finance: 'Financeiro',
+  email: 'E-mail',
+  'firestore.legacy': 'Legado do Firestore',
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  'catalog.delete': 'Exclusão de item do catálogo',
+  'catalog.upsert': 'Atualização de item do catálogo',
+  'users.create': 'Criação de usuário',
+  'users.update': 'Atualização de usuário',
+  'users.delete': 'Exclusão de usuário',
+  'tickets.delete': 'Exclusão de OS',
+  'settings.update': 'Atualização de configurações',
+  'procurement.update': 'Atualização de orçamento/contrato',
+  'notifications.dismiss': 'Notificação dispensada',
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  id: 'ID',
+  code: 'Código',
+  name: 'Nome',
+  active: 'Ativo',
+  group: 'Grupo',
+  regionId: 'Região',
+  siteId: 'Sede',
+  createdAt: 'Criado em',
+  updatedAt: 'Atualizado em',
+  email: 'E-mail',
+  role: 'Papel',
+  status: 'Status',
+};
+
+function prettyActor(actor: string) {
+  const value = String(actor || '').trim();
+  if (!value) return 'Sistema';
+  if (value === 'Admin <admin@os-christus.local>' || value === 'admin@os-christus.local') {
+    return 'Administrador OS Christus';
+  }
+  const match = value.match(/^(.+?)\s*<(.+?)>$/);
+  if (match) return match[1].trim();
+  return value;
+}
+
+function prettyEntity(entity: string) {
+  return ENTITY_LABELS[entity] || entity;
+}
+
+function prettyAction(action: string) {
+  return ACTION_LABELS[action] || action;
+}
+
+function objectDisplayName(log: AuditLogEntry) {
+  const before = log.before && typeof log.before === 'object' ? (log.before as Record<string, unknown>) : null;
+  const after = log.after && typeof log.after === 'object' ? (log.after as Record<string, unknown>) : null;
+  const source = after || before;
+  const name = source?.name;
+  if (typeof name === 'string' && name.trim()) return name;
+  return log.entityId || '';
+}
+
+function humanizeValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed) && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      return formatDateTimeSafe(value);
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(humanizeValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [FIELD_LABELS[key] || key, humanizeValue(entry)])
+    );
+  }
+  return value;
+}
+
 function safeJson(value: unknown) {
   if (value == null) return '-';
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(humanizeValue(value), null, 2);
   } catch {
     return '[não serializável]';
   }
@@ -132,12 +220,12 @@ export function AuditLogsView() {
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-4">
                 <div>
                   <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">
-                    {log.entity} {log.entityId ? `· ${log.entityId}` : ''}
+                    {prettyEntity(log.entity)} {objectDisplayName(log) ? `· ${objectDisplayName(log)}` : ''}
                   </div>
-                  <h2 className="text-lg font-serif text-roman-text-main">{log.action}</h2>
+                  <h2 className="text-lg font-serif text-roman-text-main">{prettyAction(log.action)}</h2>
                 </div>
                 <div className="text-xs text-roman-text-sub md:text-right">
-                  <div>Ator: {log.actor}</div>
+                  <div>Ator: {prettyActor(log.actor)}</div>
                   <div>{formatDate(log.createdAt)}</div>
                 </div>
               </div>
