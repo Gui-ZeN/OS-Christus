@@ -613,6 +613,7 @@ async function handleSend(req, res) {
             references: nextReferences,
             ticketId,
             trackingToken: trackingToken || undefined,
+            threadId: thread?.gmailThreadId || undefined,
           })
         : await sendWithSendGrid({
             toEmail,
@@ -635,6 +636,7 @@ async function handleSend(req, res) {
           ticketId,
           toEmail,
           lastMessageId: messageId,
+          gmailThreadId: sendResult.threadId || thread?.gmailThreadId || null,
           references: mergedReferences,
           lastDirection: 'outbound',
           lastOutboundAt: now,

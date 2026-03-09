@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+﻿import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { subDays, subHours } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { MOCK_TICKETS } from '../data/mockTickets';
@@ -39,6 +39,7 @@ interface AppContextType {
   markAllNotificationsRead: () => void;
   tickets: Ticket[];
   ticketsLoading: boolean;
+  refreshTickets: () => Promise<void>;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
   addTicket: (ticket: Ticket) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
@@ -222,6 +223,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
 
+  const refreshTickets = useCallback(async () => {
+    if (authEnabled && !authResolved) {
+      return;
+    }
+
+    if (!currentUserEmail) {
+      setAllTickets([]);
+      setTicketsLoading(false);
+      return;
+    }
+
+    if (!authEnabled && !localFallbackAllowed) {
+      setAllTickets([]);
+      setTicketsLoading(false);
+      return;
+    }
+
+    setTicketsLoading(true);
+    try {
+      const remote = await fetchTicketsFromApi();
+      setAllTickets(remote);
+    } catch {
+      setAllTickets(localFallbackAllowed ? [...MOCK_TICKETS] : []);
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, [authEnabled, authResolved, currentUserEmail, localFallbackAllowed]);
+
   useEffect(() => {
     if (!authEnabled) return undefined;
     let unsubscribe = () => undefined;
@@ -235,46 +264,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [authEnabled]);
 
   useEffect(() => {
-    let cancelled = false;
+    void refreshTickets();
+  }, [refreshTickets]);
 
-    if (authEnabled && !authResolved) {
-      return undefined;
-    }
-
-    if (!currentUserEmail) {
-      setAllTickets([]);
-      setTicketsLoading(false);
-      return undefined;
-    }
-
-    if (!authEnabled && !localFallbackAllowed) {
-      setAllTickets([]);
-      setTicketsLoading(false);
-      return undefined;
-    }
-
-    setTicketsLoading(true);
-    (async () => {
-      try {
-        const remote = await fetchTicketsFromApi();
-        if (!cancelled) {
-          setAllTickets(remote);
-        }
-      } catch {
-        if (!cancelled) {
-          setAllTickets(localFallbackAllowed ? [...MOCK_TICKETS] : []);
-        }
-      } finally {
-        if (!cancelled) {
-          setTicketsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authEnabled, authResolved, currentUserEmail, localFallbackAllowed]);
+  useEffect(() => {
+    if (!currentUserEmail) return undefined;
+    const timer = setInterval(() => void refreshTickets(), 30000);
+    return () => clearInterval(timer);
+  }, [currentUserEmail, refreshTickets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -622,6 +619,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         markAllNotificationsRead,
         tickets,
         ticketsLoading,
+        refreshTickets,
         updateTicket,
         addTicket,
         currentUser,
@@ -648,4 +646,5 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
+
 

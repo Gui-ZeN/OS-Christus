@@ -32,7 +32,7 @@ function formatDate(value: unknown) {
 }
 
 export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
-  const { currentUser } = useApp();
+  const { currentUser, refreshTickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -73,6 +73,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
         throw new Error(json.error || 'Falha ao sincronizar e-mails.');
       }
       setSyncMessage(`${Number(json.processed || 0)} mensagem(ns) processada(s) agora.`);
+      await refreshTickets();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha inesperada ao sincronizar e-mails.');

@@ -122,7 +122,7 @@ async function gmailGetAttachment(gmail, messageId, attachmentId) {
   return Buffer.from(normalized, 'base64');
 }
 
-export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken }) {
+export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId }) {
   const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
 
@@ -142,7 +142,10 @@ export async function gmailSend({ toEmail, subject, text, html, inReplyTo, refer
 
   const result = await gmail.users.messages.send({
     userId: 'me',
-    requestBody: { raw },
+    requestBody: {
+      raw,
+      ...(threadId ? { threadId } : {}),
+    },
   });
 
   return {
