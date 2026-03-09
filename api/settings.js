@@ -4,6 +4,30 @@ import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
+function normalizeEmailTemplate(data, fallback = null) {
+  const source = data && typeof data === 'object' ? data : {};
+  const fallbackTemplate = fallback && typeof fallback === 'object' ? fallback : {};
+
+  return {
+    trigger: String(source.trigger || fallbackTemplate.trigger || '').trim(),
+    subject: String(source.subject || fallbackTemplate.subject || '').trim(),
+    body: String(source.body || fallbackTemplate.body || '').trim(),
+  };
+}
+
+function normalizeEmailTemplates(values) {
+  const defaults = Object.values(DEFAULT_SETTINGS.emailTemplates.items).map(template => normalizeEmailTemplate(template));
+  const byTrigger = new Map(defaults.map(template => [template.trigger, template]));
+
+  for (const value of Array.isArray(values) ? values : []) {
+    const trigger = String(value?.trigger || '').trim();
+    if (!trigger) continue;
+    byTrigger.set(trigger, normalizeEmailTemplate(value, byTrigger.get(trigger)));
+  }
+
+  return [...byTrigger.values()].sort((a, b) => a.trigger.localeCompare(b.trigger, 'pt-BR'));
+}
+
 function normalizeSla(data) {
   if (Array.isArray(data?.rules)) {
     return {
@@ -62,10 +86,11 @@ async function readSettings(db) {
     db.collection('settings').doc('sla').collection('items').doc('default').get(),
   ]);
 
-  const emailTemplates = templatesSnap.docs
-    .map(doc => doc.data())
-    .filter(Boolean)
-    .sort((a, b) => String(a.trigger || '').localeCompare(String(b.trigger || ''), 'pt-BR'));
+  const emailTemplates = normalizeEmailTemplates(
+    templatesSnap.docs
+      .map(doc => doc.data())
+      .filter(Boolean)
+  );
 
   return {
     emailTemplate: emailTemplates[0] || null,
@@ -104,7 +129,12 @@ export default async function handler(req, res) {
         return sendJson(res, 400, { ok: false, error: 'section inválida.' });
       }
 
-      const normalizedData = section === 'sla' ? normalizeSla(data) : data;
+      const normalizedData =
+        section === 'sla'
+          ? normalizeSla(data)
+          : section === 'emailTemplates'
+            ? normalizeEmailTemplate(data)
+            : data;
       const docId = section === 'emailTemplates' ? String(normalizedData?.trigger || '').trim() : 'default';
 
       if (section === 'emailTemplates' && !docId) {

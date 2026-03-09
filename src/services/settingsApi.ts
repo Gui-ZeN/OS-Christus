@@ -24,6 +24,15 @@ export interface SlaSettings {
   rules: Array<{ priority: string; prazo: string }>;
 }
 
+function normalizeEmailTemplate(value: unknown, fallback?: Partial<EmailTemplateSettings>): EmailTemplateSettings {
+  const template = (value || {}) as Partial<EmailTemplateSettings>;
+  return {
+    trigger: String(template.trigger || fallback?.trigger || '').trim(),
+    subject: String(template.subject || fallback?.subject || '').trim(),
+    body: String(template.body || fallback?.body || '').trim(),
+  };
+}
+
 function normalizeSlaSettings(value: unknown): SlaSettings {
   const sla = (value || {}) as {
     rules?: Array<{ priority?: string; prazo?: string }>;
@@ -63,9 +72,17 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   if (!json.ok) {
     throw new Error('Resposta invalida de settings.');
   }
+  const emailTemplates = Array.isArray(json.emailTemplates)
+    ? (json.emailTemplates as unknown[])
+        .map(item => normalizeEmailTemplate(item))
+        .filter(item => item.trigger)
+    : [];
+
+  const emailTemplate = normalizeEmailTemplate(json.emailTemplate, emailTemplates[0]);
+
   return {
-    emailTemplate: json.emailTemplate as EmailTemplateSettings,
-    emailTemplates: Array.isArray(json.emailTemplates) ? (json.emailTemplates as EmailTemplateSettings[]) : [],
+    emailTemplate,
+    emailTemplates,
     dailyDigest: json.dailyDigest as DailyDigestSettings,
     sla: normalizeSlaSettings(json.sla),
   };
