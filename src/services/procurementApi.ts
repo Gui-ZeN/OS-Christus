@@ -1,4 +1,4 @@
-import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 import { ContractRecord, MeasurementRecord, PaymentRecord, ProcurementClassificationSnapshot, Quote } from '../types';
 import { coerceDate } from '../utils/date';
 
@@ -20,7 +20,7 @@ export async function fetchProcurementData() {
   }
   const json = await response.json();
   if (!json.ok) {
-    throw new Error('Resposta invalida de procurement.');
+    throw new Error('Resposta inválida de procurement.');
   }
 
   const paymentsByTicket = Object.fromEntries(
@@ -67,7 +67,7 @@ export async function saveQuotes(ticketId: string, quotes: Quote[], classificati
     body: JSON.stringify({ ticketId, type: 'quotes', quotes, classification }),
   });
   if (!response.ok) {
-    throw new Error('Falha ao salvar cotacoes.');
+    throw new Error('Falha ao salvar cotações.');
   }
 }
 
@@ -124,3 +124,4 @@ export async function saveMeasurement(ticketId: string, measurement: Measurement
     throw new Error('Falha ao salvar medição.');
   }
 }
+

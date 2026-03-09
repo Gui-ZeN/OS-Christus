@@ -88,6 +88,16 @@ export function normalizeTicketForStorage(ticket) {
       endAt: toDate(next.guarantee.endAt) || null,
     };
   }
+  if (next.executionProgress) {
+    next.executionProgress = {
+      ...next.executionProgress,
+      paymentFlowParts: Math.max(1, Number(next.executionProgress.paymentFlowParts || 1)),
+      currentPercent: Math.min(100, Math.max(0, Number(next.executionProgress.currentPercent || 0))),
+      releasedPercent: Math.min(100, Math.max(0, Number(next.executionProgress.releasedPercent || 0))),
+      startedAt: toDate(next.executionProgress.startedAt) || null,
+      lastUpdatedAt: toDate(next.executionProgress.lastUpdatedAt) || null,
+    };
+  }
   return next;
 }
 
@@ -156,6 +166,13 @@ export function serializeTicketForApi(ticket) {
           ...ticket.guarantee,
           startAt: serializeDate(ticket.guarantee.startAt),
           endAt: serializeDate(ticket.guarantee.endAt),
+        }
+      : null,
+    executionProgress: ticket.executionProgress
+      ? {
+          ...ticket.executionProgress,
+          startedAt: serializeDate(ticket.executionProgress.startedAt),
+          lastUpdatedAt: serializeDate(ticket.executionProgress.lastUpdatedAt),
         }
       : null,
   };

@@ -1,5 +1,5 @@
 ﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
-import { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
+import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 
 type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
@@ -32,6 +32,10 @@ type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
   guarantee?: Omit<GuaranteeInfo, 'startAt' | 'endAt'> & {
     startAt?: string | null;
     endAt?: string | null;
+  } | null;
+  executionProgress?: Omit<ExecutionProgress, 'startedAt' | 'lastUpdatedAt'> & {
+    startedAt?: string | null;
+    lastUpdatedAt?: string | null;
   } | null;
 };
 
@@ -105,6 +109,13 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
           ...ticket.guarantee,
           startAt: ticket.guarantee.startAt ? coerceDate(ticket.guarantee.startAt) : null,
           endAt: ticket.guarantee.endAt ? coerceDate(ticket.guarantee.endAt) : null,
+        }
+      : undefined,
+    executionProgress: ticket.executionProgress
+      ? {
+          ...ticket.executionProgress,
+          startedAt: ticket.executionProgress.startedAt ? coerceDate(ticket.executionProgress.startedAt) : null,
+          lastUpdatedAt: ticket.executionProgress.lastUpdatedAt ? coerceDate(ticket.executionProgress.lastUpdatedAt) : null,
         }
       : undefined,
   };

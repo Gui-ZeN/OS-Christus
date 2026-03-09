@@ -5,13 +5,14 @@ import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { InboxFilter, HistoryItem, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
+import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
-import { fetchProcurementData, saveQuotes } from '../services/procurementApi';
+import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
+import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -71,6 +72,16 @@ interface PreliminaryFormState {
   blockerNotes: string;
 }
 
+interface ExecutionSetupFormState {
+  paymentFlowParts: string;
+  notes: string;
+}
+
+interface ProgressUpdateFormState {
+  progressPercent: string;
+  notes: string;
+}
+
 function formatInputDate(value?: Date | null) {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
   return value.toISOString().slice(0, 10);
@@ -92,6 +103,20 @@ function createPreliminaryFormState(preliminaryActions?: PreliminaryActions): Pr
     accessReleased: preliminaryActions?.accessReleased ?? false,
     plannedStartAt: formatInputDate(preliminaryActions?.plannedStartAt),
     blockerNotes: preliminaryActions?.blockerNotes ?? '',
+  };
+}
+
+function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState {
+  return {
+    paymentFlowParts: String(ticket?.executionProgress?.paymentFlowParts || 5),
+    notes: '',
+  };
+}
+
+function createProgressUpdateFormState(ticket?: Ticket): ProgressUpdateFormState {
+  return {
+    progressPercent: String(ticket?.executionProgress?.currentPercent || 0),
+    notes: '',
   };
 }
 
@@ -243,9 +268,19 @@ export function InboxView() {
     setCustomEmail(activeTicket.assignedEmail || '');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setStatusDraft(activeTicket.status || '');
+    setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
+    setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
-  }, [activeTicketId, activeTicket.assignedEmail, activeTicket.assignedTeam, activeTicket.priority, activeTicket.status]);
+  }, [
+    activeTicketId,
+    activeTicket.assignedEmail,
+    activeTicket.assignedTeam,
+    activeTicket.priority,
+    activeTicket.status,
+    activeTicket.executionProgress?.paymentFlowParts,
+    activeTicket.executionProgress?.currentPercent,
+  ]);
 
   useEffect(() => {
     setPrelimForm(createPreliminaryFormState(activeTicket.preliminaryActions));
@@ -306,10 +341,14 @@ export function InboxView() {
         const procurement = await fetchProcurementData();
         if (!cancelled) {
           setStoredQuotesByTicket(procurement.quotesByTicket);
+          setContractsByTicket(procurement.contractsByTicket);
+          setPaymentsByTicket(procurement.paymentsByTicket);
         }
       } catch {
         if (!cancelled) {
           setStoredQuotesByTicket({});
+          setContractsByTicket({});
+          setPaymentsByTicket({});
         }
       }
     })();
@@ -467,11 +506,10 @@ export function InboxView() {
       return;
     }
 
-    setIsSending(true);
     const now = new Date();
-    const preliminaryActions = buildPreliminaryActionsPayload(startExecution);
+    const preliminaryActions = buildPreliminaryActionsPayload(false);
     const historyText = startExecution
-      ? `Ações preliminares concluídas. Execução liberada com início previsto em ${formatShortDate(preliminaryActions.plannedStartAt)}.`
+      ? `Ações preliminares concluídas. Obra pronta para iniciar execução em ${formatShortDate(preliminaryActions.plannedStartAt)}.`
       : `Ações preliminares atualizadas. ${buildPreliminarySummary(preliminaryActions)}.`;
 
     const item: HistoryItem = {
@@ -483,17 +521,17 @@ export function InboxView() {
     };
 
     updateTicket(activeTicket.id, {
-      status: startExecution ? TICKET_STATUS.IN_PROGRESS : activeTicket.status,
       preliminaryActions,
       history: [...activeTicket.history, item],
     });
 
     setShowPrelimModal(false);
     if (startExecution) {
-      setToast('Execução liberada com checklist preliminar concluído.');
+      setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
+      setShowExecutionSetupModal(true);
+      setToast('Checklist concluído. Defina o fluxo para iniciar a execução.');
       setTimeout(() => setToast(null), 3000);
     }
-    window.setTimeout(() => setIsSending(false), 500);
   };
 
   // Controle de Execução
@@ -504,20 +542,198 @@ export function InboxView() {
       return;
     }
 
+    setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
+    setShowExecutionSetupModal(true);
+  };
+
+  const handleConfirmExecutionStart = async () => {
+    if (isSending) return;
+
+    const paymentFlowParts = Number(executionSetupForm.paymentFlowParts || 0);
+    if (!Number.isFinite(paymentFlowParts) || paymentFlowParts < 1 || paymentFlowParts > 5) {
+      setToast('Erro: escolha um fluxo de pagamento entre 1x e 5x.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     setIsSending(true);
+    const now = new Date();
     const preliminaryActions = activeTicket.preliminaryActions
-      ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || new Date(), updatedAt: new Date() }
+      ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || now, updatedAt: now }
       : undefined;
-    const item: HistoryItem = {
-      id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
-      time: new Date(), text: 'Execução da obra iniciada.',
-    };
-    updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.IN_PROGRESS,
-      preliminaryActions,
-      history: [...activeTicket.history, item],
-    });
-    window.setTimeout(() => setIsSending(false), 500);
+    const contractValue = Number(
+      String(activeContract?.value || activePayments[0]?.value || '')
+        .replace(/[^\d,.-]/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.')
+    );
+    const vendor = activeContract?.vendor || activePayments[0]?.vendor || activeTicket.assignedTeam || 'Fornecedor não definido';
+    const shouldGeneratePlan = activePayments.length === 0 && Number.isFinite(contractValue) && contractValue > 0;
+
+    try {
+      let nextPayments = activePayments;
+      if (shouldGeneratePlan) {
+        nextPayments = createExecutionPaymentPlan(contractValue, vendor, paymentFlowParts);
+        const classification = buildProcurementClassification(activeTicket);
+        for (const payment of nextPayments) {
+          await savePayment(activeTicket.id, payment, classification);
+        }
+        setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPayments }));
+      }
+
+      updateTicket(activeTicket.id, {
+        status: TICKET_STATUS.IN_PROGRESS,
+        preliminaryActions,
+        executionProgress: {
+          paymentFlowParts,
+          currentPercent: Number(activeTicket.executionProgress?.currentPercent || 0),
+          releasedPercent: getApprovedReleasePercent(nextPayments),
+          startedAt: activeTicket.executionProgress?.startedAt || preliminaryActions?.actualStartAt || now,
+          lastUpdatedAt: now,
+        },
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: displayActorLabel,
+            time: now,
+            text: executionSetupForm.notes.trim()
+              ? `Execução iniciada com fluxo financeiro em ${paymentFlowParts} parcela(s). ${executionSetupForm.notes.trim()}`
+              : `Execução iniciada com fluxo financeiro em ${paymentFlowParts} parcela(s).`,
+          },
+        ],
+      });
+
+      setShowExecutionSetupModal(false);
+      setToast(
+        shouldGeneratePlan
+          ? `Execução iniciada e fluxo ${paymentFlowParts}x configurado.`
+          : `Execução iniciada. O fluxo ${paymentFlowParts}x foi salvo para o financeiro.`
+      );
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      window.setTimeout(() => setIsSending(false), 500);
+    }
+  };
+
+  const handleOpenProgressModal = () => {
+    setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
+    setShowProgressModal(true);
+  };
+
+  const handleSaveProgressUpdate = async () => {
+    if (isSending) return;
+    if (!activeTicket.executionProgress?.paymentFlowParts) {
+      setToast('Erro: inicie a execução e defina o fluxo antes de atualizar o andamento.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const progressPercent = Number(progressUpdateForm.progressPercent || 0);
+    if (!Number.isFinite(progressPercent) || progressPercent < 0 || progressPercent > 100) {
+      setToast('Erro: informe um andamento entre 0% e 100%.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (progressPercent < activeProgressPercent) {
+      setToast('Erro: o andamento não pode ser menor do que o percentual já registrado.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const contractValue = Number(
+      String(activeContract?.value || activePayments[0]?.value || '')
+        .replace(/[^\d,.-]/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.')
+    );
+    if (!Number.isFinite(contractValue) || contractValue <= 0) {
+      setToast('Erro: contrato não encontrado para calcular as liberações.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    setIsSending(true);
+
+    const vendor = activeContract?.vendor || activePayments[0]?.vendor || activeTicket.assignedTeam || 'Fornecedor não definido';
+    const baselinePayments =
+      activePayments.length > 0
+        ? activePayments
+        : createExecutionPaymentPlan(contractValue, vendor, activeTicket.executionProgress.paymentFlowParts);
+    const createdPlan = activePayments.length === 0;
+    const { nextPayments, newlyApproved, releasedPercent, normalizedProgress } = applyProgressToPayments(
+      baselinePayments,
+      progressPercent
+    );
+    const releasedValue = newlyApproved.reduce((total, payment) => {
+      const normalized = Number(
+        String(payment.value || '')
+          .replace(/[^\d,.-]/g, '')
+          .replace(/\./g, '')
+          .replace(',', '.')
+      );
+      return total + (Number.isFinite(normalized) ? normalized : 0);
+    }, 0);
+
+    try {
+      const classification = buildProcurementClassification(activeTicket);
+      const measurement: MeasurementRecord = {
+        id: `measurement-${Date.now()}`,
+        label: `Andamento atualizado para ${normalizedProgress}%`,
+        progressPercent: normalizedProgress,
+        releasePercent: newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0),
+        status: newlyApproved.length > 0 ? 'approved' : 'pending',
+        notes: progressUpdateForm.notes.trim(),
+        requestedAt: new Date(),
+        approvedAt: newlyApproved.length > 0 ? new Date() : null,
+      };
+      if (createdPlan) {
+        for (const payment of nextPayments) {
+          await savePayment(activeTicket.id, payment, classification);
+        }
+      } else {
+        for (const payment of newlyApproved) {
+          await savePayment(activeTicket.id, payment, classification);
+        }
+      }
+      await saveMeasurement(activeTicket.id, measurement, classification);
+
+      setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPayments }));
+      updateTicket(activeTicket.id, {
+        executionProgress: {
+          paymentFlowParts: activeTicket.executionProgress.paymentFlowParts,
+          currentPercent: normalizedProgress,
+          releasedPercent,
+          startedAt: activeTicket.executionProgress.startedAt || activeTicket.preliminaryActions?.actualStartAt || new Date(),
+          lastUpdatedAt: new Date(),
+        },
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: displayActorLabel,
+            time: new Date(),
+            text:
+              newlyApproved.length > 0
+                ? `Andamento atualizado para ${normalizedProgress}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                : `Andamento atualizado para ${normalizedProgress}%. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+          },
+        ],
+      });
+
+      setShowProgressModal(false);
+      setToast(
+        newlyApproved.length > 0
+          ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para o financeiro.`
+          : 'Andamento salvo sem nova liberação financeira.'
+      );
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      window.setTimeout(() => setIsSending(false), 500);
+    }
   };
 
   const handleSendForValidation = () => {
@@ -616,18 +832,31 @@ export function InboxView() {
   const [showMobileContext, setShowMobileContext] = useState(false);
   const [showQuotesModal, setShowQuotesModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
+  const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
+  const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+  const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [prelimForm, setPrelimForm] = useState<PreliminaryFormState>(createPreliminaryFormState());
+  const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
+  const [progressUpdateForm, setProgressUpdateForm] = useState<ProgressUpdateFormState>(createProgressUpdateFormState());
   const [toast, setToast] = useState<string | null>(null);
+  const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
+  const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
+  const activeProgressPercent = Math.min(100, Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0)));
+  const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activePayments);
+  const activeNextMilestonePercent = getNextMilestonePercent(activePayments);
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
-  const shouldLockBodyScroll = isMobileOverlayOpen || showQuotesModal || showPrelimModal;
+  const shouldLockBodyScroll = isMobileOverlayOpen || showQuotesModal || showPrelimModal || showExecutionSetupModal || showProgressModal;
 
   useEffect(() => {
     function handleEsc(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       if (showQuotesModal) setShowQuotesModal(false);
       if (showPrelimModal) setShowPrelimModal(false);
+      if (showExecutionSetupModal) setShowExecutionSetupModal(false);
+      if (showProgressModal) setShowProgressModal(false);
       if (showActionsMenu) setShowActionsMenu(false);
       if (showFilterMenu) setShowFilterMenu(false);
       if (showMobileTicketList) setShowMobileTicketList(false);
@@ -635,7 +864,7 @@ export function InboxView() {
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [showQuotesModal, showPrelimModal, showActionsMenu, showFilterMenu, showMobileTicketList, showMobileContext]);
+  }, [showQuotesModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showFilterMenu, showMobileTicketList, showMobileContext]);
 
   useEffect(() => {
     setShowActionsMenu(false);
@@ -1661,6 +1890,23 @@ export function InboxView() {
                       <div>Material previsto: {formatShortDate(activeTicket.preliminaryActions.materialEta)}</div>
                     </div>
                   )}
+                  {activeTicket.executionProgress && (
+                    <div className="mb-3 rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
+                      <div className="flex items-center justify-between text-xs text-roman-text-sub mb-2">
+                        <span className="font-medium text-roman-text-main">Andamento da obra</span>
+                        <span>{activeProgressPercent}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
+                        <div className="h-full rounded-full bg-roman-sidebar transition-all" style={{ width: `${activeProgressPercent}%` }} />
+                      </div>
+                      <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
+                        <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
+                        <div>Parcelas liberadas: {activeReleasedPercent}%</div>
+                        <div>Próximo marco: {activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'todos os marcos liberados'}</div>
+                        <div>Última atualização: {formatDateTimeSafe(activeTicket.executionProgress.lastUpdatedAt || activeTicket.time)}</div>
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {canManageStatus && EXECUTION_STATUS_OPTIONS.includes(activeTicket.status as (typeof EXECUTION_STATUS_OPTIONS)[number]) && (
                       <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-3 space-y-3">
@@ -1702,7 +1948,16 @@ export function InboxView() {
                         onClick={handleStartExecution}
                         className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
                       >
-                        <Play size={14} /> {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ? 'Revisar Checklist para Início' : 'Iniciar Execução da Obra'}
+                        <Play size={14} /> {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ? 'Revisar Checklist para Início' : 'Revisar Fluxo da Execução'}
+                      </button>
+                    )}
+
+                    {canManageStatus && activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
+                      <button
+                        onClick={handleOpenProgressModal}
+                        className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                      >
+                        <RefreshCw size={14} /> Atualizar Andamento da Obra
                       </button>
                     )}
 
@@ -2198,6 +2453,152 @@ export function InboxView() {
                   className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Concluir e Iniciar Execução
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExecutionSetupModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExecutionSetupModal(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Iniciar execução"
+        >
+          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-xl overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
+              <h3 className="font-serif text-lg text-roman-text-main font-medium">Iniciar Execução da Obra</h3>
+              <button onClick={() => setShowExecutionSetupModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Fluxo de pagamento</label>
+                  <select
+                    value={executionSetupForm.paymentFlowParts}
+                    onChange={e => setExecutionSetupForm(prev => ({ ...prev, paymentFlowParts: e.target.value }))}
+                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                  >
+                    {[1, 2, 3, 4, 5].map(parts => (
+                      <option key={parts} value={parts}>{parts === 1 ? 'À vista' : `${parts}x conforme andamento`}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
+                  <div className="font-medium text-roman-text-main mb-1">Resumo do contrato</div>
+                  <div>Fornecedor: {activeContract?.vendor || activeTicket.assignedTeam || 'Não definido'}</div>
+                  <div>Valor: {activeContract?.value || 'Não informado'}</div>
+                  <div>Andamento inicial: {activeProgressPercent}%</div>
+                </div>
+              </div>
+
+              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                <div className="font-medium text-roman-text-main">Regra do fluxo</div>
+                <div>O sistema libera o pagamento conforme o percentual acumulado da obra.</div>
+                <div>Exemplo: no fluxo 5x, ao atingir 20%, 40%, 60%, 80% e 100%, cada parcela é liberada.</div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de início</label>
+                <textarea
+                  value={executionSetupForm.notes}
+                  onChange={e => setExecutionSetupForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Ex: equipe mobilizada, cronograma validado e material entregue na unidade."
+                  className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowExecutionSetupModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                  Cancelar
+                </button>
+                <button
+                  disabled={isSending}
+                  onClick={() => void handleConfirmExecutionStart()}
+                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                  Iniciar execução
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProgressModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowProgressModal(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Atualizar andamento"
+        >
+          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-xl overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
+              <h3 className="font-serif text-lg text-roman-text-main font-medium">Atualizar Andamento da Obra</h3>
+              <button onClick={() => setShowProgressModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <div className="flex items-center justify-between text-sm text-roman-text-main mb-2">
+                  <span>Percentual acumulado</span>
+                  <span className="font-semibold">{progressUpdateForm.progressPercent || activeProgressPercent}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={progressUpdateForm.progressPercent}
+                  onChange={e => setProgressUpdateForm(prev => ({ ...prev, progressPercent: e.target.value }))}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">
+                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                  <div className="font-medium text-roman-text-main">Fluxo</div>
+                  <div>{activeTicket.executionProgress?.paymentFlowParts ? `${activeTicket.executionProgress.paymentFlowParts}x` : 'Não definido'}</div>
+                </div>
+                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                  <div className="font-medium text-roman-text-main">Liberado até agora</div>
+                  <div>{activeReleasedPercent}%</div>
+                </div>
+                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                  <div className="font-medium text-roman-text-main">Próximo marco</div>
+                  <div>{activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'Todos liberados'}</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
+                <textarea
+                  value={progressUpdateForm.notes}
+                  onChange={e => setProgressUpdateForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Ex: 40% concluído, com estrutura metálica finalizada e aguardando acabamento."
+                  className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowProgressModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                  Cancelar
+                </button>
+                <button
+                  disabled={isSending}
+                  onClick={() => void handleSaveProgressUpdate()}
+                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Salvar andamento
                 </button>
               </div>
             </div>

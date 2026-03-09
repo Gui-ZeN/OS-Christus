@@ -73,6 +73,14 @@ export interface GuaranteeInfo {
   status: 'pending' | 'active' | 'expired';
 }
 
+export interface ExecutionProgress {
+  paymentFlowParts: number;
+  currentPercent: number;
+  releasedPercent: number;
+  startedAt?: Date | null;
+  lastUpdatedAt?: Date | null;
+}
+
 export interface Ticket {
   id: string;
   trackingToken: string;
@@ -101,6 +109,7 @@ export interface Ticket {
   closureChecklist?: ClosureChecklist;
   attachments?: TicketAttachment[];
   guarantee?: GuaranteeInfo;
+  executionProgress?: ExecutionProgress;
 }
 
 export interface QuoteItem {
@@ -159,6 +168,7 @@ export interface PaymentRecord {
   dueAt?: Date | null;
   measurementId?: string | null;
   releasedPercent?: number | null;
+  milestonePercent?: number | null;
   receiptFileName?: string | null;
   paidAt?: Date | null;
   classification?: ProcurementClassificationSnapshot;

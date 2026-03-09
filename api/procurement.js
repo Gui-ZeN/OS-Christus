@@ -1,4 +1,4 @@
-import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
+﻿import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readProcurement, seedProcurementDefaults } from './_lib/procurement.js';
@@ -226,6 +226,7 @@ async function writePayment(db, ticketId, payment, classification) {
       dueAt: payment.dueAt ? new Date(payment.dueAt) : null,
       measurementId: payment.measurementId ? String(payment.measurementId) : null,
       releasedPercent: payment.releasedPercent != null ? Number(payment.releasedPercent) : null,
+      milestonePercent: payment.milestonePercent != null ? Number(payment.milestonePercent) : null,
       receiptFileName: payment.receiptFileName ? String(payment.receiptFileName) : null,
       paidAt: payment.paidAt ? new Date(payment.paidAt) : null,
       classification: payment.classification || classification || null,
@@ -288,7 +289,7 @@ export default async function handler(req, res) {
       const classification = body?.classification || null;
 
       if (!ticketId || !type) {
-        return sendJson(res, 400, { ok: false, error: 'ticketId e type sao obrigatorios.' });
+        return sendJson(res, 400, { ok: false, error: 'ticketId e type sÃ£o obrigatÃ³rios.' });
       }
 
       if (type === 'quotes') {
@@ -353,12 +354,13 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { ok: true, ...data });
       }
 
-      return sendJson(res, 400, { ok: false, error: 'type invalido.' });
+      return sendJson(res, 400, { ok: false, error: 'type invÃ¡lido.' });
     }
 
     res.setHeader('Allow', 'GET, POST');
-    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no procurement.' });
   }
 }
+
