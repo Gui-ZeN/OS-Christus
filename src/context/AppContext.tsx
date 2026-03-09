@@ -48,6 +48,7 @@ interface AppContextType {
   loginWithGoogleAccount: () => Promise<void>;
   logout: () => Promise<void>;
   authEnabled: boolean;
+  authResolved: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -619,6 +620,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loginWithGoogleAccount,
         logout,
         authEnabled,
+        authResolved,
       }}
     >
       {children}

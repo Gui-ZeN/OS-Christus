@@ -89,6 +89,7 @@ export default function App() {
     currentUser,
     currentUserEmail,
     authEnabled,
+    authResolved,
   } = useApp();
 
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -165,12 +166,21 @@ export default function App() {
 
   useEffect(() => {
     const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
+    if (authEnabled && !authResolved) {
+      return;
+    }
     if (!currentUserEmail && !publicViews.has(currentView)) {
       navigateTo(VIEWS.LOGIN);
     }
-  }, [currentUserEmail, currentView, navigateTo]);
+    if (currentUserEmail && currentView === VIEWS.LOGIN) {
+      navigateTo(VIEWS.HOME);
+    }
+  }, [authEnabled, authResolved, currentUserEmail, currentView, navigateTo]);
 
   if (currentView === VIEWS.LANDING) {
+    if (authEnabled && !authResolved) {
+      return <ViewLoader fullScreen />;
+    }
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
         <LandingView onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)} onLogin={() => navigateTo(VIEWS.LOGIN)} />
@@ -187,6 +197,9 @@ export default function App() {
   }
 
   if (currentView === VIEWS.LOGIN) {
+    if (authEnabled && !authResolved) {
+      return <ViewLoader fullScreen />;
+    }
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
         <SplitLoginView
