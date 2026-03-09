@@ -8,7 +8,7 @@ import type { ContractRecord, Quote, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
-import { formatDistanceToNowSafe } from '../utils/date';
+import { formatDateTimeSafe } from '../utils/date';
 
 const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
   solutions: TICKET_STATUS.WAITING_BUDGET,
@@ -495,7 +495,7 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{solution.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} · Parecer emitido: {formatDistanceToNowSafe(solution.date)}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} · Parecer emitido: {formatDateTimeSafe(solution.date)}</p>
                 </div>
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
@@ -535,7 +535,7 @@ export function ApprovalsView() {
                     )}
                   </div>
                   <h3 className="text-xl font-serif text-roman-text-main">{budget.subject}</h3>
-                  <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDistanceToNowSafe(budget.date)}</p>
+                  <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDateTimeSafe(budget.date)}</p>
                   {(budget.macroServiceName || budget.serviceCatalogName) && (
                     <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                       {budget.macroServiceName && (
@@ -664,7 +664,7 @@ export function ApprovalsView() {
                         <div>
                           <div className="text-sm font-medium text-roman-text-main">{item.ticketId} · {item.subject}</div>
                           <div className="text-[11px] text-roman-text-sub">
-                            {item.vendor} · {item.sede} / {item.region} · {formatDistanceToNowSafe(item.date)}
+                            {item.vendor} · {item.sede} / {item.region} · {formatDateTimeSafe(item.date)}
                           </div>
                         </div>
                         <div className="text-right">
@@ -720,7 +720,7 @@ export function ApprovalsView() {
                       Sendo revisado por {contract.viewingBy}
                     </span>
                   )}
-                  <span className="text-xs text-stone-500 ml-auto">{formatDistanceToNowSafe(contract.date)}</span>
+                  <span className="text-xs text-stone-500 ml-auto">{formatDateTimeSafe(contract.date)}</span>
                 </div>
                 <h3 className="text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
                 <p className="text-sm text-stone-600 mb-4">Solicitante: {contract.requester} • Contratada: {contract.vendor}</p>

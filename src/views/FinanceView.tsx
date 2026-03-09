@@ -8,7 +8,7 @@ import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
 import { buildProcurementClassification } from '../utils/procurementClassification';
-import { formatDistanceToNowSafe } from '../utils/date';
+import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 interface MeasurementFormState {
@@ -851,7 +851,7 @@ export function FinanceView() {
                         </div>
                       )}
                       <p className="text-sm text-roman-text-sub">
-                        Fornecedor: {vendor} | Contrato: {contractValue} | Validacao: {formatDistanceToNowSafe(ticket.time)}
+                        Fornecedor: {vendor} | Contrato: {contractValue} | Validacao: {formatDateTimeSafe(ticket.time)}
                       </p>
                     </div>
 
@@ -1235,7 +1235,7 @@ export function FinanceView() {
                         <div>Laudos anexados: {closureDocuments.length}</div>
                         <div>Parcelas pendentes: {pendingInstallments.length}</div>
                         <div>Medições registradas: {measurements.length}</div>
-                        <div>Última atualização: {formatDistanceToNowSafe(ticket.time)}</div>
+                        <div>Última atualização: {formatDateTimeSafe(ticket.time)}</div>
                       </div>
                     </div>
                   </aside>

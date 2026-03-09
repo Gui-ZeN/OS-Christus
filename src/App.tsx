@@ -18,7 +18,7 @@ import {
 import { SidebarIcon } from './components/ui/SidebarIcon';
 import { useApp } from './context/AppContext';
 import { ViewState } from './types';
-import { formatDistanceToNowSafe } from './utils/date';
+import { formatDateTimeSafe } from './utils/date';
 
 const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
 const SettingsView = lazy(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
@@ -306,7 +306,7 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       {!notification.read && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>}
                       <span className={`text-xs font-serif italic ${isAlert ? 'text-red-700' : 'text-roman-text-sub'}`}>
-                        {formatDistanceToNowSafe(notification.time)}
+                        {formatDateTimeSafe(notification.time)}
                       </span>
                     </div>
                     <button
