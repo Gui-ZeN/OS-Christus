@@ -201,9 +201,47 @@ export default async function handler(req, res) {
       return sendJson(res, 200, { ok: true, id, authUid });
     }
 
-    res.setHeader('Allow', 'GET, POST, PATCH');
+    if (req.method === 'DELETE') {
+      const admin = await requireAdminUser(req);
+      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const body = await readJsonBody(req);
+      const id = String(body?.id || '').trim();
+      if (!id) {
+        return sendJson(res, 400, { ok: false, error: 'id é obrigatório.' });
+      }
+
+      const docRef = db.collection('users').doc(id);
+      const beforeSnap = await docRef.get();
+      if (!beforeSnap.exists) {
+        return sendJson(res, 404, { ok: false, error: 'Usuário não encontrado.' });
+      }
+
+      const before = { id: beforeSnap.id, ...beforeSnap.data() };
+      await deleteAuthUser(before.authUid || null, before.email || null);
+      await docRef.delete();
+
+      await writeAuditLog({
+        actor,
+        action: 'users.delete',
+        entity: 'user',
+        entityId: id,
+        before,
+        after: null,
+      });
+
+      return sendJson(res, 200, {
+        ok: true,
+        id,
+        deleted: {
+          firestoreUser: true,
+          firebaseAuth: Boolean(before.authUid || before.email),
+        },
+      });
+    }
+
+    res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
     return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de usuarios.' });
+    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de usuários.' });
   }
 }
