@@ -30,7 +30,7 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
     vendor: 'PowerTech Geradores',
     value: 'R$ 8.500,00',
     status: 'pending_signature',
-    viewingBy: 'Diretor Pedro',
+    viewingBy: 'Diretoria',
     signedFileName: null,
     items: [
       { id: 'item-1', description: 'Manutenção preventiva do gerador', unit: 'vb', quantity: 1, unitPrice: 'R$ 6.500,00', totalPrice: 'R$ 6.500,00' },
@@ -42,7 +42,7 @@ const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
     vendor: 'Decor Interiores',
     value: 'R$ 12.400,00',
     status: 'pending_signature',
-    viewingBy: 'Diretor Pedro',
+    viewingBy: 'Diretoria',
     signedFileName: null,
     items: [
       { id: 'item-1', description: 'Fornecimento e instalação de carpete', unit: 'm²', quantity: 80, unitPrice: 'R$ 120,00', totalPrice: 'R$ 9.600,00' },

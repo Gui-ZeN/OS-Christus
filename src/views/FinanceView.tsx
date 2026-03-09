@@ -259,6 +259,7 @@ export function FinanceView() {
   const { openAttachment, updateTicket, tickets, currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canPay = canAccess;
+  const actorLabel = currentUser?.role ? `${currentUser.name} (${currentUser.role})` : currentUser?.name || 'Financeiro';
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
@@ -651,7 +652,7 @@ export function FinanceView() {
             {
               id: crypto.randomUUID(),
               type: 'system',
-              sender: 'Rafael (Gestor)',
+              sender: actorLabel,
               time: new Date(),
               text: `Medição registrada: ${measurement.label} (${measurement.progressPercent}% executado, ${measurement.releasePercent}% para pagamento).`,
             },
@@ -957,7 +958,7 @@ export function FinanceView() {
                               value={measurementDraft.notes}
                               onChange={e => setMeasurementDraft(ticket.id, { notes: e.target.value })}
                               className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                              placeholder="Ex: relatório com fotos enviado ao Pedro para liberação."
+                              placeholder="Ex: relatório com fotos enviado para liberação."
                             />
                           </div>
                           <div className="md:col-span-2 flex justify-end">
