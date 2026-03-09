@@ -12,6 +12,7 @@ import { CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, Catalo
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
+import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
@@ -678,6 +679,7 @@ export function InboxView() {
     }, 0);
 
     try {
+      const now = new Date();
       const classification = buildProcurementClassification(activeTicket);
       const measurement: MeasurementRecord = {
         id: `measurement-${Date.now()}`,
@@ -686,9 +688,17 @@ export function InboxView() {
         releasePercent: newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0),
         status: newlyApproved.length > 0 ? 'approved' : 'pending',
         notes: progressUpdateForm.notes.trim(),
-        requestedAt: new Date(),
-        approvedAt: newlyApproved.length > 0 ? new Date() : null,
+        requestedAt: now,
+        approvedAt: newlyApproved.length > 0 ? now : null,
       };
+      const shouldMoveToValidation =
+        normalizedProgress >= 100 &&
+        activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
+        activeTicket.status !== TICKET_STATUS.CLOSED &&
+        activeTicket.status !== TICKET_STATUS.CANCELED;
+      const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
+      const nextClosureChecklist =
+        normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
       if (createdPlan) {
         for (const payment of nextPayments) {
           await savePayment(activeTicket.id, payment, classification);
@@ -702,12 +712,14 @@ export function InboxView() {
 
       setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPayments }));
       updateTicket(activeTicket.id, {
+        status: nextStatus,
+        closureChecklist: nextClosureChecklist,
         executionProgress: {
           paymentFlowParts: activeTicket.executionProgress.paymentFlowParts,
           currentPercent: normalizedProgress,
           releasedPercent,
-          startedAt: activeTicket.executionProgress.startedAt || activeTicket.preliminaryActions?.actualStartAt || new Date(),
-          lastUpdatedAt: new Date(),
+          startedAt: activeTicket.executionProgress.startedAt || activeTicket.preliminaryActions?.actualStartAt || now,
+          lastUpdatedAt: now,
         },
         history: [
           ...activeTicket.history,
@@ -715,20 +727,24 @@ export function InboxView() {
             id: crypto.randomUUID(),
             type: 'system',
             sender: displayActorLabel,
-            time: new Date(),
+            time: now,
             text:
-              newlyApproved.length > 0
-                ? `Andamento atualizado para ${normalizedProgress}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-                : `Andamento atualizado para ${normalizedProgress}%. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+              shouldMoveToValidation
+                ? `Andamento atualizado para ${normalizedProgress}%. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                : newlyApproved.length > 0
+                  ? `Andamento atualizado para ${normalizedProgress}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                  : `Andamento atualizado para ${normalizedProgress}%. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
           },
         ],
       });
 
       setShowProgressModal(false);
       setToast(
-        newlyApproved.length > 0
-          ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para o financeiro.`
-          : 'Andamento salvo sem nova liberação financeira.'
+        shouldMoveToValidation
+          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
+          : newlyApproved.length > 0
+            ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para o financeiro.`
+            : 'Andamento salvo sem nova liberação financeira.'
       );
       setTimeout(() => setToast(null), 3000);
     } finally {
@@ -739,27 +755,14 @@ export function InboxView() {
   const handleSendForValidation = () => {
     if (isSending) return;
     setIsSending(true);
+    const now = new Date();
     const item: HistoryItem = {
       id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
-      time: new Date(), text: 'Serviço concluído. Aguardando validação do solicitante.',
+      time: now, text: 'Serviço concluído. Aguardando validação do solicitante.',
     };
     updateTicket(activeTicket.id, {
       status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-      closureChecklist: {
-        requesterApproved: activeTicket.closureChecklist?.requesterApproved ?? false,
-        requesterApprovedBy: activeTicket.closureChecklist?.requesterApprovedBy || null,
-        requesterApprovedAt: activeTicket.closureChecklist?.requesterApprovedAt || null,
-        infrastructureApprovalPrimary: activeTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
-        infrastructureApprovalSecondary: activeTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
-        closureNotes: activeTicket.closureChecklist?.closureNotes || '',
-        serviceStartedAt:
-          activeTicket.closureChecklist?.serviceStartedAt ||
-          activeTicket.preliminaryActions?.actualStartAt ||
-          activeTicket.preliminaryActions?.plannedStartAt ||
-          null,
-        serviceCompletedAt: new Date(),
-        closedAt: activeTicket.closureChecklist?.closedAt || null,
-      },
+      closureChecklist: buildValidationClosureChecklist(activeTicket, now),
       history: [...activeTicket.history, item],
     });
     window.setTimeout(() => setIsSending(false), 500);
@@ -786,22 +789,7 @@ export function InboxView() {
 
     const nextClosureChecklist =
       statusDraft === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
-        ? {
-            requesterApproved: activeTicket.closureChecklist?.requesterApproved ?? false,
-            requesterApprovedBy: activeTicket.closureChecklist?.requesterApprovedBy || null,
-            requesterApprovedAt: activeTicket.closureChecklist?.requesterApprovedAt || null,
-            infrastructureApprovalPrimary: activeTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
-            infrastructureApprovalSecondary: activeTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
-            closureNotes: activeTicket.closureChecklist?.closureNotes || '',
-            serviceStartedAt:
-              activeTicket.closureChecklist?.serviceStartedAt ||
-              activeTicket.preliminaryActions?.actualStartAt ||
-              activeTicket.preliminaryActions?.plannedStartAt ||
-              null,
-            serviceCompletedAt: activeTicket.closureChecklist?.serviceCompletedAt || now,
-            closedAt: activeTicket.closureChecklist?.closedAt || null,
-            documents: activeTicket.closureChecklist?.documents || [],
-          }
+        ? buildValidationClosureChecklist(activeTicket, now)
         : activeTicket.closureChecklist;
 
     updateTicket(activeTicket.id, {

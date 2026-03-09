@@ -7,6 +7,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
+import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedPaymentValue, getApprovedReleasePercent, getNextMilestonePercent } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
@@ -253,6 +254,20 @@ function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?:
     guaranteeMonths: String(guarantee?.months || 12),
     closureNotes: closureChecklist?.closureNotes || '',
   };
+}
+
+function getFinalInstallmentBlockingReasons(closureDraft: ClosureFormState) {
+  const reasons: string[] = [];
+  const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
+
+  if (!closureDraft.requesterApproved) reasons.push('Solicitante ainda não confirmou a conclusão');
+  if (!closureDraft.infrastructureApprovalPrimary) reasons.push('Aprovação técnica 1 pendente');
+  if (!closureDraft.infrastructureApprovalSecondary) reasons.push('Aprovação técnica 2 pendente');
+  if (!closureDraft.serviceStartedAt) reasons.push('Início do serviço não informado');
+  if (!closureDraft.serviceCompletedAt) reasons.push('Término do serviço não informado');
+  if (!Number.isFinite(guaranteeMonths) || guaranteeMonths <= 0) reasons.push('Garantia inválida');
+
+  return reasons;
 }
 
 export function FinanceView() {
@@ -693,6 +708,7 @@ export function FinanceView() {
     const approvedValueAfter = getApprovedPaymentValue(nextPayments);
     const newlyReleasedValue = Math.max(0, approvedValueAfter - approvedValueBefore);
 
+    const now = new Date();
     const measurement: MeasurementRecord = {
       id: `measurement-${Date.now()}`,
       label: draft.label.trim() || `Andamento atualizado para ${normalizedProgress}%`,
@@ -700,9 +716,17 @@ export function FinanceView() {
       releasePercent: newlyReleasedPercent,
       status: newlyApproved.length > 0 ? 'approved' : 'pending',
       notes: draft.notes.trim(),
-      requestedAt: new Date(),
-      approvedAt: newlyApproved.length > 0 ? new Date() : null,
+      requestedAt: now,
+      approvedAt: newlyApproved.length > 0 ? now : null,
     };
+    const shouldMoveToValidation =
+      normalizedProgress >= 100 &&
+      targetTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
+      targetTicket.status !== TICKET_STATUS.CLOSED &&
+      targetTicket.status !== TICKET_STATUS.CANCELED;
+    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : targetTicket.status;
+    const nextClosureChecklist =
+      normalizedProgress >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
 
     setProcessingId(ticketId);
     try {
@@ -726,12 +750,14 @@ export function FinanceView() {
         [ticketId]: nextPayments,
       }));
       updateTicket(ticketId, {
+        status: nextStatus,
+        closureChecklist: nextClosureChecklist,
         executionProgress: {
           paymentFlowParts: targetTicket.executionProgress.paymentFlowParts,
           currentPercent: normalizedProgress,
           releasedPercent,
-          startedAt: targetTicket.executionProgress.startedAt || targetTicket.preliminaryActions?.actualStartAt || new Date(),
-          lastUpdatedAt: new Date(),
+          startedAt: targetTicket.executionProgress.startedAt || targetTicket.preliminaryActions?.actualStartAt || now,
+          lastUpdatedAt: now,
         },
         history: [
           ...targetTicket.history,
@@ -739,20 +765,24 @@ export function FinanceView() {
             id: crypto.randomUUID(),
             type: 'system',
             sender: actorLabel,
-            time: new Date(),
+            time: now,
             text:
-              newlyApproved.length > 0
-                ? `Andamento atualizado para ${measurement.progressPercent}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
-                : `Andamento atualizado para ${measurement.progressPercent}%. Nenhuma nova parcela foi liberada neste marco.`,
+              shouldMoveToValidation
+                ? `Andamento atualizado para ${measurement.progressPercent}%. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
+                : newlyApproved.length > 0
+                  ? `Andamento atualizado para ${measurement.progressPercent}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
+                  : `Andamento atualizado para ${measurement.progressPercent}%. Nenhuma nova parcela foi liberada neste marco.`,
           },
         ],
       });
       clearMeasurementDraft(ticketId);
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
       setToast(
-        newlyApproved.length > 0
-          ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para pagamento.`
-          : 'Andamento salvo sem liberar novas parcelas.'
+        shouldMoveToValidation
+          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
+          : newlyApproved.length > 0
+            ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para pagamento.`
+            : 'Andamento salvo sem liberar novas parcelas.'
       );
       setTimeout(() => setToast(null), 3000);
     } finally {
@@ -1190,13 +1220,31 @@ export function FinanceView() {
                       ) : (
                         <div className="space-y-3">
                           {payments.map(payment => (
+                            (() => {
+                              const pendingPaymentsForTicket = payments.filter(item => item.status !== 'paid');
+                              const isFinalInstallment = pendingPaymentsForTicket.length === 1 && pendingPaymentsForTicket[0].id === payment.id;
+                              const finalInstallmentBlockingReasons = isFinalInstallment ? getFinalInstallmentBlockingReasons(closureDraft) : [];
+                              const canConfirmPayment =
+                                canPay &&
+                                payment.status === 'approved' &&
+                                (!isFinalInstallment || finalInstallmentBlockingReasons.length === 0);
+
+                              return (
                             <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-                              <div>
+                              <div className="flex-1">
                                 <div className="text-sm font-medium text-roman-text-main">{payment.label || `Parcela ${payment.installmentNumber || 1}`}</div>
                                 <div className="text-xs text-roman-text-sub">
                                   {payment.value} | {payment.releasedPercent || 0}% da obra | libera em {payment.milestonePercent || payment.releasedPercent || 0}% | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
+                                {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
+                                  <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
+                                    <div className="font-medium">Última parcela bloqueada até concluir o encerramento:</div>
+                                    {finalInstallmentBlockingReasons.map(reason => (
+                                      <div key={reason}>- {reason}</div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                               <div className="flex items-center gap-3">
                                 <span className={`text-xs font-medium px-2 py-1 rounded-sm border ${
@@ -1210,13 +1258,15 @@ export function FinanceView() {
                                 </span>
                                 <button
                                   onClick={() => handlePayInstallment(ticket.id, payment)}
-                                  disabled={payment.status !== 'approved' || !canPay}
+                                  disabled={!canConfirmPayment}
                                   className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  <DollarSign size={15} /> {payment.status === 'approved' ? 'Confirmar' : 'Aguardando avanço'}
+                                  <DollarSign size={15} /> {payment.status !== 'approved' ? 'Aguardando avanço' : canConfirmPayment ? 'Confirmar' : 'Preencher checklist'}
                                 </button>
                               </div>
                             </div>
+                              );
+                            })()
                           ))}
                         </div>
                       )}
