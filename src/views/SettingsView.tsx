@@ -207,6 +207,30 @@ function IntegrationStatusCard({
   );
 }
 
+function FeedbackBanner({
+  tone,
+  children,
+}: {
+  tone: 'success' | 'error' | 'info';
+  children: React.ReactNode;
+}) {
+  const palette =
+    tone === 'success'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      : tone === 'error'
+        ? 'border-red-200 bg-red-50 text-red-700'
+        : 'border-stone-200 bg-stone-50 text-roman-text-sub';
+
+  const Icon = tone === 'success' ? CheckCircle : tone === 'error' ? AlertCircle : Database;
+
+  return (
+    <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${palette}`}>
+      <Icon size={16} className="mt-0.5 shrink-0" />
+      <div>{children}</div>
+    </div>
+  );
+}
+
 export function SettingsView() {
   const { currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin';
@@ -705,17 +729,17 @@ export function SettingsView() {
                       <div className="rounded-[1.5rem] border border-amber-200/70 bg-amber-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
                         <div className="text-lg font-serif text-roman-text-main">Usuários e papéis</div>
-                        <p className="mt-2 text-sm text-roman-text-sub">Cadastro, edição, exclusão e vínculo por região e sede.</p>
+                        <p className="mt-2 text-sm text-roman-text-sub">Cadastre acessos, ajuste perfis e mantenha a estrutura territorial vinculada.</p>
                       </div>
                       <div className="rounded-[1.5rem] border border-sky-200/70 bg-sky-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
                         <div className="text-lg font-serif text-roman-text-main">Firebase Auth</div>
-                        <p className="mt-2 text-sm text-roman-text-sub">A conta do usuário acompanha o cadastro e o status operacional.</p>
+                        <p className="mt-2 text-sm text-roman-text-sub">O cadastro acompanha autenticação, status e ciclo de acesso ao sistema.</p>
                       </div>
                       <div className="rounded-[1.5rem] border border-emerald-200/70 bg-emerald-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
                         <div className="text-lg font-serif text-roman-text-main">Regiões e sedes</div>
-                        <p className="mt-2 text-sm text-roman-text-sub">Supervisores e usuários enxergam apenas a estrutura vinculada.</p>
+                        <p className="mt-2 text-sm text-roman-text-sub">Cada perfil enxerga apenas a malha operacional vinculada ao seu cadastro.</p>
                       </div>
                     </div>
 
@@ -743,19 +767,10 @@ export function SettingsView() {
                       </button>
                     </div>
 
-                    {catalogError && (
-                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        {catalogError}
-                      </div>
-                    )}
-
-                    {catalogSaved && (
-                      <div className="mb-4 p-4 border border-green-200 bg-green-50 text-green-700 rounded-sm flex items-center gap-2">
-                        <CheckCircle size={16} />
-                        {catalogSaved}
-                      </div>
-                    )}
+                    <div className="mb-4 space-y-3">
+                      {catalogError && <FeedbackBanner tone="error">{catalogError}</FeedbackBanner>}
+                      {catalogSaved && <FeedbackBanner tone="success">{catalogSaved}</FeedbackBanner>}
+                    </div>
 
                     {catalogLoading ? (
                       <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
@@ -828,7 +843,10 @@ export function SettingsView() {
 
                 {section === 'templates' && (
                   <>
-                    <h2 className="mb-6 font-serif text-xl font-medium text-roman-text-main">Templates de Comunicação</h2>
+                    <div className="mb-6">
+                      <h2 className="font-serif text-xl font-medium text-roman-text-main">Templates de comunicação</h2>
+                      <p className="mt-1 text-sm text-roman-text-sub">Edite o texto usado nas notificações de cada etapa e valide o tom antes do disparo.</p>
+                    </div>
                     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
                       <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
                         <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Gatilhos</div>
@@ -922,10 +940,10 @@ export function SettingsView() {
 
                 {section === 'daily-digest' && (
                   <>
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="mb-6 flex items-center justify-between">
                       <div>
-                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Resumo Diário Automático</h2>
-                        <p className="text-xs text-roman-text-sub font-serif italic mt-1">E-mail gerado pelo cron toda manhã.</p>
+                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Resumo diário</h2>
+                        <p className="mt-1 text-sm text-roman-text-sub">Consolidado enviado automaticamente com o panorama operacional do dia.</p>
                       </div>
 
                       <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1002,7 +1020,10 @@ export function SettingsView() {
 
                 {section === 'sla' && (
                   <>
-                    <h2 className="font-serif text-xl font-medium text-roman-text-main mb-6">Regras de SLA</h2>
+                    <div className="mb-6">
+                      <h2 className="font-serif text-xl font-medium text-roman-text-main">Regras de SLA</h2>
+                      <p className="mt-1 text-sm text-roman-text-sub">Ajuste os prazos por prioridade para manter alertas, filas e dashboards coerentes.</p>
+                    </div>
                     <div className="space-y-5">
                       {(sla.rules || []).map(rule => (
                         <div key={rule.priority} className="flex items-center justify-between rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
@@ -1052,19 +1073,10 @@ export function SettingsView() {
                       </button>
                     </div>
 
-                    {catalogError && (
-                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        {catalogError}
-                      </div>
-                    )}
-
-                    {catalogSaved && (
-                      <div className="mb-4 p-4 border border-green-200 bg-green-50 text-green-700 rounded-sm flex items-center gap-2">
-                        <CheckCircle size={16} />
-                        {catalogSaved}
-                      </div>
-                    )}
+                    <div className="mb-4 space-y-3">
+                      {catalogError && <FeedbackBanner tone="error">{catalogError}</FeedbackBanner>}
+                      {catalogSaved && <FeedbackBanner tone="success">{catalogSaved}</FeedbackBanner>}
+                    </div>
 
                     {catalogLoading ? (
                       <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
@@ -1302,31 +1314,23 @@ export function SettingsView() {
                       </div>
                     </div>
 
-                    {integrationsError && (
-                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        {integrationsError}
-                      </div>
-                    )}
-
-                    {backfillError && (
-                      <div className="mb-4 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        {backfillError}
-                      </div>
-                    )}
-
-                    {backfillResult && (
-                      <div className="mb-4 p-4 border border-green-200 bg-green-50 text-green-800 rounded-sm">
-                        <div className="font-medium mb-2">Backfill executado com sucesso</div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <div>Usuários: {backfillResult.updatedUsers}</div>
-                          <div>Tickets: {backfillResult.updatedTickets}</div>
-                          <div>Notificações: {backfillResult.updatedNotifications}</div>
-                          <div>SLA: {backfillResult.updatedSla}</div>
-                        </div>
-                      </div>
-                    )}
+                    <div className="mb-4 space-y-3">
+                      {integrationsError && <FeedbackBanner tone="error">{integrationsError}</FeedbackBanner>}
+                      {backfillError && <FeedbackBanner tone="error">{backfillError}</FeedbackBanner>}
+                      {backfillResult && (
+                        <FeedbackBanner tone="success">
+                          <div>
+                            <div className="font-medium">Backfill executado com sucesso.</div>
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                              <div>Usuários: {backfillResult.updatedUsers}</div>
+                              <div>Tickets: {backfillResult.updatedTickets}</div>
+                              <div>Notificações: {backfillResult.updatedNotifications}</div>
+                              <div>SLA: {backfillResult.updatedSla}</div>
+                            </div>
+                          </div>
+                        </FeedbackBanner>
+                      )}
+                    </div>
 
                     {integrationsLoading && (
                       <div className="py-10 text-center text-roman-text-sub flex items-center justify-center gap-3">

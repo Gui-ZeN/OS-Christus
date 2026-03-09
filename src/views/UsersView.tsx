@@ -203,9 +203,9 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
         <header className="flex justify-between items-end mb-8 border-b border-roman-border pb-4 gap-4">
           <div>
             <h1 className={`${embedded ? 'text-2xl' : 'text-3xl'} font-serif font-medium text-roman-text-main mb-2`}>Usuários</h1>
-            <p className="text-roman-text-sub font-serif italic">Gestão de acesso por papel, região e sede.</p>
+            <p className="text-roman-text-sub font-serif italic">Controle de acesso por perfil, região e sede vinculada.</p>
           </div>
-          <button onClick={openNew} disabled={!canManageUsers} className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-2 rounded-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={openNew} disabled={!canManageUsers} className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
             <Plus size={16} /> Novo Usuário
           </button>
         </header>
@@ -218,27 +218,36 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             </div>
           ) : (
             embedded ? (
-              <div className="space-y-5 bg-[linear-gradient(180deg,rgba(245,241,233,0.45),rgba(255,255,255,0.98))] p-6">
+              <div className="space-y-5 bg-stone-50/70 p-6">
                 <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-2xl border border-amber-200/70 bg-white px-4 py-4">
+                  <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
-                    <div className="mt-2 text-3xl font-serif text-roman-text-main">{userStats.total}</div>
+                    <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.total}</div>
                   </div>
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
-                    <div className="mt-2 text-3xl font-serif text-emerald-900">{userStats.active}</div>
+                    <div className="mt-2 text-2xl font-serif text-emerald-900">{userStats.active}</div>
                   </div>
-                  <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                  <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-stone-600">Inativos</div>
-                    <div className="mt-2 text-3xl font-serif text-stone-800">{userStats.inactive}</div>
+                    <div className="mt-2 text-2xl font-serif text-stone-800">{userStats.inactive}</div>
                   </div>
-                  <div className="rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-4">
+                  <div className="rounded-2xl border border-sky-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
-                    <div className="mt-2 text-3xl font-serif text-sky-900">{userStats.multiSite}</div>
+                    <div className="mt-2 text-2xl font-serif text-sky-900">{userStats.multiSite}</div>
                   </div>
                 </div>
 
                 <div className="overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white">
+                  <div className="flex items-center justify-between gap-4 border-b border-stone-200 px-5 py-4">
+                    <div>
+                      <div className="text-sm font-medium text-roman-text-main">Base de acessos</div>
+                      <div className="mt-1 text-xs text-roman-text-sub">Lista administrativa com vínculo territorial e status operacional.</div>
+                    </div>
+                    <div className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-roman-text-sub">
+                      {users.length} registro(s)
+                    </div>
+                  </div>
                   <div className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-roman-text-sub">
                     <div>Usuário</div>
                     <div>Papel</div>
@@ -247,20 +256,25 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                     <div className="text-right">Ações</div>
                   </div>
                   <div className="divide-y divide-stone-200">
+                  {users.length === 0 && (
+                    <div className="px-5 py-10 text-center text-sm text-roman-text-sub">
+                      Nenhum usuário cadastrado até o momento.
+                    </div>
+                  )}
                   {users.map(user => {
                     const userRegions = (user.regionIds || []).map(regionId => regionMap.get(regionId)?.code || regionId).filter(Boolean);
                     const userSites = (user.siteIds || []).map(siteId => siteMap.get(siteId)?.code || siteId).filter(Boolean);
                     return (
-                      <div key={user.id} className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 px-5 py-4 text-sm">
+                      <div key={user.id} className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 px-5 py-4 text-sm hover:bg-stone-50/70">
                         <div className="min-w-0">
                           <div className="font-semibold text-roman-text-main">{user.name}</div>
                           <p className="mt-1 break-all text-roman-text-sub">{user.email}</p>
                         </div>
                         <div className="flex items-start">
-                          <span className="rounded-full bg-roman-primary/10 px-3 py-1 text-xs font-medium text-roman-primary">{user.role || '-'}</span>
+                          <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-roman-text-main">{user.role || '-'}</span>
                         </div>
                         <div className="text-roman-text-sub">
-                          <div>{userRegions.length > 0 ? userRegions.join(', ') : 'Sem região'}</div>
+                          <div>{userRegions.length > 0 ? userRegions.join(', ') : 'Sem região vinculada'}</div>
                           <div className="mt-1 text-xs">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
                         </div>
                         <div className="flex items-start">
@@ -338,36 +352,39 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
 
       {modalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">{editingId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
+            <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-5 py-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">{editingId ? 'Edição' : 'Cadastro'}</div>
+                <h3 className="mt-2 font-serif text-xl text-roman-text-main">{editingId ? 'Editar usuário' : 'Novo usuário'}</h3>
+              </div>
               <button onClick={() => setModalOpen(false)} className="text-roman-text-sub hover:text-roman-text-main">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 space-y-6 overflow-y-auto">
+            <div className="space-y-6 overflow-y-auto p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Nome</label>
-                  <input type="text" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                  <input type="text" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail</label>
-                  <input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                  <input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha inicial'}</label>
-                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Mínimo de 6 caracteres'} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Mínimo de 6 caracteres'} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessária para criar o acesso no Firebase Auth.'}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Papel</label>
-                  <select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary">
+                  <select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     {ROLE_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -376,7 +393,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Status</label>
-                  <select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))} className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary">
+                  <select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     <option value="Ativo">Ativo</option>
                     <option value="Inativo">Inativo</option>
                   </select>
@@ -428,9 +445,9 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-4 border-t border-roman-border bg-roman-bg">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-surface rounded-sm font-medium transition-colors text-sm">Cancelar</button>
-              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <div className="flex justify-end gap-3 border-t border-stone-200 bg-stone-50 px-5 py-4">
+              <button onClick={() => setModalOpen(false)} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-white">Cancelar</button>
+              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
                 {editingId ? 'Salvar alterações' : 'Criar usuário'}
               </button>
