@@ -240,6 +240,9 @@ export function SettingsView() {
   const [templateSaved, setTemplateSaved] = useState(false);
   const [digestSaved, setDigestSaved] = useState(false);
   const [slaSaved, setSlaSaved] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [digestSaving, setDigestSaving] = useState(false);
+  const [slaSaving, setSlaSaving] = useState(false);
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [backfillLoading, setBackfillLoading] = useState(false);
@@ -255,6 +258,7 @@ export function SettingsView() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogSaved, setCatalogSaved] = useState<string | null>(null);
   const [catalogDeleting, setCatalogDeleting] = useState(false);
+  const [catalogSavingEntity, setCatalogSavingEntity] = useState<null | 'regions' | 'sites' | 'macroServices' | 'serviceCatalog' | 'materials'>(null);
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [macroServices, setMacroServices] = useState<CatalogMacroService[]>([]);
@@ -344,6 +348,7 @@ export function SettingsView() {
 
   const handleSaveTemplate = async () => {
     if (!canEditSettings) return;
+    setTemplateSaving(true);
     try {
       await saveSettings('emailTemplates', template);
       setEmailTemplatesCatalog(current =>
@@ -353,6 +358,8 @@ export function SettingsView() {
       );
     } catch {
       // Mantém feedback local mesmo se a API não estiver disponível.
+    } finally {
+      setTemplateSaving(false);
     }
     setTemplateSaved(true);
     setTimeout(() => setTemplateSaved(false), 3000);
@@ -360,10 +367,13 @@ export function SettingsView() {
 
   const handleSaveDigest = async () => {
     if (!canEditSettings) return;
+    setDigestSaving(true);
     try {
       await saveSettings('dailyDigest', digest);
     } catch {
       // Mantém feedback local mesmo se a API não estiver disponível.
+    } finally {
+      setDigestSaving(false);
     }
     setDigestSaved(true);
     setTimeout(() => setDigestSaved(false), 3000);
@@ -371,10 +381,13 @@ export function SettingsView() {
 
   const handleSaveSla = async () => {
     if (!canEditSettings) return;
+    setSlaSaving(true);
     try {
       await saveSettings('sla', sla);
     } catch {
       // Mantém feedback local mesmo se a API não estiver disponível.
+    } finally {
+      setSlaSaving(false);
     }
     setSlaSaved(true);
     setTimeout(() => setSlaSaved(false), 3000);
@@ -396,6 +409,7 @@ export function SettingsView() {
   };
 
   const handleSaveMacroService = async () => {
+    setCatalogSavingEntity('macroServices');
     try {
       const catalog = await saveCatalogEntry('macroServices', macroDraft);
       setRegions(catalog.regions);
@@ -409,10 +423,13 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar macroserviço.');
+    } finally {
+      setCatalogSavingEntity(null);
     }
   };
 
   const handleSaveService = async () => {
+    setCatalogSavingEntity('serviceCatalog');
     try {
       const catalog = await saveCatalogEntry('serviceCatalog', serviceDraft);
       setRegions(catalog.regions);
@@ -426,10 +443,13 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar serviço.');
+    } finally {
+      setCatalogSavingEntity(null);
     }
   };
 
   const handleSaveMaterial = async () => {
+    setCatalogSavingEntity('materials');
     try {
       const catalog = await saveCatalogEntry('materials', materialDraft);
       setRegions(catalog.regions);
@@ -443,10 +463,13 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar material.');
+    } finally {
+      setCatalogSavingEntity(null);
     }
   };
 
   const handleSaveRegion = async () => {
+    setCatalogSavingEntity('regions');
     try {
       const catalog = await saveCatalogEntry('regions', regionDraft);
       setRegions(catalog.regions);
@@ -460,10 +483,13 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar região.');
+    } finally {
+      setCatalogSavingEntity(null);
     }
   };
 
   const handleSaveSite = async () => {
+    setCatalogSavingEntity('sites');
     try {
       const catalog = await saveCatalogEntry('sites', siteDraft);
       setRegions(catalog.regions);
@@ -477,6 +503,8 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar sede.');
+    } finally {
+      setCatalogSavingEntity(null);
     }
   };
 
@@ -802,7 +830,10 @@ export function SettingsView() {
                           <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_auto]">
                             <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
                             <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <button onClick={() => void handleSaveRegion()} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800">{regionDraft.id ? 'Salvar' : 'Criar'}</button>
+                            <button onClick={() => void handleSaveRegion()} disabled={catalogSavingEntity === 'regions'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60">
+                              {catalogSavingEntity === 'regions' ? <Loader2 size={14} className="animate-spin" /> : null}
+                              {catalogSavingEntity === 'regions' ? 'Salvando...' : regionDraft.id ? 'Salvar' : 'Criar'}
+                            </button>
                           </div>
                         </section>
 
@@ -833,7 +864,10 @@ export function SettingsView() {
                               <option value="">Selecione a região</option>
                               {regions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
-                            <button onClick={() => void handleSaveSite()} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800">{siteDraft.id ? 'Salvar' : 'Criar'}</button>
+                            <button onClick={() => void handleSaveSite()} disabled={catalogSavingEntity === 'sites'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60">
+                              {catalogSavingEntity === 'sites' ? <Loader2 size={14} className="animate-spin" /> : null}
+                              {catalogSavingEntity === 'sites' ? 'Salvando...' : siteDraft.id ? 'Salvar' : 'Criar'}
+                            </button>
                           </div>
                         </section>
                       </div>
@@ -922,11 +956,16 @@ export function SettingsView() {
                         <div className="mt-5 flex justify-end">
                           <button
                             onClick={() => void handleSaveTemplate()}
+                            disabled={templateSaving}
                             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
                               templateSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
                             }`}
                           >
-                            {templateSaved ? (
+                            {templateSaving ? (
+                              <>
+                                <Loader2 size={15} className="animate-spin" /> Salvando...
+                              </>
+                            ) : templateSaved ? (
                               <>
                                 <CheckCircle size={15} /> Template salvo
                               </>
@@ -1005,11 +1044,16 @@ export function SettingsView() {
                         <p className="text-xs text-roman-text-sub font-serif italic">Configuração do resumo diário persistida no Firestore.</p>
                         <button
                           onClick={() => void handleSaveDigest()}
+                          disabled={digestSaving}
                           className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
                             digestSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
                           }`}
                         >
-                          {digestSaved ? (
+                          {digestSaving ? (
+                            <>
+                              <Loader2 size={15} className="animate-spin" /> Salvando...
+                            </>
+                          ) : digestSaved ? (
                             <>
                               <CheckCircle size={15} /> Resumo salvo
                             </>
@@ -1042,11 +1086,16 @@ export function SettingsView() {
                         </p>
                         <button
                           onClick={() => void handleSaveSla()}
+                          disabled={slaSaving}
                           className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
                             slaSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
                           }`}
                         >
-                          {slaSaved ? (
+                          {slaSaving ? (
+                            <>
+                              <Loader2 size={15} className="animate-spin" /> Salvando...
+                            </>
+                          ) : slaSaved ? (
                             <>
                               <CheckCircle size={15} /> Regras salvas
                             </>
@@ -1122,9 +1171,11 @@ export function SettingsView() {
                               />
                               <button
                                 onClick={() => void handleSaveMacroService()}
-                                className="w-full rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                                disabled={catalogSavingEntity === 'macroServices'}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                Salvar Macroserviço
+                                {catalogSavingEntity === 'macroServices' ? <Loader2 size={14} className="animate-spin" /> : null}
+                                {catalogSavingEntity === 'macroServices' ? 'Salvando...' : 'Salvar macroserviço'}
                               </button>
                             </div>
                           </section>
@@ -1193,9 +1244,11 @@ export function SettingsView() {
                               </div>
                               <button
                                 onClick={() => void handleSaveService()}
-                                className="w-full rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                                disabled={catalogSavingEntity === 'serviceCatalog'}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                Salvar Serviço
+                                {catalogSavingEntity === 'serviceCatalog' ? <Loader2 size={14} className="animate-spin" /> : null}
+                                {catalogSavingEntity === 'serviceCatalog' ? 'Salvando...' : 'Salvar serviço'}
                               </button>
                             </div>
                           </section>
@@ -1237,9 +1290,11 @@ export function SettingsView() {
                               />
                               <button
                                 onClick={() => void handleSaveMaterial()}
-                                className="w-full rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                                disabled={catalogSavingEntity === 'materials'}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                Salvar Material
+                                {catalogSavingEntity === 'materials' ? <Loader2 size={14} className="animate-spin" /> : null}
+                                {catalogSavingEntity === 'materials' ? 'Salvando...' : 'Salvar material'}
                               </button>
                             </div>
                           </section>
