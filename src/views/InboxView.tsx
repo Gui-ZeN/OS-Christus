@@ -980,7 +980,7 @@ export function InboxView() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-[18px] font-semibold tracking-wide text-roman-text-main">Fila de Triagem</h2>
+                <h2 className="font-serif text-[18px] font-semibold tracking-wide text-roman-text-main">Caixa de Entrada</h2>
                 <ChevronDown size={16} className="text-roman-text-sub" />
               </div>
               <p className="text-xs text-roman-text-sub mt-1">Responsável atual: {displayActor}</p>
@@ -1020,19 +1020,34 @@ export function InboxView() {
         </div>
 
         {/* Toolbar */}
-        <div className="p-3 border-b border-roman-border bg-roman-bg/50 grid grid-cols-1 gap-2">
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.NEW] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.NEW) && inboxFilter.status.length === 1 ? 'border-amber-300 bg-amber-50 text-amber-900 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]' : 'border-roman-border hover:bg-amber-50/60 hover:border-amber-200 text-roman-text-sub'}`}>
-            Novas OS ({tickets.filter(t => t.status === TICKET_STATUS.NEW).length})
-          </button>
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.WAITING_BUDGET] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.WAITING_BUDGET) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Aguardando orçamento ({tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length})
-          </button>
-          <button onClick={() => setInboxFilter({ ...inboxFilter, status: [TICKET_STATUS.IN_PROGRESS] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.includes(TICKET_STATUS.IN_PROGRESS) && inboxFilter.status.length === 1 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Em execução ({tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length})
-          </button>
-          <button onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })} className={`border rounded-sm px-3 py-2 text-left transition-colors font-medium ${inboxFilter.status.length === 0 && inboxFilter.priority.length === 0 && inboxFilter.region.length === 0 && inboxFilter.type.length === 0 ? 'border-roman-primary/50 bg-roman-primary/10 text-roman-primary' : 'border-roman-border hover:bg-roman-border-light text-roman-text-sub'}`}>
-            Limpar filtros
-          </button>
+        <div className="p-3 border-b border-roman-border bg-roman-bg/50">
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <select
+                value={inboxFilter.status.length === 1 ? inboxFilter.status[0] : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInboxFilter({
+                    ...inboxFilter,
+                    status: value ? [value] : [],
+                  });
+                }}
+                className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
+              >
+                <option value="">Todos os status</option>
+                <option value={TICKET_STATUS.NEW}>Novas OS ({tickets.filter(t => t.status === TICKET_STATUS.NEW).length})</option>
+                <option value={TICKET_STATUS.WAITING_BUDGET}>Aguardando orçamento ({tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length})</option>
+                <option value={TICKET_STATUS.IN_PROGRESS}>Em execução ({tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length})</option>
+              </select>
+              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+            </div>
+            <button
+              onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })}
+              className="shrink-0 rounded-sm border border-roman-border px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
+            >
+              Limpar
+            </button>
+          </div>
         </div>
 
         {/* Z7: Active Filter Chips */}
