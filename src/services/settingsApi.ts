@@ -6,6 +6,13 @@ export interface EmailTemplateSettings {
   body: string;
 }
 
+export interface SettingsPayload {
+  emailTemplate: EmailTemplateSettings;
+  emailTemplates: EmailTemplateSettings[];
+  dailyDigest: DailyDigestSettings;
+  sla: SlaSettings;
+}
+
 export interface DailyDigestSettings {
   enabled: boolean;
   time: string;
@@ -45,7 +52,7 @@ function normalizeSlaSettings(value: unknown): SlaSettings {
   };
 }
 
-export async function fetchSettings() {
+export async function fetchSettings(): Promise<SettingsPayload> {
   const response = await fetch('/api/settings', {
     headers: await getAuthenticatedActorHeaders(),
   });
@@ -58,6 +65,7 @@ export async function fetchSettings() {
   }
   return {
     emailTemplate: json.emailTemplate as EmailTemplateSettings,
+    emailTemplates: Array.isArray(json.emailTemplates) ? (json.emailTemplates as EmailTemplateSettings[]) : [],
     dailyDigest: json.dailyDigest as DailyDigestSettings,
     sla: normalizeSlaSettings(json.sla),
   };

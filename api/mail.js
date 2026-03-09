@@ -1,7 +1,8 @@
-import { FieldValue } from 'firebase-admin/firestore';
+﻿import { FieldValue } from 'firebase-admin/firestore';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
+import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { gmailGetMessage, gmailGetProfile, gmailListRecentInbox, gmailSend } from './_lib/gmail.js';
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
@@ -42,6 +43,29 @@ function normalizeHeaders(rawHeaders) {
   return result;
 }
 
+function readPathValue(source, path) {
+  return String(path || '')
+    .split('.')
+    .filter(Boolean)
+    .reduce((current, key) => (current && typeof current === 'object' ? current[key] : undefined), source);
+}
+
+function renderTemplateString(template, variables) {
+  return String(template || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+    const value = readPathValue(variables, path);
+    return value == null ? '' : String(value);
+  });
+}
+
+async function resolveEmailTemplate(db, trigger) {
+  const normalized = String(trigger || '').trim();
+  if (!normalized) return null;
+
+  const snap = await db.collection('settings').doc('emailTemplates').collection('items').doc(normalized).get();
+  if (snap.exists) return snap.data();
+  return DEFAULT_SETTINGS.emailTemplates.items[normalized] || null;
+}
+
 async function handleSend(req, res) {
   let ticketIdForLog = null;
   let toEmailForLog = null;
@@ -64,28 +88,33 @@ async function handleSend(req, res) {
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
     const templateId = body.templateId ? String(body.templateId) : null;
+    const trigger = body.trigger ? String(body.trigger) : null;
     const templateData = body.templateData && typeof body.templateData === 'object' ? body.templateData : {};
+    const variables = body.variables && typeof body.variables === 'object' ? body.variables : {};
     const trackingToken = body.trackingToken ? String(body.trackingToken) : null;
 
-    if (!templateId && !text && !html) {
-      throw new Error('Informe text/html ou templateId para envio.');
+    if (!templateId && !trigger && !text && !html) {
+      throw new Error('Informe text, html, templateId ou trigger para envio.');
     }
+
+    const db = getAdminDb();
+    const storedTemplate = await resolveEmailTemplate(db, trigger);
+    const resolvedSubject = storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject;
+    const resolvedBody = storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text;
 
     const fallbackTemplate = buildTicketEmailTemplate({
       title: templateData.title || `Atualização da OS ${ticketId}`,
       intro: templateData.intro || 'Sua solicitação recebeu uma nova atualização.',
       ticketId,
-      subject: templateData.ticketSubject || subject,
+      subject: templateData.ticketSubject || resolvedSubject,
       status: templateData.status || 'Atualizada',
       ctaUrl: templateData.ctaUrl || null,
       ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
-      bodyText: text || templateData.bodyText || '',
+      bodyText: resolvedBody || templateData.bodyText || '',
     });
 
-    const finalText = text || fallbackTemplate.text;
+    const finalText = resolvedBody || text || fallbackTemplate.text;
     const finalHtml = html || fallbackTemplate.html;
-
-    const db = getAdminDb();
     const threadRef = db.collection('emailThreads').doc(ticketId);
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
@@ -112,7 +141,7 @@ async function handleSend(req, res) {
       provider === 'gmail'
         ? await gmailSend({
             toEmail,
-            subject,
+            subject: resolvedSubject,
             text: finalText,
             html: finalHtml,
             inReplyTo: priorMessageId || undefined,
@@ -122,7 +151,7 @@ async function handleSend(req, res) {
           })
         : await sendWithSendGrid({
             toEmail,
-            subject,
+            subject: resolvedSubject,
             text: finalText,
             html: finalHtml,
             templateId,
@@ -152,10 +181,11 @@ async function handleSend(req, res) {
     await threadRef.collection('messages').add({
       direction: 'outbound',
       toEmail,
-      subject,
+      subject: resolvedSubject,
       text: finalText || null,
       html: finalHtml || null,
       templateId: templateId || null,
+      trigger: trigger || null,
       messageId,
       inReplyTo: priorMessageId,
       references: mergedReferences,
@@ -169,7 +199,7 @@ async function handleSend(req, res) {
       provider,
       ticketId,
       toEmail,
-      subject,
+      subject: resolvedSubject,
       messageId,
     });
 
@@ -446,7 +476,7 @@ async function handleInbound(req, res) {
       direction: 'inbound',
       fromEmail: fromEmail || null,
       toEmail: toEmail || null,
-      subject,
+      subject: subject,
       text: text || null,
       html: html || null,
       messageId,
@@ -459,7 +489,7 @@ async function handleInbound(req, res) {
     await db.collection('ticketInbound').add({
       ticketId,
       fromEmail: fromEmail || null,
-      subject,
+      subject: subject,
       text: text || null,
       html: html || null,
       createdAt: now,
@@ -472,7 +502,7 @@ async function handleInbound(req, res) {
       provider: 'sendgrid',
       ticketId,
       fromEmail: fromEmail || null,
-      subject,
+      subject: subject,
       messageId,
     });
 
@@ -499,3 +529,4 @@ export default async function handler(req, res) {
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota de mail inválida.' });
 }
+

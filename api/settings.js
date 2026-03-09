@@ -32,34 +32,46 @@ function normalizeSla(data) {
 async function ensureDefaults(db) {
   const batch = db.batch();
   const now = new Date();
-  const entries = [
-    ['emailTemplates', 'default', DEFAULT_SETTINGS.emailTemplates.default],
-    ['dailyDigest', 'default', DEFAULT_SETTINGS.dailyDigest.default],
-    ['sla', 'default', DEFAULT_SETTINGS.sla.default],
-  ];
 
-  for (const [collectionName, docId, value] of entries) {
+  for (const value of Object.values(DEFAULT_SETTINGS.emailTemplates.items)) {
     batch.set(
-      db.collection('settings').doc(collectionName).collection('items').doc(docId),
+      db.collection('settings').doc('emailTemplates').collection('items').doc(value.trigger),
       { ...value, updatedAt: now, createdAt: now },
       { merge: true }
     );
   }
 
+  batch.set(
+    db.collection('settings').doc('dailyDigest').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.dailyDigest.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
+  batch.set(
+    db.collection('settings').doc('sla').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.sla.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
+
   await batch.commit();
 }
 
 async function readSettings(db) {
-  const refs = await Promise.all([
-    db.collection('settings').doc('emailTemplates').collection('items').doc('default').get(),
+  const [templatesSnap, digestSnap, slaSnap] = await Promise.all([
+    db.collection('settings').doc('emailTemplates').collection('items').get(),
     db.collection('settings').doc('dailyDigest').collection('items').doc('default').get(),
     db.collection('settings').doc('sla').collection('items').doc('default').get(),
   ]);
 
+  const emailTemplates = templatesSnap.docs
+    .map(doc => doc.data())
+    .filter(Boolean)
+    .sort((a, b) => String(a.trigger || '').localeCompare(String(b.trigger || ''), 'pt-BR'));
+
   return {
-    emailTemplate: refs[0].exists ? refs[0].data() : null,
-    dailyDigest: refs[1].exists ? refs[1].data() : null,
-    sla: refs[2].exists ? normalizeSla(refs[2].data()) : null,
+    emailTemplate: emailTemplates[0] || null,
+    emailTemplates,
+    dailyDigest: digestSnap.exists ? digestSnap.data() : null,
+    sla: slaSnap.exists ? normalizeSla(slaSnap.data()) : null,
   };
 }
 
@@ -70,7 +82,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       await requireAdminUser(req);
       let settings = await readSettings(db);
-      if (!settings.emailTemplate || !settings.dailyDigest || !settings.sla) {
+      if (!settings.emailTemplates?.length || !settings.dailyDigest || !settings.sla) {
         await ensureDefaults(db);
         settings = await readSettings(db);
       }
@@ -83,26 +95,33 @@ export default async function handler(req, res) {
       const body = await readJsonBody(req);
       const section = String(body?.section || '').trim();
       const data = body?.data;
+
       if (!section || !data) {
-        return sendJson(res, 400, { ok: false, error: 'section e data sao obrigatorios.' });
+        return sendJson(res, 400, { ok: false, error: 'section e data são obrigatórios.' });
       }
 
-      const allowed = ['emailTemplates', 'dailyDigest', 'sla'];
-      if (!allowed.includes(section)) {
-        return sendJson(res, 400, { ok: false, error: 'section invalida.' });
+      if (!['emailTemplates', 'dailyDigest', 'sla'].includes(section)) {
+        return sendJson(res, 400, { ok: false, error: 'section inválida.' });
       }
 
       const normalizedData = section === 'sla' ? normalizeSla(data) : data;
-      const docRef = db.collection('settings').doc(section).collection('items').doc('default');
+      const docId = section === 'emailTemplates' ? String(normalizedData?.trigger || '').trim() : 'default';
+
+      if (section === 'emailTemplates' && !docId) {
+        return sendJson(res, 400, { ok: false, error: 'trigger é obrigatório para templates.' });
+      }
+
+      const docRef = db.collection('settings').doc(section).collection('items').doc(docId);
       const beforeSnap = await docRef.get();
       const before = beforeSnap.exists ? beforeSnap.data() : null;
+
       await docRef.set({ ...normalizedData, updatedAt: new Date() }, { merge: true });
 
       await writeAuditLog({
         actor,
         action: 'settings.update',
         entity: 'settings',
-        entityId: section,
+        entityId: section === 'emailTemplates' ? docId : section,
         before,
         after: normalizedData,
       });

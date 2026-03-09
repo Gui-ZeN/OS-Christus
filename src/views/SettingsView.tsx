@@ -30,6 +30,65 @@ const DEFAULT_TEMPLATE: EmailTemplateSettings = {
     'Olá {{requester.name}},\n\nSua Ordem de Serviço foi registrada com sucesso.\n\nNúmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe fará a triagem em breve.\n\nAtenciosamente,\nGestão de Manutenção',
 };
 
+const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
+  DEFAULT_TEMPLATE,
+  {
+    trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
+    subject: '[Triagem] {{ticket.id}} em análise',
+    body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-PARECER-TECNICO',
+    subject: '[Parecer Técnico] {{ticket.id}} pronta para solução',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
+    subject: '[Orçamento] {{ticket.id}} em cotação',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-EM-APROVACAO',
+    subject: '[Aprovação] {{ticket.id}} em validação',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-ACOES-PRELIMINARES',
+    subject: '[Planejamento] {{ticket.id}} em ações preliminares',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-EXECUCAO-INICIADA',
+    subject: '[Execução] {{ticket.id}} em andamento',
+    body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
+    subject: '[Validação] {{ticket.id}} aguardando sua confirmação',
+    body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
+    subject: '[Pagamento] {{ticket.id}} em finalização financeira',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-OS-ENCERRADA',
+    subject: '[Encerrada] {{ticket.id}} concluída',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-OS-CANCELADA',
+    subject: '[Cancelada] {{ticket.id}}',
+    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi cancelada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nMotivo ou observação: {{message.body}}\n\nAcompanhe: {{tracking.url}}',
+  },
+  {
+    trigger: 'EMAIL-NOVA-MENSAGEM',
+    subject: '[Mensagem] {{ticket.id}} recebeu uma atualização',
+    body: 'Olá {{requester.name}},\n\n{{message.sender}} enviou uma nova atualização na OS {{ticket.id}}.\n\nMensagem:\n{{message.body}}\n\nAcompanhe: {{tracking.url}}',
+  },
+];
+
 const DEFAULT_DIGEST: DailyDigestSettings = {
   enabled: true,
   time: '08:00',
@@ -58,7 +117,7 @@ const SECTION_META: Record<
   }
 > = {
   access: {
-    eyebrow: 'Governan?a',
+    eyebrow: 'Governança',
     title: 'Acessos e perfis',
     description: 'Controle quem entra, qual papel assume e qual estrutura territorial cada pessoa enxerga.',
     navLabel: 'Acessos',
@@ -67,22 +126,22 @@ const SECTION_META: Record<
   },
   territory: {
     eyebrow: 'Estrutura',
-    title: 'Regi?es e sedes',
-    description: 'Organize a malha operacional que alimenta usu?rios, OS, filtros e dashboards.',
-    navLabel: 'Regi?es e Sedes',
+    title: 'Regiões e sedes',
+    description: 'Organize a malha operacional que alimenta usuários, OS, filtros e dashboards.',
+    navLabel: 'Regiões e Sedes',
     accent: 'from-sky-100 via-white to-cyan-50',
     icon: MapPinned,
   },
   catalog: {
     eyebrow: 'Base operacional',
-    title: 'Servi?os e materiais',
-    description: 'Mantenha o cat?logo de classifica??o, refer?ncia de or?amento e hist?rico t?cnico.',
-    navLabel: 'Servi?os e Materiais',
+    title: 'Serviços e materiais',
+    description: 'Mantenha o catálogo de classificação, referência de orçamento e histórico técnico.',
+    navLabel: 'Serviços e Materiais',
     accent: 'from-orange-100 via-white to-amber-50',
     icon: Boxes,
   },
   templates: {
-    eyebrow: 'Comunica??o',
+    eyebrow: 'Comunicação',
     title: 'Templates de e-mail',
     description: 'Padronize mensagens disparadas pelo sistema em cada etapa do fluxo.',
     navLabel: 'Templates de E-mail',
@@ -91,9 +150,9 @@ const SECTION_META: Record<
   },
   'daily-digest': {
     eyebrow: 'Rotina',
-    title: 'Resumo di?rio',
-    description: 'Defina a cad?ncia do consolidado operacional enviado automaticamente.',
-    navLabel: 'Resumo Di?rio',
+    title: 'Resumo diário',
+    description: 'Defina a cadência do consolidado operacional enviado automaticamente.',
+    navLabel: 'Resumo Diário',
     accent: 'from-lime-100 via-white to-emerald-50',
     icon: Clock,
   },
@@ -107,9 +166,9 @@ const SECTION_META: Record<
   },
   integrations: {
     eyebrow: 'Observabilidade',
-    title: 'Integra??es e legado',
-    description: 'Acompanhe sa?de do ambiente, compatibilidade de dados e a??es t?cnicas de saneamento.',
-    navLabel: 'Integra??es e Legado',
+    title: 'Integrações e legado',
+    description: 'Acompanhe saúde do ambiente, compatibilidade de dados e ações técnicas de saneamento.',
+    navLabel: 'Integrações e Legado',
     accent: 'from-stone-200 via-white to-slate-100',
     icon: Database,
   },
@@ -165,6 +224,7 @@ export function SettingsView() {
   const [legacyHealth, setLegacyHealth] = useState<FirestoreLegacyHealth | null>(null);
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationsHealthResponse | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
+  const [emailTemplatesCatalog, setEmailTemplatesCatalog] = useState<EmailTemplateSettings[]>(DEFAULT_EMAIL_TEMPLATES);
   const [digest, setDigest] = useState<DailyDigestSettings>(DEFAULT_DIGEST);
   const [sla, setSla] = useState<SlaSettings>(DEFAULT_SLA);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -191,12 +251,15 @@ export function SettingsView() {
       try {
         const remote = await fetchSettings();
         if (cancelled) return;
-        setTemplate(remote.emailTemplate || DEFAULT_TEMPLATE);
+        const remoteTemplates = remote.emailTemplates?.length ? remote.emailTemplates : DEFAULT_EMAIL_TEMPLATES;
+        setEmailTemplatesCatalog(remoteTemplates);
+        setTemplate(remote.emailTemplate || remoteTemplates[0] || DEFAULT_TEMPLATE);
         setDigest(remote.dailyDigest || DEFAULT_DIGEST);
         setSla(remote.sla || DEFAULT_SLA);
       } catch {
         if (cancelled) return;
-        setTemplate(DEFAULT_TEMPLATE);
+        setEmailTemplatesCatalog(DEFAULT_EMAIL_TEMPLATES);
+        setTemplate(DEFAULT_EMAIL_TEMPLATES[0] || DEFAULT_TEMPLATE);
         setDigest(DEFAULT_DIGEST);
         setSla(DEFAULT_SLA);
       } finally {
@@ -259,6 +322,11 @@ export function SettingsView() {
     if (!canEditSettings) return;
     try {
       await saveSettings('emailTemplates', template);
+      setEmailTemplatesCatalog(current =>
+        [...current.filter(item => item.trigger !== template.trigger), template].sort((a, b) =>
+          a.trigger.localeCompare(b.trigger, 'pt-BR')
+        )
+      );
     } catch {
       // Mantém feedback local mesmo se a API não estiver disponível.
     }
@@ -768,13 +836,18 @@ export function SettingsView() {
                         <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Gatilho</label>
                         <select
                           value={template.trigger}
-                          onChange={event => setTemplate(current => ({ ...current, trigger: event.target.value }))}
+                          onChange={event => {
+                            const nextTrigger = event.target.value;
+                            const nextTemplate = emailTemplatesCatalog.find(item => item.trigger === nextTrigger);
+                            setTemplate(nextTemplate || { trigger: nextTrigger, subject: '', body: '' });
+                          }}
                           className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                         >
-                          <option value="EMAIL-NOVA-OS">EMAIL-NOVA-OS (Abertura)</option>
-                          <option value="EMAIL-VISITEC-PENDENTE">EMAIL-VISITEC-PENDENTE (Solicitação Técnico)</option>
-                          <option value="EMAIL-APROV-ORCAMENTO">EMAIL-APROV-ORCAMENTO (Para Diretoria)</option>
-                          <option value="EMAIL-ORCAMENTO-APROVADO">EMAIL-ORCAMENTO-APROVADO (Para Fornecedor)</option>
+                          {emailTemplatesCatalog.map(item => (
+                            <option key={item.trigger} value={item.trigger}>
+                              {item.trigger}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
