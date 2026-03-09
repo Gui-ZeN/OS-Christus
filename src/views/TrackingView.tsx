@@ -273,8 +273,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             requesterApproved: true,
             requesterApprovedBy: ticket.requester,
             requesterApprovedAt: new Date(),
-            infrastructureApprovedByRafael: ticket.closureChecklist?.infrastructureApprovedByRafael ?? false,
-            infrastructureApprovedByFernando: ticket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+            infrastructureApprovalPrimary: ticket.closureChecklist?.infrastructureApprovalPrimary ?? false,
+            infrastructureApprovalSecondary: ticket.closureChecklist?.infrastructureApprovalSecondary ?? false,
             closureNotes: ticket.closureChecklist?.closureNotes || '',
             serviceStartedAt:
               ticket.closureChecklist?.serviceStartedAt ||
@@ -394,7 +394,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                 <div className="space-y-2 text-sm text-roman-text-main">
                   <div>Solicitante validou: {ticket.closureChecklist?.requesterApproved ? 'Sim' : 'Não'}</div>
                   <div>
-                    Infraestrutura validou: {ticket.closureChecklist?.infrastructureApprovedByRafael || ticket.closureChecklist?.infrastructureApprovedByFernando ? 'Sim' : 'Não'}
+                    Infraestrutura validou: {ticket.closureChecklist?.infrastructureApprovalPrimary || ticket.closureChecklist?.infrastructureApprovalSecondary ? 'Sim' : 'Não'}
                   </div>
                   <div>Laudos anexados: {closureDocuments.length}</div>
                   {ticket.closureChecklist?.closureNotes && <div>Observações: {ticket.closureChecklist.closureNotes}</div>}
@@ -504,3 +504,4 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     </div>
   );
 }
+

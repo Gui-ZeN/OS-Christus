@@ -55,8 +55,10 @@ export interface ClosureChecklist {
   requesterApproved: boolean;
   requesterApprovedBy?: string | null;
   requesterApprovedAt?: Date | null;
-  infrastructureApprovedByRafael: boolean;
-  infrastructureApprovedByFernando: boolean;
+  infrastructureApprovalPrimary: boolean;
+  infrastructureApprovalSecondary: boolean;
+  infrastructureApprovedByRafael?: boolean;
+  infrastructureApprovedByFernando?: boolean;
   closureNotes?: string;
   serviceStartedAt?: Date | null;
   serviceCompletedAt?: Date | null;

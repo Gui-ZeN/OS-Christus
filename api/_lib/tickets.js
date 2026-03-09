@@ -49,8 +49,18 @@ export function normalizeTicketForStorage(ticket) {
     };
   }
   if (next.closureChecklist) {
+    const infrastructureApprovalPrimary =
+      next.closureChecklist.infrastructureApprovalPrimary ??
+      next.closureChecklist.infrastructureApprovedByRafael ??
+      false;
+    const infrastructureApprovalSecondary =
+      next.closureChecklist.infrastructureApprovalSecondary ??
+      next.closureChecklist.infrastructureApprovedByFernando ??
+      false;
     next.closureChecklist = {
       ...next.closureChecklist,
+      infrastructureApprovalPrimary: Boolean(infrastructureApprovalPrimary),
+      infrastructureApprovalSecondary: Boolean(infrastructureApprovalSecondary),
       requesterApprovedAt: toDate(next.closureChecklist.requesterApprovedAt) || null,
       serviceStartedAt: toDate(next.closureChecklist.serviceStartedAt) || null,
       serviceCompletedAt: toDate(next.closureChecklist.serviceCompletedAt) || null,
@@ -62,6 +72,8 @@ export function normalizeTicketForStorage(ticket) {
           }))
         : [],
     };
+    delete next.closureChecklist.infrastructureApprovedByRafael;
+    delete next.closureChecklist.infrastructureApprovedByFernando;
   }
   if (Array.isArray(next.attachments)) {
     next.attachments = next.attachments.map(item => ({
@@ -113,6 +125,14 @@ export function serializeTicketForApi(ticket) {
     closureChecklist: ticket.closureChecklist
       ? {
           ...ticket.closureChecklist,
+          infrastructureApprovalPrimary:
+            ticket.closureChecklist.infrastructureApprovalPrimary ??
+            ticket.closureChecklist.infrastructureApprovedByRafael ??
+            false,
+          infrastructureApprovalSecondary:
+            ticket.closureChecklist.infrastructureApprovalSecondary ??
+            ticket.closureChecklist.infrastructureApprovedByFernando ??
+            false,
           requesterApprovedAt: serializeDate(ticket.closureChecklist.requesterApprovedAt),
           serviceStartedAt: serializeDate(ticket.closureChecklist.serviceStartedAt),
           serviceCompletedAt: serializeDate(ticket.closureChecklist.serviceCompletedAt),

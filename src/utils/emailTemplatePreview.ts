@@ -69,8 +69,8 @@ export function getTemplateTriggerLabel(trigger: string) {
 
 export const SAMPLE_EMAIL_VARIABLES: Record<string, unknown> = {
   requester: {
-    name: 'Rafael',
-    email: 'rafael@christus.com.br',
+    name: 'Solicitante',
+    email: 'solicitante@christus.com.br',
   },
   ticket: {
     id: 'OS-0051',

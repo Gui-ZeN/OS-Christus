@@ -59,6 +59,15 @@ export interface TrackingTicketPayload {
 }
 
 function hydrateTicket(ticket: ApiTicket): Ticket {
+  const primaryInfrastructureApproval =
+    ticket.closureChecklist?.infrastructureApprovalPrimary ??
+    ticket.closureChecklist?.infrastructureApprovedByRafael ??
+    false;
+  const secondaryInfrastructureApproval =
+    ticket.closureChecklist?.infrastructureApprovalSecondary ??
+    ticket.closureChecklist?.infrastructureApprovedByFernando ??
+    false;
+
   return {
     ...ticket,
     time: coerceDate(ticket.time),
@@ -77,6 +86,8 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     closureChecklist: ticket.closureChecklist
       ? {
           ...ticket.closureChecklist,
+          infrastructureApprovalPrimary: primaryInfrastructureApproval,
+          infrastructureApprovalSecondary: secondaryInfrastructureApproval,
           requesterApprovedAt: ticket.closureChecklist.requesterApprovedAt ? coerceDate(ticket.closureChecklist.requesterApprovedAt) : null,
           serviceStartedAt: ticket.closureChecklist.serviceStartedAt ? coerceDate(ticket.closureChecklist.serviceStartedAt) : null,
           serviceCompletedAt: ticket.closureChecklist.serviceCompletedAt ? coerceDate(ticket.closureChecklist.serviceCompletedAt) : null,

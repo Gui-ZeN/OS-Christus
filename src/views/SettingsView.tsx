@@ -93,7 +93,7 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
 const DEFAULT_DIGEST: DailyDigestSettings = {
   enabled: true,
   time: '08:00',
-  recipients: 'rafael@empresa.com, diretoria@empresa.com',
+  recipients: '',
   subject: '[Resumo Diário] Manutenção - {{data}} | {{novas_os_ontem}} novas OS · {{slas_vencendo_hoje}} SLAs hoje',
 };
 

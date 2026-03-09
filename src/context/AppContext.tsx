@@ -1,7 +1,5 @@
 ﻿import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
-import { subDays, subHours } from 'date-fns';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import { MOCK_TICKETS } from '../data/mockTickets';
 import {
   DirectoryUser,
   fetchUsers,
@@ -61,49 +59,6 @@ const DEFAULT_FILTER: InboxFilter = {
   type: [],
 };
 
-const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'n1',
-    type: 'actionable',
-    title: 'Aprovação Necessária',
-    body: 'Orçamento da OS-0048 excede o limite automático. Requer sua validação.',
-    time: new Date(),
-    read: false,
-    action: { label: 'Revisar Orçamento', view: 'approvals' },
-  },
-  {
-    id: 'n2',
-    type: 'info',
-    title: 'OS-0045 Validada',
-    body: 'O solicitante aprovou a manutenção dos geradores. Pronta para pagamento.',
-    time: subHours(new Date(), 2),
-    read: false,
-    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0045' },
-  },
-  {
-    id: 'n3',
-    type: 'alert',
-    title: 'SLA Vencido: OS-0044',
-    body: 'O prazo de resolução para esta OS crítica expirou.',
-    time: subHours(new Date(), 4),
-    read: false,
-    action: { label: 'Ver OS Atrasada', view: 'inbox', ticketId: 'OS-0044' },
-  },
-  {
-    id: 'n4',
-    type: 'info',
-    title: 'Nova OS Registrada',
-    body: 'Infiltração crítica no teto do refeitório (OS-0050).',
-    time: subDays(new Date(), 1),
-    read: true,
-    action: { label: 'Ver OS', view: 'inbox', ticketId: 'OS-0050' },
-  },
-];
-
-const FALLBACK_DIRECTORY_USERS: DirectoryUser[] = [
-  { id: 'admin-os-christus', name: 'Administrador OS Christus', role: 'Admin', email: 'admin@os-christus.local', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-];
-
 function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
   const stored = window.localStorage.getItem('os-christus-current-view');
@@ -117,11 +72,6 @@ function normalizeKey(value: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
-}
-
-function shouldUseLocalDirectoryFallback() {
-  if (typeof window === 'undefined') return false;
-  return ['localhost', '127.0.0.1'].includes(window.location.hostname);
 }
 
 function resolveTicketSiteIds(ticket: Ticket, sites: CatalogSite[]) {
@@ -189,7 +139,7 @@ async function resolveAuthorizedUser(email: string) {
   try {
     users = await fetchUsers();
   } catch {
-    users = shouldUseLocalDirectoryFallback() ? FALLBACK_DIRECTORY_USERS : [];
+    users = [];
   }
 
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
@@ -207,17 +157,16 @@ async function resolveAuthorizedUser(email: string) {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
-  const localFallbackAllowed = shouldUseLocalDirectoryFallback();
   const [authResolved, setAuthResolved] = useState(!authEnabled);
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
-  const [activeTicketId, setActiveTicketId] = useState('OS-0050');
+  const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ title: string; type: 'image' | 'pdf' } | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
-  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
@@ -234,7 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!authEnabled && !localFallbackAllowed) {
+    if (!authEnabled) {
       setAllTickets([]);
       setTicketsLoading(false);
       return;
@@ -245,11 +194,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const remote = await fetchTicketsFromApi();
       setAllTickets(remote);
     } catch {
-      setAllTickets(localFallbackAllowed ? [...MOCK_TICKETS] : []);
+      setAllTickets([]);
     } finally {
       setTicketsLoading(false);
     }
-  }, [authEnabled, authResolved, currentUserEmail, localFallbackAllowed]);
+  }, [authEnabled, authResolved, currentUserEmail]);
 
   useEffect(() => {
     if (!authEnabled) return undefined;
@@ -301,7 +250,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setNotifications([]);
       return undefined;
     }
-    if (!authEnabled && !localFallbackAllowed) {
+    if (!authEnabled) {
       setNotifications([]);
       return undefined;
     }
@@ -313,7 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (!cancelled) {
-          setNotifications(localFallbackAllowed ? INITIAL_NOTIFICATIONS : []);
+          setNotifications([]);
         }
       }
     })();
@@ -321,7 +270,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, currentUserEmail, localFallbackAllowed]);
+  }, [authEnabled, currentUserEmail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -538,12 +487,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     } else {
-      if (!localFallbackAllowed) {
-        throw new Error('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
-      }
-      const authorizedUser = await resolveAuthorizedUser(normalized);
-      setCurrentUserEmail(normalized);
-      setCurrentUser(authorizedUser);
+      throw new Error('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
     }
   };
 

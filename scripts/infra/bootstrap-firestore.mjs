@@ -47,16 +47,7 @@ const DEFAULT_TEAMS = [
   { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external', active: true },
 ];
 
-const DEFAULT_USERS = [
-  { id: 'rafael', name: 'Rafael', role: 'Admin', email: 'rafael@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'leonardo', name: 'Leonardo', role: 'Diretor', email: 'leonardo@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'murilo', name: 'Murilo', role: 'Diretor', email: 'murilo@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'pedro', name: 'Pedro', role: 'Diretor', email: 'pedro@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'fernando', name: 'Fernando', role: 'Supervisor', email: 'fernando@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'geovana', name: 'Geovana', role: 'Admin', email: 'geovana@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'equipe-climatizacao', name: 'Equipe Climatização', role: 'Usuario', email: 'clima@empresa.com', status: 'Ativo', regionIds: [], siteIds: [], active: true },
-  { id: 'eletrica-jose', name: 'Elétrica José', role: 'Usuario', email: 'contato@eletricajose.com.br', status: 'Inativo', regionIds: [], siteIds: [], active: true },
-];
+const DEFAULT_USERS = [];
 
 const DEFAULT_VENDORS = [
   { id: 'decor-interiores', name: 'Decor Interiores', email: '', active: true },
@@ -64,16 +55,7 @@ const DEFAULT_VENDORS = [
   { id: 'reforma-facil', name: 'Reforma Fácil LTDA', email: '', active: true },
 ];
 
-const DEFAULT_NOTIFICATIONS = [
-  {
-    id: 'bootstrap-infra',
-    type: 'info',
-    title: 'Infraestrutura inicializada',
-    body: 'Seed inicial do Firebase executado.',
-    read: false,
-    action: { label: 'Abrir auditoria', view: 'audit-logs' },
-  },
-];
+const DEFAULT_NOTIFICATIONS = [];
 
 const DEFAULT_SETTINGS = {
   emailTemplates: {
@@ -100,9 +82,9 @@ const DEFAULT_SETTINGS = {
   },
 };
 
-const ADMIN_EMAIL = process.env.OS_CHRISTUS_ADMIN_EMAIL?.trim().toLowerCase() || 'admin@os-christus.local';
-const ADMIN_PASSWORD = process.env.OS_CHRISTUS_ADMIN_PASSWORD?.trim() || 'Admin@123456';
-const ADMIN_NAME = process.env.OS_CHRISTUS_ADMIN_NAME?.trim() || 'Administrador OS Christus';
+const ADMIN_EMAIL = process.env.OS_CHRISTUS_ADMIN_EMAIL?.trim().toLowerCase() || '';
+const ADMIN_PASSWORD = process.env.OS_CHRISTUS_ADMIN_PASSWORD?.trim() || '';
+const ADMIN_NAME = process.env.OS_CHRISTUS_ADMIN_NAME?.trim() || 'Administrador do Sistema';
 const DEFAULT_USER_PASSWORD = process.env.OS_CHRISTUS_DEFAULT_PASSWORD?.trim() || '12345678';
 
 function initApp(serviceAccount, bucketName) {
@@ -325,6 +307,10 @@ async function ensureDefaultUsersAuth() {
 }
 
 async function main() {
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    throw new Error('Defina OS_CHRISTUS_ADMIN_EMAIL e OS_CHRISTUS_ADMIN_PASSWORD para executar o bootstrap.');
+  }
+
   const credentialsPath = resolveCredentialsPath();
   const serviceAccount = readServiceAccount(credentialsPath);
   const projectId = process.env.FIREBASE_PROJECT_ID?.trim() || serviceAccount.project_id;

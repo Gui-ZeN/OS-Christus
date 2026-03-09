@@ -16,39 +16,6 @@ import { buildProcurementClassification } from '../utils/procurementClassificati
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
-const FALLBACK_TEAMS: DirectoryTeam[] = [
-  { id: 'construtora', name: 'Construtora', type: 'internal' },
-  { id: 'informatica', name: 'Informática', type: 'internal' },
-  { id: 'infra-compras', name: 'Infra - Compras', type: 'internal' },
-  { id: 'infra-coordenacao', name: 'Infra - Coordenação', type: 'internal' },
-  { id: 'infra-sede', name: 'Infra - Sede', type: 'internal' },
-  { id: 'jy', name: 'JY', type: 'internal' },
-  { id: 'marketing', name: 'Marketing', type: 'internal' },
-  { id: 'metalurgica', name: 'Metalúrgica', type: 'internal' },
-  { id: 'nao-especificado', name: 'Não especificado', type: 'internal' },
-  { id: 'redes', name: 'Redes', type: 'internal' },
-  { id: 'refrigeracao', name: 'Refrigeração', type: 'internal' },
-  { id: 'fornecedor-externo', name: 'Fornecedor externo', type: 'external' },
-];
-
-const FALLBACK_CATALOG_MATERIALS: CatalogMaterial[] = [
-  { id: 'tinta-acrilica', code: 'MAT-001', name: 'Tinta acrílica', unit: 'lata' },
-  { id: 'abrasivo', code: 'MAT-002', name: 'Abrasivo / lixa', unit: 'un' },
-  { id: 'massa-corrida', code: 'MAT-003', name: 'Massa corrida', unit: 'balde' },
-  { id: 'telha-metalica', code: 'MAT-004', name: 'Telha metálica', unit: 'm²' },
-  { id: 'tubo-pvc', code: 'MAT-006', name: 'Tubo PVC', unit: 'barra' },
-  { id: 'luminaria-led', code: 'MAT-008', name: 'Luminária LED', unit: 'un' },
-  { id: 'split-12000', code: 'MAT-012', name: 'Split 12.000 BTUs', unit: 'un' },
-];
-
-const FALLBACK_SERVICE_CATALOG: CatalogServiceItem[] = [
-  { id: 'pintura-fachada', code: 'SRV-001', macroServiceId: 'coberta-fachada', name: 'Pintura de fachada', suggestedMaterialIds: ['tinta-acrilica', 'abrasivo', 'massa-corrida'] },
-  { id: 'recuperacao-coberta', code: 'SRV-002', macroServiceId: 'coberta-fachada', name: 'Recuperação de coberta', suggestedMaterialIds: ['telha-metalica'] },
-  { id: 'correcao-vazamento', code: 'SRV-005', macroServiceId: 'hidraulica', name: 'Correção de vazamento', suggestedMaterialIds: ['tubo-pvc'] },
-  { id: 'troca-luminarias', code: 'SRV-006', macroServiceId: 'eletrica', name: 'Troca de luminárias', suggestedMaterialIds: ['luminaria-led'] },
-  { id: 'instalacao-split', code: 'SRV-007', macroServiceId: 'climatizacao', name: 'Instalação de ar-condicionado split', suggestedMaterialIds: ['split-12000'] },
-];
-
 type QuoteDraft = {
   vendor: string;
   value: string;
@@ -240,11 +207,11 @@ export function InboxView() {
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
   const [ticketPriority, setTicketPriority] = useState('');
-  const [teams, setTeams] = useState<DirectoryTeam[]>(FALLBACK_TEAMS);
+  const [teams, setTeams] = useState<DirectoryTeam[]>([]);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
-  const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>(FALLBACK_CATALOG_MATERIALS);
-  const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>(FALLBACK_SERVICE_CATALOG);
+  const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
+  const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
@@ -282,7 +249,7 @@ export function InboxView() {
         }
       } catch {
         if (!cancelled) {
-          setTeams(FALLBACK_TEAMS);
+          setTeams([]);
         }
       }
     })();
@@ -308,8 +275,8 @@ export function InboxView() {
         if (!cancelled) {
           setCatalogRegions([]);
           setCatalogSites([]);
-          setCatalogMaterials(FALLBACK_CATALOG_MATERIALS);
-          setServiceCatalog(FALLBACK_SERVICE_CATALOG);
+          setCatalogMaterials([]);
+          setServiceCatalog([]);
           setVendorPreferences([]);
         }
       }
@@ -554,8 +521,8 @@ export function InboxView() {
         requesterApproved: activeTicket.closureChecklist?.requesterApproved ?? false,
         requesterApprovedBy: activeTicket.closureChecklist?.requesterApprovedBy || null,
         requesterApprovedAt: activeTicket.closureChecklist?.requesterApprovedAt || null,
-        infrastructureApprovedByRafael: activeTicket.closureChecklist?.infrastructureApprovedByRafael ?? false,
-        infrastructureApprovedByFernando: activeTicket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+        infrastructureApprovalPrimary: activeTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
+        infrastructureApprovalSecondary: activeTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
         closureNotes: activeTicket.closureChecklist?.closureNotes || '',
         serviceStartedAt:
           activeTicket.closureChecklist?.serviceStartedAt ||
@@ -1651,8 +1618,8 @@ export function InboxView() {
                       <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                         <div className="font-medium text-roman-text-main">Checklist de encerramento</div>
                         <div>Solicitante: {activeTicket.closureChecklist.requesterApproved ? 'confirmado' : 'pendente'}</div>
-                        <div>Infra Rafael: {activeTicket.closureChecklist.infrastructureApprovedByRafael ? 'confirmado' : 'pendente'}</div>
-                        <div>Infra Fernando: {activeTicket.closureChecklist.infrastructureApprovedByFernando ? 'confirmado' : 'pendente'}</div>
+                        <div>Infraestrutura 1: {activeTicket.closureChecklist.infrastructureApprovalPrimary ? 'confirmado' : 'pendente'}</div>
+                        <div>Infraestrutura 2: {activeTicket.closureChecklist.infrastructureApprovalSecondary ? 'confirmado' : 'pendente'}</div>
                         <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
                         <div>Término do serviço: {formatShortDate(activeTicket.closureChecklist.serviceCompletedAt)}</div>
                         <div>Laudos anexados: {activeTicket.closureChecklist.documents?.length || 0}</div>
@@ -2139,4 +2106,6 @@ export function InboxView() {
     </div>
   );
 }
+
+
 

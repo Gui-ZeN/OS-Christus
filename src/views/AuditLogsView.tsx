@@ -55,7 +55,7 @@ const FIELD_LABELS: Record<string, string> = {
 function prettyActor(actor: string) {
   const value = String(actor || '').trim();
   if (!value) return 'Sistema';
-  if (value === 'Admin <admin@os-christus.local>' || value === 'admin@os-christus.local') {
+  if (/^admin\b/i.test(value) || /@os-christus\.local$/i.test(value)) {
     return 'Administrador OS Christus';
   }
   const match = value.match(/^(.+?)\s*<(.+?)>$/);
@@ -247,3 +247,4 @@ export function AuditLogsView() {
     </div>
   );
 }
+

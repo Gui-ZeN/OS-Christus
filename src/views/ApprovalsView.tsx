@@ -16,41 +16,6 @@ const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatu
   contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
 };
 
-const FALLBACK_QUOTES_BY_TICKET: Record<string, Quote[]> = {
-  'OS-0046': [
-    { id: 'quote-1', vendor: 'Decor Interiores', value: 'R$ 12.400,00', recommended: true, status: 'pending' },
-    { id: 'quote-2', vendor: 'Ambientes & Cia', value: 'R$ 14.200,00', recommended: false, status: 'pending' },
-    { id: 'quote-3', vendor: 'Reforma Facil LTDA', value: 'R$ 15.800,00', recommended: false, status: 'pending' },
-  ],
-};
-
-const FALLBACK_CONTRACTS_BY_TICKET: Record<string, ContractRecord> = {
-  'OS-0045': {
-    id: 'contract-1',
-    vendor: 'PowerTech Geradores',
-    value: 'R$ 8.500,00',
-    status: 'pending_signature',
-    viewingBy: 'Diretoria',
-    signedFileName: null,
-    items: [
-      { id: 'item-1', description: 'Manutenção preventiva do gerador', unit: 'vb', quantity: 1, unitPrice: 'R$ 6.500,00', totalPrice: 'R$ 6.500,00' },
-      { id: 'item-2', description: 'Substituição de filtros e insumos', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.000,00', totalPrice: 'R$ 2.000,00' },
-    ],
-  },
-  'OS-0046': {
-    id: 'contract-1',
-    vendor: 'Decor Interiores',
-    value: 'R$ 12.400,00',
-    status: 'pending_signature',
-    viewingBy: 'Diretoria',
-    signedFileName: null,
-    items: [
-      { id: 'item-1', description: 'Fornecimento e instalação de carpete', unit: 'm²', quantity: 80, unitPrice: 'R$ 120,00', totalPrice: 'R$ 9.600,00' },
-      { id: 'item-2', description: 'Rodapé e acabamento', unit: 'vb', quantity: 1, unitPrice: 'R$ 2.800,00', totalPrice: 'R$ 2.800,00' },
-    ],
-  },
-};
-
 function normalizeCsvCell(value: unknown) {
   const text = String(value ?? '');
   return `"${text.replace(/"/g, '""')}"`;
@@ -108,8 +73,8 @@ export function ApprovalsView() {
         }
       } catch {
         if (!cancelled) {
-          setQuotesByTicket(FALLBACK_QUOTES_BY_TICKET);
-          setContractsByTicket(FALLBACK_CONTRACTS_BY_TICKET);
+          setQuotesByTicket({});
+          setContractsByTicket({});
         }
       }
     })();
@@ -384,8 +349,8 @@ export function ApprovalsView() {
           macroServiceName: ticket.macroServiceName ?? null,
           serviceCatalogName: ticket.serviceCatalogName ?? null,
           viewingBy: ticket.viewingBy?.name ?? null,
-          quotes: quotesByTicket[ticket.id] ?? FALLBACK_QUOTES_BY_TICKET[ticket.id] ?? [],
-          historySummary: buildBudgetHistorySummary(ticket, tickets, { ...FALLBACK_QUOTES_BY_TICKET, ...quotesByTicket }),
+          quotes: quotesByTicket[ticket.id] ?? [],
+          historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
         })),
     [quotesByTicket, tickets]
   );
@@ -401,10 +366,10 @@ export function ApprovalsView() {
           date: ticket.time,
           macroServiceName: ticket.macroServiceName ?? null,
           serviceCatalogName: ticket.serviceCatalogName ?? null,
-          value: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.value ?? 'A confirmar',
-          vendor: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.vendor ?? 'A confirmar',
-          items: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.items ?? [],
-          viewingBy: (contractsByTicket[ticket.id] ?? FALLBACK_CONTRACTS_BY_TICKET[ticket.id])?.viewingBy ?? ticket.viewingBy?.name ?? null,
+          value: contractsByTicket[ticket.id]?.value ?? 'A confirmar',
+          vendor: contractsByTicket[ticket.id]?.vendor ?? 'A confirmar',
+          items: contractsByTicket[ticket.id]?.items ?? [],
+          viewingBy: contractsByTicket[ticket.id]?.viewingBy ?? ticket.viewingBy?.name ?? null,
         })),
     [contractsByTicket, tickets]
   );

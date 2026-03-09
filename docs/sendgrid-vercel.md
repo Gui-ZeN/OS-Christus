@@ -1,10 +1,10 @@
-# SendGrid + Vercel (conversa bidirecional)
+﻿# SendGrid + Vercel (conversa bidirecional)
 
 ## Endpoints criados
 - `POST /api/email/send`
 - `POST /api/email/inbound`
 
-## Variáveis na Vercel
+## VariÃ¡veis na Vercel
 - `SENDGRID_API_KEY`
 - `SENDGRID_FROM_EMAIL`
 - `SENDGRID_FROM_NAME`
@@ -17,23 +17,23 @@
 ## Fluxo de envio interno -> e-mail
 `POST /api/email/send`
 
-Payload mínimo:
+Payload mÃ­nimo:
 
 ```json
 {
   "ticketId": "OS-0050",
-  "toEmail": "solicitante@empresa.com",
-  "subject": "Atualização da OS OS-0050",
+  "toEmail": "solicitante@dominio.com",
+  "subject": "AtualizaÃ§Ã£o da OS OS-0050",
   "text": "Seu ticket foi atualizado."
 }
 ```
 
-Payload com template dinâmico:
+Payload com template dinÃ¢mico:
 
 ```json
 {
   "ticketId": "OS-0050",
-  "toEmail": "solicitante@empresa.com",
+  "toEmail": "solicitante@dominio.com",
   "templateId": "d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "templateData": {
     "ticketId": "OS-0050",
@@ -51,19 +51,20 @@ Configurar Inbound Parse no SendGrid para:
 
 `https://SEU-DOMINIO.vercel.app/api/email/inbound?secret=SUA_CHAVE`
 
-Cada inbound é salvo em:
+Cada inbound Ã© salvo em:
 - `emailThreads/{ticketId}/messages` (direction=`inbound`)
 - `ticketInbound` (espelho para consumo do app)
 
-## Thread única por ticket
-No envio, o backend inclui cabeçalhos:
+## Thread Ãºnica por ticket
+No envio, o backend inclui cabeÃ§alhos:
 - `X-OS-Ticket-ID`
 - `In-Reply-To`
 - `References`
 
-Isso mantém os e-mails do mesmo ticket agrupados na conversa.
+Isso mantÃ©m os e-mails do mesmo ticket agrupados na conversa.
 
-## Observações importantes
+## ObservaÃ§Ãµes importantes
 - O remetente (`SENDGRID_FROM_EMAIL`) deve estar validado no SendGrid.
 - O `SENDGRID_FROM_EMAIL` pode ser diferente do login da conta.
 - Para melhor entrega, configure Domain Authentication (SPF/DKIM).
+

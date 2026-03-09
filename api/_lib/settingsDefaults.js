@@ -186,7 +186,7 @@ Acompanhe: {{tracking.url}}`,
     default: {
       enabled: true,
       time: '08:00',
-      recipients: 'rafael@empresa.com, diretoria@empresa.com',
+      recipients: '',
       subject: '[Resumo Di\u00e1rio] Manuten\u00e7\u00e3o - {{data}} | {{novas_os_ontem}} novas OS \u00b7 {{slas_vencendo_hoje}} SLAs hoje',
     },
   },

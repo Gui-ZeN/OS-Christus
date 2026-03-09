@@ -4,23 +4,9 @@ import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
-function requesterEmailFallback(requester: string): string | null {
-  const key = requester.toLowerCase();
-  const map: Record<string, string> = {
-    'recepção': 'recepcao@empresa.com',
-    'diretoria': 'diretoria@empresa.com',
-    rh: 'rh@empresa.com',
-    ti: 'ti@empresa.com',
-    limpeza: 'limpeza@empresa.com',
-    facilities: 'facilities@empresa.com',
-    'engenharia predial': 'engenharia@empresa.com',
-  };
-  return map[key] || null;
-}
-
 function resolveTicketEmail(ticket: Ticket): string | null {
   if (ticket.requesterEmail?.trim()) return ticket.requesterEmail.trim();
-  return requesterEmailFallback(ticket.requester);
+  return null;
 }
 
 function buildTrackingUrl(ticket: Ticket) {

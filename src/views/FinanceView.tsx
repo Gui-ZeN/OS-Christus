@@ -20,8 +20,8 @@ interface MeasurementFormState {
 
 interface ClosureFormState {
   requesterApproved: boolean;
-  infrastructureApprovedByRafael: boolean;
-  infrastructureApprovedByFernando: boolean;
+  infrastructureApprovalPrimary: boolean;
+  infrastructureApprovalSecondary: boolean;
   serviceStartedAt: string;
   serviceCompletedAt: string;
   guaranteeMonths: string;
@@ -207,8 +207,8 @@ function buildClosureExportHtml(
         <div><strong>Início do serviço:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceStartedAt))}</div>
         <div><strong>Término do serviço:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceCompletedAt))}</div>
         <div><strong>Solicitante aprovou:</strong> ${ticket.closureChecklist?.requesterApproved ? 'Sim' : 'Não'}</div>
-        <div><strong>Rafael aprovou:</strong> ${ticket.closureChecklist?.infrastructureApprovedByRafael ? 'Sim' : 'Não'}</div>
-        <div><strong>Fernando aprovou:</strong> ${ticket.closureChecklist?.infrastructureApprovedByFernando ? 'Sim' : 'Não'}</div>
+        <div><strong>Aprovação técnica 1:</strong> ${ticket.closureChecklist?.infrastructureApprovalPrimary ? 'Sim' : 'Não'}</div>
+        <div><strong>Aprovação técnica 2:</strong> ${ticket.closureChecklist?.infrastructureApprovalSecondary ? 'Sim' : 'Não'}</div>
         <div><strong>Garantia:</strong> ${escapeHtml(formatDateLabel(ticket.guarantee?.startAt))} até ${escapeHtml(formatDateLabel(ticket.guarantee?.endAt))}</div>
       </div>
       <div class="card"><strong>Observações finais</strong><br /><span class="muted">${escapeHtml(ticket.closureChecklist?.closureNotes || 'Sem observações registradas.')}</span></div>
@@ -246,8 +246,8 @@ function buildClosureExportHtml(
 function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState {
   return {
     requesterApproved: closureChecklist?.requesterApproved ?? false,
-    infrastructureApprovedByRafael: closureChecklist?.infrastructureApprovedByRafael ?? false,
-    infrastructureApprovedByFernando: closureChecklist?.infrastructureApprovedByFernando ?? false,
+    infrastructureApprovalPrimary: closureChecklist?.infrastructureApprovalPrimary ?? false,
+    infrastructureApprovalSecondary: closureChecklist?.infrastructureApprovalSecondary ?? false,
     serviceStartedAt: formatInputDate(closureChecklist?.serviceStartedAt),
     serviceCompletedAt: formatInputDate(closureChecklist?.serviceCompletedAt),
     guaranteeMonths: String(guarantee?.months || 12),
@@ -432,8 +432,8 @@ export function FinanceView() {
           requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
           requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
           requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
-          infrastructureApprovedByRafael: targetTicket.closureChecklist?.infrastructureApprovedByRafael ?? false,
-          infrastructureApprovedByFernando: targetTicket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+          infrastructureApprovalPrimary: targetTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
+          infrastructureApprovalSecondary: targetTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
           closureNotes: targetTicket.closureChecklist?.closureNotes || '',
           serviceStartedAt: targetTicket.closureChecklist?.serviceStartedAt || null,
           serviceCompletedAt: targetTicket.closureChecklist?.serviceCompletedAt || null,
@@ -478,8 +478,8 @@ export function FinanceView() {
           requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
           requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
           requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
-          infrastructureApprovedByRafael: targetTicket.closureChecklist?.infrastructureApprovedByRafael ?? false,
-          infrastructureApprovedByFernando: targetTicket.closureChecklist?.infrastructureApprovedByFernando ?? false,
+          infrastructureApprovalPrimary: targetTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
+          infrastructureApprovalSecondary: targetTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
           closureNotes: targetTicket.closureChecklist?.closureNotes || '',
           serviceStartedAt: targetTicket.closureChecklist?.serviceStartedAt || null,
           serviceCompletedAt: targetTicket.closureChecklist?.serviceCompletedAt || null,
@@ -682,8 +682,8 @@ export function FinanceView() {
       const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
       if (
         !closureDraft.requesterApproved ||
-        !closureDraft.infrastructureApprovedByRafael ||
-        !closureDraft.infrastructureApprovedByFernando ||
+        !closureDraft.infrastructureApprovalPrimary ||
+        !closureDraft.infrastructureApprovalSecondary ||
         !closureDraft.serviceStartedAt ||
         !closureDraft.serviceCompletedAt ||
         !Number.isFinite(guaranteeMonths) ||
@@ -717,8 +717,8 @@ export function FinanceView() {
               requesterApproved: closureDraft.requesterApproved,
               requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || targetTicket.requester,
               requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || new Date(),
-              infrastructureApprovedByRafael: closureDraft.infrastructureApprovedByRafael,
-              infrastructureApprovedByFernando: closureDraft.infrastructureApprovedByFernando,
+              infrastructureApprovalPrimary: closureDraft.infrastructureApprovalPrimary,
+              infrastructureApprovalSecondary: closureDraft.infrastructureApprovalSecondary,
               closureNotes: closureDraft.closureNotes.trim(),
               serviceStartedAt,
               serviceCompletedAt,
@@ -1087,21 +1087,21 @@ export function FinanceView() {
                           />
                           Solicitante confirmou a conclusão
                         </label>
-                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovedByRafael ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
+                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovalPrimary ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
                           <input
                             type="checkbox"
-                            checked={closureDraft.infrastructureApprovedByRafael}
-                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovedByRafael: e.target.checked })}
+                            checked={closureDraft.infrastructureApprovalPrimary}
+                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovalPrimary: e.target.checked })}
                           />
-                          Infraestrutura aprovada por Rafael
+                          Aprovação de infraestrutura 1
                         </label>
-                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovedByFernando ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
+                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovalSecondary ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
                           <input
                             type="checkbox"
-                            checked={closureDraft.infrastructureApprovedByFernando}
-                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovedByFernando: e.target.checked })}
+                            checked={closureDraft.infrastructureApprovalSecondary}
+                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovalSecondary: e.target.checked })}
                           />
-                          Infraestrutura aprovada por Fernando
+                          Aprovação de infraestrutura 2
                         </label>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
                           <div>Solicitante: {ticket.closureChecklist?.requesterApprovedBy || ticket.requester}</div>
@@ -1256,4 +1256,6 @@ export function FinanceView() {
     </div>
   );
 }
+
+
 

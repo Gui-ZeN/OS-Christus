@@ -17,70 +17,6 @@ interface PublicFormViewProps {
   onBack: () => void;
 }
 
-const FALLBACK_REGIONS: CatalogRegion[] = [
-  { id: 'regiao-dionisio-torres', code: 'RDT', name: 'Região Dionísio Torres' },
-  { id: 'regiao-aldeota', code: 'RAL', name: 'Região Aldeota' },
-  { id: 'regiao-parquelandia', code: 'RPQ', name: 'Região Parquelândia' },
-  { id: 'regiao-sul', code: 'RSU', name: 'Região Sul' },
-  { id: 'regiao-benfica', code: 'RBN', name: 'Região Benfica' },
-  { id: 'universidade', code: 'UNI', name: 'Universidade' },
-];
-
-const FALLBACK_SITES: CatalogSite[] = [
-  { id: 'dt', code: 'DT', name: 'DT', regionId: 'regiao-dionisio-torres' },
-  { id: 'dt2', code: 'DT2', name: 'DT2', regionId: 'regiao-dionisio-torres' },
-  { id: 'pdt', code: 'PDT', name: 'PDT', regionId: 'regiao-dionisio-torres' },
-  { id: 'idiomas', code: 'IDIOMAS', name: 'IDIOMAS', regionId: 'regiao-dionisio-torres' },
-  { id: 'bs', code: 'BS', name: 'BS', regionId: 'regiao-aldeota' },
-  { id: 'sp', code: 'SP', name: 'SP', regionId: 'regiao-aldeota' },
-  { id: 'pnv', code: 'PNV', name: 'PNV', regionId: 'regiao-aldeota' },
-  { id: 'pql1', code: 'PQL1', name: 'PQL1', regionId: 'regiao-parquelandia' },
-  { id: 'pql2', code: 'PQL2', name: 'PQL2', regionId: 'regiao-parquelandia' },
-  { id: 'pjf', code: 'PJF', name: 'PJF', regionId: 'regiao-parquelandia' },
-  { id: 'sul1', code: 'SUL1', name: 'SUL1', regionId: 'regiao-sul' },
-  { id: 'sul2', code: 'SUL2', name: 'SUL2', regionId: 'regiao-sul' },
-  { id: 'sul3', code: 'SUL3', name: 'SUL3', regionId: 'regiao-sul' },
-  { id: 'psul', code: 'PSUL', name: 'PSUL', regionId: 'regiao-sul' },
-  { id: 'bn', code: 'BN', name: 'BN', regionId: 'regiao-benfica' },
-  { id: 'dl', code: 'DL', name: 'Dom Luís (DL)', regionId: 'universidade' },
-  { id: 'pe', code: 'PE', name: 'Parque Ecológico (PE)', regionId: 'universidade' },
-  { id: 'eus', code: 'EUS', name: 'Eusébio (EUS)', regionId: 'universidade' },
-  { id: 'pql3', code: 'PQL3', name: 'Parquelândia (PQL3)', regionId: 'universidade' },
-  { id: 'bn-uni', code: 'BN', name: 'Benfica (BN)', regionId: 'universidade' },
-  { id: 'ald', code: 'ALD', name: 'Aldeota (ALD)', regionId: 'universidade' },
-];
-
-const FALLBACK_MACRO_SERVICES: CatalogMacroService[] = [
-  { id: 'estrutura-civil', code: 'EST', name: 'Estrutura Civil' },
-  { id: 'coberta-fachada', code: 'COB', name: 'Coberta e Fachada' },
-  { id: 'hidraulica', code: 'HID', name: 'Hidráulica' },
-  { id: 'eletrica', code: 'ELE', name: 'Elétrica' },
-  { id: 'climatizacao', code: 'CLI', name: 'Climatização' },
-  { id: 'acabamento-divisorias', code: 'ACA', name: 'Acabamentos e Divisórias' },
-  { id: 'paisagismo-poda', code: 'PAI', name: 'Paisagismo e Poda' },
-];
-
-const FALLBACK_MATERIALS: CatalogMaterial[] = [
-  { id: 'tinta-acrilica', code: 'MAT-001', name: 'Tinta acrílica', unit: 'lata' },
-  { id: 'abrasivo', code: 'MAT-002', name: 'Abrasivo / lixa', unit: 'un' },
-  { id: 'massa-corrida', code: 'MAT-003', name: 'Massa corrida', unit: 'balde' },
-  { id: 'telha-metalica', code: 'MAT-004', name: 'Telha metálica', unit: 'm²' },
-  { id: 'tubo-pvc', code: 'MAT-006', name: 'Tubo PVC', unit: 'barra' },
-  { id: 'luminaria-led', code: 'MAT-008', name: 'Luminária LED', unit: 'un' },
-  { id: 'split-12000', code: 'MAT-012', name: 'Split 12.000 BTUs', unit: 'un' },
-];
-
-const FALLBACK_SERVICE_CATALOG: CatalogServiceItem[] = [
-  { id: 'pintura-fachada', code: 'SRV-001', macroServiceId: 'coberta-fachada', name: 'Pintura de fachada', suggestedMaterialIds: ['tinta-acrilica', 'abrasivo', 'massa-corrida'] },
-  { id: 'recuperacao-coberta', code: 'SRV-002', macroServiceId: 'coberta-fachada', name: 'Recuperação de coberta', suggestedMaterialIds: ['telha-metalica'] },
-  { id: 'forro-pvc', code: 'SRV-003', macroServiceId: 'acabamento-divisorias', name: 'Instalação ou troca de forro PVC', suggestedMaterialIds: ['massa-corrida'] },
-  { id: 'divisoria-drywall', code: 'SRV-004', macroServiceId: 'acabamento-divisorias', name: 'Instalação de divisória drywall', suggestedMaterialIds: [] },
-  { id: 'correcao-vazamento', code: 'SRV-005', macroServiceId: 'hidraulica', name: 'Correção de vazamento', suggestedMaterialIds: ['tubo-pvc'] },
-  { id: 'troca-luminarias', code: 'SRV-006', macroServiceId: 'eletrica', name: 'Troca de luminárias', suggestedMaterialIds: ['luminaria-led'] },
-  { id: 'instalacao-split', code: 'SRV-007', macroServiceId: 'climatizacao', name: 'Instalação de ar-condicionado split', suggestedMaterialIds: ['split-12000'] },
-  { id: 'poda-arvore', code: 'SRV-008', macroServiceId: 'paisagismo-poda', name: 'Poda de árvore', suggestedMaterialIds: [] },
-];
-
 export function PublicFormView({ onBack }: PublicFormViewProps) {
   const { addTicket } = useApp();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -124,11 +60,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         }
       } catch {
         if (!cancelled) {
-          setCatalogRegions(FALLBACK_REGIONS);
-          setCatalogSites(FALLBACK_SITES);
-          setCatalogMacroServices(FALLBACK_MACRO_SERVICES);
-          setCatalogServiceItems(FALLBACK_SERVICE_CATALOG);
-          setCatalogMaterials(FALLBACK_MATERIALS);
+          setCatalogRegions([]);
+          setCatalogSites([]);
+          setCatalogMacroServices([]);
+          setCatalogServiceItems([]);
+          setCatalogMaterials([]);
         }
       }
     })();
@@ -349,7 +285,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    placeholder="joao@empresa.com"
+                    placeholder="nome@dominio.com"
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.email && <span className="text-xs text-red-500 mt-1 block">{errors.email}</span>}
