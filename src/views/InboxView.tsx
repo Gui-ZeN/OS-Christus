@@ -240,6 +240,7 @@ export function InboxView() {
   const [replyText, setReplyText] = useState('');
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
+  const [ticketPriority, setTicketPriority] = useState('');
   const [teams, setTeams] = useState<DirectoryTeam[]>(FALLBACK_TEAMS);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
@@ -261,11 +262,12 @@ export function InboxView() {
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
     setReplyText('');
-    setTechTeam('');
-    setCustomEmail('');
+    setTechTeam(activeTicket.assignedTeam || '');
+    setCustomEmail(activeTicket.assignedEmail || '');
+    setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
-  }, [activeTicketId]);
+  }, [activeTicketId, activeTicket.assignedEmail, activeTicket.assignedTeam, activeTicket.priority, activeTicket.status]);
 
   useEffect(() => {
     setPrelimForm(createPreliminaryFormState(activeTicket.preliminaryActions));
@@ -339,22 +341,22 @@ export function InboxView() {
     };
   }, []);
 
-  // Z5: Registra mudança de equipe técnica direto no histórico do ticket
   const handleTechTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value;
-    const oldValue = techTeam || 'Não atribuído';
     setTechTeam(newValue);
+    if (newValue !== techTeam) {
+      setCustomEmail('');
+    }
+    updateTicket(activeTicket.id, {
+      assignedTeam: newValue || '',
+      assignedEmail: '',
+    });
+  };
 
-    const item: HistoryItem = {
-      id: crypto.randomUUID(),
-      type: 'field_change',
-      sender: 'Rafael (Gestor)',
-      time: new Date(),
-      field: 'Equipe Técnica',
-      from: oldValue,
-      to: newValue,
-    };
-    updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
+  const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    setTicketPriority(newValue);
+    updateTicket(activeTicket.id, { priority: newValue || '' });
   };
 
   const selectedTeam = teams.find(team => team.name === techTeam);
@@ -372,6 +374,27 @@ export function InboxView() {
       let newStatus = activeTicket.status;
 
       if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
+        if (!techTeam) {
+          setToast('Erro: defina a equipe responsável antes de concluir a triagem.');
+          setTimeout(() => setToast(null), 3000);
+          setIsSending(false);
+          return;
+        }
+
+        if (!ticketPriority) {
+          setToast('Erro: defina o grau de urgência antes de concluir a triagem.');
+          setTimeout(() => setToast(null), 3000);
+          setIsSending(false);
+          return;
+        }
+
+        if (isExternalTeam && !customEmail.trim()) {
+          setToast('Erro: informe o e-mail do fornecedor para encaminhamento externo.');
+          setTimeout(() => setToast(null), 3000);
+          setIsSending(false);
+          return;
+        }
+
         newStatus = TICKET_STATUS.WAITING_TECH_OPINION;
         const target =
           isExternalTeam && customEmail
@@ -386,7 +409,7 @@ export function InboxView() {
           type: 'system',
           sender,
           time: new Date(now.getTime() + 1),
-          text: `Parecer técnico solicitado para ${target}.`,
+          text: `Triagem concluída. OS aceita com prioridade ${ticketPriority} e encaminhada para ${target}.`,
         });
       } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
         newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
@@ -405,7 +428,13 @@ export function InboxView() {
       }
 
       if (items.length > 0 || newStatus !== activeTicket.status) {
-        updateTicket(activeTicket.id, { status: newStatus, history: [...activeTicket.history, ...items] });
+        updateTicket(activeTicket.id, {
+          status: newStatus,
+          priority: ticketPriority || activeTicket.priority,
+          assignedTeam: techTeam || activeTicket.assignedTeam || '',
+          assignedEmail: isExternalTeam ? customEmail.trim() : '',
+          history: [...activeTicket.history, ...items],
+        });
       }
     } else {
       if (!replyText.trim()) {
@@ -692,10 +721,10 @@ export function InboxView() {
   let internalActionText = 'Ação: Registrar nota no histórico';
 
   if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
-    internalTabLabel = 'Solicitar Parecer Técnico';
-    internalPlaceholder = 'Descreva a solicitação para a equipe técnica...';
-    internalButtonText = 'Avançar: Aguardando Parecer';
-    internalActionText = `Ação: Disparar e-mail para ${isExternalTeam && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
+    internalTabLabel = 'Triagem da OS';
+    internalPlaceholder = 'Registre observações de triagem antes de encaminhar para a equipe técnica...';
+    internalButtonText = 'Concluir Triagem';
+    internalActionText = `Ação: aceitar a OS, definir urgência e encaminhar para ${isExternalTeam && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
   } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
     internalTabLabel = 'Enviar Parecer à Diretoria';
     internalPlaceholder = 'Consolide o parecer técnico antes de enviar para aprovação...';
@@ -1483,6 +1512,31 @@ export function InboxView() {
               <PropertyField label="Setor" value={activeTicket.sector} />
 
               <div className="pt-4 border-t border-roman-border">
+                {activeTicket.status === TICKET_STATUS.NEW && (
+                  <div className="mb-4 rounded-sm border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-3">
+                    <div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-amber-700">Triagem Inicial</div>
+                      <div className="mt-1 font-medium">Defina se a OS será aceita, quem executa e o grau de urgência.</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={handleSend}
+                        disabled={isSending}
+                        className="px-3 py-2 rounded-sm bg-roman-sidebar text-white font-medium disabled:opacity-60"
+                      >
+                        {isSending ? 'Processando...' : 'Aceitar OS'}
+                      </button>
+                      <button
+                        onClick={handleCancelTicket}
+                        disabled={isSending}
+                        className="px-3 py-2 rounded-sm border border-red-300 text-red-700 font-medium bg-white disabled:opacity-60"
+                      >
+                        Cancelar OS
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mb-4">
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Responsável (Técnico)</label>
                   <select
@@ -1495,6 +1549,22 @@ export function InboxView() {
                     {teams.map(team => (
                       <option key={team.id} value={team.name}>{team.name}</option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Grau de urgência</label>
+                  <select
+                    value={ticketPriority}
+                    onChange={handlePriorityChange}
+                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isClosed}
+                  >
+                    <option value="">Selecione a urgência...</option>
+                    <option value="Urgente">Urgente</option>
+                    <option value="Alta">Alta</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Trivial">Trivial</option>
                   </select>
                 </div>
 

@@ -88,6 +88,8 @@ export interface Ticket {
   region: string;
   siteId?: string;
   sede: string;
+  assignedTeam?: string;
+  assignedEmail?: string;
   sector: string;
   priority: string;
   history: HistoryItem[];
