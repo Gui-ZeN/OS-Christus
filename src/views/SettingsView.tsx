@@ -519,49 +519,49 @@ export function SettingsView() {
   const sectionHighlights = useMemo(() => {
     if (section === 'access') {
       return [
-        { label: 'Administra??o', value: 'Usu?rios', hint: 'Pap?is, status e escopo territorial' },
-        { label: 'Autentica??o', value: 'Firebase Auth', hint: 'Conta acompanha o cadastro' },
-        { label: 'Estrutura', value: 'Regi?es e sedes', hint: 'Visibilidade controlada por v?nculo' },
+        { label: 'Administração', value: 'Usuários', hint: 'Papéis, status e escopo territorial' },
+        { label: 'Autenticação', value: 'Firebase Auth', hint: 'Conta acompanha o cadastro' },
+        { label: 'Estrutura', value: 'Regiões e sedes', hint: 'Visibilidade controlada por vínculo' },
       ];
     }
     if (section === 'territory') {
       return [
-        { label: 'Regi?es', value: String(regions.length), hint: 'Agrupamentos territoriais ativos' },
-        { label: 'Sedes', value: String(sites.length), hint: 'Unidades dispon?veis na opera??o' },
-        { label: 'Sincronismo', value: catalogLoading ? 'Atualizando' : 'Est?vel', hint: 'Compartilhado com usu?rios, OS e dashboards' },
+        { label: 'Regiões', value: String(regions.length), hint: 'Agrupamentos territoriais ativos' },
+        { label: 'Sedes', value: String(sites.length), hint: 'Unidades disponíveis na operação' },
+        { label: 'Sincronismo', value: catalogLoading ? 'Atualizando' : 'Estável', hint: 'Compartilhado com usuários, OS e dashboards' },
       ];
     }
     if (section === 'catalog') {
       return [
-        { label: 'Macroservi?os', value: String(macroServices.length), hint: 'Camada macro de classifica??o' },
-        { label: 'Servi?os', value: String(serviceCatalog.length), hint: 'Cat?logo detalhado para triagem e or?amento' },
-        { label: 'Materiais', value: String(materials.length), hint: 'Base sugerida para composi??o' },
+        { label: 'Macroserviços', value: String(macroServices.length), hint: 'Camada macro de classificação' },
+        { label: 'Serviços', value: String(serviceCatalog.length), hint: 'Catálogo detalhado para triagem e orçamento' },
+        { label: 'Materiais', value: String(materials.length), hint: 'Base sugerida para composição' },
       ];
     }
     if (section === 'templates') {
       return [
         { label: 'Gatilho', value: template.trigger || 'Template', hint: 'Fluxo ativo no momento' },
-        { label: 'Assunto', value: template.subject ? 'Personalizado' : 'Padr?o', hint: 'Linha usada nas mensagens' },
-        { label: 'Corpo', value: template.body ? 'Ativo' : 'Vazio', hint: 'Conte?do operacional enviado' },
+        { label: 'Assunto', value: template.subject ? 'Personalizado' : 'Padrão', hint: 'Linha usada nas mensagens' },
+        { label: 'Corpo', value: template.body ? 'Ativo' : 'Vazio', hint: 'Conteúdo operacional enviado' },
       ];
     }
     if (section === 'daily-digest') {
       return [
-        { label: 'Resumo', value: digest.enabled ? 'Ativado' : 'Desativado', hint: 'Rotina autom?tica de envio' },
-        { label: 'Hor?rio', value: digest.time || '--:--', hint: 'Janela configurada para disparo' },
-        { label: 'Destinat?rios', value: digest.recipients ? String(digest.recipients.split(',').filter(Boolean).length) : '0', hint: 'Quantidade atual na lista' },
+        { label: 'Resumo', value: digest.enabled ? 'Ativado' : 'Desativado', hint: 'Rotina automática de envio' },
+        { label: 'Horário', value: digest.time || '--:--', hint: 'Janela configurada para disparo' },
+        { label: 'Destinatários', value: digest.recipients ? String(digest.recipients.split(',').filter(Boolean).length) : '0', hint: 'Quantidade atual na lista' },
       ];
     }
     if (section === 'sla') {
       return [
         { label: 'Regras', value: String(sla.rules.length), hint: 'Faixas de prioridade configuradas' },
-        { label: 'Urgente', value: sla.rules[0]?.prazo || '-', hint: 'Prazo mais cr?tico' },
-        { label: 'Normal', value: sla.rules[2]?.prazo || '-', hint: 'Refer?ncia padr?o da opera??o' },
+        { label: 'Urgente', value: sla.rules[0]?.prazo || '-', hint: 'Prazo mais crítico' },
+        { label: 'Normal', value: sla.rules[2]?.prazo || '-', hint: 'Referência padrão da operação' },
       ];
     }
     return [
-      { label: 'Health checks', value: integrationsHealth ? 'Ativos' : 'Pendente', hint: 'Leitura do ambiente t?cnico' },
-      { label: 'Backfill', value: backfillResult ? 'Executado' : 'Dispon?vel', hint: 'Saneamento legado sob demanda' },
+      { label: 'Health checks', value: integrationsHealth ? 'Ativos' : 'Pendente', hint: 'Leitura do ambiente técnico' },
+      { label: 'Backfill', value: backfillResult ? 'Executado' : 'Disponível', hint: 'Saneamento legado sob demanda' },
       { label: 'Legado', value: legacyHealth ? String(legacyCards.reduce((sum, card) => sum + Number(card.value || 0), 0)) : '--', hint: 'Sinais antigos encontrados no projeto' },
     ];
   }, [
@@ -586,39 +586,39 @@ export function SettingsView() {
   ]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,#f6ead1_0%,#f4efe8_34%,#f1ede6_100%)] p-5 md:p-8">
+    <div className="flex-1 overflow-y-auto bg-stone-50 p-5 md:p-8">
       <div className="mx-auto max-w-[1500px] space-y-7">
-        <section className="overflow-hidden rounded-[2.4rem] border border-stone-200/80 bg-[linear-gradient(135deg,#1f2937_0%,#2f241f_42%,#efe4cf_42.1%,#f8f1e6_100%)] shadow-[0_30px_90px_rgba(15,23,42,0.12)]">
+        <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
           <div className="grid gap-0 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="px-8 py-9 text-white md:px-10">
-              <div className="text-[11px] uppercase tracking-[0.36em] text-white/55">Configura??o Central</div>
-              <h1 className="mt-4 max-w-2xl text-4xl font-serif tracking-tight">Painel de Estrutura e Governan?a</h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/72">
-                Um centro administrativo para controlar pessoas, territ?rio, cat?logo operacional, comunica??o e observabilidade sem espalhar configura??o pelo sistema.
+            <div className="px-8 py-8 md:px-10">
+              <div className="text-[11px] uppercase tracking-[0.32em] text-roman-primary">Configuração Central</div>
+              <h1 className="mt-4 max-w-2xl text-4xl font-serif tracking-tight text-roman-text-main">Painel de Estrutura e Governança</h1>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-roman-text-sub">
+                Um centro administrativo para controlar pessoas, território, catálogo operacional, comunicação e observabilidade sem espalhar configuração pelo sistema.
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur-sm">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Escopo</div>
-                  <div className="mt-2 text-xl font-serif">Governan?a</div>
-                  <div className="mt-1 text-sm text-white/65">Usu?rios, pap?is e visibilidade territorial.</div>
+                <div className="rounded-[1.3rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Escopo</div>
+                  <div className="mt-2 text-xl font-serif">Governança</div>
+                  <div className="mt-1 text-sm text-roman-text-sub">Usuários, papéis e visibilidade territorial.</div>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur-sm">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Base</div>
-                  <div className="mt-2 text-xl font-serif">Opera??o</div>
-                  <div className="mt-1 text-sm text-white/65">Cat?logos, templates e SLA em um s? lugar.</div>
+                <div className="rounded-[1.3rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Base</div>
+                  <div className="mt-2 text-xl font-serif">Operação</div>
+                  <div className="mt-1 text-sm text-roman-text-sub">Catálogos, templates e SLA em um só lugar.</div>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur-sm">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-white/50">Health</div>
+                <div className="rounded-[1.3rem] border border-stone-200 bg-stone-50 px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Health</div>
                   <div className="mt-2 text-xl font-serif">Ambiente</div>
-                  <div className="mt-1 text-sm text-white/65">Status t?cnico, e-mail e legado monitorados.</div>
+                  <div className="mt-1 text-sm text-roman-text-sub">Status técnico, e-mail e legado monitorados.</div>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-4 px-6 py-6 md:grid-cols-2 md:px-8 xl:grid-cols-1 xl:content-center">
+            <div className="grid gap-4 px-6 py-6 md:grid-cols-2 md:px-8 xl:grid-cols-1 xl:content-start">
               {sectionHighlights.map(card => (
-                <div key={card.label} className="rounded-[1.6rem] border border-stone-200/80 bg-white/88 px-5 py-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                <div key={card.label} className="rounded-[1.4rem] border border-stone-200 bg-stone-50 px-5 py-5">
                   <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">{card.label}</div>
                   <div className="mt-3 text-2xl font-serif text-roman-text-main">{card.value}</div>
                   <div className="mt-2 text-sm text-roman-text-sub">{card.hint}</div>
@@ -629,11 +629,11 @@ export function SettingsView() {
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[2rem] border border-stone-200/80 bg-[linear-gradient(180deg,#fffdf9_0%,#f5efe6_100%)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-            <div className="rounded-[1.5rem] border border-stone-200/70 bg-white px-5 py-5">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-roman-text-sub">Navega??o</div>
-              <div className="mt-3 text-2xl font-serif text-roman-text-main">M?dulos de configura??o</div>
-              <p className="mt-2 text-sm leading-6 text-roman-text-sub">A navega??o foi condensada para reduzir ru?do e destacar a frente que voc? est? administrando agora.</p>
+          <aside className="h-fit rounded-[2rem] border border-stone-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+            <div className="rounded-[1.4rem] border border-stone-200 bg-stone-50 px-5 py-5">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-roman-text-sub">Navegação</div>
+              <div className="mt-3 text-2xl font-serif text-roman-text-main">Módulos de configuração</div>
+              <p className="mt-2 text-sm leading-6 text-roman-text-sub">A navegação foi condensada para reduzir ruído e destacar a frente que você está administrando agora.</p>
             </div>
 
             <div className="mt-4 space-y-3">
@@ -646,8 +646,8 @@ export function SettingsView() {
                   onClick={() => setSection(key)}
                   className={`w-full rounded-[1.6rem] border px-4 py-4 text-left transition-all ${
                     isActive
-                      ? 'border-transparent bg-roman-sidebar text-white shadow-[0_18px_40px_rgba(24,24,27,0.20)]'
-                      : 'border-stone-200 bg-white text-roman-text-sub hover:border-roman-primary/35 hover:bg-stone-50'
+                      ? 'border-roman-primary/20 bg-stone-900 text-white shadow-[0_16px_36px_rgba(15,23,42,0.16)]'
+                      : 'border-stone-200 bg-stone-50 text-roman-text-sub hover:border-stone-300 hover:bg-white'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -665,15 +665,15 @@ export function SettingsView() {
             </div>
           </aside>
 
-          <div className="min-w-0 rounded-[2rem] border border-stone-200/80 bg-white/90 p-6 shadow-[0_28px_80px_rgba(15,23,42,0.08)] backdrop-blur md:p-8">
+          <div className="min-w-0 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_20px_48px_rgba(15,23,42,0.06)] md:p-8">
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                 <Loader2 size={18} className="animate-spin" />
-                Carregando configura??es...
+                Carregando configurações...
               </div>
             ) : (
               <>
-                <div className={`mb-8 rounded-[1.8rem] border border-stone-200/80 bg-gradient-to-br ${sectionMeta.accent} px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]`}>
+                <div className={`mb-8 rounded-[1.8rem] border border-stone-200/80 bg-stone-50 px-6 py-6 `}>
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-[0.32em] text-roman-primary">{sectionMeta.eyebrow}</div>
@@ -690,7 +690,7 @@ export function SettingsView() {
 
                     <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
                       {sectionHighlights.map(item => (
-                        <div key={item.label} className="rounded-[1.2rem] border border-white/70 bg-white/70 px-4 py-4 backdrop-blur">
+                        <div key={item.label} className="rounded-[1.2rem] border border-stone-200 bg-white px-4 py-4">
                           <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">{item.label}</div>
                           <div className="mt-2 text-lg font-serif text-roman-text-main">{item.value}</div>
                           <div className="mt-2 text-xs leading-5 text-roman-text-sub">{item.hint}</div>
@@ -1424,4 +1424,6 @@ export function SettingsView() {
     </div>
   );
 }
+
+
 
