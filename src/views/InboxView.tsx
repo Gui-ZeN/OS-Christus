@@ -1607,8 +1607,14 @@ export function InboxView() {
                   if (item.type === 'system') {
                     return (
                       <div key={index} className="flex gap-4 justify-center">
-                        <div className="bg-roman-border-light/50 border border-roman-border rounded-full px-4 py-1 text-xs text-roman-text-sub font-serif italic flex items-center gap-2">
-                          <Clock size={12} /> {item.text}
+                        <div className="max-w-[82%] rounded-full border border-roman-border bg-roman-border-light/50 px-4 py-2 text-center text-xs text-roman-text-sub">
+                          <div className="flex items-center justify-center gap-2 font-serif italic">
+                            <Clock size={12} />
+                            <span>{item.text}</span>
+                          </div>
+                          <div className="mt-1 text-[11px] font-sans not-italic text-roman-text-sub/80">
+                            {formatDateTimeSafe(item.time)}
+                          </div>
                         </div>
                       </div>
                     );
