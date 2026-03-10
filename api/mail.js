@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
@@ -307,96 +307,131 @@ async function processGmailInboundMessage(db, msg, source) {
       fromEmail: firstEmail(msg.from),
       subject: msg.subject || '',
       messageId: msg.messageId || msg.id || null,
-      error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
+      error: 'Mensagem autom?tica ou enviada pelo pr?prio sistema ignorada.',
     });
     return false;
   }
 
-  const createdTicket =
-    msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) ? null : await createTicketFromInbound(db, msg);
-  const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
-  if (!ticketId) return false;
-
-  const threadRef = db.collection('emailThreads').doc(ticketId);
-  const now = msg.internalDate || new Date();
+  const messageId = msg.messageId || msg.id || null;
   const fromEmail = firstEmail(msg.from);
-  const toEmail = firstEmail(msg.to);
-  const references = String(msg.references || '')
-    .split(/\s+/)
-    .map(value => value.trim())
-    .filter(Boolean)
-    .slice(-20);
-  const participants = [fromEmail, toEmail].filter(Boolean);
+  const lock = await acquireInboundMessageLock(db, {
+    messageId,
+    fallbackKey: `${msg.threadId || 'gmail'}:${msg.subject || ''}:${fromEmail || ''}`,
+    provider: 'gmail',
+    source,
+    fromEmail,
+    subject: msg.subject || '',
+  });
 
-  await threadRef.set(
-    {
-      ticketId,
-      lastMessageId: msg.messageId || msg.id,
-      lastDirection: 'inbound',
-      lastInboundAt: now,
-      updatedAt: now,
-      references,
-      gmailThreadId: msg.threadId || null,
-      ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
-    },
-    { merge: true }
-  );
+  if (!lock.acquired) {
+    return false;
+  }
 
-  if (msg.messageId) {
-    const duplicateSnap = await threadRef
-      .collection('messages')
-      .where('messageId', '==', msg.messageId)
-      .limit(1)
-      .get();
-    if (!duplicateSnap.empty) {
+  try {
+    const createdTicket =
+      msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) ? null : await createTicketFromInbound(db, msg);
+    const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
+    if (!ticketId) {
+      await finalizeInboundMessageLock(lock.ref, { ignored: true, reason: 'ticket-not-identified' });
       return false;
     }
-  }
 
-  await threadRef.collection('messages').add({
-    direction: 'inbound',
-    fromEmail: fromEmail || null,
-    toEmail: toEmail || null,
-    subject: msg.subject || '',
-    text: msg.text || null,
-    html: msg.html || null,
-    messageId: msg.messageId || msg.id || null,
-    inReplyTo: msg.inReplyTo || null,
-    references,
-    provider: 'gmail',
-    attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
-    createdAt: now,
-  });
+    const threadRef = db.collection('emailThreads').doc(ticketId);
+    const now = msg.internalDate || new Date();
+    const toEmail = firstEmail(msg.to);
+    const references = String(msg.references || '')
+      .split(/\s+/)
+      .map(value => value.trim())
+      .filter(Boolean)
+      .slice(-20);
+    const participants = [fromEmail, toEmail].filter(Boolean);
 
-  await db.collection('ticketInbound').add({
-    ticketId,
-    fromEmail: fromEmail || null,
-    subject: msg.subject || '',
-    text: msg.text || null,
-    html: msg.html || null,
-    attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
-    createdAt: now,
-    source,
-  });
+    await threadRef.set(
+      {
+        ticketId,
+        lastMessageId: messageId,
+        lastDirection: 'inbound',
+        lastInboundAt: now,
+        updatedAt: now,
+        references,
+        gmailThreadId: msg.threadId || null,
+        ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
+      },
+      { merge: true }
+    );
 
-  if (!createdTicket) {
-    await appendInboundMessageToTicketHistory(db, ticketId, {
-      ...msg,
-      internalDate: now,
+    if (messageId) {
+      const duplicateSnap = await threadRef
+        .collection('messages')
+        .where('messageId', '==', messageId)
+        .limit(1)
+        .get();
+      if (!duplicateSnap.empty) {
+        await finalizeInboundMessageLock(lock.ref, {
+          ticketId,
+          gmailThreadId: msg.threadId || null,
+          threadPath: `emailThreads/${ticketId}`,
+          duplicate: true,
+        });
+        return false;
+      }
+    }
+
+    await threadRef.collection('messages').add({
+      direction: 'inbound',
+      fromEmail: fromEmail || null,
+      toEmail: toEmail || null,
+      subject: msg.subject || '',
+      text: msg.text || null,
+      html: msg.html || null,
+      messageId,
+      inReplyTo: msg.inReplyTo || null,
+      references,
+      provider: 'gmail',
+      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+      createdAt: now,
     });
+
+    await db.collection('ticketInbound').add({
+      ticketId,
+      fromEmail: fromEmail || null,
+      subject: msg.subject || '',
+      text: msg.text || null,
+      html: msg.html || null,
+      messageId,
+      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+      createdAt: now,
+      source,
+    });
+
+    await finalizeInboundMessageLock(lock.ref, {
+      ticketId,
+      gmailThreadId: msg.threadId || null,
+      threadPath: `emailThreads/${ticketId}`,
+    });
+
+    if (!createdTicket) {
+      await appendInboundMessageToTicketHistory(db, ticketId, {
+        ...msg,
+        internalDate: now,
+      });
+    }
+
+    await logEmailEvent({
+      type: 'inbound',
+      status: 'success',
+      provider: 'gmail',
+      ticketId,
+      fromEmail: fromEmail || null,
+      subject: msg.subject || '',
+      messageId,
+    });
+
+    return true;
+  } catch (error) {
+    await releaseInboundMessageLock(lock.ref);
+    throw error;
   }
-
-  await logEmailEvent({
-    type: 'inbound',
-    status: 'success',
-    provider: 'gmail',
-    ticketId,
-    fromEmail: fromEmail || null,
-    subject: msg.subject || '',
-    messageId: msg.messageId || msg.id || null,
-  });
-
-  return true;
 }
 
 async function processGmailInboundMessageIds(db, messageIds, source) {
@@ -430,7 +465,63 @@ async function canSendPublicCreationEmail(db, ticketId, toEmail, internalCopy) {
 async function buildNextTicketId(db) {
   return reserveNextTicketId(db);
 }
-
+function buildInboundMessageLockId(messageId, fallbackKey = '') {
+  const base = String(messageId || fallbackKey || '')
+    .trim()
+    .toLowerCase();
+  if (!base) return null;
+  return createHash('sha256').update(base).digest('hex');
+}
+function isAlreadyExistsError(error) {
+  return (
+    error?.code === 6 ||
+    error?.code === 'already-exists' ||
+    /already exists/i.test(String(error?.message || ''))
+  );
+}
+async function acquireInboundMessageLock(db, options) {
+  const lockId = buildInboundMessageLockId(options.messageId, options.fallbackKey);
+  if (!lockId) {
+    return { acquired: true, ref: null, data: null };
+  }
+  const ref = db.collection('inboundMessageLocks').doc(lockId);
+  try {
+    await ref.create({
+      messageId: options.messageId || null,
+      fallbackKey: options.fallbackKey || null,
+      provider: options.provider || null,
+      source: options.source || null,
+      fromEmail: options.fromEmail || null,
+      subject: options.subject || '',
+      status: 'processing',
+      createdAt: new Date(),
+    });
+    return { acquired: true, ref, data: null };
+  } catch (error) {
+    if (!isAlreadyExistsError(error)) throw error;
+    const snap = await ref.get();
+    return { acquired: false, ref, data: snap.exists ? snap.data() : null };
+  }
+}
+async function finalizeInboundMessageLock(ref, data) {
+  if (!ref) return;
+  await ref.set(
+    {
+      ...data,
+      status: 'processed',
+      processedAt: new Date(),
+    },
+    { merge: true }
+  );
+}
+async function releaseInboundMessageLock(ref) {
+  if (!ref) return;
+  try {
+    await ref.delete();
+  } catch {
+    // Ignora falha na limpeza do lock para permitir novo processamento.
+  }
+}
 async function resolveSiteContext(db, siteCode) {
   const normalized = normalizeKey(siteCode);
   const [sitesSnap, regionsSnap] = await Promise.all([
@@ -1013,17 +1104,19 @@ async function handleGmailPush(req, res) {
 }
 
 async function handleInbound(req, res) {
+  let lockRef = null;
+
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M?todo n?o permitido.' });
     }
 
     const configuredSecret = process.env.SENDGRID_INBOUND_SECRET;
     if (configuredSecret) {
       const provided = req.query?.secret || req.headers['x-os-secret'] || req.headers['x-inbound-secret'] || null;
       if (provided !== configuredSecret) {
-        return sendJson(res, 401, { ok: false, error: 'Segredo inválido no inbound.' });
+        return sendJson(res, 401, { ok: false, error: 'Segredo inv?lido no inbound.' });
       }
     }
 
@@ -1057,12 +1150,37 @@ async function handleInbound(req, res) {
         fromEmail: fromEmail || null,
         subject,
         messageId: body['message-id'] || headers['message-id'] || null,
-        error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
+        error: 'Mensagem autom?tica ou enviada pelo pr?prio sistema ignorada.',
       });
       return sendJson(res, 200, { ok: true, skipped: true });
     }
 
     const db = getAdminDb();
+    const rawMessageId =
+      body['Message-Id'] ||
+      body['message-id'] ||
+      body.message_id ||
+      headers['message-id'] ||
+      null;
+    const lock = await acquireInboundMessageLock(db, {
+      messageId: rawMessageId,
+      fallbackKey: `${subject}:${fromEmail || ''}:${toEmail || ''}`,
+      provider: 'sendgrid',
+      source: 'sendgrid-inbound',
+      fromEmail,
+      subject,
+    });
+    lockRef = lock.ref;
+
+    if (!lock.acquired) {
+      return sendJson(res, 200, {
+        ok: true,
+        duplicate: true,
+        ticketId: lock.data?.ticketId || null,
+        messageId: rawMessageId,
+      });
+    }
+
     const createdTicket =
       explicitTicketId || subjectTicketId
         ? null
@@ -1078,15 +1196,11 @@ async function handleInbound(req, res) {
     const ticketId = (explicitTicketId || subjectTicketId || createdTicket?.id || '').toString().trim().toUpperCase();
 
     if (!ticketId) {
-      return sendJson(res, 422, { ok: false, error: 'Não foi possível identificar o ticket no inbound.' });
+      await finalizeInboundMessageLock(lock.ref, { ignored: true, reason: 'ticket-not-identified' });
+      return sendJson(res, 422, { ok: false, error: 'N?o foi poss?vel identificar o ticket no inbound.' });
     }
 
-    const messageId =
-      body['Message-Id'] ||
-      body['message-id'] ||
-      body.message_id ||
-      headers['message-id'] ||
-      `<inbound-${ticketId}-${Date.now()}@sendgrid>`;
+    const messageId = rawMessageId || `<inbound-${ticketId}-${Date.now()}@sendgrid>`;
     const inReplyTo = body.in_reply_to || headers['in-reply-to'] || null;
     const referencesRaw = body.references || headers.references || '';
     const references = String(referencesRaw)
@@ -1119,7 +1233,12 @@ async function handleInbound(req, res) {
         .limit(1)
         .get();
       if (!duplicateSnap.empty) {
-        return sendJson(res, 200, { ok: true, duplicate: true });
+        await finalizeInboundMessageLock(lock.ref, {
+          ticketId,
+          threadPath: `emailThreads/${ticketId}`,
+          duplicate: true,
+        });
+        return sendJson(res, 200, { ok: true, duplicate: true, ticketId, messageId });
       }
     }
 
@@ -1127,7 +1246,7 @@ async function handleInbound(req, res) {
       direction: 'inbound',
       fromEmail: fromEmail || null,
       toEmail: toEmail || null,
-      subject: subject,
+      subject,
       text: text || null,
       html: html || null,
       messageId,
@@ -1141,12 +1260,18 @@ async function handleInbound(req, res) {
     await db.collection('ticketInbound').add({
       ticketId,
       fromEmail: fromEmail || null,
-      subject: subject,
+      subject,
       text: text || null,
       html: html || null,
+      messageId,
       attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
       createdAt: now,
       source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
+    });
+
+    await finalizeInboundMessageLock(lock.ref, {
+      ticketId,
+      threadPath: `emailThreads/${ticketId}`,
     });
 
     if (!createdTicket) {
@@ -1165,12 +1290,13 @@ async function handleInbound(req, res) {
       provider: 'sendgrid',
       ticketId,
       fromEmail: fromEmail || null,
-      subject: subject,
+      subject,
       messageId,
     });
 
     return sendJson(res, 200, { ok: true, ticketId, messageId });
   } catch (error) {
+    await releaseInboundMessageLock(lockRef);
     await logEmailEvent({
       type: 'inbound',
       status: 'error',
