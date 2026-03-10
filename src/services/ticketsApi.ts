@@ -219,3 +219,15 @@ export async function patchTrackingTicketInApi(trackingToken: string, updates: P
     throw new Error('Falha ao atualizar ticket por acompanhamento.');
   }
 }
+
+export async function deleteTicketInApi(id: string) {
+  const headers = await getAuthenticatedActorHeaders();
+  const response = await fetch('/api/tickets', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ id }),
+  });
+  if (!response.ok) {
+    throw new Error('Falha ao excluir ticket na API.');
+  }
+}

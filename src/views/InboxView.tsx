@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Search, Filter, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw } from 'lucide-react';
+import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2 } from 'lucide-react';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -11,6 +11,7 @@ import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
+import { deleteTicketInApi } from '../services/ticketsApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent } from '../utils/executionFlow';
@@ -51,6 +52,21 @@ const PRELIMINARY_ITEMS = [
 ] as const;
 
 const EXECUTION_STATUS_OPTIONS = [
+  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+  TICKET_STATUS.IN_PROGRESS,
+  TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+  TICKET_STATUS.WAITING_PAYMENT,
+  TICKET_STATUS.CLOSED,
+  TICKET_STATUS.CANCELED,
+] as const;
+
+const INBOX_STATUS_OPTIONS = [
+  TICKET_STATUS.NEW,
+  TICKET_STATUS.WAITING_TECH_OPINION,
+  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+  TICKET_STATUS.WAITING_BUDGET,
+  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
   TICKET_STATUS.WAITING_PRELIM_ACTIONS,
   TICKET_STATUS.IN_PROGRESS,
   TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
@@ -182,47 +198,6 @@ function formatCurrencyInput(value: number) {
   }).format(value);
 }
 
-// Z7: Renderiza uma seção de filtro com checkboxes para uma dimensão
-function renderFilterSection(
-  label: string,
-  dim: keyof InboxFilter,
-  options: string[],
-  inboxFilter: InboxFilter,
-  setInboxFilter: (f: InboxFilter) => void
-) {
-  return (
-    <div>
-      <div className="px-4 py-2 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub border-b border-roman-border bg-roman-bg/50 flex justify-between items-center">
-        <span>{label}</span>
-        {inboxFilter[dim].length > 0 && (
-          <button
-            onClick={() => setInboxFilter({ ...inboxFilter, [dim]: [] })}
-            className="text-roman-primary hover:underline normal-case tracking-normal font-sans text-[11px]"
-          >
-            Limpar
-          </button>
-        )}
-      </div>
-      {options.map(opt => (
-        <button
-          key={opt}
-          onClick={() => {
-            const current = inboxFilter[dim];
-            const next = current.includes(opt) ? current.filter(v => v !== opt) : [...current, opt];
-            setInboxFilter({ ...inboxFilter, [dim]: next });
-          }}
-          className={`w-full text-left px-4 py-2 text-[12px] hover:bg-roman-bg transition-colors flex items-center gap-2 ${inboxFilter[dim].includes(opt) ? 'text-roman-primary font-medium' : 'text-roman-text-main'}`}
-        >
-          <div className={`w-3 h-3 border rounded-sm flex items-center justify-center flex-shrink-0 ${inboxFilter[dim].includes(opt) ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
-            {inboxFilter[dim].includes(opt) && <CheckSquare size={9} className="text-white" />}
-          </div>
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function InboxView() {
   const {
     navigateTo,
@@ -232,6 +207,7 @@ export function InboxView() {
     inboxFilter,
     setInboxFilter,
     tickets,
+    refreshTickets,
     updateTicket,
     addTicket,
     currentUser,
@@ -252,6 +228,7 @@ export function InboxView() {
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
   const canManageStatus = currentUser?.role === 'Admin';
+  const canDeleteTicket = currentUser?.role === 'Admin';
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -814,7 +791,6 @@ export function InboxView() {
   };
 
   const [isSending, setIsSending] = useState(false);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showMobileTicketList, setShowMobileTicketList] = useState(false);
   const [showMobileContext, setShowMobileContext] = useState(false);
@@ -822,6 +798,8 @@ export function InboxView() {
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showDeleteTicketModal, setShowDeleteTicketModal] = useState(false);
+  const [isDeletingTicket, setIsDeletingTicket] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
@@ -843,7 +821,8 @@ export function InboxView() {
       url: attachment.url,
     }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
-  const shouldLockBodyScroll = isMobileOverlayOpen || showQuotesModal || showPrelimModal || showExecutionSetupModal || showProgressModal;
+  const shouldLockBodyScroll =
+    isMobileOverlayOpen || showQuotesModal || showPrelimModal || showExecutionSetupModal || showProgressModal || showDeleteTicketModal;
 
   useEffect(() => {
     function handleEsc(event: KeyboardEvent) {
@@ -853,16 +832,17 @@ export function InboxView() {
       if (showExecutionSetupModal) setShowExecutionSetupModal(false);
       if (showProgressModal) setShowProgressModal(false);
       if (showActionsMenu) setShowActionsMenu(false);
-      if (showFilterMenu) setShowFilterMenu(false);
+      if (showDeleteTicketModal) setShowDeleteTicketModal(false);
       if (showMobileTicketList) setShowMobileTicketList(false);
       if (showMobileContext) setShowMobileContext(false);
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [showQuotesModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showFilterMenu, showMobileTicketList, showMobileContext]);
+  }, [showQuotesModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showDeleteTicketModal, showMobileTicketList, showMobileContext]);
 
   useEffect(() => {
     setShowActionsMenu(false);
+    setShowDeleteTicketModal(false);
     setShowMobileTicketList(false);
     setShowMobileContext(false);
   }, [activeTicketId]);
@@ -877,7 +857,6 @@ export function InboxView() {
   }, [shouldLockBodyScroll]);
 
   // useClickOutside substitui o useEffect manual anterior
-  const filterMenuRef = useClickOutside<HTMLDivElement>(() => setShowFilterMenu(false));
   const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
   const [quotes, setQuotes] = useState<QuoteDraft[]>([
@@ -929,12 +908,6 @@ export function InboxView() {
     if (!isAUrgentCorrective && isBUrgentCorrective) return 1;
     return b.time.getTime() - a.time.getTime();
   }), [tickets, inboxFilter, catalogRegions, catalogSites]);
-
-  const regionFilterOptions = useMemo(() => {
-    const catalogOptions = catalogRegions.map(region => region.name);
-    const ticketOptions = tickets.map(ticket => getTicketRegionLabel(ticket, catalogRegions, catalogSites));
-    return [...new Set([...catalogOptions, ...ticketOptions].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [catalogRegions, catalogSites, tickets]);
 
   const siteFilterOptions = useMemo(() => {
     const catalogOptions = catalogSites.map(site => site.code || site.name);
@@ -1266,6 +1239,25 @@ export function InboxView() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleDeleteTicket = async () => {
+    if (!canDeleteTicket || isDeletingTicket || !activeTicket.id) return;
+
+    setIsDeletingTicket(true);
+    try {
+      await deleteTicketInApi(activeTicket.id);
+      setShowDeleteTicketModal(false);
+      setShowActionsMenu(false);
+      setToast(`OS ${activeTicket.id} excluída com sucesso.`);
+      await refreshTickets();
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Não foi possível excluir a OS.');
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setIsDeletingTicket(false);
+    }
+  };
+
   // Z7: active chips
   const activeChips: { dim: keyof typeof inboxFilter; value: string }[] = (
     ['status', 'priority', 'region', 'site', 'type'] as (keyof typeof inboxFilter)[]
@@ -1357,9 +1349,11 @@ export function InboxView() {
                 className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todos os status</option>
-                <option value={TICKET_STATUS.NEW}>Novas OS ({tickets.filter(t => t.status === TICKET_STATUS.NEW).length})</option>
-                <option value={TICKET_STATUS.WAITING_BUDGET}>Aguardando orçamento ({tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length})</option>
-                <option value={TICKET_STATUS.IN_PROGRESS}>Em execução ({tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length})</option>
+                {INBOX_STATUS_OPTIONS.map(status => (
+                  <option key={status} value={status}>
+                    {status} ({tickets.filter(ticket => ticket.status === status).length})
+                  </option>
+                ))}
               </select>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
             </div>
@@ -1496,44 +1490,11 @@ export function InboxView() {
               <span className="font-serif">Nova OS</span>
             </button>
           </div>
-          <div className="ml-auto flex items-center gap-3 px-4 relative">
+          <div className="ml-auto flex items-center gap-3 px-4">
             <div className="hidden md:flex items-center gap-2 mr-4 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs text-roman-text-sub">
               <User size={14} />
               <span>Visualizando como: <strong>{displayActorLabel}</strong></span>
             </div>
-            <button
-              onClick={() => setShowFilterMenu(!showFilterMenu)}
-              className={`transition-colors ${showFilterMenu || Object.values(inboxFilter).some(arr => (arr as string[]).length > 0) ? 'text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}
-              title="Filtros compostos"
-              aria-label="Filtros compostos"
-              aria-expanded={showFilterMenu}
-            >
-              <Filter size={18} />
-            </button>
-            {showFilterMenu && (
-              <div ref={filterMenuRef} className="absolute top-8 right-10 w-72 bg-roman-surface border border-roman-border shadow-xl rounded-sm z-20 max-h-[500px] overflow-y-auto">
-                <div className="px-4 py-3 border-b border-roman-border flex justify-between items-center bg-roman-bg sticky top-0">
-                  <span className="text-xs font-serif font-semibold text-roman-text-main">Filtros Compostos</span>
-                  <button
-                    onClick={() => setInboxFilter({ status: [], priority: [], region: [], site: [], type: [] })}
-                    className="text-[11px] text-roman-primary hover:underline font-medium"
-                  >
-                    Limpar todos
-                  </button>
-                </div>
-                                {renderFilterSection('Status', 'status', [
-                  TICKET_STATUS.NEW, TICKET_STATUS.WAITING_TECH_OPINION, TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-                  TICKET_STATUS.WAITING_BUDGET, TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-                  TICKET_STATUS.WAITING_CONTRACT_APPROVAL, TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-                  TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL, TICKET_STATUS.WAITING_PAYMENT, TICKET_STATUS.CLOSED,
-                ], inboxFilter, setInboxFilter)}
-                {renderFilterSection('Prioridade', 'priority', ['Urgente', 'Alta', 'Normal', 'Trivial'], inboxFilter, setInboxFilter)}
-                {renderFilterSection('Região', 'region', regionFilterOptions, inboxFilter, setInboxFilter)}
-                {renderFilterSection('Sede', 'site', siteFilterOptions, inboxFilter, setInboxFilter)}
-                {renderFilterSection('Tipo', 'type', ['Corretiva', 'Preventiva', 'Melhoria'], inboxFilter, setInboxFilter)}
-              </div>
-            )}
-            <Search size={18} className="text-roman-text-sub" />
           </div>
         </header>
 
@@ -1586,6 +1547,18 @@ export function InboxView() {
                       ) : (
                         <button onClick={handleCancelTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 transition-colors text-red-700">
                           Cancelar OS
+                        </button>
+                      )}
+                      {canDeleteTicket && (
+                        <button
+                          onClick={() => {
+                            setShowActionsMenu(false);
+                            setShowDeleteTicketModal(true);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 transition-colors text-red-700 flex items-center gap-2 border-t border-roman-border"
+                        >
+                          <Trash2 size={14} />
+                          Excluir OS
                         </button>
                       )}
                     </div>
@@ -2059,6 +2032,43 @@ export function InboxView() {
       </div>
 
       {/* Quotes Modal */}
+      {showDeleteTicketModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-sm border border-roman-border bg-roman-surface shadow-xl">
+            <div className="border-b border-roman-border px-5 py-4">
+              <div className="text-[10px] font-serif uppercase tracking-widest text-red-700">Exclusão permanente</div>
+              <h3 className="mt-1 font-serif text-xl text-roman-text-main">Excluir {activeTicket.id}</h3>
+            </div>
+            <div className="px-5 py-4 text-sm text-roman-text-sub space-y-3">
+              <p>
+                Esta ação remove a OS e todos os registros relacionados no Firebase.
+              </p>
+              <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-red-900">
+                <div className="font-medium">Serão excluídos:</div>
+                <div className="mt-1 text-sm">ticket, cotações, contrato, parcelas, medições, conversa por e-mail e anexos vinculados.</div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-roman-border px-5 py-4">
+              <button
+                onClick={() => setShowDeleteTicketModal(false)}
+                disabled={isDeletingTicket}
+                className="rounded-sm border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteTicket}
+                disabled={isDeletingTicket}
+                className="inline-flex items-center gap-2 rounded-sm bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeletingTicket ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {isDeletingTicket ? 'Excluindo...' : 'Confirmar exclusão'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showQuotesModal && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
