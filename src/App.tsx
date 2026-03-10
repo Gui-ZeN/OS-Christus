@@ -228,7 +228,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-roman-bg text-roman-text-main font-sans text-[13px]">
+    <div className="flex h-screen bg-roman-bg text-roman-text-main font-sans text-[14px]">
       <aside className="w-14 bg-roman-sidebar flex flex-col items-center py-4 z-20 border-r border-stone-900">
         <div className="w-8 h-8 flex items-center justify-center mb-6 text-roman-primary">
           <Landmark size={24} />
