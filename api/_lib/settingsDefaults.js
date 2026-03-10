@@ -8,11 +8,12 @@
 
 Recebemos sua solicitação e a {{ticket.id}} já entrou na fila de triagem.
 
-Chamado: {{ticket.subject}}
-Número da OS: {{ticket.id}}
-Local: {{ticket.sede}}
+Chamado
+{{ticket.subject}}
 
-Use o link abaixo para acompanhar as próximas atualizações:
+Local
+{{ticket.sede}}
+
 {{tracking.url}}`,
       },
       'EMAIL-TRIAGEM-EM-ANDAMENTO': {
@@ -22,11 +23,12 @@ Use o link abaixo para acompanhar as próximas atualizações:
 
 Sua solicitação está em triagem com a equipe de manutenção.
 
-Número da OS: {{ticket.id}}
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
 
-Você receberá uma nova atualização assim que essa análise avançar.
+Status
+{{ticket.status}}
+
 {{tracking.url}}`,
       },
       'EMAIL-PARECER-TECNICO': {
@@ -36,8 +38,11 @@ Você receberá uma nova atualização assim que essa análise avançar.
 
 O parecer técnico da {{ticket.id}} foi concluído e a solicitação seguiu para definição da solução.
 
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -48,9 +53,11 @@ Status: {{ticket.status}}
 
 Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.
 
-Número da OS: {{ticket.id}}
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -61,9 +68,11 @@ Status: {{ticket.status}}
 
 Sua solicitação avançou para a etapa de aprovação.
 
-Número da OS: {{ticket.id}}
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -74,9 +83,11 @@ Status: {{ticket.status}}
 
 Sua solicitação entrou em ações preliminares.
 
-Número da OS: {{ticket.id}}
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -87,9 +98,11 @@ Status: {{ticket.status}}
 
 A execução do serviço foi iniciada.
 
-Número da OS: {{ticket.id}}
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -100,8 +113,11 @@ Status: {{ticket.status}}
 
 A equipe concluiu a execução da {{ticket.id}} e agora precisa da sua validação.
 
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -112,9 +128,11 @@ Status: {{ticket.status}}
 
 Sua validação foi registrada e a solicitação entrou na etapa de pagamento e encerramento.
 
-Número da OS: {{ticket.id}}
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
 
 {{tracking.url}}`,
       },
@@ -125,11 +143,15 @@ Status: {{ticket.status}}
 
 A {{ticket.id}} foi encerrada com sucesso.
 
-Chamado: {{ticket.subject}}
-Status final: {{ticket.status}}
-Garantia: {{guarantee.summary}}
+Chamado
+{{ticket.subject}}
 
-Histórico completo:
+Status final
+{{ticket.status}}
+
+Garantia
+{{guarantee.summary}}
+
 {{tracking.url}}`,
       },
       'EMAIL-OS-CANCELADA': {
@@ -139,9 +161,14 @@ Histórico completo:
 
 A {{ticket.id}} foi cancelada.
 
-Chamado: {{ticket.subject}}
-Status: {{ticket.status}}
-Motivo: {{message.body}}
+Chamado
+{{ticket.subject}}
+
+Status
+{{ticket.status}}
+
+Motivo
+{{message.body}}
 
 {{tracking.url}}`,
       },
@@ -152,13 +179,15 @@ Motivo: {{message.body}}
 
 Há uma nova mensagem sobre a {{ticket.id}}.
 
-Enviado por: {{message.sender}}
-Chamado: {{ticket.subject}}
+Chamado
+{{ticket.subject}}
+
+Enviado por
+{{message.sender}}
 
 Mensagem recebida:
 {{message.body}}
 
-Para responder ou acompanhar o histórico:
 {{tracking.url}}`,
       },
     },
