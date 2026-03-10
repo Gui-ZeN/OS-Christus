@@ -2,6 +2,7 @@
 import { Ticket } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
+import { fetchUsers } from './directoryApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function resolveTicketEmail(ticket: Ticket): string | null {
@@ -110,6 +111,19 @@ async function postEmail(payload: Record<string, unknown>) {
   }
 }
 
+async function resolveDirectorEmails() {
+  try {
+    const users = await fetchUsers();
+    return [...new Set(
+      users
+        .filter(user => user.role === 'Diretor' && user.status === 'Ativo' && String(user.email || '').trim())
+        .map(user => String(user.email).trim().toLowerCase())
+    )];
+  } catch {
+    return [];
+  }
+}
+
 export async function notifyTicketCreated(ticket: Ticket) {
   const requesterEmail = resolveTicketEmail(ticket);
   if (!requesterEmail) return;
@@ -182,11 +196,11 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   }
 
   if (ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL) {
-    await postEmail({
+    const directorEmails = await resolveDirectorEmails();
+    const reviewPayload = {
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
       trigger: 'EMAIL-EM-APROVACAO',
-      internalCopy: true,
       skipThread: true,
       variables,
       templateData: {
@@ -197,7 +211,16 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
         ctaUrl: buildBudgetReviewUrl(ticket),
         ctaLabel: 'Revisar orçamento',
       },
-    });
+    };
+
+    if (directorEmails.length > 0) {
+      await Promise.all(directorEmails.map(toEmail => postEmail({ ...reviewPayload, toEmail })));
+    } else {
+      await postEmail({
+        ...reviewPayload,
+        internalCopy: true,
+      });
+    }
   }
 }
 
