@@ -15,6 +15,7 @@ const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatu
   budgets: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
   contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
 };
+const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
 
 function normalizeCsvCell(value: unknown) {
   const text = String(value ?? '');
@@ -47,6 +48,8 @@ export function ApprovalsView() {
   const [toast, setToast] = useState<string | null>(null);
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+
+  const currentReviewerName = currentUser?.name || currentUser?.email || 'Diretoria';
 
   if (!canAccess) {
     return (
@@ -104,6 +107,7 @@ export function ApprovalsView() {
 
   const handleApprove = (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
     if (!canApprove) return;
+    if (tab === 'budgets' && !claimBudgetReview(id)) return;
     setProcessingId(id);
     setTimeout(async () => {
       if (tab === 'budgets') {
@@ -125,7 +129,7 @@ export function ApprovalsView() {
                 vendor: approvedQuote.vendor,
                 value: approvedQuote.value,
                 status: 'pending_signature',
-                viewingBy: currentUser?.name || 'Diretoria',
+                viewingBy: null,
                 signedFileName: null,
                 items: approvedQuote.items || [],
               },
@@ -144,7 +148,7 @@ export function ApprovalsView() {
               vendor: approvedQuote.vendor,
               value: approvedQuote.value,
               status: 'pending_signature',
-              viewingBy: currentUser?.name || 'Diretoria',
+              viewingBy: null,
               signedFileName: null,
               items: approvedQuote.items || [],
             },
@@ -169,6 +173,7 @@ export function ApprovalsView() {
       };
       updateTicket(id, {
         status: APPROVAL_STATUS[tab],
+        viewingBy: tab === 'budgets' ? null : undefined,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
     }, 1500);
@@ -199,6 +204,7 @@ export function ApprovalsView() {
       };
       updateTicket(rejectTargetId, {
         status: TICKET_STATUS.CANCELED,
+        viewingBy: activeTab === 'budgets' ? null : undefined,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
       setRejectTargetId(null);
@@ -218,7 +224,7 @@ export function ApprovalsView() {
         vendor: currentContract?.vendor || 'A confirmar',
         value: currentContract?.value || 'A confirmar',
         status: 'signed',
-        viewingBy: currentContract?.viewingBy || null,
+        viewingBy: null,
         signedFileName: attachedFile?.name || currentContract?.signedFileName || null,
       };
       try {
@@ -246,6 +252,32 @@ export function ApprovalsView() {
       setAttachContractModalId(null);
       setAttachedFile(null);
     }, 1500);
+  };
+
+  const isReviewActive = (review: { name: string; at: Date } | null | undefined) => {
+    if (!review?.at) return false;
+    return new Date(review.at).getTime() + REVIEW_LOCK_WINDOW_MS > Date.now();
+  };
+
+  const claimBudgetReview = (id: string) => {
+    const targetTicket = tickets.find(ticket => ticket.id === id);
+    const review = targetTicket?.viewingBy;
+    if (review && isReviewActive(review) && review.name !== currentReviewerName) {
+      setToast(`${review.name} já está revisando este orçamento.`);
+      window.setTimeout(() => setToast(null), 3000);
+      return false;
+    }
+
+    if (!review || review.name !== currentReviewerName || !isReviewActive(review)) {
+      updateTicket(id, {
+        viewingBy: {
+          name: currentReviewerName,
+          at: new Date(),
+        },
+      });
+    }
+
+    return true;
   };
 
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
@@ -348,7 +380,7 @@ export function ApprovalsView() {
           date: ticket.time,
           macroServiceName: ticket.macroServiceName ?? null,
           serviceCatalogName: ticket.serviceCatalogName ?? null,
-          viewingBy: ticket.viewingBy?.name ?? null,
+          viewingBy: ticket.viewingBy ?? null,
           quotes: quotesByTicket[ticket.id] ?? [],
           historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
         })),
@@ -369,7 +401,6 @@ export function ApprovalsView() {
           value: contractsByTicket[ticket.id]?.value ?? 'A confirmar',
           vendor: contractsByTicket[ticket.id]?.vendor ?? 'A confirmar',
           items: contractsByTicket[ticket.id]?.items ?? [],
-          viewingBy: contractsByTicket[ticket.id]?.viewingBy ?? ticket.viewingBy?.name ?? null,
         })),
     [contractsByTicket, tickets]
   );
@@ -492,10 +523,10 @@ export function ApprovalsView() {
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{budget.id}</span>
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação</span>
-                    {budget.viewingBy && (
+                    {budget.viewingBy && isReviewActive(budget.viewingBy) && (
                       <span className="text-xs font-medium px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-sm flex items-center gap-1.5 shadow-sm">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        Em análise por {budget.viewingBy}
+                        Sendo revisado por {budget.viewingBy.name}
                       </span>
                     )}
                   </div>
@@ -518,12 +549,32 @@ export function ApprovalsView() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={() => handleExportBudgetComparison(budget)}
+                    type="button"
+                    onClick={() => claimBudgetReview(budget.id)}
+                    disabled={!!(budget.viewingBy && isReviewActive(budget.viewingBy) && budget.viewingBy.name !== currentReviewerName)}
+                    className="px-4 py-2 border border-amber-200 text-amber-800 hover:bg-amber-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {budget.viewingBy && isReviewActive(budget.viewingBy) && budget.viewingBy.name === currentReviewerName
+                      ? 'Você está revisando'
+                      : 'Assumir revisão'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!claimBudgetReview(budget.id)) return;
+                      handleExportBudgetComparison(budget);
+                    }}
                     className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm flex items-center gap-2"
                   >
                     <Download size={14} /> Exportar CSV
                   </button>
-                  <button onClick={() => openRejectModal(budget.id)} disabled={processingId === budget.id} className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                  <button
+                    onClick={() => {
+                      if (!claimBudgetReview(budget.id)) return;
+                      openRejectModal(budget.id);
+                    }}
+                    disabled={processingId === budget.id}
+                    className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     Reprovar Todas
                   </button>
                 </div>
@@ -560,7 +611,11 @@ export function ApprovalsView() {
                       <button onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
                         <FileText size={14} /> Ver PDF
                       </button>
-                      <button onClick={() => handleApprove(budget.id, 'budgets', quote)} disabled={processingId === budget.id} className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-60">
+                      <button
+                        onClick={() => handleApprove(budget.id, 'budgets', quote)}
+                        disabled={processingId === budget.id || !!(budget.viewingBy && isReviewActive(budget.viewingBy) && budget.viewingBy.name !== currentReviewerName)}
+                        className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                      >
                         {processingId === budget.id ? 'Processando...' : 'Aprovar esta opção'}
                       </button>
                     </div>
@@ -674,17 +729,10 @@ export function ApprovalsView() {
                   <span className="font-serif text-roman-text-main font-medium">Processando assinatura...</span>
                 </div>
               )}
-              {contract.viewingBy && <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>}
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-stone-800 font-serif italic text-sm">{contract.id}</span>
                   <span className="text-xs text-stone-600 font-medium px-2 py-0.5 bg-white/50 border border-stone-300 rounded-sm">Aguardando Assinatura</span>
-                  {contract.viewingBy && (
-                    <span className="text-xs font-medium px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-sm flex items-center gap-1.5 shadow-sm">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                      Sendo revisado por {contract.viewingBy}
-                    </span>
-                  )}
                   <span className="text-xs text-stone-500 ml-auto">{formatDateTimeSafe(contract.date)}</span>
                 </div>
                 <h3 className="text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
