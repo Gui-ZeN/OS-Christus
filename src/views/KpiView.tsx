@@ -561,7 +561,11 @@ export function KpiView() {
         const saldo = Math.max(0, previsto - entry.paidValue);
         const nextDueDate = (paymentsByTicket[entry.ticket.id] || [])
           .filter(payment => payment.status !== 'paid')
-          .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0]?.dueDate;
+          .sort((a, b) => {
+            const aTime = a.dueAt instanceof Date ? a.dueAt.getTime() : Number.POSITIVE_INFINITY;
+            const bTime = b.dueAt instanceof Date ? b.dueAt.getTime() : Number.POSITIVE_INFINITY;
+            return aTime - bTime;
+          })[0]?.dueAt;
 
         return {
           id: entry.ticket.id,
