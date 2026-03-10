@@ -35,12 +35,46 @@ function fromBase64Url(input) {
   return Buffer.from(normalized, 'base64').toString('utf8');
 }
 
+function encodeMimeHeader(value) {
+  const input = String(value || '');
+  if (!input) return '';
+  if (!/[^\x00-\x7F]/.test(input)) return input;
+  return `=?UTF-8?B?${Buffer.from(input, 'utf8').toString('base64')}?=`;
+}
+
+function decodeQuotedPrintableWord(value) {
+  const normalized = String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/=([A-F0-9]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  return Buffer.from(normalized, 'latin1').toString('utf8');
+}
+
+function decodeMimeHeader(value) {
+  const input = String(value || '');
+  if (!input) return '';
+  return input.replace(/=\?([^?]+)\?([bq])\?([^?]+)\?=/gi, (_, charset, encoding, data) => {
+    const normalizedCharset = String(charset || '').toLowerCase();
+    const normalizedEncoding = String(encoding || '').toLowerCase();
+
+    try {
+      if (normalizedEncoding === 'b') {
+        const decoded = Buffer.from(String(data || ''), 'base64');
+        return decoded.toString(normalizedCharset === 'utf-8' ? 'utf8' : 'latin1');
+      }
+
+      return decodeQuotedPrintableWord(data);
+    } catch {
+      return String(data || '');
+    }
+  });
+}
+
 function buildRawMessage({ from, to, subject, text, html, inReplyTo, references, extraHeaders = {} }) {
   const boundary = `oschristus_${Math.random().toString(16).slice(2)}`;
   const headers = [
     `From: ${from}`,
     `To: ${to}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodeMimeHeader(subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
@@ -200,7 +234,7 @@ export async function gmailGetMessage(messageId) {
     internalDate: result.data.internalDate ? new Date(Number(result.data.internalDate)) : new Date(),
     from: extractHeader(headers, 'From'),
     to: extractHeader(headers, 'To'),
-    subject: extractHeader(headers, 'Subject') || '',
+    subject: decodeMimeHeader(extractHeader(headers, 'Subject') || ''),
     messageId: extractHeader(headers, 'Message-Id') || null,
     inReplyTo: extractHeader(headers, 'In-Reply-To') || null,
     references: extractHeader(headers, 'References') || '',
