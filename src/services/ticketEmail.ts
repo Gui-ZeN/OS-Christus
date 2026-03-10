@@ -153,8 +153,8 @@ export async function notifyTicketCreated(ticket: Ticket) {
     skipThread: true,
     variables,
     templateData: {
-      title: 'Nova OS registrada no sistema',
-      intro: 'Uma nova OS foi registrada no sistema e já entrou na fila de triagem.',
+      title: 'Nova OS na fila de triagem',
+      intro: `${ticket.id} foi registrada e já pode ser triada pela equipe.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       ctaUrl: buildTrackingUrl(ticket),
@@ -204,8 +204,8 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       skipThread: true,
       variables,
       templateData: {
-        title: 'Orçamento pronto para revisão',
-        intro: `${ticket.id} entrou na etapa de aprovação do orçamento.`,
+        title: 'Orçamento aguardando decisão',
+        intro: `${ticket.id} já está pronta para revisão e escolha do orçamento.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
         ctaUrl: buildBudgetReviewUrl(ticket),
