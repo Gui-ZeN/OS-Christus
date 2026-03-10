@@ -44,6 +44,21 @@ export function createExecutionPaymentPlan(totalValue: number, vendor: string, p
   });
 }
 
+export function getPaymentFlowMilestones(parts: number) {
+  const safeParts = Math.min(5, Math.max(1, Math.round(Number(parts) || 1)));
+  let cumulativeMilestone = 0;
+
+  return Array.from({ length: safeParts }, (_, index) => {
+    const installmentNumber = index + 1;
+    const isLast = installmentNumber === safeParts;
+    const chunkPercent = isLast
+      ? Number((100 - cumulativeMilestone).toFixed(2))
+      : Number((100 / safeParts).toFixed(2));
+    cumulativeMilestone = Number((cumulativeMilestone + chunkPercent).toFixed(2));
+    return clampPercent(cumulativeMilestone);
+  });
+}
+
 export function getApprovedReleasePercent(payments: PaymentRecord[]) {
   return payments
     .filter(payment => payment.status === 'approved' || payment.status === 'paid')

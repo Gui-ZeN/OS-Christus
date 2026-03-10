@@ -14,7 +14,7 @@ import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
-import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent } from '../utils/executionFlow';
+import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -131,8 +131,12 @@ function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState
 }
 
 function createProgressUpdateFormState(ticket?: Ticket): ProgressUpdateFormState {
+  const paymentFlowParts = Number(ticket?.executionProgress?.paymentFlowParts || 0);
+  const currentPercent = Number(ticket?.executionProgress?.currentPercent || 0);
+  const milestones = paymentFlowParts ? getPaymentFlowMilestones(paymentFlowParts) : [];
+  const nextMilestone = milestones.find(milestone => milestone > currentPercent);
   return {
-    progressPercent: String(ticket?.executionProgress?.currentPercent || 0),
+    progressPercent: String(nextMilestone ?? currentPercent ?? 0),
     notes: '',
   };
 }
@@ -873,6 +877,10 @@ export function InboxView() {
   const activeProgressPercent = Math.min(100, Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0)));
   const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activePayments);
   const activeNextMilestonePercent = getNextMilestonePercent(activePayments);
+  const activeMilestones = useMemo(
+    () => (activeTicket.executionProgress?.paymentFlowParts ? getPaymentFlowMilestones(activeTicket.executionProgress.paymentFlowParts) : []),
+    [activeTicket.executionProgress?.paymentFlowParts]
+  );
   const ticketAttachmentItems = (activeTicket.attachments || [])
     .filter(attachment => attachment?.url)
     .map(attachment => ({
@@ -2720,20 +2728,35 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <button onClick={() => setShowProgressModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
             </div>
             <div className="p-6 space-y-5">
-              <div>
-                <div className="flex items-center justify-between text-sm text-roman-text-main mb-2">
-                  <span>Percentual acumulado</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm text-roman-text-main">
+                  <span>Selecione o marco de andamento</span>
                   <span className="font-semibold">{progressUpdateForm.progressPercent || activeProgressPercent}%</span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={progressUpdateForm.progressPercent}
-                  onChange={e => setProgressUpdateForm(prev => ({ ...prev, progressPercent: e.target.value }))}
-                  className="w-full"
-                />
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {activeMilestones.map(milestone => {
+                    const isCurrent = Number(progressUpdateForm.progressPercent || activeProgressPercent) === milestone;
+                    const isCompleted = milestone <= activeProgressPercent;
+                    return (
+                      <button
+                        key={milestone}
+                        type="button"
+                        onClick={() => setProgressUpdateForm(prev => ({ ...prev, progressPercent: String(milestone) }))}
+                        className={[
+                          'rounded-sm border px-3 py-3 text-left transition-colors',
+                          isCurrent
+                            ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                            : isCompleted
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
+                        ].join(' ')}
+                      >
+                        <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
+                        <div className="mt-1 text-base font-semibold">{milestone}%</div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">

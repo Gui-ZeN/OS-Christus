@@ -8,7 +8,7 @@ import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
-import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedPaymentValue, getApprovedReleasePercent, getNextMilestonePercent } from '../utils/executionFlow';
+import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedPaymentValue, getApprovedReleasePercent, getNextMilestonePercent, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -1099,15 +1099,33 @@ export function FinanceView() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% acumulado da obra</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={measurementDraft.progressPercent}
-                              onChange={e => setMeasurementDraft(ticket.id, { progressPercent: e.target.value })}
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            />
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Marco de andamento</label>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                              {getPaymentFlowMilestones(ticket.executionProgress?.paymentFlowParts || 1).map(milestone => {
+                                const currentSaved = progressPercent;
+                                const selectedMilestone = Number(measurementDraft.progressPercent || currentSaved);
+                                const isCurrent = selectedMilestone === milestone;
+                                const isCompleted = milestone <= currentSaved;
+                                return (
+                                  <button
+                                    key={milestone}
+                                    type="button"
+                                    onClick={() => setMeasurementDraft(ticket.id, { progressPercent: String(milestone) })}
+                                    className={[
+                                      'rounded-sm border px-3 py-3 text-left transition-colors',
+                                      isCurrent
+                                        ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                                        : isCompleted
+                                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                          : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
+                                    ].join(' ')}
+                                  >
+                                    <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
+                                    <div className="mt-1 text-base font-semibold">{milestone}%</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                           <div>
                             <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualização</label>
