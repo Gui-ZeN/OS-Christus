@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { AlertCircle, Clock, Eye } from 'lucide-react';
 import { TICKET_STATUS } from '../../constants/ticketStatus';
 import { SLAStatus } from '../../types';
@@ -31,6 +31,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   onClick,
 }) => {
   const isNew = status === TICKET_STATUS.NEW;
+  const isWaitingValidation = status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL;
 
   return (
     <button
@@ -38,6 +39,8 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
       className={`w-full cursor-pointer border-b border-roman-border p-4 text-left transition-colors ${
         active
           ? 'border-l-2 border-l-roman-primary bg-roman-bg'
+          : isWaitingValidation
+            ? 'border-l-2 border-l-sky-500 bg-sky-50/50 hover:bg-sky-50'
           : isNew
             ? 'border-l-2 border-l-amber-500 bg-amber-50/50 hover:bg-amber-50'
             : 'border-l-2 border-l-transparent hover:bg-roman-bg'
@@ -95,6 +98,12 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
         )}
       </div>
 
+      {isWaitingValidation && (
+        <div className="mb-2 w-fit rounded-sm border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+          Aguardando validação do solicitante
+        </div>
+      )}
+
       {viewingBy && (
         <div className="animate-in fade-in flex w-fit items-center gap-1.5 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
           <Eye size={10} />
@@ -104,3 +113,4 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
     </button>
   );
 };
+

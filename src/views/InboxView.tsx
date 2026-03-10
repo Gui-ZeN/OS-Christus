@@ -1581,6 +1581,20 @@ export function InboxView() {
                   <ImageIcon size={14} /> {ticketAttachmentItems.length > 0 ? 'Ver Anexos' : 'Sem anexos'}
                 </button>
               </div>
+
+              {activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
+                <div className="mt-4 rounded-sm border border-sky-200 bg-sky-50 px-4 py-3 text-sky-900">
+                  <div className="flex items-start gap-3">
+                    <CheckSquare size={18} className="mt-0.5 shrink-0 text-sky-700" />
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">Aguardando validação do solicitante</div>
+                      <div className="text-sm text-sky-800">
+                        A obra foi concluída e o solicitante já recebeu o pedido de confirmação.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
@@ -2616,6 +2630,7 @@ export function InboxView() {
     </div>
   );
 }
+
 
 
 
