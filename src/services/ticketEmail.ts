@@ -13,6 +13,16 @@ function buildTrackingUrl(ticket: Ticket) {
   return `${window.location.origin}/?tracking=${encodeURIComponent(ticket.trackingToken)}`;
 }
 
+function buildBudgetReviewUrl(ticket: Ticket) {
+  const params = new URLSearchParams({
+    view: 'approvals',
+    approvalTab: 'budgets',
+    ticketId: ticket.id,
+    claimReview: '1',
+  });
+  return `${window.location.origin}/?${params.toString()}`;
+}
+
 function guaranteeSummary(ticket: Ticket) {
   if (!ticket.guarantee?.startAt || !ticket.guarantee?.endAt) return 'Não informada';
   return `${ticket.guarantee.months} mês(es) - até ${ticket.guarantee.endAt.toLocaleDateString('pt-BR')}`;
@@ -140,33 +150,55 @@ export async function notifyTicketCreated(ticket: Ticket) {
 }
 
 export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: string) {
-  const toEmail = resolveTicketEmail(ticket);
-  if (!toEmail) return;
   if (previousStatus === ticket.status) return;
 
   const trigger = resolveStatusTrigger(ticket.status);
-  await postEmail({
-    ticketId: ticket.id,
-    trackingToken: ticket.trackingToken,
-    toEmail,
-    trigger: trigger || 'EMAIL-NOVA-MENSAGEM',
-    variables: await buildVariables(ticket, {
-      previousStatus,
-      currentStatus: ticket.status,
-      message: {
-        sender: 'Sistema OS Christus',
-        body: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
-      },
-    }),
-    templateData: {
-      title: 'Atualização da solicitação',
-      intro: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
-      ticketSubject: ticket.subject,
-      status: ticket.status,
-      ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Ver atualização',
+  const requesterEmail = resolveTicketEmail(ticket);
+  const variables = await buildVariables(ticket, {
+    previousStatus,
+    currentStatus: ticket.status,
+    message: {
+      sender: 'Sistema OS Christus',
+      body: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
     },
   });
+
+  if (requesterEmail) {
+    await postEmail({
+      ticketId: ticket.id,
+      trackingToken: ticket.trackingToken,
+      toEmail: requesterEmail,
+      trigger: trigger || 'EMAIL-NOVA-MENSAGEM',
+      variables,
+      templateData: {
+        title: 'Atualização da solicitação',
+        intro: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
+        ticketSubject: ticket.subject,
+        status: ticket.status,
+        ctaUrl: buildTrackingUrl(ticket),
+        ctaLabel: 'Ver atualização',
+      },
+    });
+  }
+
+  if (ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL) {
+    await postEmail({
+      ticketId: ticket.id,
+      trackingToken: ticket.trackingToken,
+      trigger: 'EMAIL-EM-APROVACAO',
+      internalCopy: true,
+      skipThread: true,
+      variables,
+      templateData: {
+        title: 'Orçamento pronto para revisão',
+        intro: `A OS ${ticket.id} entrou na etapa de aprovação do orçamento.`,
+        ticketSubject: ticket.subject,
+        status: ticket.status,
+        ctaUrl: buildBudgetReviewUrl(ticket),
+        ctaLabel: 'Revisar orçamento',
+      },
+    });
+  }
 }
 
 export async function notifyTicketPublicReply(ticket: Ticket, sender: string, message: string) {
