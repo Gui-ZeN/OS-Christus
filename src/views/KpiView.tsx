@@ -18,6 +18,10 @@ function parseCurrency(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function formatCurrencyBRL(value: number) {
+  return `R$ ${value.toLocaleString('pt-BR')}`;
+}
+
 function average(values: number[]) {
   if (values.length === 0) return 0;
   return values.reduce((total, value) => total + value, 0) / values.length;
@@ -240,6 +244,82 @@ export function KpiView() {
     });
   }, [filteredTickets]);
 
+  const tendenciaMensal = useMemo(() => {
+    const months = new Map<string, { name: string; abertas: number; encerradas: number }>();
+    const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' });
+
+    const ensureBucket = (date: Date) => {
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      if (!months.has(key)) {
+        months.set(key, {
+          name: formatter.format(date).replace('.', ''),
+          abertas: 0,
+          encerradas: 0,
+        });
+      }
+      return months.get(key)!;
+    };
+
+    for (const ticket of filteredTickets) {
+      ensureBucket(ticket.time).abertas += 1;
+
+      const closedAt = ticket.closureChecklist?.closedAt || ticket.guarantee?.startAt;
+      if (closedAt instanceof Date) {
+        ensureBucket(closedAt).encerradas += 1;
+      }
+    }
+
+    return [...months.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, value]) => value);
+  }, [filteredTickets]);
+
+  const agingBuckets = useMemo(() => {
+    const buckets = [
+      { name: '0-7 dias', min: 0, max: 7 },
+      { name: '8-15 dias', min: 8, max: 15 },
+      { name: '16-30 dias', min: 16, max: 30 },
+      { name: '31-60 dias', min: 31, max: 60 },
+      { name: '60+ dias', min: 61, max: Number.POSITIVE_INFINITY },
+    ];
+
+    return buckets.map(bucket => ({
+      name: bucket.name,
+      total: filteredTickets.filter(ticket => {
+        if (ticket.status === TICKET_STATUS.CLOSED || ticket.status === TICKET_STATUS.CANCELED) return false;
+        const age = Math.floor(daysBetween(ticket.time, new Date()));
+        return age >= bucket.min && age <= bucket.max;
+      }).length,
+    }));
+  }, [filteredTickets]);
+
+  const backlogPorEquipe = useMemo(() => {
+    const grouped = new Map<string, { name: string; total: number }>();
+
+    for (const ticket of filteredTickets) {
+      if (ticket.status === TICKET_STATUS.CLOSED || ticket.status === TICKET_STATUS.CANCELED) continue;
+      const team = ticket.assignedTeam || 'Não atribuído';
+      if (!grouped.has(team)) {
+        grouped.set(team, { name: team, total: 0 });
+      }
+      grouped.get(team)!.total += 1;
+    }
+
+    return [...grouped.values()].sort((a, b) => b.total - a.total).slice(0, 8);
+  }, [filteredTickets]);
+
+  const distribuicaoUrgencia = useMemo(() => {
+    const grouped = new Map<string, { name: string; total: number }>();
+
+    for (const ticket of filteredTickets) {
+      const priority = ticket.priority || 'Não definida';
+      if (!grouped.has(priority)) {
+        grouped.set(priority, { name: priority, total: 0 });
+      }
+      grouped.get(priority)!.total += 1;
+    }
+
+    return [...grouped.values()].sort((a, b) => b.total - a.total);
+  }, [filteredTickets]);
+
   const contractValues = useMemo(() => {
     return filteredTickets.map(ticket => {
       const contract = contractsByTicket[ticket.id];
@@ -411,6 +491,92 @@ export function KpiView() {
 
   const financialBalance = Math.max(0, financialOverview.planned - financialOverview.paid);
 
+  const financeiroPorSede = useMemo(() => {
+    const grouped = new Map<string, { name: string; previsto: number; pago: number; saldo: number }>();
+
+    for (const entry of contractValues) {
+      const siteLabel = getTicketSiteLabel(entry.ticket, sites);
+      if (!grouped.has(siteLabel)) {
+        grouped.set(siteLabel, { name: siteLabel, previsto: 0, pago: 0, saldo: 0 });
+      }
+      const current = grouped.get(siteLabel)!;
+      const previsto = entry.plannedValue > 0 ? entry.plannedValue : entry.contractValue;
+      current.previsto += previsto;
+      current.pago += entry.paidValue;
+      current.saldo += Math.max(0, previsto - entry.paidValue);
+    }
+
+    return [...grouped.values()].sort((a, b) => b.saldo - a.saldo);
+  }, [contractValues, sites]);
+
+  const financeiroPorFornecedor = useMemo(() => {
+    const grouped = new Map<string, { name: string; contratos: number; previsto: number; pago: number; saldo: number }>();
+
+    for (const entry of contractValues) {
+      const vendor = contractsByTicket[entry.ticket.id]?.vendor || 'Fornecedor não informado';
+      if (!grouped.has(vendor)) {
+        grouped.set(vendor, { name: vendor, contratos: 0, previsto: 0, pago: 0, saldo: 0 });
+      }
+      const current = grouped.get(vendor)!;
+      const previsto = entry.plannedValue > 0 ? entry.plannedValue : entry.contractValue;
+      current.contratos += 1;
+      current.previsto += previsto;
+      current.pago += entry.paidValue;
+      current.saldo += Math.max(0, previsto - entry.paidValue);
+    }
+
+    return [...grouped.values()].sort((a, b) => b.saldo - a.saldo).slice(0, 8);
+  }, [contractValues, contractsByTicket]);
+
+  const calendarioFinanceiro = useMemo(() => {
+    const grouped = new Map<string, { name: string; previsto: number; pago: number }>();
+    const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' });
+
+    const ensureBucket = (date: Date) => {
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, { name: formatter.format(date).replace('.', ''), previsto: 0, pago: 0 });
+      }
+      return grouped.get(key)!;
+    };
+
+    for (const payments of Object.values(paymentsByTicket) as PaymentRecord[][]) {
+      for (const payment of payments) {
+        if (payment.dueAt instanceof Date) {
+          ensureBucket(payment.dueAt).previsto += parseCurrency(payment.value);
+        }
+        if (payment.status === 'paid' && payment.paidAt instanceof Date) {
+          ensureBucket(payment.paidAt).pago += parseCurrency(payment.value);
+        }
+      }
+    }
+
+    return [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, value]) => value);
+  }, [paymentsByTicket]);
+
+  const maioresSaldosPendentes = useMemo(() => {
+    return contractValues
+      .map(entry => {
+        const previsto = entry.plannedValue > 0 ? entry.plannedValue : entry.contractValue;
+        const saldo = Math.max(0, previsto - entry.paidValue);
+        const nextDueDate = (paymentsByTicket[entry.ticket.id] || [])
+          .filter(payment => payment.status !== 'paid')
+          .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0]?.dueDate;
+
+        return {
+          id: entry.ticket.id,
+          subject: entry.ticket.subject,
+          site: getTicketSiteLabel(entry.ticket, sites),
+          vendor: contractsByTicket[entry.ticket.id]?.vendor || 'Fornecedor não informado',
+          saldo,
+          nextDueDate,
+        };
+      })
+      .filter(entry => entry.saldo > 0)
+      .sort((a, b) => b.saldo - a.saldo)
+      .slice(0, 6);
+  }, [contractValues, contractsByTicket, paymentsByTicket, sites]);
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-6xl mx-auto">
@@ -421,8 +587,8 @@ export function KpiView() {
             </h1>
             <p className="text-roman-text-sub font-serif italic">
               {perspective === 'managerial'
-                ? 'Volume, prazos, SLA, backlog e distribuição operacional.'
-                : 'Contratos, previsto, pago, saldo e concentração de custos.'}
+                ? 'Operação por sede, tendência, backlog, envelhecimento e capacidade de resposta.'
+                : 'Previsto, pago, saldo, concentração de custo e passivo financeiro por recorte.'}
             </p>
           </div>
 
@@ -581,6 +747,32 @@ export function KpiView() {
                 <div className="text-sm text-roman-text-sub">Chamados encerrados ainda dentro do período de garantia</div>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Mais antiga em aberto</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{oldestOpenTicket ? `${oldestOpenTicket.days} dias` : '0 dia'}</div>
+                <div className="text-sm text-roman-text-sub truncate" title={oldestOpenTicket?.subject || ''}>
+                  {oldestOpenTicket ? `${oldestOpenTicket.id} · ${oldestOpenTicket.subject}` : 'Nenhuma OS aberta no recorte'}
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Times com backlog</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{backlogPorEquipe.length}</div>
+                <div className="text-sm text-roman-text-sub">
+                  {backlogPorEquipe[0] ? `${backlogPorEquipe[0].name} lidera com ${backlogPorEquipe[0].total} OS` : 'Nenhuma fila ativa'}
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Prioridade dominante</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{distribuicaoUrgencia[0]?.name || 'Não definida'}</div>
+                <div className="text-sm text-roman-text-sub">
+                  {distribuicaoUrgencia[0] ? `${distribuicaoUrgencia[0].total} OS no recorte atual` : 'Sem chamados no período'}
+                </div>
+              </div>
+            </div>
           </>
         ) : (
           <>
@@ -631,8 +823,36 @@ export function KpiView() {
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
                 <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Valor Contratado</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.contracted.toLocaleString('pt-BR')}</div>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{formatCurrencyBRL(financialOverview.contracted)}</div>
                 <div className="text-sm text-roman-text-sub">Base consolidada dos contratos fechados no período</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fornecedores com saldo</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{financeiroPorFornecedor.length}</div>
+                <div className="text-sm text-roman-text-sub">
+                  {financeiroPorFornecedor[0] ? `${financeiroPorFornecedor[0].name} lidera o saldo em aberto` : 'Sem fornecedores com pendência'}
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior saldo em aberto</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">
+                  {maioresSaldosPendentes[0] ? formatCurrencyBRL(maioresSaldosPendentes[0].saldo) : formatCurrencyBRL(0)}
+                </div>
+                <div className="text-sm text-roman-text-sub truncate" title={maioresSaldosPendentes[0]?.subject || ''}>
+                  {maioresSaldosPendentes[0] ? `${maioresSaldosPendentes[0].id} · ${maioresSaldosPendentes[0].subject}` : 'Nenhuma pendência financeira no recorte'}
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Parcelas pendentes</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">
+                  {(Object.values(paymentsByTicket) as PaymentRecord[][]).flat().filter(payment => payment.status !== 'paid').length}
+                </div>
+                <div className="text-sm text-roman-text-sub">Títulos ainda não quitados no recorte filtrado</div>
               </div>
             </div>
           </>
@@ -699,94 +919,307 @@ export function KpiView() {
         </div>
 
         {perspective === 'managerial' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-              <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Backlog por etapa</h2>
-              <div className="h-72 min-w-0 min-h-[18rem]">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={backlogPorEtapa} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} allowDecimals={false} />
-                    <Tooltip
-                      cursor={{ fill: '#f5f5f5' }}
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                      itemStyle={{ color: '#1a1a1a' }}
-                      formatter={(value: number) => [`${value}`, 'OS']}
-                    />
-                    <Bar dataKey="total" fill="#525252" radius={[2, 2, 0, 0]} barSize={36} />
-                  </BarChart>
-                </ResponsiveContainer>
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Backlog por etapa</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={backlogPorEtapa} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number) => [`${value}`, 'OS']}
+                      />
+                      <Bar dataKey="total" fill="#525252" radius={[2, 2, 0, 0]} barSize={36} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Tendência mensal: abertura x encerramento</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={tendenciaMensal} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number, name: string) => [`${value}`, name === 'abertas' ? 'Abertas' : 'Encerradas']}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                      <Bar dataKey="abertas" name="Abertas" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24} />
+                      <Bar dataKey="encerradas" name="Encerradas" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Envelhecimento do backlog</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={agingBuckets} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number) => [`${value}`, 'OS em aberto']}
+                      />
+                      <Bar dataKey="total" fill="#737373" radius={[2, 2, 0, 0]} barSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Backlog por equipe</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={backlogPorEquipe} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={120} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number) => [`${value}`, 'OS em aberto']}
+                      />
+                      <Bar dataKey="total" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Distribuição por urgência</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={distribuicaoUrgencia} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number) => [`${value}`, 'OS']}
+                      />
+                      <Bar dataKey="total" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Alertas operacionais</h2>
+                  <div className="text-xs text-roman-text-sub">Leitura rápida para acompanhamento gerencial</div>
+                </div>
+                <div className="space-y-3">
+                  <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                    <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">OS mais antiga em aberto</div>
+                    {oldestOpenTicket ? (
+                      <>
+                        <div className="text-sm font-medium text-roman-text-main">{oldestOpenTicket.id} · {oldestOpenTicket.subject}</div>
+                        <div className="text-xs text-roman-text-sub">{oldestOpenTicket.site} · {oldestOpenTicket.days} dia(s) em aberto</div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-roman-text-sub">Nenhuma OS aberta no recorte atual.</div>
+                    )}
+                  </div>
+                  <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                    <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Triagem e orçamento</div>
+                    <div className="text-sm font-medium text-roman-text-main">
+                      {filteredTickets.filter(ticket =>
+                        ticket.status === TICKET_STATUS.NEW ||
+                        ticket.status === TICKET_STATUS.WAITING_TECH_OPINION ||
+                        ticket.status === TICKET_STATUS.WAITING_BUDGET ||
+                        ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
+                      ).length} OS aguardando decisão operacional
+                    </div>
+                  </div>
+                  <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                    <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pagamento e garantia</div>
+                    <div className="text-sm font-medium text-roman-text-main">
+                      {pendingPaymentsCount} OS aguardando pagamento · {ticketsInGuaranteeCount} em garantia
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Resumo operacional por foco</h2>
+                  <div className="text-xs text-roman-text-sub">Onde concentrar a gestão agora</div>
+                </div>
+                <div className="space-y-3">
+                  <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                    <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Validação do solicitante</div>
+                    <div className="text-sm font-medium text-roman-text-main">{waitingValidationCount} OS aguardando retorno final</div>
+                  </div>
+                  <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                    <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pressão de urgência</div>
+                    <div className="text-sm font-medium text-roman-text-main">{urgentOpenCount} OS com prioridade alta ou urgente em aberto</div>
+                  </div>
+                  <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                    <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Capacidade por equipe</div>
+                    <div className="text-sm font-medium text-roman-text-main">
+                      {backlogPorEquipe[0] ? `${backlogPorEquipe[0].name} concentra ${backlogPorEquipe[0].total} OS` : 'Nenhuma equipe com fila ativa'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {perspective === 'financial' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Previsto x pago por sede</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={financeiroPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number, name: string) => [formatCurrencyBRL(value), name === 'previsto' ? 'Previsto' : 'Pago']}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24} />
+                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Saldo por fornecedor</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={financeiroPorFornecedor} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={130} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number) => [formatCurrencyBRL(value), 'Saldo']}
+                      />
+                      <Bar dataKey="saldo" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Calendário financeiro</h2>
+                <div className="h-72 min-w-0 min-h-[18rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={calendarioFinanceiro} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                      <Tooltip
+                        cursor={{ fill: '#f5f5f5' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: '#1a1a1a' }}
+                        formatter={(value: number, name: string) => [formatCurrencyBRL(value), name === 'previsto' ? 'Previsto' : 'Pago']}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24} />
+                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Maiores saldos pendentes</h2>
+                  <div className="text-xs text-roman-text-sub">Leitura rápida do passivo financeiro atual</div>
+                </div>
+                <div className="space-y-3">
+                  {maioresSaldosPendentes.length === 0 ? (
+                    <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
+                      Nenhuma OS com saldo financeiro pendente no recorte atual.
+                    </div>
+                  ) : (
+                    maioresSaldosPendentes.map(item => (
+                      <div key={item.id} className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-sm font-medium text-roman-text-main">{item.id} · {item.subject}</div>
+                            <div className="text-xs text-roman-text-sub">{item.site} · {item.vendor}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-roman-text-main">{formatCurrencyBRL(item.saldo)}</div>
+                            <div className="text-xs text-roman-text-sub">
+                              {item.nextDueDate instanceof Date ? `Próx. venc.: ${item.nextDueDate.toLocaleDateString('pt-BR')}` : 'Sem vencimento futuro'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
               <div className="flex items-center justify-between gap-4 mb-6">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main">Alertas operacionais</h2>
-                <div className="text-xs text-roman-text-sub">Leitura rápida para acompanhamento gerencial</div>
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">Materiais com maior custo</h2>
+                <div className="text-xs text-roman-text-sub">Baseada no escopo contratado das OS do período</div>
               </div>
-              <div className="space-y-3">
-                <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                  <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">OS mais antiga em aberto</div>
-                  {oldestOpenTicket ? (
-                    <>
-                      <div className="text-sm font-medium text-roman-text-main">{oldestOpenTicket.id} · {oldestOpenTicket.subject}</div>
-                      <div className="text-xs text-roman-text-sub">{oldestOpenTicket.site} · {oldestOpenTicket.days} dia(s) em aberto</div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-roman-text-sub">Nenhuma OS aberta no recorte atual.</div>
-                  )}
+              {custoPorMaterial.length === 0 ? (
+                <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
+                  Ainda não há itens de contrato suficientes para consolidar custo por material.
                 </div>
-                <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                  <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Triagem e orçamento</div>
-                  <div className="text-sm font-medium text-roman-text-main">
-                    {filteredTickets.filter(ticket =>
-                      ticket.status === TICKET_STATUS.NEW ||
-                      ticket.status === TICKET_STATUS.WAITING_TECH_OPINION ||
-                      ticket.status === TICKET_STATUS.WAITING_BUDGET ||
-                      ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
-                    ).length} OS aguardando decisão operacional
-                  </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {custoPorMaterial.map(item => (
+                    <div key={item.name} className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                      <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
+                      <div className="text-[11px] text-roman-text-sub">
+                        {item.usos} ocorrência(s){item.unit ? ` • ${item.unit}` : ''}
+                      </div>
+                      <div className="mt-2 text-lg font-serif text-roman-text-main">{formatCurrencyBRL(item.custo)}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                  <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pagamento e garantia</div>
-                  <div className="text-sm font-medium text-roman-text-main">
-                    {pendingPaymentsCount} OS aguardando pagamento · {ticketsInGuaranteeCount} em garantia
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
-        )}
-
-        {perspective === 'financial' && (
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main">Materiais com maior custo</h2>
-            <div className="text-xs text-roman-text-sub">Baseada no escopo contratado das OS do período</div>
-          </div>
-          {custoPorMaterial.length === 0 ? (
-            <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
-              Ainda não há itens de contrato suficientes para consolidar custo por material.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {custoPorMaterial.map(item => (
-                <div key={item.name} className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                  <div className="text-[11px] text-roman-text-sub">
-                    {item.usos} ocorrência(s){item.unit ? ` • ${item.unit}` : ''}
-                  </div>
-                  <div className="mt-2 text-lg font-serif text-roman-text-main">R$ {item.custo.toLocaleString('pt-BR')}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          </div>
+          </>
         )}
       </div>
     </div>
   );
 }
+
 
 
