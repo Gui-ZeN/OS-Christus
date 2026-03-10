@@ -45,6 +45,7 @@ export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [period, setPeriod] = useState<'month' | 'semester' | 'custom'>('month');
+  const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
   const [selectedVendor, setSelectedVendor] = useState('all');
@@ -360,29 +361,51 @@ export function KpiView() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 border-b border-roman-border pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Dashboard Gerencial</h1>
-            <p className="text-roman-text-sub font-serif italic">Indicadores reais de volume, custos, prazos, serviços e materiais.</p>
+            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">
+              {perspective === 'managerial' ? 'KPI Gerencial' : 'KPI Financeiro'}
+            </h1>
+            <p className="text-roman-text-sub font-serif italic">
+              {perspective === 'managerial'
+                ? 'Volume, prazos, SLA, backlog e distribuição operacional.'
+                : 'Contratos, previsto, pago, saldo e concentração de custos.'}
+            </p>
           </div>
 
-          <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1">
-            <button
-              onClick={() => setPeriod('month')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'month' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
-            >
-              Este Mês
-            </button>
-            <button
-              onClick={() => setPeriod('semester')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'semester' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
-            >
-              Este Semestre
-            </button>
-            <button
-              onClick={() => setPeriod('custom')}
-              className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'custom' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
-            >
-              Últimos 12 Meses
-            </button>
+          <div className="flex flex-col gap-3">
+            <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1">
+              <button
+                onClick={() => setPerspective('managerial')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+              >
+                Visão Gerencial
+              </button>
+              <button
+                onClick={() => setPerspective('financial')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+              >
+                Visão Financeira
+              </button>
+            </div>
+            <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1 self-end">
+              <button
+                onClick={() => setPeriod('month')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'month' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+              >
+                Este Mês
+              </button>
+              <button
+                onClick={() => setPeriod('semester')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'semester' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+              >
+                Este Semestre
+              </button>
+              <button
+                onClick={() => setPeriod('custom')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'custom' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+              >
+                Últimos 12 Meses
+              </button>
+            </div>
           </div>
         </header>
 
@@ -436,166 +459,177 @@ export function KpiView() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <DollarSign size={64} />
-            </div>
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior Custo do Período</h3>
-            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {maiorCusto.valor.toLocaleString('pt-BR')}</div>
-            <div className="text-sm text-roman-text-sub truncate mb-4" title={maiorCusto.subject}>{maiorCusto.subject}</div>
-            <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 w-fit px-2 py-1 rounded-sm border border-red-100">
-              <TrendingUp size={12} /> {maiorCusto.id} • {maiorCusto.sede}
-            </div>
-          </div>
+        {perspective === 'managerial' ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Briefcase size={64} />
+                </div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">OS no Período</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{filteredTickets.length}</div>
+                <div className="text-sm text-roman-text-sub mb-4">
+                  {filteredTickets.filter(ticket => ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED).length} em aberto
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+                  Encerradas: {filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length}
+                </div>
+              </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Briefcase size={64} />
-            </div>
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Top Fornecedor</h3>
-            <div className="text-xl font-medium text-roman-text-main mb-1 truncate" title={topFornecedor.name}>{topFornecedor.name}</div>
-            <div className="text-sm text-roman-text-sub mb-4">{topFornecedor.contratos} contratos fechados</div>
-            <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-              Total: R$ {topFornecedor.valorTotal.toLocaleString('pt-BR')}
-            </div>
-          </div>
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Clock size={64} />
+                </div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">SLA Médio de Resolução</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{averageResolutionDays.toFixed(1)} dias</div>
+                <div className="text-sm text-roman-text-sub mb-4">{pendingPaymentsCount} OS aguardando pagamento</div>
+                <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 w-fit px-2 py-1 rounded-sm border border-green-100">
+                  <TrendingDown size={12} /> visão baseada nas OS do período
+                </div>
+              </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Clock size={64} />
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <TrendingUp size={64} />
+                </div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fila Operacional</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">
+                  {filteredTickets.filter(ticket =>
+                    ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
+                    ticket.status === TICKET_STATUS.IN_PROGRESS ||
+                    ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+                  ).length}
+                </div>
+                <div className="text-sm text-roman-text-sub mb-4">Em preparação, execução ou validação</div>
+                <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+                  Em triagem/orçamento: {filteredTickets.filter(ticket =>
+                    ticket.status === TICKET_STATUS.NEW ||
+                    ticket.status === TICKET_STATUS.WAITING_TECH_OPINION ||
+                    ticket.status === TICKET_STATUS.WAITING_BUDGET ||
+                    ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
+                  ).length}
+                </div>
+              </div>
             </div>
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">SLA Médio de Resolução</h3>
-            <div className="text-2xl font-medium text-roman-text-main mb-1">{averageResolutionDays.toFixed(1)} dias</div>
-            <div className="text-sm text-roman-text-sub mb-4">{pendingPaymentsCount} OS aguardando pagamento</div>
-            <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 w-fit px-2 py-1 rounded-sm border border-green-100">
-              <TrendingDown size={12} /> visão baseada nas OS do período
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Previsto no Período</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.planned.toLocaleString('pt-BR')}</div>
+                <div className="text-sm text-roman-text-sub">Parcelas geradas ou valor contratado como referência</div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Pago no Período</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.paid.toLocaleString('pt-BR')}</div>
+                <div className="text-sm text-roman-text-sub">Somatório das parcelas efetivamente quitadas</div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Saldo Financeiro</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialBalance.toLocaleString('pt-BR')}</div>
+                <div className="text-sm text-roman-text-sub">Diferença entre previsto e pago no período</div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Serviço com Maior Custo</h3>
-            <div className="text-xl font-medium text-roman-text-main mb-1">{custoPorServico[0]?.name || 'Sem dados'}</div>
-            <div className="text-sm text-roman-text-sub mb-4">{custoPorServico[0]?.contratos || 0} contrato(s)</div>
-            <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-              Total: R$ {(custoPorServico[0]?.custo || 0).toLocaleString('pt-BR')}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <DollarSign size={64} />
+                </div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior Custo do Período</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {maiorCusto.valor.toLocaleString('pt-BR')}</div>
+                <div className="text-sm text-roman-text-sub truncate mb-4" title={maiorCusto.subject}>{maiorCusto.subject}</div>
+                <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 w-fit px-2 py-1 rounded-sm border border-red-100">
+                  <TrendingUp size={12} /> {maiorCusto.id} • {maiorCusto.sede}
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Briefcase size={64} />
+                </div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Top Fornecedor</h3>
+                <div className="text-xl font-medium text-roman-text-main mb-1 truncate" title={topFornecedor.name}>{topFornecedor.name}</div>
+                <div className="text-sm text-roman-text-sub mb-4">{topFornecedor.contratos} contratos fechados</div>
+                <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+                  Total: R$ {topFornecedor.valorTotal.toLocaleString('pt-BR')}
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Valor Contratado</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.contracted.toLocaleString('pt-BR')}</div>
+                <div className="text-sm text-roman-text-sub">Base consolidada dos contratos fechados no período</div>
+              </div>
             </div>
-          </div>
-
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Material com Maior Custo</h3>
-            <div className="text-xl font-medium text-roman-text-main mb-1">{custoPorMaterial[0]?.name || 'Sem dados'}</div>
-            <div className="text-sm text-roman-text-sub mb-4">{custoPorMaterial[0]?.usos || 0} ocorrência(s) no escopo contratado</div>
-            <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-              Total: R$ {(custoPorMaterial[0]?.custo || 0).toLocaleString('pt-BR')}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Previsto no Período</h3>
-            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.planned.toLocaleString('pt-BR')}</div>
-            <div className="text-sm text-roman-text-sub">Parcelas geradas ou valor contratado como referência</div>
-          </div>
-
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Pago no Período</h3>
-            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.paid.toLocaleString('pt-BR')}</div>
-            <div className="text-sm text-roman-text-sub">Somatório das parcelas efetivamente quitadas</div>
-          </div>
-
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-            <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Saldo Financeiro</h3>
-            <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialBalance.toLocaleString('pt-BR')}</div>
-            <div className="text-sm text-roman-text-sub">Diferença entre previsto e pago no período</div>
-          </div>
-        </div>
+          </>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Volume de OS: abertas vs. fechadas</h2>
+            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">
+              {perspective === 'managerial' ? 'Volume de OS: abertas vs. fechadas' : 'Custo total por sede'}
+            </h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={osPorRegiao} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={perspective === 'managerial' ? osPorRegiao : custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} />
-                  <Tooltip cursor={{ fill: '#f5f5f5' }} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }} itemStyle={{ color: '#1a1a1a' }} />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar dataKey="abertas" name="Em aberto" stackId="a" fill="#a3a3a3" barSize={40} />
-                  <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Tempo médio por etapa</h2>
-            <div className="h-72 min-w-0 min-h-[18rem]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={tempoPorEtapa} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={90} />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#737373' }}
+                    dx={-10}
+                    tickFormatter={perspective === 'managerial' ? undefined : (value => `R$ ${value / 1000}k`)}
+                  />
                   <Tooltip
                     cursor={{ fill: '#f5f5f5' }}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
                     itemStyle={{ color: '#1a1a1a' }}
-                    formatter={(value: number) => [`${value} dias`, 'Duração']}
+                    formatter={perspective === 'managerial' ? undefined : ((value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo'])}
                   />
-                  <Bar dataKey="dias" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Custo total por sede</h2>
-            <div className="h-72 min-w-0 min-h-[18rem]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} tickFormatter={value => `R$ ${value / 1000}k`} />
-                  <Tooltip
-                    cursor={{ fill: '#f5f5f5' }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                    itemStyle={{ color: '#1a1a1a' }}
-                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo']}
-                  />
-                  <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
+                  {perspective === 'managerial' ? (
+                    <>
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                      <Bar dataKey="abertas" name="Em aberto" stackId="a" fill="#a3a3a3" barSize={40} />
+                      <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
+                    </>
+                  ) : (
+                    <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Custo por serviço (top 8)</h2>
+            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">
+              {perspective === 'managerial' ? 'Tempo médio por etapa' : 'Custo por serviço (top 8)'}
+            </h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={custoPorServico} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={perspective === 'managerial' ? tempoPorEtapa : custoPorServico} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={perspective === 'managerial' ? undefined : (value => `R$ ${Math.round(value / 1000)}k`)} />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={130} />
                   <Tooltip
                     cursor={{ fill: '#f5f5f5' }}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
                     itemStyle={{ color: '#1a1a1a' }}
-                    formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo']}
+                    formatter={perspective === 'managerial' ? ((value: number) => [`${value} dias`, 'Duração']) : ((value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo'])}
                   />
-                  <Bar dataKey="custo" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                  <Bar dataKey={perspective === 'managerial' ? 'dias' : 'custo'} fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+        {perspective === 'financial' && (
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4 mb-6">
             <h2 className="font-serif text-lg font-medium text-roman-text-main">Materiais com maior custo</h2>
             <div className="text-xs text-roman-text-sub">Baseada no escopo contratado das OS do período</div>
@@ -617,7 +651,8 @@ export function KpiView() {
               ))}
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
