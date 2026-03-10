@@ -370,58 +370,92 @@ export default function App() {
         </Suspense>
       </main>
 
-      {attachmentPreview && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-in fade-in"
-          onClick={event => {
-            if (event.target === event.currentTarget) closeAttachment();
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Visualizador de anexo"
-        >
-          <div className="bg-roman-surface w-full max-w-4xl h-[80vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-stone-700">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-stone-900 text-white">
-              <div className="flex items-center gap-3">
-                {attachmentPreview.type === 'pdf' ? <FileText size={20} className="text-roman-primary" /> : <ImageIcon size={20} className="text-roman-primary" />}
-                <h3 className="font-serif text-lg font-medium">{attachmentPreview.title}</h3>
-              </div>
-              <button onClick={closeAttachment} className="text-stone-400 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="flex-1 bg-stone-100 flex items-center justify-center p-8 overflow-auto">
-              {attachmentPreview.type === 'image' ? (
-                <div className="flex flex-col items-center justify-center gap-4 text-stone-400">
-                  <ImageIcon size={64} strokeWidth={1} />
-                  <p className="font-serif italic text-sm">Pré-visualização indisponível offline</p>
-                  <p className="text-xs opacity-60">{attachmentPreview.title}</p>
+      {attachmentPreview && (() => {
+        const attachmentItems = attachmentPreview.items && attachmentPreview.items.length > 0
+          ? attachmentPreview.items
+          : [{ title: attachmentPreview.title, type: attachmentPreview.type, url: attachmentPreview.url || null }];
+        const previewUrl = attachmentPreview.url || attachmentItems[0]?.url || null;
+
+        return (
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-in fade-in"
+            onClick={event => {
+              if (event.target === event.currentTarget) closeAttachment();
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visualizador de anexo"
+          >
+            <div className="bg-roman-surface w-full max-w-5xl h-[82vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-stone-700">
+              <div className="flex justify-between items-center p-4 border-b border-roman-border bg-stone-900 text-white">
+                <div className="flex items-center gap-3">
+                  {attachmentPreview.type === 'pdf' ? <FileText size={20} className="text-roman-primary" /> : <ImageIcon size={20} className="text-roman-primary" />}
+                  <h3 className="font-serif text-lg font-medium">{attachmentPreview.title}</h3>
                 </div>
-              ) : (
-                <div className="w-full max-w-2xl h-full bg-white shadow-lg border border-stone-300 p-12 flex flex-col">
-                  <div className="border-b-2 border-stone-800 pb-4 mb-8 flex justify-between items-end">
-                    <h1 className="text-3xl font-serif font-bold text-stone-800">ORÇAMENTO COMERCIAL</h1>
-                    <span className="text-stone-500 font-mono">#DOC-2026</span>
-                  </div>
-                  <div className="space-y-4 flex-1">
-                    <div className="h-4 bg-stone-200 w-3/4 rounded"></div>
-                    <div className="h-4 bg-stone-200 w-full rounded"></div>
-                    <div className="h-4 bg-stone-200 w-5/6 rounded"></div>
-                    <div className="h-4 bg-stone-200 w-full rounded mt-8"></div>
-                    <div className="h-32 bg-stone-100 border border-stone-200 w-full rounded mt-4 flex items-center justify-center text-stone-400 font-serif italic">Tabela de custos simulada</div>
-                  </div>
-                  <div className="mt-8 pt-8 border-t border-stone-200 flex justify-between items-center">
-                    <div className="w-48 h-px bg-stone-800 relative">
-                      <span className="absolute -bottom-6 left-0 right-0 text-center text-xs text-stone-500">Assinatura do fornecedor</span>
-                    </div>
-                    <div className="text-2xl font-serif font-bold text-stone-800">R$ --.---,--</div>
-                  </div>
+                <button onClick={closeAttachment} className="text-stone-400 hover:text-white transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              {attachmentItems.length > 1 && (
+                <div className="px-4 py-3 border-b border-roman-border bg-roman-bg/60 flex flex-wrap gap-2">
+                  {attachmentItems.map((item, index) => (
+                    <span key={`${item.title}-${index}`} className="px-3 py-1.5 rounded-sm border bg-roman-surface text-roman-text-main border-roman-border text-xs font-medium">
+                      {item.title}
+                    </span>
+                  ))}
                 </div>
               )}
+              <div className="flex-1 bg-stone-100 flex items-center justify-center p-8 overflow-auto">
+                {attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                    {attachmentItems.map((item, index) => (
+                      <div key={`${item.title}-${index}`} className="bg-white border border-stone-300 shadow-lg rounded-sm overflow-hidden">
+                        <div className="px-4 py-2 border-b border-stone-200 text-sm font-medium text-stone-700">{item.title}</div>
+                        {item.url ? (
+                          <img
+                            src={item.url}
+                            alt={item.title}
+                            className="w-full max-h-[60vh] object-contain bg-stone-50"
+                          />
+                        ) : (
+                          <div className="h-80 flex items-center justify-center text-stone-400 font-serif italic">Pré-visualização indisponível</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : attachmentPreview.type === 'pdf' && previewUrl ? (
+                  <iframe
+                    title={attachmentPreview.title}
+                    src={previewUrl}
+                    className="w-full h-full bg-white border border-stone-300 shadow-lg"
+                  />
+                ) : attachmentPreview.type === 'image' ? (
+                  <div className="flex flex-col items-center justify-center gap-4 text-stone-400">
+                    <ImageIcon size={64} strokeWidth={1} />
+                    <p className="font-serif italic text-sm">Pré-visualização indisponível</p>
+                    <p className="text-xs opacity-60">{attachmentPreview.title}</p>
+                  </div>
+                ) : (
+                  <div className="w-full max-w-2xl h-full bg-white shadow-lg border border-stone-300 p-12 flex flex-col">
+                    <div className="border-b-2 border-stone-800 pb-4 mb-8 flex justify-between items-end">
+                      <h1 className="text-3xl font-serif font-bold text-stone-800">Documento</h1>
+                      <span className="text-stone-500 font-mono">Prévia indisponível</span>
+                    </div>
+                    <div className="space-y-4 flex-1 text-stone-600">
+                      <p>O arquivo não pôde ser renderizado no navegador.</p>
+                      {previewUrl && (
+                        <a href={previewUrl} target="_blank" rel="noreferrer" className="text-roman-primary underline">Abrir arquivo em nova aba</a>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
+
+

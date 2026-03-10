@@ -25,8 +25,20 @@ interface AppContextType {
   setTrackingTicketToken: (token: string | null) => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
-  attachmentPreview: { title: string; type: 'image' | 'pdf' } | null;
-  openAttachment: (title: string, type: 'image' | 'pdf') => void;
+  attachmentPreview: {
+    title: string;
+    type: 'image' | 'pdf';
+    url?: string | null;
+    items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+  } | null;
+  openAttachment: (
+    title: string,
+    type: 'image' | 'pdf',
+    options?: {
+      url?: string | null;
+      items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+    }
+  ) => void;
   closeAttachment: () => void;
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
@@ -162,7 +174,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [attachmentPreview, setAttachmentPreview] = useState<{ title: string; type: 'image' | 'pdf' } | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<{
+    title: string;
+    type: 'image' | 'pdf';
+    url?: string | null;
+    items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+  } | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
@@ -459,8 +476,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentView(view);
   };
 
-  const openAttachment = (title: string, type: 'image' | 'pdf') => {
-    setAttachmentPreview({ title, type });
+  const openAttachment = (
+    title: string,
+    type: 'image' | 'pdf',
+    options?: {
+      url?: string | null;
+      items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+    }
+  ) => {
+    setAttachmentPreview({
+      title,
+      type,
+      url: options?.url || null,
+      items: options?.items || [],
+    });
   };
 
   const closeAttachment = () => {
@@ -590,5 +619,6 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
+
 
 

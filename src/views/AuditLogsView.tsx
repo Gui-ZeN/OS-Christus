@@ -19,7 +19,7 @@ const ENTITY_LABELS: Record<string, string> = {
   settings: 'Configurações',
   catalog: 'Catálogo',
   notifications: 'Notificações',
-  procurement: 'Procurement',
+  procurement: 'Financeiro e execução',
   finance: 'Financeiro',
   email: 'E-mail',
   'firestore.legacy': 'Legado do Firestore',
@@ -31,8 +31,14 @@ const ACTION_LABELS: Record<string, string> = {
   'users.create': 'Criação de usuário',
   'users.update': 'Atualização de usuário',
   'users.delete': 'Exclusão de usuário',
+  'tickets.create': 'Criação de OS',
+  'tickets.update': 'Atualização de OS',
   'tickets.delete': 'Exclusão de OS',
   'settings.update': 'Atualização de configurações',
+  'procurement.quotes.save': 'Atualização de cotações',
+  'procurement.contract.save': 'Atualização de contrato',
+  'procurement.payment.save': 'Atualização de parcela',
+  'procurement.measurement.save': 'Registro de medição',
   'procurement.update': 'Atualização de orçamento/contrato',
   'notifications.dismiss': 'Notificação dispensada',
 };
@@ -50,7 +56,44 @@ const FIELD_LABELS: Record<string, string> = {
   email: 'E-mail',
   role: 'Papel',
   status: 'Status',
+  label: 'Descrição',
+  value: 'Valor',
+  vendor: 'Fornecedor',
+  installmentNumber: 'Parcela',
+  totalInstallments: 'Total de parcelas',
+  dueAt: 'Vencimento',
+  paidAt: 'Pago em',
+  progressPercent: 'Andamento da obra',
+  releasePercent: 'Percentual liberado',
+  requestedAt: 'Solicitado em',
+  approvedAt: 'Liberado em',
+  serviceCatalogName: 'Serviço',
+  macroServiceName: 'Macroserviço',
+  regionName: 'Região',
+  siteName: 'Sede',
+  sector: 'Setor',
+  ticketType: 'Tipo de manutenção',
+  subject: 'Assunto',
+  requester: 'Solicitante',
 };
+
+const HIDDEN_FIELDS = new Set([
+  'classification',
+  'type',
+  'history',
+  'trackingToken',
+  'attachments',
+  'documents',
+  'messageId',
+  'threadId',
+  'contentType',
+  'path',
+  'url',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 function prettyActor(actor: string) {
   const value = String(actor || '').trim();
@@ -72,12 +115,19 @@ function prettyAction(action: string) {
 }
 
 function objectDisplayName(log: AuditLogEntry) {
-  const before = log.before && typeof log.before === 'object' ? (log.before as Record<string, unknown>) : null;
-  const after = log.after && typeof log.after === 'object' ? (log.after as Record<string, unknown>) : null;
+  const before = isRecord(log.before) ? log.before : null;
+  const after = isRecord(log.after) ? log.after : null;
   const source = after || before;
   const name = source?.name;
   if (typeof name === 'string' && name.trim()) return name;
   return log.entityId || '';
+}
+
+function normalizeTimestampObject(value: Record<string, unknown>) {
+  const seconds = typeof value._seconds === 'number' ? value._seconds : typeof value.seconds === 'number' ? value.seconds : null;
+  const nanos = typeof value._nanoseconds === 'number' ? value._nanoseconds : typeof value.nanoseconds === 'number' ? value.nanoseconds : 0;
+  if (seconds == null) return null;
+  return new Date(seconds * 1000 + Math.floor(nanos / 1_000_000));
 }
 
 function humanizeValue(value: unknown): unknown {
@@ -88,8 +138,11 @@ function humanizeValue(value: unknown): unknown {
     }
     return value;
   }
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   if (Array.isArray(value)) return value.map(humanizeValue);
-  if (value && typeof value === 'object') {
+  if (isRecord(value)) {
+    const asDate = normalizeTimestampObject(value);
+    if (asDate) return formatDateTimeSafe(asDate);
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [FIELD_LABELS[key] || key, humanizeValue(entry)])
     );
@@ -97,12 +150,90 @@ function humanizeValue(value: unknown): unknown {
   return value;
 }
 
-function safeJson(value: unknown) {
-  if (value == null) return '-';
-  try {
-    return JSON.stringify(humanizeValue(value), null, 2);
-  } catch {
-    return '[não serializável]';
+function extractDisplayPayload(log: AuditLogEntry, value: unknown) {
+  if (!isRecord(value)) return null;
+
+  const classification = isRecord(value.classification) ? value.classification : null;
+  const measurement = isRecord(value.measurement) ? value.measurement : null;
+  const payment = isRecord(value.payment) ? value.payment : null;
+  const contract = isRecord(value.contract) ? value.contract : null;
+  const base = measurement || payment || contract || value;
+
+  const next: Record<string, unknown> = {};
+
+  if (classification) {
+    if (classification.ticketType) next.ticketType = classification.ticketType;
+    if (classification.macroServiceName) next.macroServiceName = classification.macroServiceName;
+    if (classification.serviceCatalogName) next.serviceCatalogName = classification.serviceCatalogName;
+    if (classification.regionName) next.regionName = classification.regionName;
+    if (classification.siteName) next.siteName = classification.siteName;
+    if (classification.sector) next.sector = classification.sector;
+  }
+
+  for (const [key, entry] of Object.entries(base)) {
+    if (HIDDEN_FIELDS.has(key)) continue;
+    if (Array.isArray(entry) && key === 'items') {
+      next.totalItems = `${entry.length} item(ns)`;
+      continue;
+    }
+    if (Array.isArray(entry) && key === 'quotes') {
+      next.totalQuotes = `${entry.length} cotação(ões)`;
+      continue;
+    }
+    next[key] = entry;
+  }
+
+  if (log.entityId && !next.id) {
+    next.id = log.entityId;
+  }
+
+  return next;
+}
+
+function formatDisplayValue(value: unknown) {
+  const normalized = humanizeValue(value);
+  if (normalized == null || normalized === '') return '—';
+  if (Array.isArray(normalized)) {
+    return normalized.length === 0 ? '—' : normalized.map(item => String(item)).join(', ');
+  }
+  if (isRecord(normalized)) {
+    return Object.entries(normalized)
+      .map(([key, entry]) => `${FIELD_LABELS[key] || key}: ${String(entry)}`)
+      .join(' | ');
+  }
+  return String(normalized);
+}
+
+function buildDisplayRows(log: AuditLogEntry, value: unknown) {
+  const payload = extractDisplayPayload(log, value);
+  if (!payload) return [];
+
+  return Object.entries(payload)
+    .filter(([, entry]) => entry != null && entry !== '')
+    .map(([key, entry]) => ({
+      key,
+      label: FIELD_LABELS[key] || key,
+      value: formatDisplayValue(entry),
+    }));
+}
+
+function describeLog(log: AuditLogEntry) {
+  const afterRows = buildDisplayRows(log, log.after);
+  const getValue = (field: string) => afterRows.find(row => row.key === field)?.value;
+
+  switch (log.action) {
+    case 'procurement.measurement.save':
+      return `${getValue('label') || 'Medição registrada'}${getValue('progressPercent') ? ` com ${getValue('progressPercent')}` : ''}.`;
+    case 'procurement.payment.save':
+      return `${getValue('label') || 'Parcela atualizada'}${getValue('status') ? ` (${getValue('status')})` : ''}.`;
+    case 'catalog.delete':
+      return `${prettyEntity(log.entity)} ${objectDisplayName(log)} removido(a) do sistema.`;
+    case 'users.create':
+    case 'users.update':
+    case 'users.delete':
+      return `${prettyAction(log.action)}: ${objectDisplayName(log)}.`;
+    default:
+      return objectDisplayName(log) ? `${prettyAction(log.action)} em ${objectDisplayName(log)}.` : prettyAction(log.action);
   }
 }
 
@@ -150,7 +281,15 @@ export function AuditLogsView() {
     const term = search.trim().toLowerCase();
     if (!term) return logs;
     return logs.filter(log =>
-      [log.actor, log.action, log.entity, log.entityId || '', safeJson(log.after), safeJson(log.before)]
+      [
+        log.actor,
+        log.action,
+        log.entity,
+        log.entityId || '',
+        describeLog(log),
+        buildDisplayRows(log, log.after).map(row => `${row.label} ${row.value}`).join(' '),
+        buildDisplayRows(log, log.before).map(row => `${row.label} ${row.value}`).join(' '),
+      ]
         .join(' ')
         .toLowerCase()
         .includes(term)
@@ -215,36 +354,65 @@ export function AuditLogsView() {
             </div>
           )}
 
-          {filteredLogs.map(log => (
-            <article key={log.id} className="bg-roman-surface border border-roman-border rounded-sm p-5 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-4">
-                <div>
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">
-                    {prettyEntity(log.entity)} {objectDisplayName(log) ? `· ${objectDisplayName(log)}` : ''}
-                  </div>
-                  <h2 className="text-lg font-serif text-roman-text-main">{prettyAction(log.action)}</h2>
-                </div>
-                <div className="text-xs text-roman-text-sub md:text-right">
-                  <div>Ator: {prettyActor(log.actor)}</div>
-                  <div>{formatDate(log.createdAt)}</div>
-                </div>
-              </div>
+          {filteredLogs.map(log => {
+            const beforeRows = buildDisplayRows(log, log.before);
+            const afterRows = buildDisplayRows(log, log.after);
+            const isDelete = log.action.includes('delete');
+            const accentClass = isDelete ? 'border-l-red-400' : 'border-l-roman-primary';
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="border border-roman-border rounded-sm bg-roman-bg p-3">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Antes</div>
-                  <pre className="text-xs text-roman-text-sub whitespace-pre-wrap break-words font-mono">{safeJson(log.before)}</pre>
+            return (
+              <article key={log.id} className={`bg-roman-surface border border-roman-border border-l-4 ${accentClass} rounded-sm p-5 shadow-sm`}>
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-4">
+                  <div>
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">
+                      {prettyEntity(log.entity)} {objectDisplayName(log) ? `· ${objectDisplayName(log)}` : ''}
+                    </div>
+                    <h2 className="text-lg font-serif text-roman-text-main">{prettyAction(log.action)}</h2>
+                    <p className="text-sm text-roman-text-sub mt-1">{describeLog(log)}</p>
+                  </div>
+                  <div className="text-xs text-roman-text-sub md:text-right">
+                    <div>Ator: {prettyActor(log.actor)}</div>
+                    <div>{formatDate(log.createdAt)}</div>
+                  </div>
                 </div>
-                <div className="border border-roman-border rounded-sm bg-roman-bg p-3">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Depois</div>
-                  <pre className="text-xs text-roman-text-sub whitespace-pre-wrap break-words font-mono">{safeJson(log.after)}</pre>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="border border-roman-border rounded-sm bg-roman-bg p-3">
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Antes</div>
+                    {beforeRows.length === 0 ? (
+                      <div className="text-sm text-roman-text-sub">—</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {beforeRows.map(row => (
+                          <div key={`before-${log.id}-${row.key}`} className="flex flex-col gap-1 border-b border-roman-border/60 pb-2 last:border-b-0 last:pb-0">
+                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">{row.label}</div>
+                            <div className="text-sm text-roman-text-main">{row.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="border border-roman-border rounded-sm bg-roman-bg p-3">
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Depois</div>
+                    {afterRows.length === 0 ? (
+                      <div className="text-sm text-roman-text-sub">—</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {afterRows.map(row => (
+                          <div key={`after-${log.id}-${row.key}`} className="flex flex-col gap-1 border-b border-roman-border/60 pb-2 last:border-b-0 last:pb-0">
+                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">{row.label}</div>
+                            <div className="text-sm text-roman-text-main">{row.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </section>
       </div>
     </div>
   );
 }
-

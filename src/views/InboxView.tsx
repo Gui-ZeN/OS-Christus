@@ -835,6 +835,13 @@ export function InboxView() {
   const activeProgressPercent = Math.min(100, Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0)));
   const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activePayments);
   const activeNextMilestonePercent = getNextMilestonePercent(activePayments);
+  const ticketAttachmentItems = (activeTicket.attachments || [])
+    .filter(attachment => attachment?.url)
+    .map(attachment => ({
+      title: attachment.name,
+      type: attachment.contentType?.includes('pdf') ? 'pdf' as const : 'image' as const,
+      url: attachment.url,
+    }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
   const shouldLockBodyScroll = isMobileOverlayOpen || showQuotesModal || showPrelimModal || showExecutionSetupModal || showProgressModal;
 
@@ -1560,8 +1567,18 @@ export function InboxView() {
                 <span>via Formulário do Sistema</span>
                 <span>{formatDateTimeSafe(activeTicket.time)}</span>
                 <span>{getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)}</span>
-                <button onClick={() => openAttachment(`Fotos: ${activeTicket.subject}`, 'image')} className="ml-auto text-roman-primary hover:underline flex items-center gap-1 not-italic font-medium text-xs">
-                  <ImageIcon size={14} /> Ver Fotos Anexadas
+                <button
+                  onClick={() => {
+                    if (ticketAttachmentItems.length === 0) return;
+                    openAttachment(`Anexos: ${activeTicket.subject}`, ticketAttachmentItems[0].type, {
+                      url: ticketAttachmentItems[0].url,
+                      items: ticketAttachmentItems,
+                    });
+                  }}
+                  disabled={ticketAttachmentItems.length === 0}
+                  className="ml-auto text-roman-primary hover:underline flex items-center gap-1 not-italic font-medium text-xs disabled:text-roman-text-sub disabled:no-underline disabled:cursor-not-allowed"
+                >
+                  <ImageIcon size={14} /> {ticketAttachmentItems.length > 0 ? 'Ver Anexos' : 'Sem anexos'}
                 </button>
               </div>
             </div>
@@ -2599,6 +2616,7 @@ export function InboxView() {
     </div>
   );
 }
+
 
 
 
