@@ -38,6 +38,8 @@ body {
 .font-serif {
   font-weight: 600;
   font-variation-settings: "opsz" 32;
+  line-height: 1.45;
+  letter-spacing: 0.005em;
 }
 
 .text-\[10px\] {
@@ -54,6 +56,22 @@ body {
 
 .text-sm {
   font-size: 0.95rem !important;
+}
+
+.font-serif.text-\[10px\] {
+  font-size: 0.82rem !important;
+}
+
+.font-serif.text-\[11px\] {
+  font-size: 0.88rem !important;
+}
+
+.font-serif.text-xs {
+  font-size: 0.94rem !important;
+}
+
+.font-serif.text-sm {
+  font-size: 1rem !important;
 }
 
 button:focus-visible,
