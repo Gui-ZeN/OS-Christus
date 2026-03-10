@@ -6,7 +6,6 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketCreated } from '../services/ticketEmail';
 import {
   CatalogMacroService,
-  CatalogMaterial,
   CatalogRegion,
   CatalogServiceItem,
   CatalogSite,
@@ -44,7 +43,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
   const [catalogServiceItems, setCatalogServiceItems] = useState<CatalogServiceItem[]>([]);
-  const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +54,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           setCatalogSites(catalog.sites);
           setCatalogMacroServices(catalog.macroServices);
           setCatalogServiceItems(catalog.serviceCatalog);
-          setCatalogMaterials(catalog.materials);
         }
       } catch {
         if (!cancelled) {
@@ -64,7 +61,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           setCatalogSites([]);
           setCatalogMacroServices([]);
           setCatalogServiceItems([]);
-          setCatalogMaterials([]);
         }
       }
     })();
@@ -99,13 +95,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     [catalogServiceItems, formData.serviceCatalogId]
   );
 
-  const suggestedMaterials = useMemo(() => {
-    if (!selectedServiceItem?.suggestedMaterialIds?.length) return [];
-    return selectedServiceItem.suggestedMaterialIds
-      .map(materialId => catalogMaterials.find(material => material.id === materialId))
-      .filter((value): value is CatalogMaterial => Boolean(value));
-  }, [catalogMaterials, selectedServiceItem]);
-
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório';
@@ -114,8 +103,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!formData.subject.trim()) newErrors.subject = 'Assunto é obrigatório';
     if (!formData.description.trim()) newErrors.description = 'Descrição é obrigatória';
     if (!formData.type) newErrors.type = 'Selecione o tipo';
-    if (!formData.macroServiceId) newErrors.macroServiceId = 'Selecione o macroserviço';
-    if (!formData.serviceCatalogId) newErrors.serviceCatalogId = 'Selecione o serviço';
     if (!formData.sector.trim()) newErrors.sector = 'Setor é obrigatório';
     if (!formData.region) newErrors.region = 'Selecione a região';
     if (!formData.sede) newErrors.sede = 'Selecione a sede';
@@ -338,7 +325,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.type && <span className="text-xs text-red-500 mt-1 block">{errors.type}</span>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço</label>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço (opcional)</label>
                   <select
                     name="macroServiceId"
                     value={formData.macroServiceId}
@@ -350,10 +337,10 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                       <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
                   </select>
-                  {errors.macroServiceId && <span className="text-xs text-red-500 mt-1 block">{errors.macroServiceId}</span>}
+                  <span className="mt-1 block text-xs text-roman-text-sub">Se não souber classificar, deixe em branco. A equipe define isso na triagem.</span>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço</label>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço (opcional)</label>
                   <select
                     name="serviceCatalogId"
                     value={formData.serviceCatalogId}
@@ -366,7 +353,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                       <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
                   </select>
-                  {errors.serviceCatalogId && <span className="text-xs text-red-500 mt-1 block">{errors.serviceCatalogId}</span>}
+                  <span className="mt-1 block text-xs text-roman-text-sub">O administrador pode complementar essa informação depois.</span>
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor / Local exato</label>
@@ -380,25 +367,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   />
                   {errors.sector && <span className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Materiais de referência</label>
-                  <div className="min-h-11 w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] text-roman-text-main">
-                    {selectedServiceItem ? (
-                      suggestedMaterials.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {suggestedMaterials.map(material => (
-                            <span key={material.id} className="rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-2 py-1 text-xs font-medium text-roman-primary">
-                              {material.name}{material.unit ? ` · ${material.unit}` : ''}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-roman-text-sub">Este serviço ainda não tem materiais sugeridos cadastrados.</span>
-                      )
-                    ) : (
-                      <span className="text-roman-text-sub">Selecione um serviço para ver materiais de apoio e padronização.</span>
-                    )}
-                  </div>
+                <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
+                  A classificação operacional do chamado é validada pela triagem interna. Se não souber o macroserviço ou o serviço exato, deixe os campos em branco e descreva bem o problema.
                 </div>
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>

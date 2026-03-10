@@ -8,7 +8,7 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
-import { CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
+import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { deleteTicketInApi } from '../services/ticketsApi';
@@ -222,6 +222,7 @@ export function InboxView() {
   const [teams, setTeams] = useState<DirectoryTeam[]>([]);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
+  const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
@@ -292,6 +293,7 @@ export function InboxView() {
         if (!cancelled) {
           setCatalogRegions(catalog.regions);
           setCatalogSites(catalog.sites);
+          setCatalogMacroServices(catalog.macroServices);
           setCatalogMaterials(catalog.materials);
           setServiceCatalog(catalog.serviceCatalog);
           setVendorPreferences(catalog.vendorPreferences);
@@ -300,6 +302,7 @@ export function InboxView() {
         if (!cancelled) {
           setCatalogRegions([]);
           setCatalogSites([]);
+          setCatalogMacroServices([]);
           setCatalogMaterials([]);
           setServiceCatalog([]);
           setVendorPreferences([]);
@@ -356,6 +359,58 @@ export function InboxView() {
 
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
+  const availableAdminServiceItems = useMemo(() => {
+    if (!activeTicket.macroServiceId) return [];
+    return serviceCatalog.filter(item => item.macroServiceId === activeTicket.macroServiceId);
+  }, [activeTicket.macroServiceId, serviceCatalog]);
+
+  const handleMacroServiceChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!canManageStatus) return;
+    const nextMacroServiceId = event.target.value;
+    const nextMacroService = catalogMacroServices.find(item => item.id === nextMacroServiceId) || null;
+
+    updateTicket(activeTicket.id, {
+      macroServiceId: nextMacroService?.id || '',
+      macroServiceName: nextMacroService?.name || '',
+      serviceCatalogId: '',
+      serviceCatalogName: '',
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: displayActorLabel,
+          time: new Date(),
+          text: nextMacroService
+            ? `Macroserviço definido na triagem: ${nextMacroService.name}.`
+            : 'Macroserviço removido da classificação da OS.',
+        },
+      ],
+    });
+  };
+
+  const handleServiceCatalogChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!canManageStatus) return;
+    const nextServiceId = event.target.value;
+    const nextService = serviceCatalog.find(item => item.id === nextServiceId) || null;
+
+    updateTicket(activeTicket.id, {
+      serviceCatalogId: nextService?.id || '',
+      serviceCatalogName: nextService?.name || '',
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: displayActorLabel,
+          time: new Date(),
+          text: nextService
+            ? `Serviço definido na triagem: ${nextService.name}.`
+            : 'Serviço removido da classificação da OS.',
+        },
+      ],
+    });
+  };
 
   // Botão principal de ação: transição de status + registro no histórico
   const handleSend = () => {
@@ -1812,8 +1867,43 @@ export function InboxView() {
               </div>
 
               <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
-              {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
-              {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
+              {canManageStatus ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
+                    <select
+                      value={activeTicket.macroServiceId || ''}
+                      onChange={handleMacroServiceChange}
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                      disabled={isClosed}
+                    >
+                      <option value="">Definir na triagem</option>
+                      {catalogMacroServices.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
+                    <select
+                      value={activeTicket.serviceCatalogId || ''}
+                      onChange={handleServiceCatalogChange}
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                      disabled={isClosed || !activeTicket.macroServiceId}
+                    >
+                      <option value="">{activeTicket.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
+                      {availableAdminServiceItems.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
+                  {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
+                </>
+              )}
               <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
               <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
               <PropertyField label="Setor" value={activeTicket.sector} />
