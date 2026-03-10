@@ -187,19 +187,37 @@ export function KpiView() {
     });
   }, [contractsByTicket, periodTickets, regions, selectedRegion, selectedSite, selectedVendor, sites]);
 
-  const osPorRegiao = useMemo(() => {
+  const osPorSede = useMemo(() => {
     const grouped = new Map<string, { name: string; abertas: number; fechadas: number }>();
     for (const ticket of filteredTickets) {
-      const regionLabel = getTicketRegionLabel(ticket, regions, sites);
-      if (!grouped.has(regionLabel)) {
-        grouped.set(regionLabel, { name: regionLabel, abertas: 0, fechadas: 0 });
+      const siteLabel = getTicketSiteLabel(ticket, sites);
+      if (!grouped.has(siteLabel)) {
+        grouped.set(siteLabel, { name: siteLabel, abertas: 0, fechadas: 0 });
       }
-      const current = grouped.get(regionLabel)!;
+      const current = grouped.get(siteLabel)!;
       if (ticket.status === TICKET_STATUS.CLOSED) current.fechadas += 1;
       else current.abertas += 1;
     }
     return [...grouped.values()].sort((a, b) => b.abertas + b.fechadas - (a.abertas + a.fechadas));
-  }, [filteredTickets, regions, sites]);
+  }, [filteredTickets, sites]);
+
+  const backlogPorEtapa = useMemo(() => {
+    const grouped = new Map<string, { name: string; abertas: number; fechadas: number }>();
+    const buckets = [
+      { name: 'Nova OS', match: (status: string) => status === TICKET_STATUS.NEW },
+      { name: 'Triagem', match: (status: string) => status === TICKET_STATUS.WAITING_TECH_OPINION || status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL },
+      { name: 'Orçamento', match: (status: string) => status === TICKET_STATUS.WAITING_BUDGET || status === TICKET_STATUS.WAITING_BUDGET_APPROVAL || status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL },
+      { name: 'Preliminar', match: (status: string) => status === TICKET_STATUS.WAITING_PRELIM_ACTIONS },
+      { name: 'Execução', match: (status: string) => status === TICKET_STATUS.IN_PROGRESS },
+      { name: 'Validação', match: (status: string) => status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL },
+      { name: 'Pagamento', match: (status: string) => status === TICKET_STATUS.WAITING_PAYMENT },
+    ];
+
+    return buckets.map(bucket => ({
+      name: bucket.name,
+      total: filteredTickets.filter(ticket => bucket.match(ticket.status)).length,
+    }));
+  }, [filteredTickets]);
 
   const tempoPorEtapa = useMemo(() => {
     const groups = [
@@ -342,6 +360,43 @@ export function KpiView() {
     [filteredTickets]
   );
 
+  const waitingValidationCount = useMemo(
+    () => filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length,
+    [filteredTickets]
+  );
+
+  const urgentOpenCount = useMemo(
+    () =>
+      filteredTickets.filter(ticket =>
+        (ticket.priority === 'Urgente' || ticket.priority === 'Alta') &&
+        ticket.status !== TICKET_STATUS.CLOSED &&
+        ticket.status !== TICKET_STATUS.CANCELED
+      ).length,
+    [filteredTickets]
+  );
+
+  const ticketsInGuaranteeCount = useMemo(
+    () =>
+      filteredTickets.filter(ticket =>
+        ticket.status === TICKET_STATUS.CLOSED &&
+        ticket.guarantee?.endAt instanceof Date &&
+        ticket.guarantee.endAt.getTime() >= Date.now()
+      ).length,
+    [filteredTickets]
+  );
+
+  const oldestOpenTicket = useMemo(() => {
+    const openTickets = filteredTickets.filter(ticket => ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED);
+    const oldest = [...openTickets].sort((a, b) => a.time.getTime() - b.time.getTime())[0];
+    if (!oldest) return null;
+    return {
+      id: oldest.id,
+      subject: oldest.subject,
+      days: Math.floor(daysBetween(oldest.time, new Date())),
+      site: getTicketSiteLabel(oldest, sites),
+    };
+  }, [filteredTickets, sites]);
+
   const financialOverview = useMemo(() => {
     return contractValues.reduce(
       (acc, entry) => {
@@ -482,7 +537,7 @@ export function KpiView() {
                 </div>
                 <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">SLA Médio de Resolução</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{averageResolutionDays.toFixed(1)} dias</div>
-                <div className="text-sm text-roman-text-sub mb-4">{pendingPaymentsCount} OS aguardando pagamento</div>
+                <div className="text-sm text-roman-text-sub mb-4">{waitingValidationCount} OS aguardando validação do solicitante</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 w-fit px-2 py-1 rounded-sm border border-green-100">
                   <TrendingDown size={12} /> visão baseada nas OS do período
                 </div>
@@ -502,13 +557,28 @@ export function KpiView() {
                 </div>
                 <div className="text-sm text-roman-text-sub mb-4">Em preparação, execução ou validação</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-                  Em triagem/orçamento: {filteredTickets.filter(ticket =>
-                    ticket.status === TICKET_STATUS.NEW ||
-                    ticket.status === TICKET_STATUS.WAITING_TECH_OPINION ||
-                    ticket.status === TICKET_STATUS.WAITING_BUDGET ||
-                    ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
-                  ).length}
+                  Urgentes em aberto: {urgentOpenCount}
                 </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Aguardando Validação</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{waitingValidationCount}</div>
+                <div className="text-sm text-roman-text-sub">OS concluídas aguardando retorno do solicitante</div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Urgentes em Aberto</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{urgentOpenCount}</div>
+                <div className="text-sm text-roman-text-sub">Prioridade urgente ou alta ainda sem encerramento</div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">OS em Garantia</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{ticketsInGuaranteeCount}</div>
+                <div className="text-sm text-roman-text-sub">Chamados encerrados ainda dentro do período de garantia</div>
               </div>
             </div>
           </>
@@ -571,11 +641,11 @@ export function KpiView() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">
-              {perspective === 'managerial' ? 'Volume de OS: abertas vs. fechadas' : 'Custo total por sede'}
+              {perspective === 'managerial' ? 'Volume de OS por sede: abertas vs. fechadas' : 'Custo total por sede'}
             </h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={perspective === 'managerial' ? osPorRegiao : custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={perspective === 'managerial' ? osPorSede : custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
                   <YAxis
@@ -627,6 +697,67 @@ export function KpiView() {
             </div>
           </div>
         </div>
+
+        {perspective === 'managerial' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+              <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Backlog por etapa</h2>
+              <div className="h-72 min-w-0 min-h-[18rem]">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={backlogPorEtapa} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} allowDecimals={false} />
+                    <Tooltip
+                      cursor={{ fill: '#f5f5f5' }}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
+                      itemStyle={{ color: '#1a1a1a' }}
+                      formatter={(value: number) => [`${value}`, 'OS']}
+                    />
+                    <Bar dataKey="total" fill="#525252" radius={[2, 2, 0, 0]} barSize={36} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">Alertas operacionais</h2>
+                <div className="text-xs text-roman-text-sub">Leitura rápida para acompanhamento gerencial</div>
+              </div>
+              <div className="space-y-3">
+                <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                  <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">OS mais antiga em aberto</div>
+                  {oldestOpenTicket ? (
+                    <>
+                      <div className="text-sm font-medium text-roman-text-main">{oldestOpenTicket.id} · {oldestOpenTicket.subject}</div>
+                      <div className="text-xs text-roman-text-sub">{oldestOpenTicket.site} · {oldestOpenTicket.days} dia(s) em aberto</div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-roman-text-sub">Nenhuma OS aberta no recorte atual.</div>
+                  )}
+                </div>
+                <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                  <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Triagem e orçamento</div>
+                  <div className="text-sm font-medium text-roman-text-main">
+                    {filteredTickets.filter(ticket =>
+                      ticket.status === TICKET_STATUS.NEW ||
+                      ticket.status === TICKET_STATUS.WAITING_TECH_OPINION ||
+                      ticket.status === TICKET_STATUS.WAITING_BUDGET ||
+                      ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
+                    ).length} OS aguardando decisão operacional
+                  </div>
+                </div>
+                <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                  <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pagamento e garantia</div>
+                  <div className="text-sm font-medium text-roman-text-main">
+                    {pendingPaymentsCount} OS aguardando pagamento · {ticketsInGuaranteeCount} em garantia
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {perspective === 'financial' && (
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
