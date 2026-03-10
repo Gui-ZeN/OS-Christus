@@ -102,18 +102,13 @@ export function buildTicketEmailTemplate({
   bodyText,
 }) {
   const stage = getStageMeta(trigger, status);
-  const details = [
-    { label: 'Ticket', value: ticketId || '-' },
-    { label: 'Status', value: status || '-' },
-    { label: 'Região', value: region || '-' },
-    { label: 'Sede', value: site || '-' },
-    { label: 'Setor', value: sector || '-' },
-    { label: 'Serviço', value: service || '-' },
-  ].filter(item => item.value && item.value !== '-');
-
-  if (guaranteeSummary && guaranteeSummary !== 'Não informada') {
-    details.push({ label: 'Garantia', value: guaranteeSummary });
-  }
+  const messageParts = [
+    intro || '',
+    bodyText || '',
+    status ? `Status atual: ${status}` : '',
+  ].filter(Boolean);
+  const messageHtml = renderBodyText(messageParts.join('\n\n'));
+  const fullLinkLabel = ctaUrl ? esc(ctaUrl) : '';
 
   const html = `
 <!doctype html>
@@ -126,77 +121,25 @@ export function buildTicketEmailTemplate({
             <tr>
               <td style="padding:24px 28px;background:#1f1a15;color:#f8f2e9;">
                 <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">OS Christus</div>
-                <div style="margin-top:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:22px;">
-                  <div style="max-width:430px;padding-right:8px;">
+                <div style="margin-top:18px;display:table;width:100%;">
+                  <div style="display:table-cell;vertical-align:top;padding-right:28px;">
                     <div style="display:inline-block;padding:5px 10px;border:1px solid rgba(255,255,255,0.16);border-radius:999px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;">${esc(stage.eyebrow)}</div>
                     <div style="margin-top:14px;font-size:28px;line-height:1.22;letter-spacing:-0.2px;">${esc(title || stage.label)}</div>
                   </div>
-                  <div style="padding:14px 18px;border:1px solid rgba(255,255,255,0.16);border-radius:20px;text-align:right;min-width:148px;flex-shrink:0;background:rgba(255,255,255,0.02);">
+                  <div style="display:table-cell;vertical-align:top;width:168px;">
+                    <div style="padding:14px 18px;border:1px solid rgba(255,255,255,0.16);border-radius:20px;text-align:right;min-width:148px;background:rgba(255,255,255,0.02);">
                     <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.72;">Ticket</div>
                     <div style="margin-top:6px;font-size:22px;font-weight:bold;">${esc(ticketId || '-')}</div>
                   </div>
+                </div>
                 </div>
               </td>
             </tr>
             <tr>
               <td style="padding:28px;">
-                <div style="border-left:4px solid ${esc(stage.accent)};background:#f7f1e7;padding:16px 18px;margin-bottom:24px;border-radius:0 18px 18px 0;">
-                  <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#7d6b56;">${esc(stage.label)}</div>
-                  <div style="margin-top:8px;font-size:16px;line-height:1.7;color:#3d332b;">${esc(intro || 'Sua solicitação recebeu uma nova atualização.')}</div>
-                </div>
-
-                <div style="margin-bottom:18px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7a67;">Resumo do chamado</div>
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0 10px;">
-                  <tr>
-                    <td colspan="2" style="padding:16px 18px;background:#fbf8f2;border:1px solid #e5dac8;border-radius:18px;">
-                      <div style="font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#8a7a67;">Assunto</div>
-                      <div style="margin-top:8px;font-size:20px;line-height:1.4;color:#2d241d;">${esc(subject || '-')}</div>
-                    </td>
-                  </tr>
-                </table>
-
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;margin-bottom:26px;">
-                  <tr>
-                    ${details
-                      .slice(0, 4)
-                      .map(
-                        item => `
-                    <td style="width:25%;padding:0 6px 12px 0;vertical-align:top;">
-                      <div style="min-height:86px;padding:14px;background:#fbf8f2;border:1px solid #e5dac8;border-radius:16px;">
-                        <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#8a7a67;">${esc(item.label)}</div>
-                        <div style="margin-top:8px;font-size:15px;line-height:1.5;color:#332920;">${esc(item.value)}</div>
-                      </div>
-                    </td>`
-                      )
-                      .join('')}
-                  </tr>
-                  ${
-                    details.length > 4
-                      ? `<tr>${details
-                          .slice(4, 6)
-                          .map(
-                            item => `
-                    <td colspan="2" style="padding:0 6px 0 0;vertical-align:top;">
-                      <div style="min-height:86px;padding:14px;background:#fbf8f2;border:1px solid #e5dac8;border-radius:16px;">
-                        <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#8a7a67;">${esc(item.label)}</div>
-                        <div style="margin-top:8px;font-size:15px;line-height:1.5;color:#332920;">${esc(item.value)}</div>
-                      </div>
-                    </td>`
-                          )
-                          .join('')}</tr>`
-                      : ''
-                  }
-                </table>
-
-                ${
-                  bodyText
-                    ? `<div style="margin-bottom:18px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7a67;">Mensagem</div>
-                       <div style="padding:18px;border:1px solid #e5dac8;border-radius:18px;background:#ffffff;">${renderBodyText(bodyText)}</div>`
-                    : ''
-                }
-
-                <div style="margin-top:18px;padding:14px 16px;background:#f8f4ed;border:1px dashed #d8ccb9;border-radius:16px;color:#5f5246;font-size:13px;line-height:1.7;">
-                  Você pode responder este e-mail. A resposta será registrada na OS quando a caixa monitorada sincronizar a nova mensagem.
+                <div style="margin-bottom:16px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7a67;">Mensagem</div>
+                <div style="padding:20px;border:1px solid #e5dac8;border-radius:18px;background:#ffffff;">
+                  ${messageHtml || `<p style="margin:0;color:#544b41;font-size:14px;line-height:1.8;">Atualização registrada na OS.</p>`}
                 </div>
 
                 ${
@@ -206,7 +149,7 @@ export function buildTicketEmailTemplate({
                           ${esc(ctaLabel)}
                         </a>
                         <div style="margin-top:12px;color:#6f6256;font-size:12px;line-height:1.7;">
-                          Se o botão não abrir, use este link: <a href="${esc(ctaUrl)}" style="color:#855922;">${esc(ctaUrl)}</a>
+                          Link completo: <a href="${esc(ctaUrl)}" style="color:#855922;">${fullLinkLabel}</a>
                         </div>
                       </div>`
                     : ''
@@ -215,7 +158,7 @@ export function buildTicketEmailTemplate({
             </tr>
             <tr>
               <td style="padding:16px 28px;border-top:1px solid #e9dfd0;background:#faf6ef;color:#7d6b56;font-size:12px;line-height:1.7;">
-                Este é um comunicado automático do sistema OS Christus. Para manter o histórico centralizado, acompanhe a OS pelo link acima ou responda este e-mail.
+                Este é um comunicado automático do sistema OS Christus.
               </td>
             </tr>
           </table>
@@ -227,20 +170,13 @@ export function buildTicketEmailTemplate({
 
   const text = [
     title || stage.label,
-    intro || 'Sua solicitação recebeu uma nova atualização.',
+    intro || '',
     '',
     `Ticket: ${ticketId || '-'}`,
-    `Assunto: ${subject || '-'}`,
     `Status: ${status || '-'}`,
-    region ? `Região: ${region}` : '',
-    site ? `Sede: ${site}` : '',
-    sector ? `Setor: ${sector}` : '',
-    service ? `Serviço: ${service}` : '',
-    guaranteeSummary && guaranteeSummary !== 'Não informada' ? `Garantia: ${guaranteeSummary}` : '',
     bodyText ? `\n${bodyText}` : '',
     '',
-    'Você pode responder este e-mail. A resposta será registrada na OS quando a caixa monitorada sincronizar a nova mensagem.',
-    ctaUrl ? `\n${ctaLabel}: ${ctaUrl}` : '',
+    ctaUrl ? `Link completo: ${ctaUrl}` : '',
   ]
     .filter(Boolean)
     .join('\n');
