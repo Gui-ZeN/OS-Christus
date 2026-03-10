@@ -141,7 +141,7 @@ export async function notifyTicketCreated(ticket: Ticket) {
       ticketSubject: ticket.subject,
       status: ticket.status,
       ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Acompanhar OS',
+      ctaLabel: 'Ver atualização',
     },
   });
 
@@ -158,7 +158,7 @@ export async function notifyTicketCreated(ticket: Ticket) {
       ticketSubject: ticket.subject,
       status: ticket.status,
       ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Abrir acompanhamento',
+      ctaLabel: 'Ver atualização',
     },
   });
 }
@@ -205,11 +205,11 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       variables,
       templateData: {
         title: 'Orçamento pronto para revisão',
-        intro: `A OS ${ticket.id} entrou na etapa de aprovação do orçamento.`,
+        intro: `${ticket.id} entrou na etapa de aprovação do orçamento.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
         ctaUrl: buildBudgetReviewUrl(ticket),
-        ctaLabel: 'Revisar orçamento',
+        ctaLabel: 'Ver atualização',
       },
     };
 
@@ -241,12 +241,12 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
     }),
     templateData: {
       title: 'Nova mensagem registrada',
-      intro: `${sender} enviou uma nova mensagem no ticket.`,
+      intro: `${sender} enviou uma nova mensagem sobre o chamado ${ticket.subject}.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText: message.trim(),
       ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Abrir acompanhamento',
+      ctaLabel: 'Ver mensagem',
     },
   });
 }

@@ -27,8 +27,16 @@ type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily
 const DEFAULT_TEMPLATE: EmailTemplateSettings = {
   trigger: 'EMAIL-NOVA-OS',
   subject: '{{ticket.id}} - {{ticket.subject}}',
-  body:
-    'Olá {{requester.name}},\n\nSua Ordem de Serviço foi registrada com sucesso.\n\nNúmero: {{ticket.id}}\nAssunto: {{ticket.subject}}\n\nNossa equipe fará a triagem em breve.\n\nAtenciosamente,\nGestão de Manutenção',
+  body: `Ol? {{requester.name}},
+
+Recebemos sua solicita??o e a {{ticket.id}} j? entrou na fila de triagem.
+
+Chamado: {{ticket.subject}}
+N?mero da OS: {{ticket.id}}
+Local: {{ticket.sede}}
+
+Use o link abaixo para acompanhar as pr?ximas atualiza??es:
+{{tracking.url}}`,
 };
 
 const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
@@ -36,60 +44,150 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
   {
     trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nSua OS {{ticket.id}} entrou em triagem com a equipe de manutenção.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+Sua solicita??o est? em triagem com a equipe de manuten??o.
+
+N?mero da OS: {{ticket.id}}
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+Voc? receber? uma nova atualiza??o assim que essa an?lise avan?ar.
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-PARECER-TECNICO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} recebeu parecer técnico e seguiu para definição da solução.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+O parecer t?cnico da {{ticket.id}} foi conclu?do e a solicita??o seguiu para defini??o da solu??o.
+
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou na etapa de orçamento e comparação com fornecedores.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+Sua solicita??o entrou na etapa de or?amento e compara??o com fornecedores.
+
+N?mero da OS: {{ticket.id}}
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-EM-APROVACAO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} avançou para a etapa de aprovação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+Sua solicita??o avan?ou para a etapa de aprova??o.
+
+N?mero da OS: {{ticket.id}}
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} entrou em ações preliminares.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+Sua solicita??o entrou em a??es preliminares.
+
+N?mero da OS: {{ticket.id}}
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-EXECUCAO-INICIADA',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA execução da OS {{ticket.id}} foi iniciada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+A execu??o do servi?o foi iniciada.
+
+N?mero da OS: {{ticket.id}}
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA manutenção da OS {{ticket.id}} aguarda sua validação.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+A equipe concluiu a execu??o da {{ticket.id}} e agora precisa da sua valida??o.
+
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi validada e entrou na etapa de pagamento.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+Sua valida??o foi registrada e a solicita??o entrou na etapa de pagamento e encerramento.
+
+N?mero da OS: {{ticket.id}}
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-OS-ENCERRADA',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi encerrada com sucesso.\n\nAssunto: {{ticket.subject}}\nStatus final: {{ticket.status}}\nRegião: {{ticket.region}}\nSede: {{ticket.sede}}\nGarantia: {{guarantee.summary}}\n\nHistórico completo: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+A {{ticket.id}} foi encerrada com sucesso.
+
+Chamado: {{ticket.subject}}
+Status final: {{ticket.status}}
+Garantia: {{guarantee.summary}}
+
+Hist?rico completo:
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-OS-CANCELADA',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\nA OS {{ticket.id}} foi cancelada.\n\nAssunto: {{ticket.subject}}\nStatus atual: {{ticket.status}}\nMotivo ou observação: {{message.body}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+A {{ticket.id}} foi cancelada.
+
+Chamado: {{ticket.subject}}
+Status: {{ticket.status}}
+Motivo: {{message.body}}
+
+{{tracking.url}}`,
   },
   {
     trigger: 'EMAIL-NOVA-MENSAGEM',
     subject: '{{ticket.id}} - {{ticket.subject}}',
-    body: 'Olá {{requester.name}},\n\n{{message.sender}} enviou uma nova atualização na OS {{ticket.id}}.\n\nMensagem:\n{{message.body}}\n\nAcompanhe: {{tracking.url}}',
+    body: `Ol? {{requester.name}},
+
+H? uma nova mensagem sobre a {{ticket.id}}.
+
+Enviado por: {{message.sender}}
+Chamado: {{ticket.subject}}
+
+Mensagem recebida:
+{{message.body}}
+
+Para responder ou acompanhar o hist?rico:
+{{tracking.url}}`,
   },
 ];
-
 const DEFAULT_DIGEST: DailyDigestSettings = {
   enabled: true,
   time: '08:00',
