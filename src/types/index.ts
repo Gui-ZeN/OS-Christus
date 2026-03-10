@@ -7,6 +7,7 @@ export interface InboxFilter {
   status: string[];
   priority: string[];
   region: string[];
+  site: string[];
   type: string[];
 }
 

@@ -919,6 +919,7 @@ export function InboxView() {
     if (inboxFilter.status.length > 0 && !inboxFilter.status.includes(t.status)) return false;
     if (inboxFilter.priority.length > 0 && t.priority && !inboxFilter.priority.includes(t.priority)) return false;
     if (inboxFilter.region.length > 0 && !inboxFilter.region.includes(getTicketRegionLabel(t, catalogRegions, catalogSites))) return false;
+    if (inboxFilter.site.length > 0 && !inboxFilter.site.includes(getTicketSiteLabel(t, catalogSites))) return false;
     if (inboxFilter.type.length > 0 && !inboxFilter.type.includes(t.type)) return false;
     return true;
   }).sort((a, b) => {
@@ -934,6 +935,12 @@ export function InboxView() {
     const ticketOptions = tickets.map(ticket => getTicketRegionLabel(ticket, catalogRegions, catalogSites));
     return [...new Set([...catalogOptions, ...ticketOptions].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [catalogRegions, catalogSites, tickets]);
+
+  const siteFilterOptions = useMemo(() => {
+    const catalogOptions = catalogSites.map(site => site.code || site.name);
+    const ticketOptions = tickets.map(ticket => getTicketSiteLabel(ticket, catalogSites));
+    return [...new Set([...catalogOptions, ...ticketOptions].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [catalogSites, tickets]);
 
   const budgetHistory = useMemo(
     () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket),
@@ -1261,7 +1268,7 @@ export function InboxView() {
 
   // Z7: active chips
   const activeChips: { dim: keyof typeof inboxFilter; value: string }[] = (
-    ['status', 'priority', 'region', 'type'] as (keyof typeof inboxFilter)[]
+    ['status', 'priority', 'region', 'site', 'type'] as (keyof typeof inboxFilter)[]
   ).flatMap(dim => inboxFilter[dim].map(value => ({ dim, value })));
 
   const removeChip = (dim: keyof typeof inboxFilter, value: string) => {
@@ -1356,8 +1363,29 @@ export function InboxView() {
               </select>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
             </div>
+            <div className="relative min-w-0 w-32 sm:w-40">
+              <select
+                value={inboxFilter.site.length === 1 ? inboxFilter.site[0] : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInboxFilter({
+                    ...inboxFilter,
+                    site: value ? [value] : [],
+                  });
+                }}
+                className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
+              >
+                <option value="">Todas as sedes</option>
+                {siteFilterOptions.map(site => (
+                  <option key={site} value={site}>
+                    {site}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+            </div>
             <button
-              onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })}
+              onClick={() => setInboxFilter({ status: [], priority: [], region: [], site: [], type: [] })}
               className="shrink-0 rounded-sm border border-roman-border px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
             >
               Limpar
@@ -1487,7 +1515,7 @@ export function InboxView() {
                 <div className="px-4 py-3 border-b border-roman-border flex justify-between items-center bg-roman-bg sticky top-0">
                   <span className="text-xs font-serif font-semibold text-roman-text-main">Filtros Compostos</span>
                   <button
-                    onClick={() => setInboxFilter({ status: [], priority: [], region: [], type: [] })}
+                    onClick={() => setInboxFilter({ status: [], priority: [], region: [], site: [], type: [] })}
                     className="text-[11px] text-roman-primary hover:underline font-medium"
                   >
                     Limpar todos
@@ -1501,6 +1529,7 @@ export function InboxView() {
                 ], inboxFilter, setInboxFilter)}
                 {renderFilterSection('Prioridade', 'priority', ['Urgente', 'Alta', 'Normal', 'Trivial'], inboxFilter, setInboxFilter)}
                 {renderFilterSection('Região', 'region', regionFilterOptions, inboxFilter, setInboxFilter)}
+                {renderFilterSection('Sede', 'site', siteFilterOptions, inboxFilter, setInboxFilter)}
                 {renderFilterSection('Tipo', 'type', ['Corretiva', 'Preventiva', 'Melhoria'], inboxFilter, setInboxFilter)}
               </div>
             )}

@@ -68,6 +68,7 @@ const DEFAULT_FILTER: InboxFilter = {
   status: [],
   priority: [],
   region: [],
+  site: [],
   type: [],
 };
 
@@ -454,6 +455,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (params.has('status')) newFilter.status = params.get('status')?.split(',') || [];
     if (params.has('priority')) newFilter.priority = params.get('priority')?.split(',') || [];
     if (params.has('region')) newFilter.region = params.get('region')?.split(',') || [];
+    if (params.has('site')) newFilter.site = params.get('site')?.split(',') || [];
     if (params.has('type')) newFilter.type = params.get('type')?.split(',') || [];
 
     setInboxFilterState(newFilter);
@@ -466,6 +468,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (filter.status.length > 0) params.set('status', filter.status.join(','));
     if (filter.priority.length > 0) params.set('priority', filter.priority.join(','));
     if (filter.region.length > 0) params.set('region', filter.region.join(','));
+    if (filter.site.length > 0) params.set('site', filter.site.join(','));
     if (filter.type.length > 0) params.set('type', filter.type.join(','));
 
     const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
