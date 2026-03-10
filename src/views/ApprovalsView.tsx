@@ -36,7 +36,7 @@ function triggerCsvDownload(filename: string, rows: string[][]) {
 }
 
 export function ApprovalsView() {
-  const { openAttachment, updateTicket, tickets, currentUser } = useApp();
+  const { activeTicketId, setActiveTicketId, currentView, openAttachment, updateTicket, tickets, currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
   const [activeTab, setActiveTab] = useState<'solutions' | 'budgets' | 'contracts'>('solutions');
@@ -429,6 +429,32 @@ export function ApprovalsView() {
     [activeTab, budgets.length, contracts.length, solutions.length]
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || currentView !== 'approvals') return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get('approvalTab');
+    const requestedTicketId = params.get('ticketId');
+    const claimReview = params.get('claimReview') === '1';
+
+    if (requestedTab === 'solutions' || requestedTab === 'budgets' || requestedTab === 'contracts') {
+      setActiveTab(requestedTab);
+    }
+
+    if (requestedTicketId && requestedTicketId !== activeTicketId) {
+      setActiveTicketId(requestedTicketId);
+    }
+
+    if (requestedTab === 'budgets' && requestedTicketId && claimReview) {
+      const targetBudget = budgets.find(item => item.id === requestedTicketId);
+      if (!targetBudget) return;
+      if (claimBudgetReview(requestedTicketId)) {
+        window.setTimeout(() => {
+          document.getElementById(`approval-budget-${requestedTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+      }
+    }
+  }, [activeTicketId, budgets, currentView, setActiveTicketId]);
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
       {toast && (
@@ -511,7 +537,13 @@ export function ApprovalsView() {
           ))}
 
           {activeTab === 'budgets' && budgets.map(budget => (
-            <div key={budget.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
+            <div
+              key={budget.id}
+              id={`approval-budget-${budget.id}`}
+              className={`bg-roman-surface border rounded-sm p-6 shadow-sm transition-colors relative overflow-hidden ${
+                budget.id === activeTicketId ? 'border-roman-primary/50 ring-1 ring-roman-primary/20' : 'border-roman-border hover:border-roman-primary/30'
+              }`}
+            >
               {processingId === budget.id && (
                 <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />

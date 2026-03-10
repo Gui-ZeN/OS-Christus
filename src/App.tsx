@@ -171,10 +171,20 @@ export default function App() {
       return;
     }
     if (!currentUserEmail && !publicViews.has(currentView)) {
+      const params = new URLSearchParams(window.location.search);
+      params.set('redirectView', currentView);
+      const query = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
       navigateTo(VIEWS.LOGIN);
     }
     if (currentUserEmail && currentView === VIEWS.LOGIN) {
-      navigateTo(VIEWS.HOME);
+      const params = new URLSearchParams(window.location.search);
+      const redirectView = params.get('redirectView') || params.get('view');
+      if (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
+        navigateTo(redirectView as ViewState);
+      } else {
+        navigateTo(VIEWS.HOME);
+      }
     }
   }, [authEnabled, authResolved, currentUserEmail, currentView, navigateTo]);
 

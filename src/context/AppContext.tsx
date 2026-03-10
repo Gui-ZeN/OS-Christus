@@ -74,6 +74,12 @@ const DEFAULT_FILTER: InboxFilter = {
 
 function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
+  const params = new URLSearchParams(window.location.search);
+  const requestedView = params.get('view');
+  const queryAllowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs'];
+  if (queryAllowed.includes(requestedView as ViewState)) {
+    return requestedView as ViewState;
+  }
   const stored = window.localStorage.getItem('os-christus-current-view');
   const allowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
   return allowed.includes(stored as ViewState) ? (stored as ViewState) : 'landing';
@@ -439,12 +445,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const requestedView = params.get('view');
-    if (requestedView === 'public-form') {
-      setCurrentView('public-form');
-      return;
-    }
-    if (requestedView === 'login') {
-      setCurrentView('login');
+    const allowedViews: ViewState[] = ['public-form', 'login', 'home', 'inbox', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'];
+    if (allowedViews.includes(requestedView as ViewState)) {
+      setCurrentView(requestedView as ViewState);
+      const requestedTicketId = params.get('ticketId');
+      if (requestedTicketId) {
+        setActiveTicketId(requestedTicketId);
+      }
     }
   }, []);
 
@@ -560,7 +567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       params.delete('view');
     } else {
       params.delete('tracking');
-      if (currentView === 'public-form' || currentView === 'login') {
+      if (currentView === 'public-form' || currentView === 'login' || currentView === 'approvals') {
         params.set('view', currentView);
       } else {
         params.delete('view');
