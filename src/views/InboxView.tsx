@@ -198,6 +198,11 @@ function formatCurrencyInput(value: number) {
   }).format(value);
 }
 
+function normalizeCurrencyInput(value: string) {
+  const parsed = parseCurrencyInput(value);
+  return parsed > 0 ? formatCurrencyInput(parsed) : '';
+}
+
 export function InboxView() {
   const {
     navigateTo,
@@ -1039,11 +1044,11 @@ export function InboxView() {
     internalActionText = 'Ação: Registrar no histórico interno';
   }
 
-  const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: string) => {
-    const newQuotes = [...quotes];
-    newQuotes[index][field] = value;
-    setQuotes(newQuotes);
-  };
+const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: string) => {
+  const newQuotes = [...quotes];
+  newQuotes[index][field] = field === 'value' ? normalizeCurrencyInput(value) : value;
+  setQuotes(newQuotes);
+};
 
   const recalculateQuoteValue = (draft: QuoteDraft) => {
     const computedTotal = draft.items.reduce((sum, item) => {
@@ -1075,6 +1080,13 @@ export function InboxView() {
             if (!nextItem.description) {
               nextItem.description = material?.name || '';
             }
+          }
+          if (field === 'materialName') {
+            nextItem.materialId = null;
+            nextItem.materialName = value ? String(value) : null;
+          }
+          if (field === 'unitPrice' || field === 'totalPrice') {
+            nextItem[field] = typeof value === 'string' ? normalizeCurrencyInput(value) : null;
           }
           return nextItem;
         });
@@ -1128,8 +1140,8 @@ export function InboxView() {
 
   const handleSendToDirector = () => {
     const filled = quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '');
-    if (filled.length < 3) {
-      setToast('Erro: Preencha os 3 orçamentos antes de enviar.');
+    if (filled.length < 2) {
+      setToast('Erro: Informe no mínimo 2 cotações antes de enviar.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -2184,7 +2196,7 @@ export function InboxView() {
             </div>
             <div className="p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <p className="text-sm text-roman-text-sub">Preencha os dados dos 3 orçamentos obrigatórios para enviar para aprovação da diretoria.</p>
+                <p className="text-sm text-roman-text-sub">Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.</p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">Rodada 1</span>
               </div>
 
@@ -2321,9 +2333,9 @@ export function InboxView() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6 items-start">
                 {[0, 1, 2].map(i => (
-                  <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col">
+                  <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
                       <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
                       <label className="text-xs text-roman-primary hover:underline flex items-center gap-1 cursor-pointer">
@@ -2387,7 +2399,10 @@ export function InboxView() {
                                 onClick={() => {
                                   const targetItem = quotes[i].items[quotes[i].items.length - 1];
                                   if (!targetItem) return;
-                                  handleQuoteItemChange(i, targetItem.id, 'materialId', material.id);
+                                  handleQuoteItemChange(i, targetItem.id, 'materialName', material.name);
+                                  if (material.unit) {
+                                    handleQuoteItemChange(i, targetItem.id, 'unit', material.unit);
+                                  }
                                 }}
                                 className="rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-2 py-1 text-[11px] text-roman-primary"
                               >
@@ -2397,7 +2412,7 @@ export function InboxView() {
                           </div>
                         )}
 
-                        <div className="space-y-3">
+                        <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
                           {quotes[i].items.map((item, itemIndex) => (
                             <div key={item.id} className="rounded-sm border border-roman-border bg-roman-bg p-3">
                               <div className="mb-2 flex items-center justify-between">
@@ -2411,16 +2426,13 @@ export function InboxView() {
                                 </button>
                               </div>
                               <div className="space-y-2">
-                                <select
-                                  value={item.materialId || ''}
-                                  onChange={event => handleQuoteItemChange(i, item.id, 'materialId', event.target.value)}
+                                <input
+                                  type="text"
+                                  placeholder="Adicionar material"
+                                  value={item.materialName || ''}
+                                  onChange={event => handleQuoteItemChange(i, item.id, 'materialName', event.target.value)}
                                   className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                >
-                                  <option value="">Selecionar material</option>
-                                  {catalogMaterials.map(material => (
-                                    <option key={material.id} value={material.id}>{material.name}</option>
-                                  ))}
-                                </select>
+                                />
                                 <input
                                   type="text"
                                   placeholder="Descrição do item"
@@ -2463,14 +2475,16 @@ export function InboxView() {
                                 <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
-                                    placeholder="Valor unitário"
+                                    inputMode="decimal"
+                                    placeholder="R$ 0,00"
                                     value={item.unitPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
                                   <input
                                     type="text"
-                                    placeholder="Valor total"
+                                    inputMode="decimal"
+                                    placeholder="R$ 0,00"
                                     value={item.totalPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'totalPrice', event.target.value)}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
@@ -2498,7 +2512,7 @@ export function InboxView() {
                 <button
                   onClick={() => {
                     handleSendToDirector();
-                    if (quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '').length >= 3) {
+                    if (quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '').length >= 2) {
                       setShowQuotesModal(false);
                     }
                   }}
