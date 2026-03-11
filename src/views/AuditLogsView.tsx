@@ -6,38 +6,38 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { formatDateTimeSafe } from '../utils/date';
 
 const ENTITY_LABELS: Record<string, string> = {
-  regions: 'Regioes',
+  regions: 'Regiões',
   sites: 'Sedes',
-  users: 'Usuarios',
-  user: 'Usuario',
+  users: 'Usuários',
+  user: 'Usuário',
   ticket: 'OS',
   tickets: 'OS',
-  settings: 'Configuracoes',
-  catalog: 'Catalogo',
-  notifications: 'Notificacoes',
-  procurement: 'Financeiro e execucao',
+  settings: 'Configurações',
+  catalog: 'Catálogo',
+  notifications: 'Notificações',
+  procurement: 'Financeiro e execução',
   finance: 'Financeiro',
   email: 'E-mail',
   'firestore.legacy': 'Legado do Firestore',
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  'catalog.delete': 'Exclusao de item do catalogo',
-  'catalog.upsert': 'Atualizacao de item do catalogo',
-  'users.create': 'Criacao de usuario',
-  'users.update': 'Atualizacao de usuario',
-  'users.delete': 'Exclusao de usuario',
-  'tickets.create': 'Criacao de OS',
-  'tickets.update': 'Atualizacao de OS',
-  'tickets.delete': 'Exclusao de OS',
-  'tickets.status.change': 'Mudanca de status da OS',
-  'settings.update': 'Atualizacao de configuracoes',
-  'procurement.quotes.save': 'Atualizacao de cotacoes',
-  'procurement.contract.save': 'Atualizacao de contrato',
-  'procurement.payment.save': 'Atualizacao de parcela',
-  'procurement.measurement.save': 'Registro de medicao',
-  'procurement.update': 'Atualizacao de orcamento/contrato',
-  'notifications.dismiss': 'Notificacao dispensada',
+  'catalog.delete': 'Exclusão de item do catálogo',
+  'catalog.upsert': 'Atualização de item do catálogo',
+  'users.create': 'Criação de usuário',
+  'users.update': 'Atualização de usuário',
+  'users.delete': 'Exclusão de usuário',
+  'tickets.create': 'Criação de OS',
+  'tickets.update': 'Atualização de OS',
+  'tickets.delete': 'Exclusão de OS',
+  'tickets.status.change': 'Mudança de status da OS',
+  'settings.update': 'Atualização de configurações',
+  'procurement.quotes.save': 'Atualização de cotações',
+  'procurement.contract.save': 'Atualização de contrato',
+  'procurement.payment.save': 'Atualização de parcela',
+  'procurement.measurement.save': 'Registro de medição',
+  'procurement.update': 'Atualização de orçamento/contrato',
+  'notifications.dismiss': 'Notificação dispensada',
 };
 
 type AuditCategory = 'status' | 'financeiro' | 'aprovacao' | 'cadastro' | 'exclusao' | 'configuracao' | 'outros';
@@ -45,10 +45,10 @@ type AuditCategory = 'status' | 'financeiro' | 'aprovacao' | 'cadastro' | 'exclu
 const CATEGORY_LABELS: Record<AuditCategory, string> = {
   status: 'Status',
   financeiro: 'Financeiro',
-  aprovacao: 'Aprovacao',
+  aprovacao: 'Aprovação',
   cadastro: 'Cadastro',
-  exclusao: 'Exclusao',
-  configuracao: 'Configuracao',
+  exclusao: 'Exclusão',
+  configuracao: 'Configuração',
   outros: 'Outros',
 };
 
@@ -138,18 +138,28 @@ function extractSummary(log: AuditLogEntry) {
   const service = classification?.serviceCatalogName || classification?.macroServiceName || null;
   const region = classification?.regionName || null;
   const site = classification?.siteName || null;
+  const subject = typeof after?.subject === 'string' ? after.subject : typeof before?.subject === 'string' ? before.subject : null;
 
   switch (log.action) {
     case 'procurement.measurement.save': {
-      const label = typeof source?.label === 'string' ? source.label : 'Medicao registrada';
+      const label = typeof source?.label === 'string' ? source.label : 'Medição registrada';
       const progress = source?.progressPercent != null ? `${source.progressPercent}%` : null;
-      return [label, progress ? `andamento em ${progress}` : null, service ? `servico: ${service}` : null].filter(Boolean).join(' · ');
+      return [label, progress ? `andamento em ${progress}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
     }
     case 'procurement.payment.save': {
       const label = typeof source?.label === 'string' ? source.label : 'Parcela atualizada';
       const status = typeof source?.status === 'string' ? source.status : null;
-      return [label, status ? `status: ${status}` : null, service ? `servico: ${service}` : null].filter(Boolean).join(' · ');
+      return [label, status ? `status: ${status}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
     }
+    case 'tickets.status.change': {
+      const previousStatus = typeof before?.status === 'string' ? before.status : null;
+      const nextStatus = typeof after?.status === 'string' ? after.status : null;
+      return [subject, previousStatus && nextStatus ? `${previousStatus} → ${nextStatus}` : nextStatus].filter(Boolean).join(' · ');
+    }
+    case 'tickets.create':
+    case 'tickets.update':
+    case 'tickets.delete':
+      return [subject, region, site].filter(Boolean).join(' · ');
     case 'catalog.delete':
       return `${prettyEntity(log.entity)} removido(a): ${objectDisplayName(log) || log.entityId || 'item sem nome'}`;
     case 'catalog.upsert':
@@ -157,14 +167,7 @@ function extractSummary(log: AuditLogEntry) {
     case 'users.create':
     case 'users.update':
     case 'users.delete':
-      return objectDisplayName(log) || log.entityId || 'Usuario';
-    case 'tickets.create':
-    case 'tickets.update':
-    case 'tickets.delete':
-    case 'tickets.status.change': {
-      const subject = typeof after?.subject === 'string' ? after.subject : typeof before?.subject === 'string' ? before.subject : null;
-      return [subject, region, site].filter(Boolean).join(' · ');
-    }
+      return objectDisplayName(log) || log.entityId || 'Usuário';
     default: {
       const label = objectDisplayName(log);
       const created = after && isRecord(after.createdAt) ? normalizeTimestampObject(after.createdAt) : null;
@@ -181,6 +184,7 @@ export function AuditLogsView() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [search, setSearch] = useState('');
   const [selectedTicket, setSelectedTicket] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | AuditCategory>('all');
   const [includeSystem, setIncludeSystem] = useState(false);
 
   if (!canAccess) {
@@ -190,7 +194,7 @@ export function AuditLogsView() {
           <EmptyState
             icon={History}
             title="Acesso restrito"
-            description="Os logs de auditoria estao disponiveis apenas para perfis Admin."
+            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
           />
         </div>
       </div>
@@ -223,10 +227,13 @@ export function AuditLogsView() {
     const term = search.trim().toLowerCase();
     return logs.filter(log => {
       const ticketRef = getTicketReference(log);
+      const category = getAuditCategory(log);
       if (selectedTicket !== 'all' && ticketRef !== selectedTicket) return false;
+      if (selectedCategory !== 'all' && category !== selectedCategory) return false;
       if (!term) return true;
       return [
         ticketRef || '',
+        CATEGORY_LABELS[category],
         prettyEntity(log.entity),
         prettyAction(log.action),
         prettyActor(log.actor),
@@ -238,7 +245,7 @@ export function AuditLogsView() {
         .toLowerCase()
         .includes(term);
     });
-  }, [logs, search, selectedTicket]);
+  }, [logs, search, selectedTicket, selectedCategory]);
 
   const groupedLogs = useMemo(() => {
     const groups = new Map<string, AuditLogEntry[]>();
@@ -256,7 +263,7 @@ export function AuditLogsView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Auditoria do Sistema</h1>
-            <p className="text-roman-text-sub font-serif italic">Registro central das acoes da OS e das principais alteracoes persistidas no sistema.</p>
+            <p className="text-roman-text-sub font-serif italic">Registro central das ações da OS e das principais alterações persistidas no sistema.</p>
           </div>
           <button
             onClick={() => void load()}
@@ -269,13 +276,13 @@ export function AuditLogsView() {
         </header>
 
         <div className="mb-6 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-          <div className="flex w-full flex-col gap-3 md:max-w-3xl md:flex-row">
+          <div className="flex w-full flex-col gap-3 md:max-w-4xl md:flex-row">
             <div className="relative w-full md:max-w-md">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
               <input
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder="Buscar por OS, acao, ator ou entidade..."
+                placeholder="Buscar por OS, ação, ator ou entidade..."
                 className="w-full border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
               />
             </div>
@@ -294,6 +301,20 @@ export function AuditLogsView() {
                 ))}
               </select>
             </div>
+            <div className="relative w-full md:max-w-xs">
+              <select
+                value={selectedCategory}
+                onChange={event => setSelectedCategory(event.target.value as 'all' | AuditCategory)}
+                className="w-full appearance-none border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
+              >
+                <option value="all">Todas as categorias</option>
+                {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-xs text-roman-text-sub">
@@ -302,7 +323,7 @@ export function AuditLogsView() {
                 checked={includeSystem}
                 onChange={event => setIncludeSystem(event.target.checked)}
               />
-              Exibir logs tecnicos
+              Exibir logs técnicos
             </label>
             <div className="text-xs text-roman-text-sub font-serif italic">
               {loading ? 'Carregando logs...' : `${filteredLogs.length} registro(s) exibido(s)`}
@@ -330,7 +351,7 @@ export function AuditLogsView() {
               <div className="flex items-center justify-between border-b border-roman-border pb-2">
                 <div>
                   <div className="text-[10px] uppercase tracking-widest text-roman-text-sub font-serif">OS</div>
-                  <div className="font-serif text-lg text-roman-text-main">{group.ticket === 'SYSTEM' ? 'Acoes gerais do sistema' : group.ticket}</div>
+                  <div className="font-serif text-lg text-roman-text-main">{group.ticket === 'SYSTEM' ? 'Ações gerais do sistema' : group.ticket}</div>
                 </div>
                 <div className="text-xs text-roman-text-sub">{group.entries.length} registro(s)</div>
               </div>
@@ -343,16 +364,11 @@ export function AuditLogsView() {
                     <article key={log.id} className={`bg-roman-surface border border-roman-border border-l-4 ${accentClass} rounded-sm px-5 py-4 shadow-sm`}>
                       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-1.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${CATEGORY_STYLES[category]}`}>
-                              {CATEGORY_LABELS[category]}
-                            </span>
-                            <span className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
-                              {prettyEntity(log.entity)} {objectDisplayName(log) ? `· ${objectDisplayName(log)}` : log.entityId ? `· ${log.entityId}` : ''}
-                            </span>
-                          </div>
+                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${CATEGORY_STYLES[category]}`}>
+                            {CATEGORY_LABELS[category]}
+                          </span>
                           <div className="text-base font-serif text-roman-text-main">{prettyAction(log.action)}</div>
-                          <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponivel.'}</div>
+                          <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponível.'}</div>
                         </div>
                         <div className="text-xs text-roman-text-sub md:text-right shrink-0">
                           <div>{prettyActor(log.actor)}</div>

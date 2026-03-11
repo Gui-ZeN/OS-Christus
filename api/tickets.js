@@ -290,6 +290,15 @@ export default async function handler(req, res) {
 
       await col.doc(ticketId).set(createdTicket);
 
+      await writeAuditLog({
+        actor: user ? buildActorLabel(user, user.email || user.name || 'painel') : 'Sistema',
+        action: 'tickets.create',
+        entity: 'ticket',
+        entityId: ticketId,
+        before: null,
+        after: createdTicket,
+      });
+
       return sendJson(res, 200, { ok: true, ticket: serializeTicketForApi(createdTicket) });
     }
 
@@ -355,6 +364,23 @@ export default async function handler(req, res) {
           },
           { merge: true }
         );
+
+        await writeAuditLog({
+          actor: requesterName,
+          action: 'tickets.status.change',
+          entity: 'ticket',
+          entityId: trackingSnap.docs[0].id,
+          before: {
+            status: beforeData.status || null,
+            subject: beforeData.subject || null,
+            requester: beforeData.requester || null,
+          },
+          after: {
+            status: nextStatus,
+            subject: beforeData.subject || null,
+            requester: beforeData.requester || null,
+          },
+        });
         return sendJson(res, 200, { ok: true });
       }
 
@@ -397,6 +423,24 @@ export default async function handler(req, res) {
       }
 
       await docRef.set(payload, { merge: true });
+
+      const auditAction =
+        updates.status && updates.status !== beforeData.status
+          ? 'tickets.status.change'
+          : 'tickets.update';
+
+      await writeAuditLog({
+        actor: buildActorLabel(user, actor),
+        action: auditAction,
+        entity: 'ticket',
+        entityId: beforeSnap.id,
+        before: beforeData,
+        after: {
+          ...beforeData,
+          ...payload,
+        },
+      });
+
       return sendJson(res, 200, { ok: true });
     }
 
