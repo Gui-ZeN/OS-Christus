@@ -420,9 +420,9 @@ export function HomeView() {
   }, [scopedTickets]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
+        <header className="mb-6">
           <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Olá, {greetingName}</h1>
           <p className="text-roman-text-sub font-serif italic">
             {isExecutive
@@ -484,7 +484,7 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
           <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => openInboxWithStatus([TICKET_STATUS.NEW])} />
           <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} onClick={() => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET])} />
           <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
@@ -492,9 +492,9 @@ export function HomeView() {
         </div>
 
         {!isExecutive && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
             {isSupervisor && (
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
                 <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
                   <h2 className="font-serif text-lg font-medium text-roman-text-main">Resumo da Supervisão</h2>
                   <Building2 size={16} className="text-roman-text-sub" />
@@ -535,7 +535,7 @@ export function HomeView() {
             )}
 
             {isRequester && (
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
                 <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
                   <h2 className="font-serif text-lg font-medium text-roman-text-main">Minhas Solicitações</h2>
                   <Users size={16} className="text-roman-text-sub" />
@@ -563,7 +563,7 @@ export function HomeView() {
               </div>
             )}
 
-            <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+            <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
               <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
                 <h2 className="font-serif text-lg font-medium text-roman-text-main">
                   {isSupervisor ? 'Validações e próximos passos' : 'Acompanhamento operacional'}
@@ -611,7 +611,7 @@ export function HomeView() {
         )}
 
         {isSupervisor && (
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 mb-8">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-5 mb-6">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">OS da Supervisão</h2>
               <Users size={16} className="text-roman-text-sub" />
@@ -646,7 +646,7 @@ export function HomeView() {
         )}
 
         {isExecutive && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
             <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
               <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Contrato no recorte</div>
               <div className="text-2xl font-serif text-roman-text-main">{formatCurrency(executiveFinancialSummary.contracted)}</div>
@@ -667,8 +667,8 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-          <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+          <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-5">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">
                 {selectedRegion === 'all' ? 'Dashboard por Região' : 'Dashboard por Sede'}
@@ -715,7 +715,7 @@ export function HomeView() {
             )}
           </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Ações Rápidas</h2>
             <div className="space-y-3">
               <button onClick={() => navigateTo('public-form')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
@@ -759,8 +759,8 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          <div className="lg:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-5">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Atividade Recente</h2>
             <div className="space-y-4">
               {recentActivity.length === 0 ? (
@@ -778,7 +778,7 @@ export function HomeView() {
             </div>
           </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">Fila Executiva</h2>
               <AlertTriangle size={16} className="text-roman-text-sub" />
@@ -808,8 +808,8 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados Críticos</h2>
               <AlertTriangle size={16} className="text-roman-text-sub" />
@@ -845,7 +845,7 @@ export function HomeView() {
             )}
           </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados do Recorte</h2>
               <Building2 size={16} className="text-roman-text-sub" />

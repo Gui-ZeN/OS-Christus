@@ -400,7 +400,7 @@ export default function App() {
 
         return (
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-in fade-in"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-8 animate-in fade-in"
             onClick={event => {
               if (event.target === event.currentTarget) closeAttachment();
             }}
@@ -408,7 +408,7 @@ export default function App() {
             aria-modal="true"
             aria-label="Visualizador de anexo"
           >
-            <div className="bg-roman-surface w-full max-w-5xl h-[82vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-stone-700">
+            <div className="bg-roman-surface w-full max-w-5xl h-[88vh] md:h-[82vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-stone-700">
               <div className="flex justify-between items-center p-4 border-b border-roman-border bg-stone-900 text-white">
                 <div className="flex items-center gap-3">
                   {attachmentPreview.type === 'pdf' ? <FileText size={20} className="text-roman-primary" /> : <ImageIcon size={20} className="text-roman-primary" />}

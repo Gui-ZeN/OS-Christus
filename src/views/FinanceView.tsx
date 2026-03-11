@@ -289,7 +289,7 @@ export function FinanceView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={DollarSign}
@@ -900,7 +900,7 @@ export function FinanceView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
       {toast && (
         <div className={`absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in ${toast.includes('Erro') ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}`}>
           <CheckCircle size={18} />
@@ -913,7 +913,7 @@ export function FinanceView() {
           <p className="text-roman-text-sub font-serif italic">Medições, geração de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
         </header>
 
-        <div className="mb-6 grid gap-3 md:grid-cols-4">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-sm border border-roman-border bg-roman-surface p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Fluxos financeiros</div>
             <div className="mt-2 text-2xl font-semibold text-roman-text-main">{financeSummary.tickets}</div>

@@ -3,6 +3,7 @@ import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperc
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { ModalShell } from '../components/ui/ModalShell';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
@@ -1387,8 +1388,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[88vw] max-w-96 md:w-[23rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="border-b border-roman-border px-4 py-4 bg-gradient-to-b from-roman-bg to-roman-surface">
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[88vw] max-w-96 md:w-[20rem] xl:w-[22rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-4 bg-gradient-to-b from-roman-bg to-roman-surface">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -1415,7 +1416,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-4">
+          <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
               <div className="text-[10px] uppercase tracking-widest text-amber-700">Novas</div>
               <div className="text-lg font-semibold text-amber-900">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
@@ -1455,7 +1456,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </select>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
             </div>
-            <div className="relative min-w-0 w-32 sm:w-40">
+            <div className="relative min-w-0 w-28 sm:w-36">
               <select
                 value={inboxFilter.site.length === 1 ? inboxFilter.site[0] : ''}
                 onChange={(e) => {
@@ -1873,7 +1874,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[86vw] max-w-80 md:w-80 bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[86vw] max-w-80 md:w-[19rem] xl:w-80 bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="h-12 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Dados da OS</span>
               <button
@@ -1887,7 +1888,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div className="p-4 space-y-5 overflow-y-auto">
+            <div className="p-3 md:p-4 space-y-4 overflow-y-auto">
               <PropertyField label="Status Atual" value={activeTicket.status} highlight />
 
               {/* PUBLIC LINK BUTTON */}
@@ -2278,21 +2279,33 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {showQuotesModal && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowQuotesModal(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Gestão de orçamentos"
-        >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">Gestão de Orçamentos</h3>
-              <button onClick={() => setShowQuotesModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+        <ModalShell
+          isOpen={showQuotesModal}
+          onClose={() => setShowQuotesModal(false)}
+          title="Gestão de Orçamentos"
+          description="Registre no mínimo duas cotações para submeter a rodada à diretoria."
+          maxWidthClass="max-w-6xl"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowQuotesModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                Fechar
+              </button>
+              <button
+                onClick={() => {
+                  handleSendToDirector();
+                  if (quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '').length >= 2) {
+                    setShowQuotesModal(false);
+                  }
+                }}
+                disabled={isSending}
+                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-70"
+              >
+                {isSending ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
+                {isSending ? 'Enviando...' : 'Enviar para Diretoria'}
+              </button>
             </div>
-            <div className="p-6 overflow-y-auto">
+          )}
+        >
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-roman-text-sub">Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.</p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">Rodada 1</span>
@@ -2603,50 +2616,39 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 ))}
               </div>
 
-              <div className="sticky bottom-0 mt-6 flex justify-end gap-3 pt-4 border-t border-roman-border bg-roman-surface">
-                <button onClick={() => setShowQuotesModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                  Fechar
-                </button>
-                <button
-                  onClick={() => {
-                    handleSendToDirector();
-                    if (quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '').length >= 2) {
-                      setShowQuotesModal(false);
-                    }
-                  }}
-                  disabled={isSending}
-                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-70"
-                >
-                  {isSending ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-                  {isSending ? 'Enviando...' : 'Enviar para Diretoria'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* Ações Preliminares Modal */}
       {showPrelimModal && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowPrelimModal(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Ações preliminares"
-        >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-2xl overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">Ações Preliminares</h3>
-              <button onClick={() => setShowPrelimModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+        <ModalShell
+          isOpen={showPrelimModal}
+          onClose={() => setShowPrelimModal(false)}
+          title="Ações Preliminares"
+          description="Registre compras, cronograma, liberações e impedimentos antes de iniciar a execução."
+          maxWidthClass="max-w-2xl"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowPrelimModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleSavePreliminaryActions(false)}
+                className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm"
+              >
+                Salvar checklist
+              </button>
+              <button
+                disabled={!arePreliminaryActionsReady(prelimForm) || !prelimForm.plannedStartAt}
+                onClick={() => handleSavePreliminaryActions(true)}
+                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Concluir e Iniciar Execução
+              </button>
             </div>
-            <div className="p-6 space-y-6">
+          )}
+        >
               <div>
-                <p className="text-sm text-roman-text-sub font-serif italic">
-                  Registre compras, cronograma, liberações e impedimentos antes de iniciar a execução.
-                </p>
                 <p className="mt-2 text-xs text-roman-text-sub">
                   Checklist concluído: {PRELIMINARY_ITEMS.filter(item => prelimForm[item.id]).length}/{PRELIMINARY_ITEMS.length}
                 </p>
@@ -2708,45 +2710,32 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 {prelimForm.blockerNotes.trim() && <div>Impedimentos: {prelimForm.blockerNotes.trim()}</div>}
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setShowPrelimModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => handleSavePreliminaryActions(false)}
-                  className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm"
-                >
-                  Salvar checklist
-                </button>
-                <button
-                  disabled={!arePreliminaryActionsReady(prelimForm) || !prelimForm.plannedStartAt}
-                  onClick={() => handleSavePreliminaryActions(true)}
-                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Concluir e Iniciar Execução
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {showExecutionSetupModal && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowExecutionSetupModal(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Iniciar execução"
-        >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-xl overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">Iniciar Execução da Obra</h3>
-              <button onClick={() => setShowExecutionSetupModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+        <ModalShell
+          isOpen={showExecutionSetupModal}
+          onClose={() => setShowExecutionSetupModal(false)}
+          title="Iniciar Execução da Obra"
+          description="Defina o fluxo financeiro que vai liberar os marcos de pagamento durante a execução."
+          maxWidthClass="max-w-xl"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowExecutionSetupModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                Cancelar
+              </button>
+              <button
+                disabled={isSending}
+                onClick={() => void handleConfirmExecutionStart()}
+                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                Iniciar execução
+              </button>
             </div>
-            <div className="p-6 space-y-5">
+          )}
+        >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Fluxo de pagamento</label>
@@ -2784,40 +2773,32 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setShowExecutionSetupModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                  Cancelar
-                </button>
-                <button
-                  disabled={isSending}
-                  onClick={() => void handleConfirmExecutionStart()}
-                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                  Iniciar execução
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {showProgressModal && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowProgressModal(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Atualizar andamento"
-        >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-xl overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">Atualizar Andamento da Obra</h3>
-              <button onClick={() => setShowProgressModal(false)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
+        <ModalShell
+          isOpen={showProgressModal}
+          onClose={() => setShowProgressModal(false)}
+          title="Atualizar Andamento da Obra"
+          description="Selecione o marco concluído para liberar a próxima etapa financeira."
+          maxWidthClass="max-w-xl"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowProgressModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                Cancelar
+              </button>
+              <button
+                disabled={isSending}
+                onClick={() => void handleSaveProgressUpdate()}
+                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Salvar andamento
+              </button>
             </div>
-            <div className="p-6 space-y-5">
+          )}
+        >
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm text-roman-text-main">
                   <span>Selecione o marco de andamento</span>
@@ -2874,22 +2855,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setShowProgressModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                  Cancelar
-                </button>
-                <button
-                  disabled={isSending}
-                  onClick={() => void handleSaveProgressUpdate()}
-                  className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                  Salvar andamento
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );
