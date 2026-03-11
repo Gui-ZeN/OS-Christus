@@ -1,42 +1,65 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, History, RefreshCw, Search } from 'lucide-react';
+import { AlertCircle, FolderKanban, History, RefreshCw, Search } from 'lucide-react';
 import { AuditLogEntry, fetchAuditLogs } from '../services/auditLogsApi';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { formatDateTimeSafe } from '../utils/date';
 
 const ENTITY_LABELS: Record<string, string> = {
-  regions: 'Regiões',
+  regions: 'Regioes',
   sites: 'Sedes',
-  users: 'Usuários',
-  user: 'Usuário',
+  users: 'Usuarios',
+  user: 'Usuario',
   ticket: 'OS',
   tickets: 'OS',
-  settings: 'Configurações',
-  catalog: 'Catálogo',
-  notifications: 'Notificações',
-  procurement: 'Financeiro e execução',
+  settings: 'Configuracoes',
+  catalog: 'Catalogo',
+  notifications: 'Notificacoes',
+  procurement: 'Financeiro e execucao',
   finance: 'Financeiro',
   email: 'E-mail',
   'firestore.legacy': 'Legado do Firestore',
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  'catalog.delete': 'Exclusão de item do catálogo',
-  'catalog.upsert': 'Atualização de item do catálogo',
-  'users.create': 'Criação de usuário',
-  'users.update': 'Atualização de usuário',
-  'users.delete': 'Exclusão de usuário',
-  'tickets.create': 'Criação de OS',
-  'tickets.update': 'Atualização de OS',
-  'tickets.delete': 'Exclusão de OS',
-  'settings.update': 'Atualização de configurações',
-  'procurement.quotes.save': 'Atualização de cotações',
-  'procurement.contract.save': 'Atualização de contrato',
-  'procurement.payment.save': 'Atualização de parcela',
-  'procurement.measurement.save': 'Registro de medição',
-  'procurement.update': 'Atualização de orçamento/contrato',
-  'notifications.dismiss': 'Notificação dispensada',
+  'catalog.delete': 'Exclusao de item do catalogo',
+  'catalog.upsert': 'Atualizacao de item do catalogo',
+  'users.create': 'Criacao de usuario',
+  'users.update': 'Atualizacao de usuario',
+  'users.delete': 'Exclusao de usuario',
+  'tickets.create': 'Criacao de OS',
+  'tickets.update': 'Atualizacao de OS',
+  'tickets.delete': 'Exclusao de OS',
+  'tickets.status.change': 'Mudanca de status da OS',
+  'settings.update': 'Atualizacao de configuracoes',
+  'procurement.quotes.save': 'Atualizacao de cotacoes',
+  'procurement.contract.save': 'Atualizacao de contrato',
+  'procurement.payment.save': 'Atualizacao de parcela',
+  'procurement.measurement.save': 'Registro de medicao',
+  'procurement.update': 'Atualizacao de orcamento/contrato',
+  'notifications.dismiss': 'Notificacao dispensada',
+};
+
+type AuditCategory = 'status' | 'financeiro' | 'aprovacao' | 'cadastro' | 'exclusao' | 'configuracao' | 'outros';
+
+const CATEGORY_LABELS: Record<AuditCategory, string> = {
+  status: 'Status',
+  financeiro: 'Financeiro',
+  aprovacao: 'Aprovacao',
+  cadastro: 'Cadastro',
+  exclusao: 'Exclusao',
+  configuracao: 'Configuracao',
+  outros: 'Outros',
+};
+
+const CATEGORY_STYLES: Record<AuditCategory, string> = {
+  status: 'border-sky-200 bg-sky-50 text-sky-700',
+  financeiro: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  aprovacao: 'border-amber-200 bg-amber-50 text-amber-700',
+  cadastro: 'border-violet-200 bg-violet-50 text-violet-700',
+  exclusao: 'border-red-200 bg-red-50 text-red-700',
+  configuracao: 'border-stone-200 bg-stone-100 text-stone-700',
+  outros: 'border-roman-border bg-roman-bg text-roman-text-sub',
 };
 
 function prettyActor(actor: string) {
@@ -56,6 +79,17 @@ function prettyEntity(entity: string) {
 
 function prettyAction(action: string) {
   return ACTION_LABELS[action] || action;
+}
+
+function getAuditCategory(log: AuditLogEntry): AuditCategory {
+  const action = log.action || '';
+  if (action.includes('delete')) return 'exclusao';
+  if (action === 'tickets.status.change' || action === 'tickets.update') return 'status';
+  if (action.startsWith('procurement.payment') || action.startsWith('procurement.measurement')) return 'financeiro';
+  if (action.startsWith('procurement.quotes') || action.startsWith('procurement.contract')) return 'aprovacao';
+  if (action.startsWith('users.') || action.startsWith('catalog.')) return 'cadastro';
+  if (action.startsWith('settings.') || action.startsWith('notifications.')) return 'configuracao';
+  return 'outros';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +112,20 @@ function normalizeTimestampObject(value: Record<string, unknown>) {
   return new Date(seconds * 1000 + Math.floor(nanos / 1_000_000));
 }
 
+function getTicketReference(log: AuditLogEntry) {
+  const directValues = [log.entityId, objectDisplayName(log)];
+  for (const value of directValues) {
+    const text = String(value || '').trim();
+    const match = text.match(/OS-\d{4,}/i);
+    if (match) return match[0].toUpperCase();
+  }
+  const before = isRecord(log.before) ? log.before : null;
+  const after = isRecord(log.after) ? log.after : null;
+  const sourceId = typeof after?.id === 'string' ? after.id : typeof before?.id === 'string' ? before.id : null;
+  if (sourceId?.match(/^OS-\d+/i)) return sourceId.toUpperCase();
+  return null;
+}
+
 function extractSummary(log: AuditLogEntry) {
   const after = isRecord(log.after) ? log.after : null;
   const before = isRecord(log.before) ? log.before : null;
@@ -93,14 +141,14 @@ function extractSummary(log: AuditLogEntry) {
 
   switch (log.action) {
     case 'procurement.measurement.save': {
-      const label = typeof source?.label === 'string' ? source.label : 'Medição registrada';
+      const label = typeof source?.label === 'string' ? source.label : 'Medicao registrada';
       const progress = source?.progressPercent != null ? `${source.progressPercent}%` : null;
-      return [label, progress ? `andamento em ${progress}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
+      return [label, progress ? `andamento em ${progress}` : null, service ? `servico: ${service}` : null].filter(Boolean).join(' · ');
     }
     case 'procurement.payment.save': {
       const label = typeof source?.label === 'string' ? source.label : 'Parcela atualizada';
       const status = typeof source?.status === 'string' ? source.status : null;
-      return [label, status ? `status: ${status}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
+      return [label, status ? `status: ${status}` : null, service ? `servico: ${service}` : null].filter(Boolean).join(' · ');
     }
     case 'catalog.delete':
       return `${prettyEntity(log.entity)} removido(a): ${objectDisplayName(log) || log.entityId || 'item sem nome'}`;
@@ -109,10 +157,11 @@ function extractSummary(log: AuditLogEntry) {
     case 'users.create':
     case 'users.update':
     case 'users.delete':
-      return objectDisplayName(log) || log.entityId || 'Usuário';
+      return objectDisplayName(log) || log.entityId || 'Usuario';
     case 'tickets.create':
     case 'tickets.update':
-    case 'tickets.delete': {
+    case 'tickets.delete':
+    case 'tickets.status.change': {
       const subject = typeof after?.subject === 'string' ? after.subject : typeof before?.subject === 'string' ? before.subject : null;
       return [subject, region, site].filter(Boolean).join(' · ');
     }
@@ -131,6 +180,7 @@ export function AuditLogsView() {
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [search, setSearch] = useState('');
+  const [selectedTicket, setSelectedTicket] = useState('all');
   const [includeSystem, setIncludeSystem] = useState(false);
 
   if (!canAccess) {
@@ -140,7 +190,7 @@ export function AuditLogsView() {
           <EmptyState
             icon={History}
             title="Acesso restrito"
-            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
+            description="Os logs de auditoria estao disponiveis apenas para perfis Admin."
           />
         </div>
       </div>
@@ -164,11 +214,19 @@ export function AuditLogsView() {
     void load();
   }, [includeSystem]);
 
+  const ticketOptions = useMemo(() => {
+    const values = [...new Set(logs.map(getTicketReference).filter((value): value is string => Boolean(value)))];
+    return values.sort((a: string, b: string) => b.localeCompare(a, 'pt-BR'));
+  }, [logs]);
+
   const filteredLogs = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return logs;
-    return logs.filter(log =>
-      [
+    return logs.filter(log => {
+      const ticketRef = getTicketReference(log);
+      if (selectedTicket !== 'all' && ticketRef !== selectedTicket) return false;
+      if (!term) return true;
+      return [
+        ticketRef || '',
         prettyEntity(log.entity),
         prettyAction(log.action),
         prettyActor(log.actor),
@@ -178,9 +236,19 @@ export function AuditLogsView() {
       ]
         .join(' ')
         .toLowerCase()
-        .includes(term)
-    );
-  }, [logs, search]);
+        .includes(term);
+    });
+  }, [logs, search, selectedTicket]);
+
+  const groupedLogs = useMemo(() => {
+    const groups = new Map<string, AuditLogEntry[]>();
+    for (const log of filteredLogs) {
+      const key = getTicketReference(log) || 'SYSTEM';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(log);
+    }
+    return [...groups.entries()].map(([ticket, entries]) => ({ ticket, entries }));
+  }, [filteredLogs]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
@@ -188,7 +256,7 @@ export function AuditLogsView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Auditoria do Sistema</h1>
-            <p className="text-roman-text-sub font-serif italic">Registro central das ações da OS e das principais alterações persistidas no sistema.</p>
+            <p className="text-roman-text-sub font-serif italic">Registro central das acoes da OS e das principais alteracoes persistidas no sistema.</p>
           </div>
           <button
             onClick={() => void load()}
@@ -201,14 +269,31 @@ export function AuditLogsView() {
         </header>
 
         <div className="mb-6 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-          <div className="relative w-full md:max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
-            <input
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              placeholder="Buscar por OS, ação, ator ou entidade..."
-              className="w-full border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
-            />
+          <div className="flex w-full flex-col gap-3 md:max-w-3xl md:flex-row">
+            <div className="relative w-full md:max-w-md">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+              <input
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder="Buscar por OS, acao, ator ou entidade..."
+                className="w-full border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
+              />
+            </div>
+            <div className="relative w-full md:max-w-xs">
+              <FolderKanban size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+              <select
+                value={selectedTicket}
+                onChange={event => setSelectedTicket(event.target.value)}
+                className="w-full appearance-none border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
+              >
+                <option value="all">Todas as OS</option>
+                {ticketOptions.map(ticket => (
+                  <option key={ticket} value={ticket}>
+                    {ticket}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-xs text-roman-text-sub">
@@ -217,7 +302,7 @@ export function AuditLogsView() {
                 checked={includeSystem}
                 onChange={event => setIncludeSystem(event.target.checked)}
               />
-              Exibir logs técnicos
+              Exibir logs tecnicos
             </label>
             <div className="text-xs text-roman-text-sub font-serif italic">
               {loading ? 'Carregando logs...' : `${filteredLogs.length} registro(s) exibido(s)`}
@@ -232,35 +317,54 @@ export function AuditLogsView() {
           </div>
         )}
 
-        <section className="space-y-3">
-          {!loading && filteredLogs.length === 0 && (
+        <section className="space-y-6">
+          {!loading && groupedLogs.length === 0 && (
             <div className="bg-roman-surface border border-roman-border rounded-sm p-8 text-center text-roman-text-sub font-serif italic flex items-center justify-center gap-2">
               <History size={18} />
               Nenhum log encontrado.
             </div>
           )}
 
-          {filteredLogs.map(log => {
-            const isDelete = log.action.includes('delete');
-            const accentClass = isDelete ? 'border-l-red-400' : 'border-l-roman-primary';
-            return (
-              <article key={log.id} className={`bg-roman-surface border border-roman-border border-l-4 ${accentClass} rounded-sm px-5 py-4 shadow-sm`}>
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
-                      {prettyEntity(log.entity)} {objectDisplayName(log) ? `· ${objectDisplayName(log)}` : log.entityId ? `· ${log.entityId}` : ''}
-                    </div>
-                    <div className="text-base font-serif text-roman-text-main">{prettyAction(log.action)}</div>
-                    <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponível.'}</div>
-                  </div>
-                  <div className="text-xs text-roman-text-sub md:text-right shrink-0">
-                    <div>{prettyActor(log.actor)}</div>
-                    <div>{formatDateTimeSafe(log.createdAt)}</div>
-                  </div>
+          {groupedLogs.map(group => (
+            <div key={group.ticket} className="space-y-3">
+              <div className="flex items-center justify-between border-b border-roman-border pb-2">
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub font-serif">OS</div>
+                  <div className="font-serif text-lg text-roman-text-main">{group.ticket === 'SYSTEM' ? 'Acoes gerais do sistema' : group.ticket}</div>
                 </div>
-              </article>
-            );
-          })}
+                <div className="text-xs text-roman-text-sub">{group.entries.length} registro(s)</div>
+              </div>
+              <div className="space-y-3">
+                {group.entries.map(log => {
+                  const category = getAuditCategory(log);
+                  const isDelete = category === 'exclusao';
+                  const accentClass = isDelete ? 'border-l-red-400' : 'border-l-roman-primary';
+                  return (
+                    <article key={log.id} className={`bg-roman-surface border border-roman-border border-l-4 ${accentClass} rounded-sm px-5 py-4 shadow-sm`}>
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${CATEGORY_STYLES[category]}`}>
+                              {CATEGORY_LABELS[category]}
+                            </span>
+                            <span className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                              {prettyEntity(log.entity)} {objectDisplayName(log) ? `· ${objectDisplayName(log)}` : log.entityId ? `· ${log.entityId}` : ''}
+                            </span>
+                          </div>
+                          <div className="text-base font-serif text-roman-text-main">{prettyAction(log.action)}</div>
+                          <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponivel.'}</div>
+                        </div>
+                        <div className="text-xs text-roman-text-sub md:text-right shrink-0">
+                          <div>{prettyActor(log.actor)}</div>
+                          <div>{formatDateTimeSafe(log.createdAt)}</div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </section>
       </div>
     </div>
