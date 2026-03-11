@@ -188,7 +188,7 @@ export function AuditLogsView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Auditoria do Sistema</h1>
-            <p className="text-roman-text-sub font-serif italic">Registro resumido das principais ações persistidas.</p>
+            <p className="text-roman-text-sub font-serif italic">Registro central das ações da OS e das principais alterações persistidas no sistema.</p>
           </div>
           <button
             onClick={() => void load()}

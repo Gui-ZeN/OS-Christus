@@ -1,13 +1,10 @@
 ﻿
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart2, Building2, MapPinned, Plus, ScrollText, Users } from 'lucide-react';
-import { ActivityItem } from '../components/ui/ActivityItem';
+import { AlertTriangle, BarChart2, Building2, MapPinned, Plus, Users } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
-import { fetchAuditLogs, type AuditLogEntry } from '../services/auditLogsApi';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
-import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionId, getTicketRegionLabel, getTicketSiteId, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function isOpenStatus(status: string) {
@@ -48,38 +45,12 @@ function formatActivityTime(date: Date): string {
   return `${diffDays}d`;
 }
 
-function getAuditActionLabel(log: AuditLogEntry) {
-  const action = log.action || '';
-  const entity = log.entity || '';
-
-  if (action === 'tickets.create') return 'OS criada';
-  if (action === 'tickets.update') return 'OS atualizada';
-  if (action === 'tickets.delete') return 'OS excluída';
-  if (action === 'tickets.status.change') return 'Status da OS alterado';
-  if (action.startsWith('users.')) return 'Cadastro de usuário atualizado';
-  if (action.startsWith('catalog.')) return 'Catálogo operacional alterado';
-  if (action.startsWith('procurement.quotes')) return 'Orçamento atualizado';
-  if (action.startsWith('procurement.contract')) return 'Contrato atualizado';
-  if (action.startsWith('procurement.payment')) return 'Pagamento atualizado';
-  if (action.startsWith('procurement.measurement')) return 'Medição registrada';
-  if (action.startsWith('settings.')) return 'Configuração atualizada';
-  if (action.startsWith('notifications.')) return 'Notificação alterada';
-  if (entity === 'tickets') return 'OS atualizada';
-  return action || 'Atualização registrada';
-}
-
-function getAuditSummary(log: AuditLogEntry) {
-  const entityId = log.entityId ? ` · ${log.entityId}` : '';
-  return `${getAuditActionLabel(log)}${entityId}`;
-}
-
 export function HomeView() {
   const { navigateTo, setActiveTicketId, setInboxFilter, tickets, currentUser, currentUserEmail } = useApp();
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
-  const [auditActivity, setAuditActivity] = useState<AuditLogEntry[]>([]);
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const isSupervisor = currentUser?.role === 'Supervisor';
@@ -120,20 +91,6 @@ export function HomeView() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const logs = await fetchAuditLogs(8, false);
-        if (!cancelled) setAuditActivity(logs);
-      } catch {
-        if (!cancelled) setAuditActivity([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const availableRegions = useMemo(() => {
     const values: string[] = tickets.map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
     const fallbackValues: string[] = regions.map(region => region.name).filter((value): value is string => Boolean(value));
@@ -505,23 +462,6 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5">
-          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-              <h2 className="font-serif text-lg font-medium text-roman-text-main">Atividade Recente</h2>
-              <ScrollText size={16} className="text-roman-text-sub" />
-            </div>
-            <div className="space-y-4">
-              {auditActivity.length === 0 ? (
-                <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma auditoria recente registrada.</p>
-              ) : (
-                auditActivity.map(item => (
-                  <ActivityItem key={item.id} time={formatDateTimeSafe(item.createdAt)} title={item.actor || 'Sistema'} desc={getAuditSummary(item)} />
-                ))
-              )}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
