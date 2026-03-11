@@ -356,6 +356,23 @@ export function HomeView() {
     return [...grouped.values()].sort((a, b) => b.open - a.open);
   }, [isSupervisor, scopedTickets, sites]);
 
+  const supervisorScopeSummary = useMemo(() => {
+    if (!isSupervisor) return null;
+    const assignedSites = sites.filter(site => (currentUser?.siteIds || []).includes(site.id));
+    const assignedRegions = regions.filter(region => (currentUser?.regionIds || []).includes(region.id));
+    return {
+      sites: assignedSites,
+      regions: assignedRegions,
+    };
+  }, [currentUser?.regionIds, currentUser?.siteIds, isSupervisor, regions, sites]);
+
+  const supervisorTickets = useMemo(() => {
+    if (!isSupervisor) return [];
+    return scopedTickets
+      .slice()
+      .sort((a, b) => b.time.getTime() - a.time.getTime());
+  }, [isSupervisor, scopedTickets]);
+
   const pendingRequesterValidations = useMemo(() => {
     return scopedTickets
       .filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL)
@@ -435,6 +452,23 @@ export function HomeView() {
                   <h2 className="font-serif text-lg font-medium text-roman-text-main">Resumo da Supervisão</h2>
                   <Building2 size={16} className="text-roman-text-sub" />
                 </div>
+                {supervisorScopeSummary && (
+                  <div className="mb-4 rounded-sm border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
+                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub mb-2">Escopo da supervisão</div>
+                    <div>
+                      <span className="font-medium text-roman-text-main">Sedes:</span>{' '}
+                      {supervisorScopeSummary.sites.length > 0
+                        ? supervisorScopeSummary.sites.map(site => site.code || site.name).join(', ')
+                        : 'nenhuma sede vinculada'}
+                    </div>
+                    <div className="mt-1">
+                      <span className="font-medium text-roman-text-main">Regiões:</span>{' '}
+                      {supervisorScopeSummary.regions.length > 0
+                        ? supervisorScopeSummary.regions.map(region => region.name).join(', ')
+                        : 'nenhuma região vinculada'}
+                    </div>
+                  </div>
+                )}
                 {supervisorBoard.length === 0 ? (
                   <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS visível para a sua supervisão.</p>
                 ) : (
@@ -526,6 +560,41 @@ export function HomeView() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {isSupervisor && (
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 mb-8">
+            <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
+              <h2 className="font-serif text-lg font-medium text-roman-text-main">OS da Supervisão</h2>
+              <Users size={16} className="text-roman-text-sub" />
+            </div>
+            {supervisorTickets.length === 0 ? (
+              <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS encontrada para a sede ou região sob sua supervisão.</p>
+            ) : (
+              <div className="space-y-3">
+                {supervisorTickets.map(ticket => (
+                  <button
+                    key={ticket.id}
+                    onClick={() => navigateTo('inbox')}
+                    className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
+                  >
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
+                        <div className="text-xs text-roman-text-sub mt-1">
+                          {getTicketSiteLabel(ticket, sites)} • {getTicketRegionLabel(ticket, regions, sites)} • {ticket.requester}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-roman-text-sub">
+                        <div className="font-medium text-roman-text-main">{ticket.status}</div>
+                        <div>{formatActivityTime(ticket.time)}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
