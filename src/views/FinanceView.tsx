@@ -82,6 +82,36 @@ function addMonths(date: Date, months: number) {
   return next;
 }
 
+function FinanceSection({
+  title,
+  description,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="rounded-xl border border-roman-border bg-roman-bg/60">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-roman-text-main">
+            {icon}
+            <span>{title}</span>
+          </div>
+          {description ? <p className="mt-1 text-xs text-roman-text-sub">{description}</p> : null}
+        </div>
+        <ChevronDown size={16} className="shrink-0 text-roman-text-sub" />
+      </summary>
+      <div className="border-t border-roman-border px-4 py-4">{children}</div>
+    </details>
+  );
+}
+
 function escapeHtml(value: string) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -1082,21 +1112,19 @@ export function FinanceView() {
                       </div>
                     </div>
 
-                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
-                      <div className="flex items-center justify-between gap-4 mb-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><ClipboardList size={15} /> Andamento da obra</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">O financeiro acompanha a execução acumulada e as parcelas liberadas por marco de avanço.</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-roman-text-sub">Fluxo definido</div>
-                          <div className="text-sm font-semibold text-roman-text-main">
-                            {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'Não definido'}
-                          </div>
-                        </div>
+                    <FinanceSection
+                      title="Andamento da obra"
+                      description="Execução acumulada e marcos liberados."
+                      icon={<ClipboardList size={15} />}
+                    >
+                      <div className="mb-3 flex items-center justify-between text-xs text-roman-text-sub">
+                        <span>Fluxo definido</span>
+                        <strong className="text-roman-text-main">
+                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'Não definido'}
+                        </strong>
                       </div>
 
-                      <div className="rounded-sm border border-roman-border bg-roman-surface px-4 py-4">
+                      <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
                         <div className="flex items-center justify-between text-sm text-roman-text-main mb-2">
                           <span>Execução acumulada</span>
                           <span className="font-semibold">{progressPercent}%</span>
@@ -1117,17 +1145,15 @@ export function FinanceView() {
                           </span>
                         </div>
                       </div>
-                    </section>
+                    </FinanceSection>
 
-                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
-                      <div className="flex items-center justify-between gap-4 mb-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><DollarSign size={15} /> Previsto vs. pago</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">Conciliação simples entre contrato, plano gerado e parcelas efetivamente pagas.</p>
-                        </div>
-                        <div className={`text-xs font-medium px-2 py-1 rounded-sm border ${remainingValue > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                          {remainingValue > 0 ? 'Saldo pendente' : 'Quitado'}
-                        </div>
+                    <FinanceSection
+                      title="Previsto x pago"
+                      description="Conciliação entre contrato, plano e pagamentos."
+                      icon={<DollarSign size={15} />}
+                    >
+                      <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${remainingValue > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                        {remainingValue > 0 ? 'Saldo pendente' : 'Quitado'}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1146,14 +1172,15 @@ export function FinanceView() {
                           </div>
                         </div>
                       </div>
-                    </section>
+                    </FinanceSection>
 
-                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><ClipboardList size={15} /> Atualizações de andamento</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">Cada avanço da obra recalcula automaticamente quais parcelas podem ser liberadas para pagamento.</p>
-                        </div>
+                    <FinanceSection
+                      title="Atualizações de andamento"
+                      description="Cada avanço recalcula as parcelas liberadas."
+                      icon={<PlusCircle size={15} />}
+                      defaultOpen={measurements.length === 0}
+                    >
+                      <div className="mb-3 flex items-center justify-end">
                         <button
                           onClick={() => setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }))}
                           className="text-xs font-medium text-roman-primary hover:underline flex items-center gap-1"
@@ -1260,14 +1287,14 @@ export function FinanceView() {
                           ))
                         )}
                       </div>
-                    </section>
+                    </FinanceSection>
 
                     {contract?.items && contract.items.length > 0 && (
-                      <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
-                        <div className="mb-3">
-                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><FileText size={15} /> Escopo contratado</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">Itens aprovados na cotação vencedora e refletidos no contrato.</p>
-                        </div>
+                      <FinanceSection
+                        title="Escopo contratado"
+                        description="Itens aprovados na cotação vencedora."
+                        icon={<FileText size={15} />}
+                      >
                         <div className="space-y-2">
                           {contract.items.map(item => (
                             <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -1281,15 +1308,17 @@ export function FinanceView() {
                             </div>
                           ))}
                         </div>
-                      </section>
+                      </FinanceSection>
                     )}
 
-                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-roman-text-main flex items-center gap-2"><DollarSign size={15} /> Fluxo de pagamento</h4>
-                          <p className="text-xs text-roman-text-sub mt-1">As parcelas nascem do fluxo definido na execução e só são confirmadas depois que cada marco é liberado pelo andamento.</p>
-                        </div>
+                    <FinanceSection
+                      title="Fluxo de pagamento"
+                      description="Parcelas liberadas conforme os marcos de execução."
+                      icon={<DollarSign size={15} />}
+                      defaultOpen
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <div />
                         {payments.length === 0 && !ticket.executionProgress?.paymentFlowParts && (
                           <div className="flex gap-2">
                             {[1, 2, 3, 4, 5].map(parts => (
@@ -1364,13 +1393,14 @@ export function FinanceView() {
                           ))}
                         </div>
                       )}
-                    </section>
+                    </FinanceSection>
 
-                    <section className="border border-roman-border rounded-sm p-4 bg-roman-bg/60">
-                      <div className="mb-3">
-                        <h4 className="text-sm font-semibold text-roman-text-main">Checklist de encerramento e garantia</h4>
-                        <p className="text-xs text-roman-text-sub mt-1">A última parcela só pode ser quitada após confirmação da infraestrutura, do solicitante e definição da garantia.</p>
-                      </div>
+                    <FinanceSection
+                      title="Encerramento e garantia"
+                      description="Checklist final, laudos e período de garantia."
+                      icon={<CheckCircle size={15} />}
+                      defaultOpen={ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || ticket.status === TICKET_STATUS.WAITING_PAYMENT}
+                    >
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                         <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.requesterApproved ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
@@ -1512,7 +1542,7 @@ export function FinanceView() {
                           <div>Fim: {formatDateLabel(ticket.guarantee.endAt)}</div>
                         </div>
                       )}
-                    </section>
+                    </FinanceSection>
                   </div>
 
                   <aside className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-roman-border pt-4 lg:pt-0 lg:pl-6">
