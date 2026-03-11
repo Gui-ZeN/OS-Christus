@@ -24,6 +24,13 @@
   --color-roman-parchment-border: #D4C4A8;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   background-color: var(--color-roman-bg);
   color: var(--color-roman-text-main);

@@ -238,7 +238,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-roman-bg text-roman-text-main font-sans text-[14px]">
+    <div className="flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
       <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-y-auto bg-roman-sidebar flex-col py-3 z-20 border-r border-stone-900">
         <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
           <Landmark size={22} />
@@ -369,7 +369,7 @@ export default function App() {
         </>
       )}
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
         <Suspense fallback={<ViewLoader />}>
           {currentView === VIEWS.HOME && <HomeView />}
           {currentView === VIEWS.INBOX && <InboxView />}
