@@ -9,14 +9,17 @@ interface SidebarIconProps {
 
 export function SidebarIcon({ icon, active, onClick, title }: SidebarIconProps) {
   return (
-    <button 
-      onClick={onClick} 
-      title={title} 
+    <button
+      onClick={onClick}
+      title={title}
       aria-label={title}
-      className={`w-full flex justify-center py-3 cursor-pointer relative transition-colors ${active ? 'text-roman-primary' : 'text-white/40 hover:text-white/80'}`}
+      className={`group w-full flex items-center gap-3 px-4 py-3 cursor-pointer relative transition-colors text-left ${
+        active ? 'text-roman-primary bg-white/[0.04]' : 'text-white/55 hover:text-white hover:bg-white/[0.03]'
+      }`}
     >
       {active && <div className="absolute left-0 top-0 bottom-0 w-1 bg-roman-primary"></div>}
-      {icon}
+      <span className="flex h-5 w-5 items-center justify-center flex-shrink-0">{icon}</span>
+      {title && <span className="hidden md:inline text-sm font-medium tracking-wide">{title}</span>}
     </button>
   );
 }

@@ -1886,49 +1886,59 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
               </div>
 
-              <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
-              {canManageStatus ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
-                    <select
-                      value={activeTicket.macroServiceId || ''}
-                      onChange={handleMacroServiceChange}
-                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                      disabled={isClosed}
-                    >
-                      <option value="">Definir na triagem</option>
-                      {catalogMacroServices.map(item => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
-                    <select
-                      value={activeTicket.serviceCatalogId || ''}
-                      onChange={handleServiceCatalogChange}
-                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
-                      disabled={isClosed || !activeTicket.macroServiceId}
-                    >
-                      <option value="">{activeTicket.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
-                      {availableAdminServiceItems.map(item => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
-                  </div>
+              <section className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3 space-y-3">
+                <div>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação</div>
+                  <div className="mt-1 text-xs text-roman-text-sub">Estrutura técnica e localização da OS.</div>
                 </div>
-              ) : (
-                <>
-                  {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
-                  {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
-                </>
-              )}
-              <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
-              <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
-              <PropertyField label="Setor" value={activeTicket.sector} />
+                <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
+                {canManageStatus ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
+                      <select
+                        value={activeTicket.macroServiceId || ''}
+                        onChange={handleMacroServiceChange}
+                        className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                        disabled={isClosed}
+                      >
+                        <option value="">Definir na triagem</option>
+                        {catalogMacroServices.map(item => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
+                      <select
+                        value={activeTicket.serviceCatalogId || ''}
+                        onChange={handleServiceCatalogChange}
+                        className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                        disabled={isClosed || !activeTicket.macroServiceId}
+                      >
+                        <option value="">{activeTicket.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
+                        {availableAdminServiceItems.map(item => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
+                    {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
+                  </>
+                )}
+                <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
+                <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
+                <PropertyField label="Setor" value={activeTicket.sector} />
+              </section>
 
-              <div className="pt-4 border-t border-roman-border">
+              <section className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3 space-y-4">
+                <div>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Triagem</div>
+                  <div className="mt-1 text-xs text-roman-text-sub">Defina equipe, urgência e aceite inicial da solicitação.</div>
+                </div>
                 {activeTicket.status === TICKET_STATUS.NEW && (
                   <div className="mb-4 rounded-sm border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-3">
                     <div>
@@ -1954,12 +1964,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 )}
 
-                <div className="mb-4">
+                <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Responsável (Técnico)</label>
                   <select
                     value={techTeam}
                     onChange={handleTechTeamChange}
-                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isClosed}
                   >
                     <option value="">Selecione a Equipe...</option>
@@ -1969,12 +1979,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </select>
                 </div>
 
-                <div className="mb-4">
+                <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Grau de urgência</label>
                   <select
                     value={ticketPriority}
                     onChange={handlePriorityChange}
-                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isClosed}
                   >
                     <option value="">Selecione a urgência...</option>
@@ -1986,23 +1996,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </div>
 
                 {isExternalTeam && (
-                  <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail do Fornecedor</label>
                     <input
                       type="email"
                       value={customEmail}
                       onChange={e => setCustomEmail(e.target.value)}
                       placeholder="fornecedor@email.com"
-                      className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-primary/5 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isClosed}
                     />
                   </div>
                 )}
-              </div>
+              </section>
 
               {/* BUDGETS SECTION */}
               {(activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) && (
-                <div className="pt-4 border-t border-roman-border">
+                <section className="pt-4 border-t border-roman-border">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
                     <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">Rodada 1</span>
@@ -2014,13 +2024,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
                     Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
                   </button>
-                </div>
+                </section>
               )}
 
               {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
               {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS || activeTicket.status === TICKET_STATUS.WAITING_PAYMENT || activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || activeTicket.status === TICKET_STATUS.CLOSED) && (
-                <div className="pt-4 border-t border-roman-border">
-                  <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold mb-3">Controle de Execução</h4>
+                <section className="pt-4 border-t border-roman-border">
+                  <div className="mb-3">
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Execução</div>
+                    <div className="mt-1 text-xs text-roman-text-sub">Acompanhe preliminares, andamento físico e marcos financeiros.</div>
+                  </div>
                   {activeTicket.preliminaryActions && (
                     <div className="mb-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                       <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
@@ -2047,35 +2060,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
                   )}
                   <div className="space-y-2">
-                    {canManageStatus && EXECUTION_STATUS_OPTIONS.includes(activeTicket.status as (typeof EXECUTION_STATUS_OPTIONS)[number]) && (
-                      <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-3 space-y-3">
-                        <div>
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atualizar Status</div>
-                          <div className="mt-1 text-xs text-roman-text-sub">O Admin pode corrigir manualmente a etapa atual da OS quando necessário.</div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <select
-                            value={statusDraft}
-                            onChange={event => setStatusDraft(event.target.value)}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          >
-                            {EXECUTION_STATUS_OPTIONS.map(status => (
-                              <option key={status} value={status}>{status}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={handleManualStatusUpdate}
-                            disabled={isSending || !statusDraft || statusDraft === activeTicket.status}
-                            className="w-full px-3 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                            Atualizar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
                     {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
                       <button onClick={() => setShowPrelimModal(true)} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
                         <List size={14} /> Ações Preliminares (Compras)
@@ -2139,7 +2123,38 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </div>
                     )}
                   </div>
-                </div>
+                </section>
+              )}
+
+              {canManageStatus && EXECUTION_STATUS_OPTIONS.includes(activeTicket.status as (typeof EXECUTION_STATUS_OPTIONS)[number]) && (
+                <section className="pt-4 border-t border-roman-border">
+                  <div className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3 space-y-3">
+                    <div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Administração</div>
+                      <div className="mt-1 text-xs text-roman-text-sub">Use apenas para correção manual de etapa ou ajuste excepcional.</div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <select
+                        value={statusDraft}
+                        onChange={event => setStatusDraft(event.target.value)}
+                        className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                        disabled={isSending}
+                      >
+                        {EXECUTION_STATUS_OPTIONS.map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={handleManualStatusUpdate}
+                        disabled={isSending || !statusDraft || statusDraft === activeTicket.status}
+                        className="w-full px-3 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                        Atualizar status
+                      </button>
+                    </div>
+                  </div>
+                </section>
               )}
 
             </div>

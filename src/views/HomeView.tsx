@@ -81,7 +81,7 @@ function normalizeText(value: string | null | undefined) {
 }
 
 export function HomeView() {
-  const { navigateTo, tickets, currentUser, currentUserEmail } = useApp();
+  const { navigateTo, setActiveTicketId, setInboxFilter, tickets, currentUser, currentUserEmail } = useApp();
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
@@ -92,6 +92,23 @@ export function HomeView() {
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const isSupervisor = currentUser?.role === 'Supervisor';
   const isRequester = currentUser?.role === 'Usuario';
+
+  const clearInboxFilters = () =>
+    setInboxFilter({
+      status: [],
+      priority: [],
+      region: [],
+      site: [],
+      type: [],
+    });
+
+  const openTicketWorkspace = (ticketId: string, destination: 'inbox' | 'approvals' | 'finance' = 'inbox') => {
+    setActiveTicketId(ticketId);
+    if (destination === 'inbox') {
+      clearInboxFilters();
+    }
+    navigateTo(destination);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -407,35 +424,54 @@ export function HomeView() {
           </p>
         </header>
 
-        <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_220px_220px] lg:items-center">
-          <div className="text-sm text-roman-text-sub">
-            Recorte atual: <span className="font-medium text-roman-text-main">{selectedRegion === 'all' ? 'todas as regiões visíveis' : selectedRegion}</span>
-            {selectedSite !== 'all' && <span className="font-medium text-roman-text-main"> • {selectedSite}</span>}
+        {isExecutive ? (
+          <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_220px_220px] lg:items-center">
+            <div className="text-sm text-roman-text-sub">
+              Recorte atual: <span className="font-medium text-roman-text-main">{selectedRegion === 'all' ? 'todas as regiões visíveis' : selectedRegion}</span>
+              {selectedSite !== 'all' && <span className="font-medium text-roman-text-main"> • {selectedSite}</span>}
+            </div>
+            <select
+              value={selectedRegion}
+              onChange={event => {
+                setSelectedRegion(event.target.value);
+                setSelectedSite('all');
+              }}
+              className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            >
+              <option value="all">Todas as regiões</option>
+              {availableRegions.map(region => (
+                <option key={region} value={region}>{region}</option>
+              ))}
+            </select>
+            <select
+              value={selectedSite}
+              onChange={event => setSelectedSite(event.target.value)}
+              className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            >
+              <option value="all">Todas as sedes</option>
+              {availableSites.map(site => (
+                <option key={site} value={site}>{site}</option>
+              ))}
+            </select>
           </div>
-          <select
-            value={selectedRegion}
-            onChange={event => {
-              setSelectedRegion(event.target.value);
-              setSelectedSite('all');
-            }}
-            className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-          >
-            <option value="all">Todas as regiões</option>
-            {availableRegions.map(region => (
-              <option key={region} value={region}>{region}</option>
-            ))}
-          </select>
-          <select
-            value={selectedSite}
-            onChange={event => setSelectedSite(event.target.value)}
-            className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-          >
-            <option value="all">Todas as sedes</option>
-            {availableSites.map(site => (
-              <option key={site} value={site}>{site}</option>
-            ))}
-          </select>
-        </div>
+        ) : (
+          <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
+            {isSupervisor ? (
+              <>
+                <span className="font-medium text-roman-text-main">Escopo visível:</span>{' '}
+                {supervisorScopeSummary?.sites.length
+                  ? supervisorScopeSummary.sites.map(site => site.code || site.name).join(', ')
+                  : supervisorScopeSummary?.regions.length
+                    ? supervisorScopeSummary.regions.map(region => region.name).join(', ')
+                    : 'nenhuma sede ou região vinculada'}
+              </>
+            ) : (
+              <>
+                <span className="font-medium text-roman-text-main">Recorte atual:</span> suas solicitações visíveis no sistema
+              </>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => navigateTo('inbox')} />
@@ -500,7 +536,7 @@ export function HomeView() {
                     {requesterTickets.slice(0, 6).map(ticket => (
                       <button
                         key={ticket.id}
-                        onClick={() => navigateTo('inbox')}
+                        onClick={() => openTicketWorkspace(ticket.id)}
                         className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -531,7 +567,7 @@ export function HomeView() {
                     {pendingRequesterValidations.map(ticket => (
                       <button
                         key={`validation-${ticket.id}`}
-                        onClick={() => navigateTo('inbox')}
+                        onClick={() => openTicketWorkspace(ticket.id)}
                         className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
                       >
                         <div className="font-medium text-roman-text-main">{ticket.id} • aguardando validação do solicitante</div>
@@ -542,7 +578,7 @@ export function HomeView() {
                     {upcomingPreliminaries.slice(0, 3).map(ticket => (
                       <button
                         key={`prelim-${ticket.id}`}
-                        onClick={() => navigateTo('inbox')}
+                        onClick={() => openTicketWorkspace(ticket.id)}
                         className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
                       >
                         <div className="font-medium text-roman-text-main">{ticket.id} • ação preliminar</div>
@@ -576,7 +612,7 @@ export function HomeView() {
                 {supervisorTickets.map(ticket => (
                   <button
                     key={ticket.id}
-                    onClick={() => navigateTo('inbox')}
+                    onClick={() => openTicketWorkspace(ticket.id)}
                     className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
                   >
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -676,7 +712,7 @@ export function HomeView() {
                 <span className="font-medium">Registrar Nova OS</span>
               </button>
               {currentUser?.role === 'Admin' && (
-                <button onClick={() => navigateTo('users')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
+                <button onClick={() => navigateTo('settings')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
                   <Users size={18} className="text-roman-primary" />
                   <span className="font-medium">Gerenciar Equipes</span>
                 </button>
@@ -743,9 +779,9 @@ export function HomeView() {
                 {executiveQueue.map(ticket => (
                   <button
                     key={ticket.id}
-                    onClick={() => {
-                      navigateTo(ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'finance' : 'approvals');
-                    }}
+                      onClick={() => {
+                        openTicketWorkspace(ticket.id, ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'finance' : 'approvals');
+                      }}
                     className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors"
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -775,7 +811,8 @@ export function HomeView() {
                   <button
                     key={ticket.id}
                     onClick={() =>
-                      navigateTo(
+                      openTicketWorkspace(
+                        ticket.id,
                         ticket.status === TICKET_STATUS.WAITING_PAYMENT
                           ? 'finance'
                           : ticket.status.toLowerCase().includes('aprova')
@@ -810,7 +847,8 @@ export function HomeView() {
                   <button
                     key={ticket.id}
                     onClick={() =>
-                      navigateTo(
+                      openTicketWorkspace(
+                        ticket.id,
                         ticket.status === TICKET_STATUS.WAITING_PAYMENT
                           ? 'finance'
                           : ticket.status.toLowerCase().includes('aprova')
