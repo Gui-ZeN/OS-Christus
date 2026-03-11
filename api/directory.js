@@ -8,13 +8,18 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
-      await requireAuthenticatedUser(req);
-      let directory = await readDirectory(db);
-      if (directory.users.length === 0 || directory.teams.length === 0 || directory.vendors.length === 0) {
-        await seedDirectoryDefaults(db);
-        directory = await readDirectory(db);
-      }
-      return sendJson(res, 200, { ok: true, ...directory });
+      const currentUser = await requireAuthenticatedUser(req);
+      const directory = await readDirectory(db);
+      const users =
+        currentUser.role === 'Admin' || currentUser.role === 'Diretor'
+          ? directory.users
+          : directory.users.filter(user => String(user.email || '').toLowerCase() === String(currentUser.email || '').toLowerCase());
+      return sendJson(res, 200, {
+        ok: true,
+        users,
+        teams: directory.teams,
+        vendors: directory.vendors,
+      });
     }
 
     if (req.method === 'POST') {

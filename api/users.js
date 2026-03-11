@@ -3,7 +3,7 @@ import { requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { getAuth } from 'firebase-admin/auth';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
-import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
+import { readDirectory } from './_lib/directory.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
 function normalizeUser(input) {
@@ -120,13 +120,13 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
-      await requireAuthenticatedUser(req);
-      let directory = await readDirectory(db);
-      if (directory.users.length === 0) {
-        await seedDirectoryDefaults(db);
-        directory = await readDirectory(db);
-      }
-      return sendJson(res, 200, { ok: true, users: directory.users });
+      const currentUser = await requireAuthenticatedUser(req);
+      const directory = await readDirectory(db);
+      const users =
+        currentUser.role === 'Admin' || currentUser.role === 'Diretor'
+          ? directory.users
+          : directory.users.filter(user => String(user.email || '').toLowerCase() === String(currentUser.email || '').toLowerCase());
+      return sendJson(res, 200, { ok: true, users });
     }
 
     if (req.method === 'POST') {

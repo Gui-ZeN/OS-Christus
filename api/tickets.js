@@ -4,6 +4,7 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
+import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
 function sortTimeValue(value) {
@@ -38,63 +39,6 @@ function buildPublicTrackingHistoryEntry(sender, approved) {
       ? 'Solicitante validou a execução do serviço.'
       : 'Solicitante reprovou a entrega e devolveu a OS para execução.',
   };
-}
-
-function normalizeKey(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function resolveTicketSiteIds(ticket, sites) {
-  const rawValues = [ticket.siteId, ticket.sede].map(value => normalizeKey(value)).filter(Boolean);
-  const matches = sites
-    .filter(site => rawValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value)))
-    .map(site => site.id);
-
-  if (ticket.siteId && !matches.includes(ticket.siteId)) {
-    matches.push(ticket.siteId);
-  }
-
-  return matches;
-}
-
-function resolveTicketRegionIds(ticket, regions, sites) {
-  const rawValues = [ticket.regionId, ticket.region].map(value => normalizeKey(value)).filter(Boolean);
-  const matches = regions
-    .filter(region => rawValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value)))
-    .map(region => region.id);
-
-  const siteRegionIds = resolveTicketSiteIds(ticket, sites)
-    .map(siteId => sites.find(site => site.id === siteId)?.regionId)
-    .filter(Boolean);
-
-  for (const regionId of siteRegionIds) {
-    if (!matches.includes(regionId)) matches.push(regionId);
-  }
-
-  if (ticket.regionId && !matches.includes(ticket.regionId)) {
-    matches.push(ticket.regionId);
-  }
-
-  return matches;
-}
-
-function canUserAccessTicket(user, ticket, regions, sites) {
-  if (!user) return false;
-  if (user.role === 'Admin' || user.role === 'Diretor') return true;
-
-  const regionIds = Array.isArray(user.regionIds) ? user.regionIds : [];
-  const siteIds = Array.isArray(user.siteIds) ? user.siteIds : [];
-  if (regionIds.length === 0 && siteIds.length === 0) return false;
-
-  const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
-  const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
-  if (siteIds.some(siteId => ticketSiteIds.includes(siteId))) return true;
-  if (regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
-  return false;
 }
 
 function sanitizePublicTicketCreate(rawTicket) {
@@ -293,12 +237,7 @@ export default async function handler(req, res) {
         .map(doc => ({ id: doc.id, ...doc.data() }));
 
       if (user.role !== 'Admin' && user.role !== 'Diretor') {
-        const [regionsSnap, sitesSnap] = await Promise.all([
-          db.collection('regions').get(),
-          db.collection('sites').get(),
-        ]);
-        const regions = regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const sites = sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const { regions, sites } = await readTerritoryCatalog(db);
 
         return sendJson(res, 200, {
           ok: true,
@@ -434,6 +373,12 @@ export default async function handler(req, res) {
       }
 
       const beforeData = beforeSnap.data() || {};
+      if (user.role !== 'Admin' && user.role !== 'Diretor') {
+        const { regions, sites } = await readTerritoryCatalog(db);
+        if (!canUserAccessTicket(user, { id: beforeSnap.id, ...beforeData }, regions, sites)) {
+          return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente para editar este ticket.' });
+        }
+      }
       const payload = { ...updates, updatedAt: new Date() };
 
       if (

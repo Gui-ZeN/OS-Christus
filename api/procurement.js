@@ -2,6 +2,7 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readProcurement, seedProcurementDefaults } from './_lib/procurement.js';
+import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
 const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
@@ -304,17 +305,27 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
-      await requireAuthenticatedUser(req);
+      const user = await requireAuthenticatedUser(req);
       let data = await readProcurement(db);
-      const hasAnyData =
-        Object.keys(data.quotesByTicket).length > 0 ||
-        Object.keys(data.contractsByTicket).length > 0 ||
-        Object.keys(data.paymentsByTicket).length > 0 ||
-        Object.keys(data.measurementsByTicket).length > 0;
 
-      if (!hasAnyData) {
-        await seedProcurementDefaults(db);
-        data = await readProcurement(db);
+      if (user.role !== 'Admin' && user.role !== 'Diretor') {
+        const [ticketsSnap, territory] = await Promise.all([
+          db.collection('tickets').get(),
+          readTerritoryCatalog(db),
+        ]);
+        const allowedTicketIds = new Set(
+          ticketsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites))
+            .map(ticket => ticket.id)
+        );
+
+        data = {
+          quotesByTicket: Object.fromEntries(Object.entries(data.quotesByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
+          contractsByTicket: Object.fromEntries(Object.entries(data.contractsByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
+          paymentsByTicket: Object.fromEntries(Object.entries(data.paymentsByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
+          measurementsByTicket: Object.fromEntries(Object.entries(data.measurementsByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
+        };
       }
 
       return sendJson(res, 200, { ok: true, ...data });
