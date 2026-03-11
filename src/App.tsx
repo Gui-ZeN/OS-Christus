@@ -239,13 +239,9 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-roman-bg text-roman-text-main font-sans text-[14px]">
-      <aside className="flex w-16 lg:w-56 xl:w-60 bg-roman-sidebar flex-col py-4 z-20 border-r border-stone-900">
-        <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center lg:justify-start">
+      <aside className="flex w-16 bg-roman-sidebar flex-col py-4 z-20 border-r border-stone-900">
+        <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
           <Landmark size={24} />
-          <div className="hidden lg:block">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">OS Christus</div>
-            <div className="text-sm font-medium text-white/85">Central Operacional</div>
-          </div>
         </div>
         <nav className="flex flex-col gap-1 w-full px-2">
           <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Início" />
@@ -263,13 +259,12 @@ export default function App() {
                 event.stopPropagation();
                 setShowNotifications(!showNotifications);
               }}
-              className={`w-full flex items-center gap-3 py-2 transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/55 hover:text-white/80'}`}
+              className={`w-full flex items-center justify-center py-2 transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/55 hover:text-white/80'}`}
               title="Notificações"
               aria-label="Notificações"
               aria-expanded={showNotifications}
             >
               <Bell size={18} />
-              <span className="hidden lg:inline text-sm font-medium">Notificações</span>
             </button>
             {unreadCount > 0 && (
               <span className="absolute top-0 left-3 min-w-[14px] h-[14px] bg-roman-primary rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
@@ -277,17 +272,12 @@ export default function App() {
               </span>
             )}
           </div>
-          <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="flex items-center gap-3 text-white/55 hover:text-white/80 transition-colors py-2" title="Sair" aria-label="Sair">
+          <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="flex items-center justify-center text-white/55 hover:text-white/80 transition-colors py-2" title="Sair" aria-label="Sair">
             <LogOut size={18} />
-            <span className="hidden lg:inline text-sm font-medium">Sair</span>
           </button>
-          <div className="flex items-center gap-3 rounded-sm border border-white/10 bg-roman-sidebar-light px-2 md:px-3 py-2" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>
+          <div className="flex items-center justify-center rounded-sm border border-white/10 bg-roman-sidebar-light px-2 py-2" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>
             <div className="w-8 h-8 rounded-full bg-roman-sidebar border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs">
               {initials}
-            </div>
-            <div className="min-w-0 hidden lg:block">
-              <div className="truncate text-sm font-medium text-white/85">{currentUser?.name || currentUserEmail || 'Usuário'}</div>
-              <div className="truncate text-[11px] text-white/45">{currentRole || 'Acesso autenticado'}</div>
             </div>
           </div>
         </div>
@@ -296,7 +286,7 @@ export default function App() {
       {showNotifications && (
         <>
           <div className="fixed inset-0 z-50 bg-black/10" />
-          <div ref={notificationRef} className="fixed left-16 lg:left-56 xl:left-60 right-0 lg:right-auto top-0 bottom-0 w-auto lg:w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-[60] animate-in slide-in-from-left-4 flex flex-col">
+          <div ref={notificationRef} className="fixed left-16 right-0 lg:right-auto top-0 bottom-0 w-auto lg:w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-[60] animate-in slide-in-from-left-4 flex flex-col">
           <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
             <div className="flex items-center gap-2">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>

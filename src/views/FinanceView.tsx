@@ -932,7 +932,7 @@ export function FinanceView() {
           </div>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           {financeTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
             const ticketProcessing = processingId === ticket.id || processingId?.startsWith(`${ticket.id}:`);
             const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
@@ -947,7 +947,7 @@ export function FinanceView() {
               <div
                 key={ticket.id}
                 id={`finance-ticket-${ticket.id}`}
-                className={`bg-roman-surface border rounded-sm p-6 shadow-sm relative overflow-hidden ${
+                className={`bg-roman-surface border rounded-sm p-4 md:p-5 shadow-sm relative overflow-hidden ${
                   ticket.id === activeTicketId
                     ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
                     : 'border-roman-border'
@@ -961,7 +961,7 @@ export function FinanceView() {
                 )}
 
                 <div className="flex flex-col lg:flex-row gap-6">
-                  <div className="flex-1 space-y-5">
+                  <div className="flex-1 space-y-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-3 mb-2">
                         <span className="text-roman-primary font-serif italic text-sm">{ticket.id}</span>

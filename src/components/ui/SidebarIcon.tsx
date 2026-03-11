@@ -13,13 +13,12 @@ export function SidebarIcon({ icon, active, onClick, title }: SidebarIconProps) 
       onClick={onClick}
       title={title}
       aria-label={title}
-      className={`group w-full flex items-center gap-3 px-4 py-3 cursor-pointer relative transition-colors text-left ${
+      className={`group w-full flex items-center justify-center px-3 py-3 cursor-pointer relative transition-colors text-left ${
         active ? 'text-roman-primary bg-white/[0.04]' : 'text-white/55 hover:text-white hover:bg-white/[0.03]'
       }`}
     >
       {active && <div className="absolute left-0 top-0 bottom-0 w-1 bg-roman-primary"></div>}
       <span className="flex h-5 w-5 items-center justify-center flex-shrink-0">{icon}</span>
-      {title && <span className="hidden lg:inline text-sm font-medium tracking-wide">{title}</span>}
     </button>
   );
 }

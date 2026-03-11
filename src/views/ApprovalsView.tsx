@@ -3,6 +3,7 @@ import { CheckCircle, Download, FileText, Image as ImageIcon, Loader2, Shield, X
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ModalShell } from '../components/ui/ModalShell';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
@@ -879,56 +880,45 @@ export function ApprovalsView() {
       />
 
       {attachContractModalId && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
-          onClick={event => {
-            if (event.target === event.currentTarget) setAttachContractModalId(null);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Anexar contrato assinado"
+        <ModalShell
+          isOpen={Boolean(attachContractModalId)}
+          onClose={() => setAttachContractModalId(null)}
+          title="Anexar Contrato Assinado"
+          description="Envie o PDF assinado para liberar a OS para a próxima etapa."
+          maxWidthClass="max-w-md"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setAttachContractModalId(null)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
+                Cancelar
+              </button>
+              <button onClick={handleAttachContract} disabled={!attachedFile || processingId === attachContractModalId} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {processingId === attachContractModalId ? 'Enviando...' : 'Confirmar e Enviar'}
+              </button>
+            </div>
+          )}
         >
-          <div className="bg-roman-surface border border-roman-border rounded-sm shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-bg">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">Anexar Contrato Assinado</h3>
-              <button onClick={() => setAttachContractModalId(null)} className="text-roman-text-sub hover:text-roman-text-main"><X size={20} /></button>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-roman-text-sub mb-4">Faça o upload do contrato assinado para prosseguir com a OS.</p>
-
-              <div className="border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg mb-6 relative hover:bg-roman-border-light transition-colors cursor-pointer">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  onChange={event => {
-                    if (event.target.files && event.target.files.length > 0) {
-                      setAttachedFile(event.target.files[0]);
-                    }
-                  }}
-                />
-                <FileText size={32} className="mx-auto text-roman-primary mb-3" />
-                {attachedFile ? (
-                  <div className="text-roman-text-main font-medium text-sm">{attachedFile.name}</div>
-                ) : (
-                  <>
-                    <div className="text-roman-text-main font-medium text-sm mb-1">Clique para selecionar ou arraste o arquivo</div>
-                    <div className="text-xs text-roman-text-sub">Apenas arquivos PDF</div>
-                  </>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setAttachContractModalId(null)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                  Cancelar
-                </button>
-                <button onClick={handleAttachContract} disabled={!attachedFile || processingId === attachContractModalId} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                  {processingId === attachContractModalId ? 'Enviando...' : 'Confirmar e Enviar'}
-                </button>
-              </div>
-            </div>
+          <div className="border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg relative hover:bg-roman-border-light transition-colors cursor-pointer">
+            <input
+              type="file"
+              accept=".pdf"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onChange={event => {
+                if (event.target.files && event.target.files.length > 0) {
+                  setAttachedFile(event.target.files[0]);
+                }
+              }}
+            />
+            <FileText size={32} className="mx-auto text-roman-primary mb-3" />
+            {attachedFile ? (
+              <div className="text-roman-text-main font-medium text-sm">{attachedFile.name}</div>
+            ) : (
+              <>
+                <div className="text-roman-text-main font-medium text-sm mb-1">Clique para selecionar ou arraste o arquivo</div>
+                <div className="text-xs text-roman-text-sub">Apenas arquivos PDF</div>
+              </>
+            )}
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );
