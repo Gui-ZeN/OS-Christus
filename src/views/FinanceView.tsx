@@ -271,7 +271,7 @@ function getFinalInstallmentBlockingReasons(closureDraft: ClosureFormState) {
 }
 
 export function FinanceView() {
-  const { openAttachment, updateTicket, tickets, currentUser } = useApp();
+  const { activeTicketId, currentView, openAttachment, updateTicket, tickets, currentUser } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canPay = canAccess;
   const actorLabel = currentUser?.role ? `${currentUser.name} (${currentUser.role})` : currentUser?.name || 'Financeiro';
@@ -408,6 +408,14 @@ export function FinanceView() {
       { tickets: 0, planned: 0, paid: 0, remaining: 0 }
     );
   }, [financeTickets]);
+
+  useEffect(() => {
+    if (currentView !== 'finance' || !activeTicketId) return;
+    if (!financeTickets.some(entry => entry.ticket.id === activeTicketId)) return;
+    window.setTimeout(() => {
+      document.getElementById(`finance-ticket-${activeTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+  }, [activeTicketId, currentView, financeTickets]);
 
   const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
     measurementDraftByTicket[ticketId] || {
@@ -936,7 +944,15 @@ export function FinanceView() {
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.progressPercent);
 
             return (
-              <div key={ticket.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden">
+              <div
+                key={ticket.id}
+                id={`finance-ticket-${ticket.id}`}
+                className={`bg-roman-surface border rounded-sm p-6 shadow-sm relative overflow-hidden ${
+                  ticket.id === activeTicketId
+                    ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
+                    : 'border-roman-border'
+                }`}
+              >
                 {ticketProcessing && (
                   <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
                     <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />

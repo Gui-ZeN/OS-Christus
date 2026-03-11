@@ -429,6 +429,14 @@ export function ApprovalsView() {
     [activeTab, budgets.length, contracts.length, solutions.length]
   );
 
+  const activeTicketTab = useMemo(() => {
+    if (!activeTicketId) return null;
+    if (solutions.some(item => item.id === activeTicketId)) return 'solutions' as const;
+    if (budgets.some(item => item.id === activeTicketId)) return 'budgets' as const;
+    if (contracts.some(item => item.id === activeTicketId)) return 'contracts' as const;
+    return null;
+  }, [activeTicketId, budgets, contracts, solutions]);
+
   useEffect(() => {
     if (typeof window === 'undefined' || currentView !== 'approvals') return;
     const params = new URLSearchParams(window.location.search);
@@ -454,6 +462,20 @@ export function ApprovalsView() {
       }
     }
   }, [activeTicketId, budgets, currentView, setActiveTicketId]);
+
+  useEffect(() => {
+    if (currentView !== 'approvals' || !activeTicketId || !activeTicketTab) return;
+    setActiveTab(activeTicketTab);
+    const targetId =
+      activeTicketTab === 'solutions'
+        ? `approval-solution-${activeTicketId}`
+        : activeTicketTab === 'budgets'
+          ? `approval-budget-${activeTicketId}`
+          : `approval-contract-${activeTicketId}`;
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+  }, [activeTicketId, activeTicketTab, currentView]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
@@ -503,7 +525,15 @@ export function ApprovalsView() {
 
         <div className="space-y-6">
           {activeTab === 'solutions' && solutions.map(solution => (
-            <div key={solution.id} className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm hover:border-roman-primary/30 transition-colors relative overflow-hidden">
+            <div
+              key={solution.id}
+              id={`approval-solution-${solution.id}`}
+              className={`bg-roman-surface border rounded-sm p-6 shadow-sm transition-colors relative overflow-hidden ${
+                solution.id === activeTicketId
+                  ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
+                  : 'border-roman-border hover:border-roman-primary/30'
+              }`}
+            >
               {processingId === solution.id && (
                 <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
@@ -754,7 +784,15 @@ export function ApprovalsView() {
           ))}
 
           {activeTab === 'contracts' && contracts.map(contract => (
-            <div key={contract.id} className="bg-roman-parchment border border-roman-parchment-border rounded-sm p-6 flex flex-col md:flex-row gap-6 items-start md:items-center shadow-sm relative overflow-hidden">
+            <div
+              key={contract.id}
+              id={`approval-contract-${contract.id}`}
+              className={`bg-roman-parchment border rounded-sm p-6 flex flex-col md:flex-row gap-6 items-start md:items-center shadow-sm relative overflow-hidden ${
+                contract.id === activeTicketId
+                  ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
+                  : 'border-roman-parchment-border'
+              }`}
+            >
               {processingId === contract.id && (
                 <div className="absolute inset-0 bg-roman-parchment/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
