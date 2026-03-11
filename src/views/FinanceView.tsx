@@ -1044,13 +1044,6 @@ export function FinanceView() {
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
             const isSummaryOpen = summaryOpenByTicket[ticket.id] ?? false;
-            const nextActionLabel = pendingInstallments.length === 0
-              ? 'Fluxo financeiro concluído'
-              : nextPendingInstallment?.status === 'approved'
-                ? 'Confirmar parcela liberada'
-                : nextMilestonePercent != null
-                  ? `Atualizar andamento até ${nextMilestonePercent}%`
-                  : 'Revisar checklist final';
 
             return (
               <div
@@ -1070,13 +1063,14 @@ export function FinanceView() {
                 )}
 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-roman-text-sub">
-                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1">
-                      {pendingInstallments.length > 0 ? `${pendingInstallments.length} parcela(s) pendente(s)` : 'Fluxo quitado'}
-                    </span>
-                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1">
-                      Próxima ação: {nextActionLabel}
-                    </span>
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">OS em acompanhamento</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-roman-text-main">{ticket.id}</span>
+                      <span className="rounded-full border border-roman-border bg-roman-bg px-2 py-0.5 text-xs text-roman-text-sub">
+                        {ticket.status}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -1101,7 +1095,6 @@ export function FinanceView() {
                 <div className="flex flex-col gap-6 xl:flex-row">
                   <div className="flex-1 space-y-4">
                     <div>
-                      <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Financeiro &gt; {ticket.id}</div>
                       <div className="flex flex-wrap items-center gap-3 mb-2">
                         <span className="text-roman-primary font-serif italic text-sm">{ticket.id}</span>
                         <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">{ticket.status}</span>
