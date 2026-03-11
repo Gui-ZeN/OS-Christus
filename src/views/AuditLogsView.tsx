@@ -247,16 +247,6 @@ export function AuditLogsView() {
     });
   }, [logs, search, selectedTicket, selectedCategory]);
 
-  const groupedLogs = useMemo(() => {
-    const groups = new Map<string, AuditLogEntry[]>();
-    for (const log of filteredLogs) {
-      const key = getTicketReference(log) || 'SYSTEM';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(log);
-    }
-    return [...groups.entries()].map(([ticket, entries]) => ({ ticket, entries }));
-  }, [filteredLogs]);
-
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-5xl mx-auto">
@@ -338,49 +328,43 @@ export function AuditLogsView() {
           </div>
         )}
 
-        <section className="space-y-6">
-          {!loading && groupedLogs.length === 0 && (
+        <section className="space-y-3">
+          {!loading && filteredLogs.length === 0 && (
             <div className="bg-roman-surface border border-roman-border rounded-sm p-8 text-center text-roman-text-sub font-serif italic flex items-center justify-center gap-2">
               <History size={18} />
               Nenhum log encontrado.
             </div>
           )}
 
-          {groupedLogs.map(group => (
-            <div key={group.ticket} className="space-y-3">
-              <div className="flex items-center justify-between border-b border-roman-border pb-2">
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub font-serif">OS</div>
-                  <div className="font-serif text-lg text-roman-text-main">{group.ticket === 'SYSTEM' ? 'Ações gerais do sistema' : group.ticket}</div>
+          {filteredLogs.map(log => {
+            const category = getAuditCategory(log);
+            const isDelete = category === 'exclusao';
+            const accentClass = isDelete ? 'border-l-red-400' : 'border-l-roman-primary';
+            const ticketRef = getTicketReference(log);
+
+            return (
+              <article key={log.id} className={`bg-roman-surface border border-roman-border border-l-4 ${accentClass} rounded-sm px-5 py-4 shadow-sm`}>
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${CATEGORY_STYLES[category]}`}>
+                        {CATEGORY_LABELS[category]}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-widest text-roman-text-sub font-serif">
+                        {ticketRef || 'Ação geral do sistema'}
+                      </span>
+                    </div>
+                    <div className="text-base font-serif text-roman-text-main">{prettyAction(log.action)}</div>
+                    <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponível.'}</div>
+                  </div>
+                  <div className="text-xs text-roman-text-sub md:text-right shrink-0">
+                    <div>{prettyActor(log.actor)}</div>
+                    <div>{formatDateTimeSafe(log.createdAt)}</div>
+                  </div>
                 </div>
-                <div className="text-xs text-roman-text-sub">{group.entries.length} registro(s)</div>
-              </div>
-              <div className="space-y-3">
-                {group.entries.map(log => {
-                  const category = getAuditCategory(log);
-                  const isDelete = category === 'exclusao';
-                  const accentClass = isDelete ? 'border-l-red-400' : 'border-l-roman-primary';
-                  return (
-                    <article key={log.id} className={`bg-roman-surface border border-roman-border border-l-4 ${accentClass} rounded-sm px-5 py-4 shadow-sm`}>
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-1.5">
-                          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${CATEGORY_STYLES[category]}`}>
-                            {CATEGORY_LABELS[category]}
-                          </span>
-                          <div className="text-base font-serif text-roman-text-main">{prettyAction(log.action)}</div>
-                          <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponível.'}</div>
-                        </div>
-                        <div className="text-xs text-roman-text-sub md:text-right shrink-0">
-                          <div>{prettyActor(log.actor)}</div>
-                          <div>{formatDateTimeSafe(log.createdAt)}</div>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+              </article>
+            );
+          })}
         </section>
       </div>
     </div>
