@@ -1,9 +1,10 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { createUser, deleteUser, type DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ModalShell } from '../components/ui/ModalShell';
 
 type UserStatus = 'Ativo' | 'Inativo';
 type UserRole = 'Diretor' | 'Supervisor' | 'Admin' | 'Usuario';
@@ -351,19 +352,25 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
-            <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-5 py-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">{editingId ? 'Edição' : 'Cadastro'}</div>
-                <h3 className="mt-2 font-serif text-xl text-roman-text-main">{editingId ? 'Editar usuário' : 'Novo usuário'}</h3>
-              </div>
-              <button onClick={() => setModalOpen(false)} className="text-roman-text-sub hover:text-roman-text-main">
-                <X size={20} />
+        <ModalShell
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={editingId ? 'Editar usuário' : 'Novo usuário'}
+          description={editingId ? 'Atualize papel, escopo territorial e credenciais de acesso.' : 'Cadastre o usuário com papel, escopo territorial e credenciais iniciais.'}
+          maxWidthClass="max-w-3xl"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setModalOpen(false)} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-white">
+                Cancelar
+              </button>
+              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
+                {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+                {editingId ? 'Salvar alterações' : 'Criar usuário'}
               </button>
             </div>
-
-            <div className="space-y-6 overflow-y-auto p-6">
+          )}
+        >
+            <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Nome</label>
@@ -444,35 +451,18 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                 )}
               </div>
             </div>
-
-            <div className="flex justify-end gap-3 border-t border-stone-200 bg-stone-50 px-5 py-4">
-              <button onClick={() => setModalOpen(false)} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-white">Cancelar</button>
-              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
-                {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-                {editingId ? 'Salvar alterações' : 'Criar usuário'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {pendingDeleteUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
-            <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fff 100%)] px-6 py-5">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-red-700">Confirmação</div>
-              <h3 className="mt-3 text-2xl font-serif text-roman-text-main">Excluir usuário</h3>
-              <p className="mt-2 text-sm text-roman-text-sub">
-                Essa ação remove o cadastro de <strong>{pendingDeleteUser.name}</strong> e também tenta remover o acesso no Firebase Auth.
-              </p>
-            </div>
-            <div className="px-6 py-5 text-sm text-roman-text-sub">
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                <div><strong>Nome:</strong> {pendingDeleteUser.name}</div>
-                <div><strong>E-mail:</strong> {pendingDeleteUser.email}</div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4">
+        <ModalShell
+          isOpen={!!pendingDeleteUser}
+          onClose={() => setPendingDeleteUser(null)}
+          title="Excluir usuário"
+          description={`Essa ação remove o cadastro de ${pendingDeleteUser.name} e também tenta remover o acesso no Firebase Auth.`}
+          maxWidthClass="max-w-lg"
+          footer={(
+            <div className="flex justify-end gap-3">
               <button onClick={() => setPendingDeleteUser(null)} className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50">
                 Cancelar
               </button>
@@ -481,8 +471,13 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                 Excluir usuário
               </button>
             </div>
+          )}
+        >
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
+            <div><strong>Nome:</strong> {pendingDeleteUser.name}</div>
+            <div><strong>E-mail:</strong> {pendingDeleteUser.email}</div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

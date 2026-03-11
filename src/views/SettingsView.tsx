@@ -21,6 +21,7 @@ import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTempla
 import { buildEmailPreviewHtml, getTemplateTriggerLabel, SAMPLE_EMAIL_VARIABLES } from '../utils/emailTemplatePreview';
 import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
+import { ModalShell } from '../components/ui/ModalShell';
 
 type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily-digest' | 'sla' | 'integrations';
 
@@ -1654,23 +1655,14 @@ export function SettingsView() {
       </div>
 
       {pendingCatalogDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.18)]">
-            <div className="border-b border-stone-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fff 100%)] px-6 py-5">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-red-700">Confirmação</div>
-              <h3 className="mt-3 text-2xl font-serif text-roman-text-main">
-                {pendingCatalogDelete.entity === 'regions' ? 'Excluir região' : 'Excluir sede'}
-              </h3>
-              <p className="mt-2 text-sm text-roman-text-sub">
-                Essa ação remove permanentemente {pendingCatalogDelete.label}. Se houver vínculo operacional, a exclusão será bloqueada pelo sistema.
-              </p>
-            </div>
-            <div className="px-6 py-5 text-sm text-roman-text-sub">
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-                <strong>Item:</strong> {pendingCatalogDelete.label}
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-stone-200 px-6 py-4">
+        <ModalShell
+          isOpen={!!pendingCatalogDelete}
+          onClose={() => setPendingCatalogDelete(null)}
+          title={pendingCatalogDelete.entity === 'regions' ? 'Excluir região' : 'Excluir sede'}
+          description={`Essa ação remove permanentemente ${pendingCatalogDelete.label}. Se houver vínculo operacional, a exclusão será bloqueada pelo sistema.`}
+          maxWidthClass="max-w-lg"
+          footer={(
+            <div className="flex justify-end gap-3">
               <button
                 onClick={() => setPendingCatalogDelete(null)}
                 disabled={catalogDeleting}
@@ -1687,8 +1679,12 @@ export function SettingsView() {
                 {catalogDeleting ? 'Excluindo...' : 'Confirmar exclusão'}
               </button>
             </div>
+          )}
+        >
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
+            <strong>Item:</strong> {pendingCatalogDelete.label}
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

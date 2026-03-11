@@ -1705,14 +1705,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 .map((item, index) => {
                   if (item.type === 'system') {
                     return (
-                      <div key={index} className="flex gap-4 justify-center">
-                        <div className="max-w-[88%] rounded-full border border-roman-border bg-roman-border-light/50 px-4 py-2 text-roman-text-sub">
-                          <div className="flex flex-col items-center justify-center gap-1 text-center sm:flex-row sm:gap-3">
-                            <div className="flex items-center gap-2 font-serif italic text-[12px]">
-                              <Clock size={12} />
-                              <span>{item.text}</span>
+                      <div key={index} className="flex justify-center">
+                        <div className="max-w-[82%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1.5 text-roman-text-sub">
+                          <div className="flex items-center justify-center gap-2 text-center">
+                            <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[11px]">
+                              <Clock size={11} />
+                              <span className="truncate">{item.text}</span>
                             </div>
-                            <div className="text-[10px] font-sans text-roman-text-sub/80 sm:shrink-0">
+                            <div className="shrink-0 text-[10px] font-sans text-roman-text-sub/80">
                               {formatDateTimeSafe(item.time)}
                             </div>
                           </div>
@@ -1723,13 +1723,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                   if (item.type === 'field_change') {
                     return (
-                      <div key={index} className="flex gap-4 justify-center">
-                        <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1 text-[11px] text-roman-text-sub font-mono flex items-center gap-2">
+                      <div key={index} className="flex justify-center">
+                        <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1.5 text-[10px] text-roman-text-sub font-mono flex flex-wrap items-center justify-center gap-1.5">
                           <span className="font-semibold">{item.sender}</span> alterou
                           <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
                           de <span className="line-through opacity-70">{item.from}</span>
                           para <span className="font-medium text-roman-text-main">{item.to}</span>
-                          <span className="text-[10px] opacity-50 ml-1">{formatDateTimeSafe(item.time)}</span>
+                          <span className="text-[10px] opacity-50">{formatDateTimeSafe(item.time)}</span>
                         </div>
                       </div>
                     );
@@ -1739,9 +1739,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
 
                   return (
-                    <div key={index} className={`flex gap-4 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex w-full max-w-[85%] gap-4 ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <div className={`w-10 h-10 rounded-sm border flex items-center justify-center font-serif text-lg shrink-0 ${
+                    <div key={index} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex w-full max-w-[80%] gap-3 ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <div className={`w-9 h-9 rounded-sm border flex items-center justify-center font-serif text-base shrink-0 ${
                           isExternalMessage
                             ? 'bg-roman-primary/10 text-roman-primary border-roman-primary/20'
                             : 'bg-roman-border-light text-roman-text-main border-roman-border'
@@ -1750,13 +1750,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         </div>
                         <div className={`flex-1 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
                           <div className={`flex items-baseline gap-2 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                            <span className="font-semibold text-[14px]">{item.sender}</span>
-                            <span className="text-roman-text-sub text-xs font-serif italic">
+                            <span className="font-semibold text-[13px]">{item.sender}</span>
+                            <span className="text-roman-text-sub text-[11px] font-serif italic">
                               {formatDateTimeSafe(item.time)}
                             </span>
                           </div>
                           <div
-                            className={`rounded-sm p-5 text-[14px] leading-relaxed shadow-sm border ${
+                            className={`rounded-sm p-4 text-[13px] leading-relaxed shadow-sm border ${
                               isExternalMessage
                                 ? 'bg-roman-primary/5 border-roman-primary/20'
                                 : 'bg-roman-surface border-roman-border'
@@ -1874,7 +1874,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[86vw] max-w-80 md:w-[19rem] xl:w-80 bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[84vw] max-w-80 md:w-[17.5rem] xl:w-[18.5rem] bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="h-12 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Dados da OS</span>
               <button
@@ -1888,7 +1888,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div className="p-3 md:p-4 space-y-4 overflow-y-auto">
+            <div className="p-3 space-y-3 overflow-y-auto">
               <PropertyField label="Status Atual" value={activeTicket.status} highlight />
 
               {/* PUBLIC LINK BUTTON */}
@@ -1923,10 +1923,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.classification ? 'rotate-180' : ''}`} />
                 </button>
                 {sidebarSections.classification && (
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 space-y-2.5">
                     <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
                     {canManageStatus ? (
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div>
                           <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
                           <select
@@ -1982,7 +1982,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.triage ? 'rotate-180' : ''}`} />
                 </button>
                 {sidebarSections.triage && (
-                  <div className="mt-4 space-y-4">
+                  <div className="mt-3 space-y-3">
                 {activeTicket.status === TICKET_STATUS.NEW && (
                   <div className="mb-4 rounded-sm border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-3">
                     <div>
@@ -2058,7 +2058,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
               {/* BUDGETS SECTION */}
               {(activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) && (
-                <section className="pt-4 border-t border-roman-border">
+                <section className="pt-3 border-t border-roman-border">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
                     <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">Rodada 1</span>
@@ -2095,7 +2095,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   {sidebarSections.execution ? (
                     <div className="space-y-2">
                       {activeTicket.preliminaryActions && (
-                        <div className="mb-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                           <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
                           <div>{buildPreliminarySummary(activeTicket.preliminaryActions)}</div>
                           <div>Início previsto: {formatShortDate(activeTicket.preliminaryActions.plannedStartAt)}</div>
@@ -2104,7 +2104,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       )}
 
                       {activeTicket.executionProgress && (
-                        <div className="mb-3 rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
+                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
                           <div className="flex items-center justify-between text-xs text-roman-text-sub mb-2">
                             <span className="font-medium text-roman-text-main">Andamento da obra</span>
                             <span>{activeProgressPercent}%</span>
@@ -2194,7 +2194,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               )}
 
               {canManageStatus && EXECUTION_STATUS_OPTIONS.includes(activeTicket.status as (typeof EXECUTION_STATUS_OPTIONS)[number]) && (
-                <section className="pt-4 border-t border-roman-border">
+                <section className="pt-3 border-t border-roman-border">
                   <div className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3">
                     <button
                       type="button"
@@ -2242,22 +2242,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
       {/* Quotes Modal */}
       {showDeleteTicketModal && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-sm border border-roman-border bg-roman-surface shadow-xl">
-            <div className="border-b border-roman-border px-5 py-4">
-              <div className="text-[10px] font-serif uppercase tracking-widest text-red-700">Exclusão permanente</div>
-              <h3 className="mt-1 font-serif text-xl text-roman-text-main">Excluir {activeTicket.id}</h3>
-            </div>
-            <div className="px-5 py-4 text-sm text-roman-text-sub space-y-3">
-              <p>
-                Esta ação remove a OS e todos os registros relacionados no Firebase.
-              </p>
-              <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-red-900">
-                <div className="font-medium">Serão excluídos:</div>
-                <div className="mt-1 text-sm">ticket, cotações, contrato, parcelas, medições, conversa por e-mail e anexos vinculados.</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-roman-border px-5 py-4">
+        <ModalShell
+          isOpen={showDeleteTicketModal}
+          onClose={() => setShowDeleteTicketModal(false)}
+          title={`Excluir ${activeTicket.id}`}
+          description="Esta ação remove a OS e todos os registros relacionados no Firebase."
+          maxWidthClass="max-w-md"
+          footer={(
+            <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setShowDeleteTicketModal(false)}
                 disabled={isDeletingTicket}
@@ -2274,8 +2266,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 {isDeletingTicket ? 'Excluindo...' : 'Confirmar exclusão'}
               </button>
             </div>
+          )}
+        >
+          <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
+            <div className="font-medium">Serão excluídos:</div>
+            <div className="mt-1">ticket, cotações, contrato, parcelas, medições, conversa por e-mail e anexos vinculados.</div>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {showQuotesModal && (

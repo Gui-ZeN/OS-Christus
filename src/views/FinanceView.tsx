@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TICKET_STATUS } from '../constants/ticketStatus';
@@ -286,6 +286,8 @@ export function FinanceView() {
   const [measurementFormOpen, setMeasurementFormOpen] = useState<Record<string, boolean>>({});
   const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
   const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
+  const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
+  const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
 
   if (!canAccess) {
     return (
@@ -409,13 +411,45 @@ export function FinanceView() {
     );
   }, [financeTickets]);
 
+  const openFinanceTickets = useMemo(
+    () =>
+      financeTickets.filter(entry => {
+        const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
+        return !(fullyPaid && entry.remainingValue <= 0);
+      }),
+    [financeTickets]
+  );
+
+  const historicalFinanceTickets = useMemo(
+    () =>
+      financeTickets.filter(entry => {
+        const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
+        return fullyPaid && entry.remainingValue <= 0;
+      }),
+    [financeTickets]
+  );
+
+  const visibleFinanceTickets = financeSection === 'open' ? openFinanceTickets : historicalFinanceTickets;
+
   useEffect(() => {
     if (currentView !== 'finance' || !activeTicketId) return;
-    if (!financeTickets.some(entry => entry.ticket.id === activeTicketId)) return;
+    if (!visibleFinanceTickets.some(entry => entry.ticket.id === activeTicketId)) return;
     window.setTimeout(() => {
       document.getElementById(`finance-ticket-${activeTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
-  }, [activeTicketId, currentView, financeTickets]);
+  }, [activeTicketId, currentView, visibleFinanceTickets]);
+
+  useEffect(() => {
+    setCollapsedTickets(prev => {
+      const next = { ...prev };
+      for (const entry of financeTickets) {
+        if (!(entry.ticket.id in next)) {
+          next[entry.ticket.id] = financeSection === 'history';
+        }
+      }
+      return next;
+    });
+  }, [financeSection, financeTickets]);
 
   const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
     measurementDraftByTicket[ticketId] || {
@@ -933,7 +967,29 @@ export function FinanceView() {
         </div>
 
         <div className="space-y-4">
-          {financeTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFinanceSection('open')}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${financeSection === 'open' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
+              >
+                Em aberto ({openFinanceTickets.length})
+              </button>
+              <button
+                onClick={() => setFinanceSection('history')}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${financeSection === 'history' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
+              >
+                Histórico ({historicalFinanceTickets.length})
+              </button>
+            </div>
+            <div className="text-xs text-roman-text-sub">
+              {financeSection === 'open'
+                ? 'OS com parcelas pendentes, liberações em andamento ou checklist final aberto.'
+                : 'OS quitadas para consulta histórica.'}
+            </div>
+          </div>
+
+          {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
             const ticketProcessing = processingId === ticket.id || processingId?.startsWith(`${ticket.id}:`);
             const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
             const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';
@@ -942,6 +998,7 @@ export function FinanceView() {
             const closureDocuments = ticket.closureChecklist?.documents || [];
             const progressPercent = Math.min(100, Math.max(0, Number(ticket.executionProgress?.currentPercent || 0)));
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.progressPercent);
+            const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
 
             return (
               <div
@@ -960,26 +1017,29 @@ export function FinanceView() {
                   </div>
                 )}
 
+                <div className="flex items-center justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
+                  <div className="text-xs text-roman-text-sub">
+                    {pendingInstallments.length > 0
+                      ? `${pendingInstallments.length} parcela(s) pendente(s)`
+                      : 'Fluxo quitado'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedTickets(prev => ({ ...prev, [ticket.id]: !isCollapsed }))}
+                    className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                  >
+                    <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-180'}`} />
+                    {isCollapsed ? 'Expandir' : 'Recolher'}
+                  </button>
+                </div>
+
+                {!isCollapsed && (
                 <div className="flex flex-col lg:flex-row gap-6">
                   <div className="flex-1 space-y-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-3 mb-2">
                         <span className="text-roman-primary font-serif italic text-sm">{ticket.id}</span>
-                        <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Pagamento</span>
-                        <button
-                          type="button"
-                          onClick={() => handleExportClosureHtml(ticket, contract, measurements, payments, plannedValue, paidValue)}
-                          className="text-xs font-medium text-roman-primary hover:underline"
-                        >
-                          Exportar HTML
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePrintClosure(ticket, contract, measurements, payments, plannedValue, paidValue)}
-                          className="text-xs font-medium text-roman-primary hover:underline"
-                        >
-                          Imprimir / PDF
-                        </button>
+                        <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">{ticket.status}</span>
                       </div>
                       <h3 className="text-xl font-serif text-roman-text-main mb-1">{ticket.subject}</h3>
                       {(ticket.macroServiceName || ticket.serviceCatalogName) && (
@@ -1457,9 +1517,25 @@ export function FinanceView() {
 
                   <aside className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-roman-border pt-4 lg:pt-0 lg:pl-6">
                     <div className="space-y-3">
-                      <button onClick={() => openAttachment(`Nota Fiscal: ${vendor}`, 'pdf')} className="w-full flex items-center justify-center gap-2 text-roman-primary border border-roman-border rounded-sm py-2 hover:border-roman-primary transition-colors text-sm font-medium">
-                        <FileText size={16} /> Ver Nota Fiscal / Recibo
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => openAttachment(`Nota Fiscal: ${vendor}`, 'pdf')} className="flex-1 min-w-[11rem] flex items-center justify-center gap-2 text-roman-primary border border-roman-border rounded-sm py-2 hover:border-roman-primary transition-colors text-sm font-medium">
+                          <FileText size={16} /> Ver NF / Recibo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExportClosureHtml(ticket, contract, measurements, payments, plannedValue, paidValue)}
+                          className="border border-roman-border rounded-sm px-3 py-2 text-xs font-medium text-roman-text-main hover:border-roman-primary transition-colors"
+                        >
+                          HTML
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintClosure(ticket, contract, measurements, payments, plannedValue, paidValue)}
+                          className="border border-roman-border rounded-sm px-3 py-2 text-xs font-medium text-roman-text-main hover:border-roman-primary transition-colors"
+                        >
+                          PDF
+                        </button>
+                      </div>
                       <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
                         <div className="font-medium text-roman-text-main mb-2">Resumo financeiro</div>
                         <div>Total do contrato: {contractValue}</div>
@@ -1475,14 +1551,17 @@ export function FinanceView() {
                     </div>
                   </aside>
                 </div>
+                )}
               </div>
             );
           })}
 
-          {financeTickets.length === 0 && (
+          {visibleFinanceTickets.length === 0 && (
             <div className="text-center py-12 border border-dashed border-roman-border rounded-sm">
               <CheckCircle size={32} className="mx-auto text-roman-border mb-4" />
-              <p className="text-roman-text-sub font-serif italic">Nenhum fluxo financeiro pendente no momento.</p>
+              <p className="text-roman-text-sub font-serif italic">
+                {financeSection === 'open' ? 'Nenhum fluxo financeiro pendente no momento.' : 'Nenhuma OS quitada no histórico financeiro.'}
+              </p>
             </div>
           )}
         </div>
