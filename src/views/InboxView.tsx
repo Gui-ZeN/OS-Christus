@@ -1601,7 +1601,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         <div className="flex-1 flex overflow-hidden">
 
           {/* Conversation Thread */}
-          <div className="flex-1 flex flex-col bg-roman-bg overflow-y-auto">
+          <div className="flex-1 flex min-h-0 flex-col bg-roman-bg overflow-hidden">
 
             {/* Ticket Header */}
             <div className="bg-roman-surface px-4 py-4 md:px-5 md:py-5 border-b border-roman-border">
@@ -1704,7 +1704,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
-            <div className="p-4 md:p-5 space-y-5 flex-1">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
+              <div className="space-y-5 pb-4">
               {[...activeTicket.history]
                 .sort((a, b) => a.time.getTime() - b.time.getTime())
                 .map((item, index) => {
@@ -1774,11 +1775,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
                   );
                 })}
+              </div>
             </div>
 
             {/* Reply Box */}
-            <div className="p-6 pt-0 mt-auto">
-              <div className={`border rounded-sm overflow-hidden shadow-sm transition-colors ${replyMode === 'internal' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
+            <div className="mt-auto border-t border-roman-border bg-roman-bg/95 px-4 pb-4 pt-3 backdrop-blur md:px-5">
+              <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode === 'internal' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex border-b border-roman-border bg-roman-bg/50">
                   <button
