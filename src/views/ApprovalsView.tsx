@@ -479,39 +479,39 @@ export function ApprovalsView() {
   }, [activeTicketId, activeTicketTab, currentView]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8 relative">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
       {toast && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in bg-green-800 text-white">
           <CheckCircle size={18} />
           <span className="font-medium text-sm">{toast}</span>
         </div>
       )}
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-6 border-b border-roman-border pb-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <div>
-            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel da Diretoria</h1>
-            <p className="text-roman-text-sub font-serif italic">Aprovações rápidas de orçamentos e assinaturas de contratos.</p>
+            <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel da Diretoria</h1>
+            <p className="text-sm text-roman-text-sub font-serif italic">Soluções, orçamentos e contratos organizados em um fluxo único de decisão.</p>
           </div>
-          <div className="flex bg-roman-surface border border-roman-border rounded-full p-1 shadow-sm overflow-x-auto hide-scrollbar">
-            <button onClick={() => setActiveTab('solutions')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'solutions' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
+          <div className="mt-4 flex bg-roman-bg border border-roman-border rounded-full p-1 shadow-sm overflow-x-auto hide-scrollbar md:mt-5">
+            <button onClick={() => setActiveTab('solutions')} className={`px-4 py-2 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${activeTab === 'solutions' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Soluções ({solutions.length})
             </button>
-            <button onClick={() => setActiveTab('budgets')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'budgets' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
+            <button onClick={() => setActiveTab('budgets')} className={`px-4 py-2 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${activeTab === 'budgets' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Orçamentos ({budgets.length})
             </button>
-            <button onClick={() => setActiveTab('contracts')} className={`px-4 py-2 text-sm font-medium rounded-sm transition-colors whitespace-nowrap ${activeTab === 'contracts' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
+            <button onClick={() => setActiveTab('contracts')} className={`px-4 py-2 text-sm font-medium rounded-full transition-colors whitespace-nowrap ${activeTab === 'contracts' ? 'bg-roman-primary/10 text-roman-primary' : 'text-roman-text-sub hover:text-roman-text-main'}`}>
               Contratos ({contracts.length})
             </button>
           </div>
         </header>
 
-        <div className="mb-6 grid gap-3 md:grid-cols-3">
+        <div className="mb-5 grid gap-3 md:grid-cols-3">
           {approvalSummary.map(item => (
             <button
               key={item.label}
               type="button"
               onClick={() => setActiveTab(item.label.toLowerCase() === 'soluções' ? 'solutions' : item.label.toLowerCase() === 'orçamentos' ? 'budgets' : 'contracts')}
-              className={`rounded-sm border p-4 text-left transition-colors ${
+              className={`rounded-2xl border p-4 text-left transition-colors shadow-sm ${
                 item.active
                   ? 'border-roman-primary/30 bg-roman-primary/5'
                   : 'border-roman-border bg-roman-surface hover:border-roman-primary/20'
@@ -524,42 +524,42 @@ export function ApprovalsView() {
           ))}
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           {activeTab === 'solutions' && solutions.map(solution => (
             <div
               key={solution.id}
               id={`approval-solution-${solution.id}`}
-              className={`bg-roman-surface border rounded-sm p-6 shadow-sm transition-colors relative overflow-hidden ${
+              className={`bg-roman-surface border rounded-2xl p-4 md:p-5 shadow-sm transition-colors relative overflow-hidden ${
                 solution.id === activeTicketId
                   ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
                   : 'border-roman-border hover:border-roman-primary/30'
               }`}
             >
               {processingId === solution.id && (
-                <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
+                <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
                   <span className="font-serif text-roman-text-main font-medium">Processando decisão...</span>
                 </div>
               )}
-              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-4">
+              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-3">
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{solution.id}</span>
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
                   </div>
-                  <h3 className="text-xl font-serif text-roman-text-main">{solution.subject}</h3>
+                  <h3 className="text-lg md:text-xl font-serif text-roman-text-main">{solution.subject}</h3>
                   <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} · Parecer emitido: {formatDateTimeSafe(solution.date)}</p>
                 </div>
               </div>
-              <div className="bg-roman-bg border border-roman-border rounded-sm p-4 mb-6">
+              <div className="bg-roman-bg border border-roman-border rounded-xl p-3.5 mb-5">
                 <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Parecer Técnico</h4>
                 <p className="text-sm text-roman-text-main leading-relaxed">{solution.technicalOpinion}</p>
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => openRejectModal(solution.id)} disabled={processingId === solution.id} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                <button onClick={() => openRejectModal(solution.id)} disabled={processingId === solution.id} className="px-5 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-xl font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
                   Reprovar Solução (Arquivar)
                 </button>
-                <button onClick={() => handleApprove(solution.id, 'solutions')} disabled={processingId === solution.id} className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                <button onClick={() => handleApprove(solution.id, 'solutions')} disabled={processingId === solution.id} className="px-5 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-xl font-medium transition-colors text-sm flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
                   {processingId === solution.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
                   {processingId === solution.id ? 'Processando...' : 'Aprovar (Ir para Cotação)'}
                 </button>
@@ -571,17 +571,17 @@ export function ApprovalsView() {
             <div
               key={budget.id}
               id={`approval-budget-${budget.id}`}
-              className={`bg-roman-surface border rounded-sm p-6 shadow-sm transition-colors relative overflow-hidden ${
+              className={`bg-roman-surface border rounded-2xl p-4 md:p-5 shadow-sm transition-colors relative overflow-hidden ${
                 budget.id === activeTicketId ? 'border-roman-primary/50 ring-1 ring-roman-primary/20' : 'border-roman-border hover:border-roman-primary/30'
               }`}
             >
               {processingId === budget.id && (
-                <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
+                <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
                   <span className="font-serif text-roman-text-main font-medium">Processando decisão...</span>
                 </div>
               )}
-              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-4">
+              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-3">
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{budget.id}</span>
@@ -593,7 +593,7 @@ export function ApprovalsView() {
                       </span>
                     )}
                   </div>
-                  <h3 className="text-xl font-serif text-roman-text-main">{budget.subject}</h3>
+                  <h3 className="text-lg md:text-xl font-serif text-roman-text-main">{budget.subject}</h3>
                   <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDateTimeSafe(budget.date)}</p>
                   {(budget.macroServiceName || budget.serviceCatalogName) && (
                     <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
@@ -788,14 +788,14 @@ export function ApprovalsView() {
             <div
               key={contract.id}
               id={`approval-contract-${contract.id}`}
-              className={`bg-roman-parchment border rounded-sm p-6 flex flex-col md:flex-row gap-6 items-start md:items-center shadow-sm relative overflow-hidden ${
+              className={`bg-roman-parchment border rounded-2xl p-4 md:p-5 flex flex-col md:flex-row gap-5 items-start md:items-center shadow-sm relative overflow-hidden ${
                 contract.id === activeTicketId
                   ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
                   : 'border-roman-parchment-border'
               }`}
             >
               {processingId === contract.id && (
-                <div className="absolute inset-0 bg-roman-parchment/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
+                <div className="absolute inset-0 bg-roman-parchment/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
                   <span className="font-serif text-roman-text-main font-medium">Processando assinatura...</span>
                 </div>
@@ -806,7 +806,7 @@ export function ApprovalsView() {
                   <span className="text-xs text-stone-600 font-medium px-2 py-0.5 bg-white/50 border border-stone-300 rounded-sm">Aguardando Assinatura</span>
                   <span className="text-xs text-stone-500 ml-auto">{formatDateTimeSafe(contract.date)}</span>
                 </div>
-                <h3 className="text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
+                <h3 className="text-lg md:text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
                 <p className="text-sm text-stone-600 mb-4">Solicitante: {contract.requester} • Contratada: {contract.vendor}</p>
                 {(contract.macroServiceName || contract.serviceCatalogName) && (
                   <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
@@ -860,7 +860,7 @@ export function ApprovalsView() {
           ))}
 
           {activeTab === 'contracts' && contracts.length === 0 && (
-            <div className="text-center py-12 border border-dashed border-roman-border rounded-sm">
+            <div className="text-center py-12 border border-dashed border-roman-border rounded-2xl bg-roman-surface/70">
               <Shield size={32} className="mx-auto text-roman-border mb-4" />
               <p className="text-roman-text-sub font-serif italic">Nenhum contrato pendente de assinatura no momento.</p>
             </div>

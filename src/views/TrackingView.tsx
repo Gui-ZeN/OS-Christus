@@ -223,7 +223,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   if (loading) {
     return (
       <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center justify-center px-4">
-        <div className="bg-roman-surface border border-roman-border p-8 rounded-sm shadow-sm text-center max-w-md w-full">
+        <div className="bg-roman-surface border border-roman-border p-6 rounded-2xl shadow-sm text-center max-w-md w-full">
           <Loader2 size={28} className="animate-spin mx-auto text-roman-primary mb-4" />
           <h1 className="text-xl font-serif text-roman-text-main font-medium mb-2">Carregando acompanhamento</h1>
           <p className="text-roman-text-sub">Estamos buscando sua OS no sistema.</p>
@@ -239,7 +239,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           <ArrowRight size={16} className="rotate-180" /> Voltar
         </button>
         <div className="max-w-3xl w-full">
-          <div className="bg-roman-surface border border-roman-border p-8 rounded-sm shadow-sm mb-6 text-center">
+          <div className="bg-roman-surface border border-roman-border p-6 rounded-2xl shadow-sm mb-6 text-center">
             <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-2">OS não encontrada</h1>
             <p className="text-roman-text-sub">O link de acompanhamento é inválido ou expirou.</p>
           </div>
@@ -308,24 +308,24 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
       </button>
 
       <div className="max-w-4xl w-full">
-        <div className="bg-roman-surface border border-roman-border p-8 rounded-sm shadow-sm mb-6">
-          <div className="flex justify-between items-start mb-8 border-b border-roman-border pb-6 gap-4">
+        <div className="bg-roman-surface border border-roman-border p-5 md:p-6 rounded-2xl shadow-sm mb-6">
+          <div className="flex justify-between items-start mb-6 border-b border-roman-border pb-5 gap-4">
             <div>
               <div className="text-roman-primary mb-4">
                 <Landmark size={36} strokeWidth={1.5} />
               </div>
-              <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-1">Acompanhamento de OS</h1>
+              <h1 className="text-[1.75rem] font-serif text-roman-text-main font-medium mb-1">Acompanhamento de OS</h1>
               <p className="text-roman-text-sub font-serif italic">Portal do solicitante</p>
             </div>
             <div className="text-right">
               <div className="text-2xl font-serif text-roman-text-main font-medium">#{ticket.id}</div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-roman-primary/10 text-roman-primary border border-roman-primary/20 rounded-sm text-sm font-medium mt-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-roman-primary/10 text-roman-primary border border-roman-primary/20 rounded-xl text-sm font-medium mt-2">
                 <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span> {ticket.status}
               </div>
             </div>
           </div>
 
-          <div className="mb-8">
+          <div className="mb-6">
             <h2 className="text-xl font-serif text-roman-text-main mb-2">{ticket.subject}</h2>
             <p className="text-roman-text-sub">
               Solicitado por: {ticket.requester} • Setor: {ticket.sector} ({siteLabel})
@@ -333,7 +333,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           </div>
 
           {ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
-            <div className="bg-roman-primary/10 border border-roman-primary/30 p-6 rounded-sm shadow-sm mb-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="bg-roman-primary/10 border border-roman-primary/30 p-5 rounded-2xl shadow-sm mb-6 animate-in fade-in slide-in-from-bottom-4">
               <h3 className="font-serif text-lg font-medium text-roman-primary mb-2 flex items-center gap-2">
                 <CheckSquare size={20} /> Validação da manutenção
               </h3>
@@ -354,7 +354,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
 
           <div>
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
-            <div className="space-y-6 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
+            <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
               {ticket.history
                 .filter(item => item.type !== 'field_change' && item.text)
                 .map((item, index) => {
@@ -377,7 +377,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                         {item.type === 'customer' ? <Users size={16} /> : item.type === 'tech' ? <Activity size={16} /> : <CheckCircle size={16} />}
                       </div>
                       <div
-                        className={`w-full md:w-[calc(50%-2.5rem)] border p-4 rounded-sm shadow-sm ${
+                        className={`w-full md:w-[calc(50%-2.5rem)] border px-4 py-3.5 rounded-2xl shadow-sm ${
                           isExternalMessage
                             ? 'bg-roman-primary/5 border-roman-primary/20 text-right'
                             : 'bg-roman-surface border-roman-border text-left'

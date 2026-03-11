@@ -942,32 +942,32 @@ export function FinanceView() {
         </div>
       )}
       <div className="max-w-6xl mx-auto">
-        <header className="mb-8 border-b border-roman-border pb-4">
-          <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Painel Financeiro</h1>
-          <p className="text-roman-text-sub font-serif italic">Medições, geração de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
+        <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
+          <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
+          <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
         </header>
 
         <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-sm border border-roman-border bg-roman-surface p-4 shadow-sm">
+          <div className="rounded-2xl border border-roman-border bg-roman-surface p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Fluxos financeiros</div>
             <div className="mt-2 text-2xl font-semibold text-roman-text-main">{financeSummary.tickets}</div>
           </div>
-          <div className="rounded-sm border border-roman-border bg-roman-surface p-4 shadow-sm">
+          <div className="rounded-2xl border border-roman-border bg-roman-surface p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Previsto</div>
             <div className="mt-2 text-xl font-semibold text-roman-text-main">{formatCurrency(financeSummary.planned)}</div>
           </div>
-          <div className="rounded-sm border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-emerald-700">Pago</div>
             <div className="mt-2 text-xl font-semibold text-emerald-900">{formatCurrency(financeSummary.paid)}</div>
           </div>
-          <div className="rounded-sm border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-amber-700">Saldo a liberar</div>
             <div className="mt-2 text-xl font-semibold text-amber-900">{formatCurrency(financeSummary.remaining)}</div>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setFinanceSection('open')}
@@ -1004,14 +1004,14 @@ export function FinanceView() {
               <div
                 key={ticket.id}
                 id={`finance-ticket-${ticket.id}`}
-                className={`bg-roman-surface border rounded-sm p-4 md:p-5 shadow-sm relative overflow-hidden ${
+                className={`bg-roman-surface border rounded-2xl p-4 shadow-sm relative overflow-hidden ${
                   ticket.id === activeTicketId
                     ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
                     : 'border-roman-border'
                 }`}
               >
                 {ticketProcessing && (
-                  <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-sm">
+                  <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                     <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
                     <span className="font-serif text-roman-text-main font-medium">Atualizando fluxo financeiro...</span>
                   </div>
@@ -1557,7 +1557,7 @@ export function FinanceView() {
           })}
 
           {visibleFinanceTickets.length === 0 && (
-            <div className="text-center py-12 border border-dashed border-roman-border rounded-sm">
+            <div className="text-center py-12 border border-dashed border-roman-border rounded-2xl bg-roman-surface/70">
               <CheckCircle size={32} className="mx-auto text-roman-border mb-4" />
               <p className="text-roman-text-sub font-serif italic">
                 {financeSection === 'open' ? 'Nenhum fluxo financeiro pendente no momento.' : 'Nenhuma OS quitada no histórico financeiro.'}
