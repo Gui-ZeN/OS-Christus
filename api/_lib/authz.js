@@ -40,6 +40,8 @@ async function resolveAuthenticatedUser(req) {
     email: decoded.email || null,
     name: userDoc.name || decoded.name || null,
     role: userDoc.role,
+    regionIds: Array.isArray(userDoc.regionIds) ? userDoc.regionIds : [],
+    siteIds: Array.isArray(userDoc.siteIds) ? userDoc.siteIds : [],
   };
 }
 

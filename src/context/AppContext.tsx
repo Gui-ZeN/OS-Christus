@@ -72,6 +72,8 @@ const DEFAULT_FILTER: InboxFilter = {
   type: [],
 };
 
+const DIRECTORY_FETCH_FAILED = 'DIRECTORY_FETCH_FAILED';
+
 function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
   const params = new URLSearchParams(window.location.search);
@@ -158,7 +160,7 @@ async function resolveAuthorizedUser(email: string) {
   try {
     users = await fetchUsers();
   } catch {
-    users = [];
+    throw new Error(DIRECTORY_FETCH_FAILED);
   }
 
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
@@ -314,7 +316,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           setCurrentUser(found);
         }
-      } catch {
+      } catch (error) {
+        if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
+          return;
+        }
         if (!cancelled) {
           setCurrentUser(null);
           setCurrentUserEmailState('');
@@ -357,25 +362,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [tickets, activeTicketId]);
 
   const updateTicket = (id: string, updates: Partial<Ticket>) => {
-    let previousStatus: string | null = null;
-    let nextTicket: Ticket | null = null;
+    const previousTicket = allTickets.find(ticket => ticket.id === id);
+    if (!previousTicket) return;
 
-    setAllTickets(prev =>
-      prev.map(ticket => {
-        if (ticket.id !== id) return ticket;
-        previousStatus = ticket.status;
-        nextTicket = { ...ticket, ...updates };
-        return nextTicket;
-      })
-    );
+    const nextTicket: Ticket = { ...previousTicket, ...updates };
+    setAllTickets(prev => prev.map(ticket => (ticket.id === id ? nextTicket : ticket)));
 
-    if (previousStatus && nextTicket && updates.status && previousStatus !== nextTicket.status) {
-      void notifyTicketStatusChange(nextTicket, previousStatus);
-    }
-
-    void patchTicketInApi(id, updates).catch(() => {
-      // Persistência remota falhou, mas não bloqueia o fluxo local.
-    });
+    void (async () => {
+      try {
+        await patchTicketInApi(id, updates);
+        if (updates.status && previousTicket.status !== nextTicket.status) {
+          await notifyTicketStatusChange(nextTicket, previousTicket.status);
+        }
+      } catch {
+        setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
+      }
+    })();
   };
 
   const addTicket = async (ticket: Ticket) => {
@@ -520,6 +522,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentUserEmail(normalized);
         setCurrentUser(authorizedUser);
       } catch (error) {
+        if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
+          throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
+        }
         await logoutFirebaseAuth().catch(() => undefined);
         setCurrentUserEmail('');
         setCurrentUser(null);
@@ -545,6 +550,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCurrentUserEmail(email);
       setCurrentUser(authorizedUser);
     } catch (error) {
+      if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
+        throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
+      }
       await logoutFirebaseAuth().catch(() => undefined);
       setCurrentUserEmail('');
       setCurrentUser(null);

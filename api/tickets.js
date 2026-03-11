@@ -28,6 +28,100 @@ function buildAutomaticStatusHistoryEntry(sender, previousStatus, nextStatus) {
   };
 }
 
+function buildPublicTrackingHistoryEntry(sender, approved) {
+  return {
+    id: `tracking-${Date.now()}`,
+    type: 'customer',
+    sender,
+    time: new Date(),
+    text: approved
+      ? 'Solicitante validou a execução do serviço.'
+      : 'Solicitante reprovou a entrega e devolveu a OS para execução.',
+  };
+}
+
+function normalizeKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function resolveTicketSiteIds(ticket, sites) {
+  const rawValues = [ticket.siteId, ticket.sede].map(value => normalizeKey(value)).filter(Boolean);
+  const matches = sites
+    .filter(site => rawValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value)))
+    .map(site => site.id);
+
+  if (ticket.siteId && !matches.includes(ticket.siteId)) {
+    matches.push(ticket.siteId);
+  }
+
+  return matches;
+}
+
+function resolveTicketRegionIds(ticket, regions, sites) {
+  const rawValues = [ticket.regionId, ticket.region].map(value => normalizeKey(value)).filter(Boolean);
+  const matches = regions
+    .filter(region => rawValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value)))
+    .map(region => region.id);
+
+  const siteRegionIds = resolveTicketSiteIds(ticket, sites)
+    .map(siteId => sites.find(site => site.id === siteId)?.regionId)
+    .filter(Boolean);
+
+  for (const regionId of siteRegionIds) {
+    if (!matches.includes(regionId)) matches.push(regionId);
+  }
+
+  if (ticket.regionId && !matches.includes(ticket.regionId)) {
+    matches.push(ticket.regionId);
+  }
+
+  return matches;
+}
+
+function canUserAccessTicket(user, ticket, regions, sites) {
+  if (!user) return false;
+  if (user.role === 'Admin' || user.role === 'Diretor') return true;
+
+  const regionIds = Array.isArray(user.regionIds) ? user.regionIds : [];
+  const siteIds = Array.isArray(user.siteIds) ? user.siteIds : [];
+  if (regionIds.length === 0 && siteIds.length === 0) return false;
+
+  const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
+  const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
+  if (siteIds.some(siteId => ticketSiteIds.includes(siteId))) return true;
+  if (regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
+  return false;
+}
+
+function sanitizePublicTicketCreate(rawTicket) {
+  const allowed = {
+    subject: rawTicket.subject,
+    requester: rawTicket.requester,
+    requesterEmail: rawTicket.requesterEmail,
+    time: rawTicket.time,
+    status: 'Nova OS',
+    type: rawTicket.type,
+    macroServiceId: rawTicket.macroServiceId,
+    macroServiceName: rawTicket.macroServiceName,
+    serviceCatalogId: rawTicket.serviceCatalogId,
+    serviceCatalogName: rawTicket.serviceCatalogName,
+    regionId: rawTicket.regionId,
+    region: rawTicket.region,
+    siteId: rawTicket.siteId,
+    sede: rawTicket.sede,
+    sector: rawTicket.sector,
+    priority: rawTicket.priority || 'Normal',
+    attachments: Array.isArray(rawTicket.attachments) ? rawTicket.attachments : [],
+    history: Array.isArray(rawTicket.history) ? rawTicket.history : [],
+  };
+
+  return normalizeTicketForStorage(allowed);
+}
+
 function shouldAppendAutomaticHistory(previousHistory, nextHistory) {
   const previousLength = Array.isArray(previousHistory) ? previousHistory.length : 0;
   const nextLength = Array.isArray(nextHistory) ? nextHistory.length : 0;
@@ -192,15 +286,39 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { ok: true, ticket, procurement });
       }
 
-      await requireAuthenticatedUser(req);
+      const user = await requireAuthenticatedUser(req);
 
       const snap = await col.get();
       const tickets = snap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .map(serializeTicketForApi)
-        .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time));
+        .map(doc => ({ id: doc.id, ...doc.data() }));
 
-      return sendJson(res, 200, { ok: true, tickets });
+      if (user.role !== 'Admin' && user.role !== 'Diretor') {
+        const [regionsSnap, sitesSnap] = await Promise.all([
+          db.collection('regions').get(),
+          db.collection('sites').get(),
+        ]);
+        const regions = regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const sites = sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        return sendJson(res, 200, {
+          ok: true,
+          tickets: tickets
+            .filter(ticket => canUserAccessTicket(user, ticket, regions, sites))
+            .map(serializeTicketForApi)
+            .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time)),
+        });
+      }
+
+      return sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          tickets: tickets
+            .map(serializeTicketForApi)
+            .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time)),
+        }
+      );
     }
 
     if (req.method === 'POST') {
@@ -209,12 +327,17 @@ export default async function handler(req, res) {
         return sendJson(res, 400, { ok: false, error: 'ticket é obrigatório.' });
       }
 
-      const ticket = normalizeTicketForStorage(body.ticket);
+      let user = null;
+      const hasAuthHeader = String(req.headers.authorization || '').trim().length > 0;
+      if (hasAuthHeader) {
+        user = await requireAuthenticatedUser(req);
+      } else {
+        user = null;
+      }
+
+      const ticket = user ? normalizeTicketForStorage(body.ticket) : sanitizePublicTicketCreate(body.ticket);
       const now = new Date();
-      const ticketId =
-        body.preserveId === true && String(ticket.id || '').trim()
-          ? String(ticket.id || '').trim().toUpperCase()
-          : await reserveNextTicketId(db);
+      const ticketId = await reserveNextTicketId(db);
       const trackingToken =
         String(ticket.trackingToken || '').trim() || `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
       const createdTicket = {
@@ -245,32 +368,54 @@ export default async function handler(req, res) {
         }
 
         const normalized = normalizeTicketForStorage(body.updates);
-        const allowedUpdates = {};
-        if (normalized.status) allowedUpdates.status = normalized.status;
-        if (Array.isArray(normalized.history)) allowedUpdates.history = normalized.history;
-        if (normalized.closureChecklist) allowedUpdates.closureChecklist = normalized.closureChecklist;
-
-        if (Object.keys(allowedUpdates).length === 0) {
-          return sendJson(res, 400, { ok: false, error: 'Nenhuma atualização pública permitida foi enviada.' });
-        }
-
         const beforeData = trackingSnap.docs[0].data() || {};
-        if (
-          normalized.status &&
-          normalized.status !== beforeData.status &&
-          shouldAppendAutomaticHistory(beforeData.history, normalized.history)
-        ) {
-          allowedUpdates.history = [
-            ...(Array.isArray(beforeData.history) ? beforeData.history : []),
-            buildAutomaticStatusHistoryEntry(
-              beforeData.requester || 'Solicitante',
-              beforeData.status || 'Sem status',
-              normalized.status
-            ),
-          ];
+        const requesterName = beforeData.requester || 'Solicitante';
+        const nextStatus = String(normalized.status || '').trim();
+        const isApproval =
+          nextStatus === 'Aguardando pagamento' &&
+          normalized.closureChecklist?.requesterApproved === true &&
+          beforeData.status === 'Aguardando aprovação da manutenção';
+        const isRejection =
+          nextStatus === 'Em andamento' &&
+          beforeData.status === 'Aguardando aprovação da manutenção';
+
+        if (!isApproval && !isRejection) {
+          return sendJson(res, 400, { ok: false, error: 'Atualização pública inválida para este ticket.' });
         }
 
-        await trackingSnap.docs[0].ref.set({ ...allowedUpdates, updatedAt: new Date() }, { merge: true });
+        const nextClosureChecklist = isApproval
+          ? {
+              ...(beforeData.closureChecklist || {}),
+              requesterApproved: true,
+              requesterApprovedBy: requesterName,
+              requesterApprovedAt: new Date(),
+            }
+          : {
+              ...(beforeData.closureChecklist || {}),
+              requesterApproved: false,
+              requesterApprovedBy: null,
+              requesterApprovedAt: null,
+            };
+
+        const nextHistory = [
+          ...(Array.isArray(beforeData.history) ? beforeData.history : []),
+          buildPublicTrackingHistoryEntry(requesterName, isApproval),
+          buildAutomaticStatusHistoryEntry(
+            requesterName,
+            beforeData.status || 'Sem status',
+            nextStatus
+          ),
+        ];
+
+        await trackingSnap.docs[0].ref.set(
+          {
+            status: nextStatus,
+            closureChecklist: nextClosureChecklist,
+            history: nextHistory,
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
         return sendJson(res, 200, { ok: true });
       }
 

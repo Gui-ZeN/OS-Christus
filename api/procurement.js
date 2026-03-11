@@ -4,6 +4,8 @@ import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { readProcurement, seedProcurementDefaults } from './_lib/procurement.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
+const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
+
 function slugify(value) {
   return String(value || '')
     .normalize('NFD')
@@ -20,6 +22,44 @@ function parseCurrency(value) {
     .replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function isReviewActive(review) {
+  if (!review?.at) return false;
+  const reviewedAt = new Date(review.at);
+  if (Number.isNaN(reviewedAt.getTime())) return false;
+  return reviewedAt.getTime() + REVIEW_LOCK_WINDOW_MS > Date.now();
+}
+
+async function ensureBudgetReviewLock(db, ticketId, reviewerName) {
+  const ticketSnap = await db.collection('tickets').doc(ticketId).get();
+  if (!ticketSnap.exists) {
+    throw new Error('Ticket não encontrado para revisão de orçamento.');
+  }
+
+  const review = ticketSnap.data()?.viewingBy || null;
+  if (review && isReviewActive(review) && normalizeKey(review.name) !== normalizeKey(reviewerName)) {
+    throw new Error(`${review.name} já está revisando este orçamento.`);
+  }
+
+  await ticketSnap.ref.set(
+    {
+      viewingBy: {
+        name: reviewerName,
+        at: new Date(),
+      },
+      updatedAt: new Date(),
+    },
+    { merge: true }
+  );
 }
 
 function getItemUnitPrice(item) {
@@ -293,6 +333,7 @@ export default async function handler(req, res) {
       }
 
       if (type === 'quotes') {
+        await ensureBudgetReviewLock(db, ticketId, user.name || actor);
         const quotes = (Array.isArray(body?.quotes) ? body.quotes : []).map(quote => ({
           ...quote,
           classification: quote?.classification || classification || null,
