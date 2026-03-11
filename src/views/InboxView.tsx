@@ -1367,7 +1367,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   return (
-    <div className="flex-1 min-h-0 flex overflow-hidden relative">
+    <div className="flex h-full flex-1 min-h-0 overflow-hidden relative">
       {/* Toast */}
       {toast && (
         <div className={`absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in ${toast.includes('Erro') ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}`}>
@@ -1388,7 +1388,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[88vw] max-w-96 md:w-[18.5rem] xl:w-[20rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 h-full w-[88vw] max-w-96 md:w-[18.5rem] xl:w-[20rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-b from-roman-bg to-roman-surface">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1508,7 +1508,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         )}
 
         {/* Ticket List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredTickets.length === 0 ? (
             <div className="p-8 text-center text-roman-text-sub font-serif italic">Nenhuma OS encontrada para este filtro.</div>
           ) : (
@@ -1598,13 +1598,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         </header>
 
         {/* Ticket Content Area */}
-        <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="flex h-full flex-1 min-h-0 overflow-hidden">
 
           {/* Conversation Thread */}
-          <div className="flex-1 min-h-0 flex flex-col bg-roman-bg overflow-hidden">
+          <div className="flex-1 min-h-0 bg-roman-bg overflow-hidden grid grid-rows-[auto_minmax(0,1fr)_auto]">
 
             {/* Ticket Header */}
-            <div className="shrink-0 bg-roman-surface px-4 py-4 md:px-5 md:py-5 border-b border-roman-border">
+            <div className="bg-roman-surface px-4 py-4 md:px-5 md:py-5 border-b border-roman-border">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1704,7 +1704,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
+            <div className="min-h-0 overflow-y-auto p-4 md:p-5">
               <div className="space-y-5 pb-4">
               {[...activeTicket.history]
                 .sort((a, b) => a.time.getTime() - b.time.getTime())
@@ -1779,7 +1779,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
 
             {/* Reply Box */}
-            <div className="shrink-0 border-t border-roman-border bg-roman-bg/95 px-4 pb-4 pt-3 backdrop-blur md:px-5">
+            <div className="border-t border-roman-border bg-roman-bg/95 px-4 pb-4 pt-3 backdrop-blur md:px-5">
               <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode === 'internal' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex border-b border-roman-border bg-roman-bg/50">
@@ -1881,7 +1881,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[84vw] max-w-80 md:w-[16rem] xl:w-[17rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 h-full w-[84vw] max-w-80 md:w-[16rem] xl:w-[17rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Painel da OS</span>
               <button
