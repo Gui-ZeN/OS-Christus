@@ -1367,7 +1367,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden relative">
+    <div className="flex-1 min-h-0 flex overflow-hidden relative">
       {/* Toast */}
       {toast && (
         <div className={`absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in ${toast.includes('Erro') ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}`}>
@@ -1534,7 +1534,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       </div>
 
       {/* Main Ticket Workspace */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0">
         {!hasTickets ? (
           <div className="flex-1 flex items-center justify-center bg-roman-bg p-8">
             <div className="max-w-md text-center bg-roman-surface border border-roman-border rounded-sm p-8 shadow-sm">
@@ -1881,7 +1881,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[84vw] max-w-80 md:w-[16rem] xl:w-[17rem] bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[84vw] max-w-80 md:w-[16rem] xl:w-[17rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Painel da OS</span>
               <button
@@ -1895,7 +1895,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div className="p-3 space-y-2.5 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2.5">
               <PropertyField label="Status Atual" value={activeTicket.status} highlight />
 
               {/* PUBLIC LINK BUTTON */}
