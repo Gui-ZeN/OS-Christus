@@ -239,11 +239,11 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-roman-bg text-roman-text-main font-sans text-[14px]">
-      <aside className="flex w-16 bg-roman-sidebar flex-col py-4 z-20 border-r border-stone-900">
+      <aside className="flex w-14 bg-roman-sidebar flex-col py-3 z-20 border-r border-stone-900">
         <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
-          <Landmark size={24} />
+          <Landmark size={22} />
         </div>
-        <nav className="flex flex-col gap-1 w-full px-2">
+        <nav className="flex flex-col gap-1.5 w-full px-1.5">
           <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Início" />
           <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           {canAccessApprovals && <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />}
@@ -252,7 +252,7 @@ export default function App() {
           {canAccessKpi && <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />}
           {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />}
         </nav>
-        <div className="mt-auto flex flex-col gap-4 px-3 md:px-4">
+        <div className="mt-auto flex flex-col gap-3 px-2.5">
           <div className="relative">
             <button
               onClick={event => {
@@ -267,7 +267,7 @@ export default function App() {
               <Bell size={18} />
             </button>
             {unreadCount > 0 && (
-              <span className="absolute top-0 left-3 min-w-[14px] h-[14px] bg-roman-primary rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
+              <span className="absolute top-0 left-2.5 min-w-[14px] h-[14px] bg-roman-primary rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -275,7 +275,7 @@ export default function App() {
           <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="flex items-center justify-center text-white/55 hover:text-white/80 transition-colors py-2" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
-          <div className="flex items-center justify-center rounded-sm border border-white/10 bg-roman-sidebar-light px-2 py-2" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>
+          <div className="flex items-center justify-center rounded-xl border border-white/10 bg-roman-sidebar-light px-1.5 py-1.5" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>
             <div className="w-8 h-8 rounded-full bg-roman-sidebar border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs">
               {initials}
             </div>
@@ -286,7 +286,7 @@ export default function App() {
       {showNotifications && (
         <>
           <div className="fixed inset-0 z-50 bg-black/10" />
-          <div ref={notificationRef} className="fixed left-16 right-0 lg:right-auto top-0 bottom-0 w-auto lg:w-96 bg-roman-surface border-r border-roman-border shadow-2xl z-[60] animate-in slide-in-from-left-4 flex flex-col">
+          <div ref={notificationRef} className="fixed left-14 right-0 lg:right-auto top-0 bottom-0 w-auto max-w-[calc(100vw-3.5rem)] lg:w-[22rem] bg-roman-surface border-r border-roman-border shadow-2xl z-[60] animate-in slide-in-from-left-4 flex flex-col">
           <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
             <div className="flex items-center gap-2">
               <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>

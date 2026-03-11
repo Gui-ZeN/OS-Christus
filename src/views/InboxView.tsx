@@ -1388,12 +1388,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[88vw] max-w-96 md:w-[20rem] xl:w-[22rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-4 bg-gradient-to-b from-roman-bg to-roman-surface">
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 w-[88vw] max-w-96 md:w-[18.5rem] xl:w-[20rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-b from-roman-bg to-roman-surface">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-[18px] font-semibold tracking-wide text-roman-text-main">Caixa de Entrada</h2>
+                <h2 className="font-serif text-[17px] font-semibold tracking-wide text-roman-text-main">Caixa de Entrada</h2>
                 <ChevronDown size={16} className="text-roman-text-sub" />
               </div>
               <p className="text-xs text-roman-text-sub mt-1">Responsável atual: {displayActor}</p>
@@ -1417,15 +1417,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-3">
-            <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
               <div className="text-[10px] uppercase tracking-widest text-amber-700">Novas</div>
               <div className="text-lg font-semibold text-amber-900">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
             </div>
-            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+            <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Orçamento</div>
               <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length}</div>
             </div>
-            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+            <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Execução</div>
               <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length}</div>
             </div>
@@ -1548,7 +1548,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         ) : (
           <>
         {/* Top Navigation */}
-        <header className="h-12 bg-roman-surface border-b border-roman-border flex items-center px-2">
+        <header className="h-11 bg-roman-surface border-b border-roman-border flex items-center px-2">
           <div className="md:hidden flex h-full items-center gap-2 px-2">
             <button
               onClick={() => {
@@ -1577,14 +1577,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </button>
           </div>
         <div className="hidden md:flex h-full">
-            <div className="h-full px-4 border-r border-roman-border flex items-center gap-2 bg-roman-bg border-t-2 border-t-roman-primary font-medium">
+            <div className="h-full px-3 border-r border-roman-border flex items-center gap-2 bg-roman-bg border-t-2 border-t-roman-primary font-medium">
               <span className="w-2 h-2 rounded-full bg-roman-primary"></span>
-              <span className="font-serif italic text-roman-text-sub mr-1">#{activeTicket.id}</span>
+              <span className="font-serif italic text-roman-text-sub mr-1 text-[12px]">#{activeTicket.id}</span>
               {activeTicket.subject.length > 20
                 ? `${activeTicket.subject.substring(0, 20)}…`
                 : activeTicket.subject}
             </div>
-            <button onClick={() => navigateTo('public-form')} className="h-full px-4 border-r border-roman-border flex items-center gap-2 hover:bg-roman-bg cursor-pointer text-roman-text-sub">
+            <button onClick={() => navigateTo('public-form')} className="h-full px-3 border-r border-roman-border flex items-center gap-2 hover:bg-roman-bg cursor-pointer text-roman-text-sub">
               <Plus size={16} />
               <span className="font-serif">Nova OS</span>
             </button>
@@ -1604,19 +1604,24 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           <div className="flex-1 flex flex-col bg-roman-bg overflow-y-auto">
 
             {/* Ticket Header */}
-            <div className="bg-roman-surface p-6 border-b border-roman-border">
-              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="bg-roman-surface px-4 py-4 md:px-5 md:py-5 border-b border-roman-border">
+              <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1 text-[11px] font-medium text-roman-text-sub">
+                    <span className="rounded-full border border-roman-border bg-roman-bg px-2.5 py-1 text-[10px] font-medium text-roman-text-sub">
                       {activeTicket.id}
                     </span>
                     <StatusBadge status={activeTicket.status} />
-                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1 text-[11px] text-roman-text-sub">
+                    <span className="rounded-full border border-roman-border bg-roman-bg px-2.5 py-1 text-[10px] text-roman-text-sub">
                       {getTicketSiteLabel(activeTicket, catalogSites)}
                     </span>
+                    {activeTicket.priority ? (
+                      <span className="rounded-full border border-roman-border bg-roman-bg px-2.5 py-1 text-[10px] text-roman-text-sub">
+                        {activeTicket.priority}
+                      </span>
+                    ) : null}
                   </div>
-                  <h1 className="text-3xl font-serif font-medium text-roman-text-main">{activeTicket.subject}</h1>
+                  <h1 className="text-[2rem] leading-tight font-serif font-medium text-roman-text-main">{activeTicket.subject}</h1>
                 </div>
                 <div className="relative">
                   <button
@@ -1664,7 +1669,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-roman-text-sub font-serif italic text-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-roman-text-sub font-serif italic text-[13px]">
                 <span>via Formulário do Sistema</span>
                 <span>{formatDateTimeSafe(activeTicket.time)}</span>
                 <span>{getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)}</span>
@@ -1699,16 +1704,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
-            <div className="p-6 space-y-6 flex-1">
+            <div className="p-4 md:p-5 space-y-5 flex-1">
               {[...activeTicket.history]
                 .sort((a, b) => a.time.getTime() - b.time.getTime())
                 .map((item, index) => {
                   if (item.type === 'system') {
                     return (
                       <div key={index} className="flex justify-center">
-                        <div className="max-w-[82%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1.5 text-roman-text-sub">
+                        <div className="max-w-[82%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub">
                           <div className="flex items-center justify-center gap-2 text-center">
-                            <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[11px]">
+                            <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[10px] md:text-[11px]">
                               <Clock size={11} />
                               <span className="truncate">{item.text}</span>
                             </div>
@@ -1874,9 +1879,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[84vw] max-w-80 md:w-[17.5rem] xl:w-[18.5rem] bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
-            <div className="h-12 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
-              <span>Dados da OS</span>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 w-[84vw] max-w-80 md:w-[16rem] xl:w-[17rem] bg-roman-surface border-l border-roman-border flex flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+            <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
+              <span>Painel da OS</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1888,14 +1893,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div className="p-3 space-y-3 overflow-y-auto">
+            <div className="p-3 space-y-2.5 overflow-y-auto">
               <PropertyField label="Status Atual" value={activeTicket.status} highlight />
 
               {/* PUBLIC LINK BUTTON */}
               <div className="flex gap-2">
                 <button
                   onClick={handleCopyLink}
-                  className="flex-1 flex items-center justify-center px-3 py-2 bg-roman-bg border border-roman-border rounded-sm hover:border-roman-primary/50 transition-colors group gap-2 text-roman-text-main font-medium text-[13px]"
+                  className="flex-1 flex items-center justify-center px-3 py-2 bg-roman-bg border border-roman-border rounded-xl hover:border-roman-primary/50 transition-colors group gap-2 text-roman-text-main font-medium text-[13px]"
                   title="Copiar link seguro para o solicitante"
                 >
                   <Copy size={14} className="text-roman-text-sub group-hover:text-roman-primary" />
@@ -1903,22 +1908,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
                 <button
                   onClick={handleOpenTracking}
-                  className="px-3 py-2 bg-roman-bg border border-roman-border rounded-sm hover:border-roman-primary/50 transition-colors group text-roman-text-sub hover:text-roman-primary"
+                  className="px-3 py-2 bg-roman-bg border border-roman-border rounded-xl hover:border-roman-primary/50 transition-colors group text-roman-text-sub hover:text-roman-primary"
                   title="Visualizar como solicitante"
                 >
                   <ExternalLink size={14} />
                 </button>
               </div>
 
-              <section className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3">
+              <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <button
                   type="button"
                   onClick={() => setSidebarSections(prev => ({ ...prev, classification: !prev.classification }))}
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação</div>
-                    <div className="mt-1 text-xs text-roman-text-sub">Estrutura técnica e localização da OS.</div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Estrutura técnica e localização.</div>
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.classification ? 'rotate-180' : ''}`} />
                 </button>
@@ -1969,22 +1974,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
               </section>
 
-              <section className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3">
+              <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <button
                   type="button"
                   onClick={() => setSidebarSections(prev => ({ ...prev, triage: !prev.triage }))}
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Triagem</div>
-                    <div className="mt-1 text-xs text-roman-text-sub">Defina equipe, urgência e aceite inicial da solicitação.</div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Triagem</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Equipe, urgência e aceite inicial.</div>
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.triage ? 'rotate-180' : ''}`} />
                 </button>
                 {sidebarSections.triage && (
                   <div className="mt-3 space-y-3">
                 {activeTicket.status === TICKET_STATUS.NEW && (
-                  <div className="mb-4 rounded-sm border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-3">
+                        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-3">
                     <div>
                       <div className="text-[10px] font-serif uppercase tracking-widest text-amber-700">Triagem Inicial</div>
                       <div className="mt-1 font-medium">Defina se a OS será aceita, quem executa e o grau de urgência.</div>
@@ -2065,7 +2070,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                   <button
                     onClick={() => setShowQuotesModal(true)}
-                    className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
+                    className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
                   >
                     <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
                     Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
@@ -2087,7 +2092,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   >
                     <div>
                       <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Execução</div>
-                      <div className="mt-1 text-xs text-roman-text-sub">Acompanhe preliminares, andamento físico e marcos financeiros.</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Preliminares, andamento físico e marcos.</div>
                     </div>
                     <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.execution ? 'rotate-180' : ''}`} />
                   </button>

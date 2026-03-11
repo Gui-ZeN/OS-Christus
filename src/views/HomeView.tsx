@@ -422,9 +422,10 @@ export function HomeView() {
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-6">
-          <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Olá, {greetingName}</h1>
-          <p className="text-roman-text-sub font-serif italic">
+        <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm">
+          <div className="text-[10px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">Painel operacional</div>
+          <h1 className="mt-2 text-[2rem] font-serif font-medium text-roman-text-main">Olá, {greetingName}</h1>
+          <p className="mt-2 text-sm text-roman-text-sub font-serif italic">
             {isExecutive
               ? 'Dashboard executivo por região e sede, com foco em decisão, custo, pagamento e risco operacional.'
               : isSupervisor
@@ -466,7 +467,7 @@ export function HomeView() {
             </select>
           </div>
         ) : (
-          <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
+          <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub shadow-sm">
             {isSupervisor ? (
               <>
                 <span className="font-medium text-roman-text-main">Escopo visível:</span>{' '}
@@ -484,17 +485,17 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-          <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => openInboxWithStatus([TICKET_STATUS.NEW])} />
-          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} onClick={() => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET])} />
-          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
-          <StatCard title="OS Concluídas" value={String(stats.encerradas)} onClick={() => openInboxWithStatus([TICKET_STATUS.CLOSED])} />
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+          <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={() => openInboxWithStatus([TICKET_STATUS.NEW])} />
+          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={() => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET])} />
+          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente" onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
+          <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={() => openInboxWithStatus([TICKET_STATUS.CLOSED])} />
         </div>
 
         {!isExecutive && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
             {isSupervisor && (
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
+              <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
                   <h2 className="font-serif text-lg font-medium text-roman-text-main">Resumo da Supervisão</h2>
                   <Building2 size={16} className="text-roman-text-sub" />
@@ -563,7 +564,7 @@ export function HomeView() {
               </div>
             )}
 
-            <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
+            <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
                 <h2 className="font-serif text-lg font-medium text-roman-text-main">
                   {isSupervisor ? 'Validações e próximos passos' : 'Acompanhamento operacional'}
@@ -611,7 +612,7 @@ export function HomeView() {
         )}
 
         {isSupervisor && (
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-5 mb-6">
+          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 mb-5 shadow-sm">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">OS da Supervisão</h2>
               <Users size={16} className="text-roman-text-sub" />
@@ -646,20 +647,20 @@ export function HomeView() {
         )}
 
         {isExecutive && (
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+            <div className="border border-roman-border rounded-2xl bg-roman-surface px-4 py-4 shadow-sm">
               <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Contrato no recorte</div>
               <div className="text-2xl font-serif text-roman-text-main">{formatCurrency(executiveFinancialSummary.contracted)}</div>
             </div>
-            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+            <div className="border border-roman-border rounded-2xl bg-roman-surface px-4 py-4 shadow-sm">
               <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Previsto para pagar</div>
               <div className="text-2xl font-serif text-roman-text-main">{formatCurrency(executiveFinancialSummary.planned)}</div>
             </div>
-            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+            <div className="border border-roman-border rounded-2xl bg-roman-surface px-4 py-4 shadow-sm">
               <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Pago</div>
               <div className="text-2xl font-serif text-green-800">{formatCurrency(executiveFinancialSummary.paid)}</div>
             </div>
-            <div className="border border-roman-border rounded-sm bg-roman-surface px-5 py-4">
+            <div className="border border-roman-border rounded-2xl bg-roman-surface px-4 py-4 shadow-sm">
               <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Risco no recorte</div>
               <div className="text-2xl font-serif text-red-700">{stats.slaVencido + stats.aguardandoPagamento}</div>
               <div className="text-xs text-roman-text-sub mt-1">{stats.slaVencido} SLA vencido • {stats.aguardandoPagamento} aguardando pagamento</div>
@@ -667,8 +668,8 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-          <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-5">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-5">
+          <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">
                 {selectedRegion === 'all' ? 'Dashboard por Região' : 'Dashboard por Sede'}
@@ -715,7 +716,7 @@ export function HomeView() {
             )}
           </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
+          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Ações Rápidas</h2>
             <div className="space-y-3">
               <button onClick={() => navigateTo('public-form')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
@@ -759,8 +760,8 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 bg-roman-surface border border-roman-border rounded-sm p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+          <div className="lg:col-span-2 bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Atividade Recente</h2>
             <div className="space-y-4">
               {recentActivity.length === 0 ? (
@@ -778,7 +779,7 @@ export function HomeView() {
             </div>
           </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
+          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">Fila Executiva</h2>
               <AlertTriangle size={16} className="text-roman-text-sub" />
@@ -808,8 +809,8 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados Críticos</h2>
               <AlertTriangle size={16} className="text-roman-text-sub" />
@@ -845,7 +846,7 @@ export function HomeView() {
             )}
           </div>
 
-          <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
+          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
               <h2 className="font-serif text-lg font-medium text-roman-text-main">Chamados do Recorte</h2>
               <Building2 size={16} className="text-roman-text-sub" />
