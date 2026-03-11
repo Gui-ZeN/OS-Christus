@@ -1416,16 +1416,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
+          <div className="mt-3 grid grid-cols-3 items-stretch gap-2">
+            <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
               <div className="text-[10px] uppercase tracking-widest text-amber-700">Novas</div>
               <div className="text-lg font-semibold text-amber-900">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
             </div>
-            <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
+            <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Orçamento</div>
               <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length}</div>
             </div>
-            <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
+            <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Execução</div>
               <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length}</div>
             </div>
