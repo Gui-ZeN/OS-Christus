@@ -102,6 +102,17 @@ export function HomeView() {
       type: [],
     });
 
+  const openInboxWithStatus = (statuses: string[]) => {
+    setInboxFilter({
+      status: statuses,
+      priority: [],
+      region: [],
+      site: [],
+      type: [],
+    });
+    navigateTo('inbox');
+  };
+
   const openTicketWorkspace = (ticketId: string, destination: 'inbox' | 'approvals' | 'finance' = 'inbox') => {
     setActiveTicketId(ticketId);
     if (destination === 'inbox') {
@@ -474,10 +485,10 @@ export function HomeView() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => navigateTo('inbox')} />
-          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} />
+          <StatCard title="Novas OS" value={String(stats.novas)} highlight onClick={() => openInboxWithStatus([TICKET_STATUS.NEW])} />
+          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} onClick={() => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET])} />
           <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
-          <StatCard title="OS Concluídas" value={String(stats.encerradas)} />
+          <StatCard title="OS Concluídas" value={String(stats.encerradas)} onClick={() => openInboxWithStatus([TICKET_STATUS.CLOSED])} />
         </div>
 
         {!isExecutive && (
@@ -707,7 +718,7 @@ export function HomeView() {
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Ações Rápidas</h2>
             <div className="space-y-3">
-              <button onClick={() => navigateTo('inbox')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
+              <button onClick={() => navigateTo('public-form')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
                 <Plus size={18} className="text-roman-primary" />
                 <span className="font-medium">Registrar Nova OS</span>
               </button>
