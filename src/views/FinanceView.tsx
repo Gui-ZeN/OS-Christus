@@ -977,22 +977,21 @@ export function FinanceView() {
           <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
         </header>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-2xl border border-roman-border bg-roman-surface p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Fluxos financeiros</div>
-            <div className="mt-2 text-2xl font-semibold text-roman-text-main">{financeSummary.tickets}</div>
-          </div>
-          <div className="rounded-2xl border border-roman-border bg-roman-surface p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Previsto</div>
-            <div className="mt-2 text-xl font-semibold text-roman-text-main">{formatCurrency(financeSummary.planned)}</div>
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Status financeiro</div>
+            <div className="mt-2 text-lg font-semibold text-roman-text-main">{financeSummary.tickets} OS em acompanhamento</div>
+            <div className="mt-2 text-xs text-roman-text-sub">Pagas: {historicalFinanceTickets.length} • Em aberto: {openFinanceTickets.length}</div>
           </div>
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-emerald-700">Pago</div>
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-emerald-700">Pago até agora</div>
             <div className="mt-2 text-xl font-semibold text-emerald-900">{formatCurrency(financeSummary.paid)}</div>
+            <div className="mt-2 text-xs text-emerald-800/80">Previsto total: {formatCurrency(financeSummary.planned)}</div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-amber-700">Saldo a liberar</div>
             <div className="mt-2 text-xl font-semibold text-amber-900">{formatCurrency(financeSummary.remaining)}</div>
+            <div className="mt-2 text-xs text-amber-800/80">Próximo passo: liberar ou quitar parcelas pendentes</div>
           </div>
         </div>
 
@@ -1566,17 +1565,33 @@ export function FinanceView() {
                           PDF
                         </button>
                       </div>
-                      <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
-                        <div className="font-medium text-roman-text-main mb-2">Resumo financeiro</div>
-                        <div>Total do contrato: {contractValue}</div>
-                        <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
-                        <div>Pago até agora: {formatCurrency(paidValue)}</div>
-                        <div>Saldo pendente: {formatCurrency(remainingValue)}</div>
-                        <div>Classificação: {ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
-                        <div>Laudos anexados: {closureDocuments.length}</div>
-                        <div>Parcelas pendentes: {pendingInstallments.length}</div>
-                        <div>Medições registradas: {measurements.length}</div>
-                        <div>Última atualização: {formatDateTimeSafe(ticket.time)}</div>
+                      <div className="rounded-xl border border-roman-border bg-roman-bg px-4 py-3">
+                        <div className="font-medium text-roman-text-main mb-3">Resumo financeiro</div>
+                        <div className="grid grid-cols-1 gap-2">
+                          <div className="rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Contrato</div>
+                            <div className="mt-1 text-sm font-semibold text-roman-text-main">{contractValue}</div>
+                          </div>
+                          <div className="rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Pago</div>
+                            <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(paidValue)}</div>
+                          </div>
+                          <div className="rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Saldo pendente</div>
+                            <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(remainingValue)}</div>
+                          </div>
+                        </div>
+                        <details className="mt-3 rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
+                          <summary className="cursor-pointer text-xs font-medium text-roman-text-main">Ver mais detalhes</summary>
+                          <div className="mt-3 space-y-1.5 text-xs text-roman-text-sub">
+                            <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
+                            <div>Classificação: {ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
+                            <div>Laudos anexados: {closureDocuments.length}</div>
+                            <div>Parcelas pendentes: {pendingInstallments.length}</div>
+                            <div>Medições registradas: {measurements.length}</div>
+                            <div>Última atualização: {formatDateTimeSafe(ticket.time)}</div>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   </aside>
