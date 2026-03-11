@@ -82,33 +82,30 @@ function addMonths(date: Date, months: number) {
   return next;
 }
 
+type FinanceTab = 'execution' | 'financial' | 'guarantee' | 'documents';
+
 function FinanceSection({
   title,
   description,
   icon,
-  defaultOpen = false,
   children,
 }: {
   title: string;
   description?: string;
   icon?: React.ReactNode;
-  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <details open={defaultOpen} className="rounded-xl border border-roman-border bg-roman-bg/60">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-roman-text-main">
-            {icon}
-            <span>{title}</span>
-          </div>
-          {description ? <p className="mt-1 text-xs text-roman-text-sub">{description}</p> : null}
+    <section className="rounded-2xl border border-roman-border bg-roman-bg/60 p-4">
+      <div className="mb-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-roman-text-main">
+          {icon}
+          <span>{title}</span>
         </div>
-        <ChevronDown size={16} className="shrink-0 text-roman-text-sub" />
-      </summary>
-      <div className="border-t border-roman-border px-4 py-4">{children}</div>
-    </details>
+        {description ? <p className="mt-1 text-xs text-roman-text-sub">{description}</p> : null}
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -318,6 +315,8 @@ export function FinanceView() {
   const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
   const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
+  const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
+  const [summaryOpenByTicket, setSummaryOpenByTicket] = useState<Record<string, boolean>>({});
 
   if (!canAccess) {
     return (
@@ -480,6 +479,18 @@ export function FinanceView() {
       return next;
     });
   }, [financeSection, financeTickets]);
+
+  useEffect(() => {
+    setFinanceTabs(prev => {
+      const next = { ...prev };
+      for (const entry of financeTickets) {
+        if (!(entry.ticket.id in next)) {
+          next[entry.ticket.id] = 'financial';
+        }
+      }
+      return next;
+    });
+  }, [financeTickets]);
 
   const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
     measurementDraftByTicket[ticketId] || {
@@ -977,21 +988,24 @@ export function FinanceView() {
           <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
         </header>
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mb-5 grid gap-3 xl:grid-cols-2">
           <div className="rounded-2xl border border-roman-border bg-roman-surface p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Status financeiro</div>
             <div className="mt-2 text-lg font-semibold text-roman-text-main">{financeSummary.tickets} OS em acompanhamento</div>
-            <div className="mt-2 text-xs text-roman-text-sub">Pagas: {historicalFinanceTickets.length} • Em aberto: {openFinanceTickets.length}</div>
-          </div>
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-emerald-700">Pago até agora</div>
-            <div className="mt-2 text-xl font-semibold text-emerald-900">{formatCurrency(financeSummary.paid)}</div>
-            <div className="mt-2 text-xs text-emerald-800/80">Previsto total: {formatCurrency(financeSummary.planned)}</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
+              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Em aberto: {openFinanceTickets.length}</div>
+              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Quitadas: {historicalFinanceTickets.length}</div>
+              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Pendências: {financeSummary.remaining > 0 ? 'Sim' : 'Não'}</div>
+            </div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-amber-700">Saldo a liberar</div>
-            <div className="mt-2 text-xl font-semibold text-amber-900">{formatCurrency(financeSummary.remaining)}</div>
-            <div className="mt-2 text-xs text-amber-800/80">Próximo passo: liberar ou quitar parcelas pendentes</div>
+            <div className="mt-2 text-lg font-semibold text-amber-900">{formatCurrency(financeSummary.remaining)}</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-amber-800/80">
+              <div className="rounded-xl border border-amber-200 bg-white/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
+              <div className="rounded-xl border border-amber-200 bg-white/70 px-3 py-2">Pago: {formatCurrency(financeSummary.paid)}</div>
+              <div className="rounded-xl border border-amber-200 bg-white/70 px-3 py-2">Ação: liberar ou quitar parcelas</div>
+            </div>
           </div>
         </div>
 
@@ -1028,6 +1042,15 @@ export function FinanceView() {
             const progressPercent = Math.min(100, Math.max(0, Number(ticket.executionProgress?.currentPercent || 0)));
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.progressPercent);
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
+            const activeTab = financeTabs[ticket.id] || 'financial';
+            const isSummaryOpen = summaryOpenByTicket[ticket.id] ?? false;
+            const nextActionLabel = pendingInstallments.length === 0
+              ? 'Fluxo financeiro concluído'
+              : nextPendingInstallment?.status === 'approved'
+                ? 'Confirmar parcela liberada'
+                : nextMilestonePercent != null
+                  ? `Atualizar andamento até ${nextMilestonePercent}%`
+                  : 'Revisar checklist final';
 
             return (
               <div
@@ -1046,26 +1069,39 @@ export function FinanceView() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
-                  <div className="text-xs text-roman-text-sub">
-                    {pendingInstallments.length > 0
-                      ? `${pendingInstallments.length} parcela(s) pendente(s)`
-                      : 'Fluxo quitado'}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-roman-text-sub">
+                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1">
+                      {pendingInstallments.length > 0 ? `${pendingInstallments.length} parcela(s) pendente(s)` : 'Fluxo quitado'}
+                    </span>
+                    <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1">
+                      Próxima ação: {nextActionLabel}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setCollapsedTickets(prev => ({ ...prev, [ticket.id]: !isCollapsed }))}
-                    className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                  >
-                    <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-180'}`} />
-                    {isCollapsed ? 'Expandir' : 'Recolher'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSummaryOpenByTicket(prev => ({ ...prev, [ticket.id]: !isSummaryOpen }))}
+                      className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                    >
+                      {isSummaryOpen ? 'Ocultar resumo' : 'Ver resumo'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedTickets(prev => ({ ...prev, [ticket.id]: !isCollapsed }))}
+                      className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                    >
+                      <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-180'}`} />
+                      {isCollapsed ? 'Expandir' : 'Recolher'}
+                    </button>
+                  </div>
                 </div>
 
                 {!isCollapsed && (
-                <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex flex-col gap-6 xl:flex-row">
                   <div className="flex-1 space-y-4">
                     <div>
+                      <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Financeiro &gt; {ticket.id}</div>
                       <div className="flex flex-wrap items-center gap-3 mb-2">
                         <span className="text-roman-primary font-serif italic text-sm">{ticket.id}</span>
                         <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">{ticket.status}</span>
@@ -1090,27 +1126,66 @@ export function FinanceView() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor contratado</div>
-                        <div className="text-lg font-serif text-roman-text-main">{contractValue}</div>
-                      </div>
-                      <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto no plano</div>
-                        <div className="text-lg font-serif text-roman-text-main">{formatCurrency(plannedValue)}</div>
-                      </div>
-                      <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Andamento / liberado</div>
-                        <div className="text-lg font-serif text-roman-text-main">{progressPercent}% / {totalReleased}%</div>
-                      </div>
-                      <div className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Próximo marco</div>
-                        <div className="text-lg font-serif text-roman-text-main">
-                          {nextMilestonePercent != null ? `${nextMilestonePercent}%` : nextPendingInstallment?.label || 'Nenhum'}
+                    <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          {([
+                            ['execution', 'Execução'],
+                            ['financial', 'Financeiro'],
+                            ['guarantee', 'Garantia'],
+                            ['documents', 'Documentos'],
+                          ] as [FinanceTab, string][]).map(([tab, label]) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setFinanceTabs(prev => ({ ...prev, [ticket.id]: tab }))}
+                              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                                activeTab === tab
+                                  ? 'bg-roman-sidebar text-white'
+                                  : 'border border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openAttachment(`Nota Fiscal: ${vendor}`, 'pdf')}
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                          >
+                            <FileText size={15} /> Ver NF / Recibo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExportClosureHtml(ticket, contract, measurements, payments, plannedValue, paidValue)}
+                            className="rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                          >
+                            HTML
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintClosure(ticket, contract, measurements, payments, plannedValue, paidValue)}
+                            className="rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                          >
+                            PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFinanceTabs(prev => ({ ...prev, [ticket.id]: 'execution' }));
+                              setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }));
+                            }}
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-roman-primary/30 bg-roman-primary/5 px-3 py-2 text-sm font-medium text-roman-primary transition-colors hover:bg-roman-primary/10"
+                          >
+                            <PlusCircle size={15} /> Atualizar andamento
+                          </button>
                         </div>
                       </div>
                     </div>
 
+                    {activeTab === 'execution' && (
+                      <>
                     <FinanceSection
                       title="Andamento da obra"
                       description="Execução acumulada e marcos liberados."
@@ -1147,37 +1222,9 @@ export function FinanceView() {
                     </FinanceSection>
 
                     <FinanceSection
-                      title="Previsto x pago"
-                      description="Conciliação entre contrato, plano e pagamentos."
-                      icon={<DollarSign size={15} />}
-                    >
-                      <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${remainingValue > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                        {remainingValue > 0 ? 'Saldo pendente' : 'Quitado'}
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
-                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
-                        </div>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Saldo a pagar</div>
-                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(remainingValue)}</div>
-                        </div>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
-                          <div className="text-lg font-serif text-roman-text-main">
-                            {totalValue > 0 ? `${Math.min(100, Math.round((paidValue / totalValue) * 100))}%` : '0%'}
-                          </div>
-                        </div>
-                      </div>
-                    </FinanceSection>
-
-                    <FinanceSection
                       title="Atualizações de andamento"
                       description="Cada avanço recalcula as parcelas liberadas."
                       icon={<PlusCircle size={15} />}
-                      defaultOpen={measurements.length === 0}
                     >
                       <div className="mb-3 flex items-center justify-end">
                         <button
@@ -1309,12 +1356,41 @@ export function FinanceView() {
                         </div>
                       </FinanceSection>
                     )}
+                      </>
+                    )}
 
+                    {activeTab === 'financial' && (
+                      <>
+                    <FinanceSection
+                      title="Previsto x pago"
+                      description="Conciliação entre contrato, plano e pagamentos."
+                      icon={<DollarSign size={15} />}
+                    >
+                      <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${remainingValue > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                        {remainingValue > 0 ? 'Saldo pendente' : 'Quitado'}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
+                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
+                        </div>
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Saldo a pagar</div>
+                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(remainingValue)}</div>
+                        </div>
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
+                          <div className="text-lg font-serif text-roman-text-main">
+                            {totalValue > 0 ? `${Math.min(100, Math.round((paidValue / totalValue) * 100))}%` : '0%'}
+                          </div>
+                        </div>
+                      </div>
+                    </FinanceSection>
                     <FinanceSection
                       title="Fluxo de pagamento"
                       description="Parcelas liberadas conforme os marcos de execução."
                       icon={<DollarSign size={15} />}
-                      defaultOpen
                     >
                       <div className="mb-3 flex items-center justify-between">
                         <div />
@@ -1393,12 +1469,14 @@ export function FinanceView() {
                         </div>
                       )}
                     </FinanceSection>
+                      </>
+                    )}
 
+                    {activeTab === 'guarantee' && (
                     <FinanceSection
                       title="Encerramento e garantia"
                       description="Checklist final, laudos e período de garantia."
                       icon={<CheckCircle size={15} />}
-                      defaultOpen={ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || ticket.status === TICKET_STATUS.WAITING_PAYMENT}
                     >
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -1474,65 +1552,6 @@ export function FinanceView() {
                         />
                       </div>
 
-                      <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-4 py-4">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <div>
-                            <div className="text-sm font-semibold text-roman-text-main">Laudos e anexos de encerramento</div>
-                            <div className="text-xs text-roman-text-sub mt-1">Envie PDF para laudos e imagens para evidências fotográficas.</div>
-                          </div>
-                          <label className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
-                            {uploadingTicketId === ticket.id ? 'Enviando...' : 'Anexar documento'}
-                            <input
-                              type="file"
-                              accept=".pdf,image/*"
-                              className="hidden"
-                              disabled={uploadingTicketId === ticket.id}
-                              onChange={event => {
-                                const file = event.target.files?.[0] || null;
-                                void handleClosureDocumentUpload(ticket.id, file);
-                                event.currentTarget.value = '';
-                              }}
-                            />
-                          </label>
-                        </div>
-
-                        {closureDocuments.length === 0 ? (
-                          <div className="mt-3 text-sm text-roman-text-sub font-serif italic">Nenhum laudo ou anexo vinculado ao encerramento.</div>
-                        ) : (
-                          <div className="mt-3 space-y-2">
-                            {closureDocuments.map(document => (
-                              <div key={document.id} className="border border-roman-border rounded-sm bg-roman-bg px-3 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                                <div>
-                                  <div className="text-sm font-medium text-roman-text-main">{document.name}</div>
-                                  <div className="text-xs text-roman-text-sub">
-                                    {document.category === 'closure_report' ? 'Laudo / PDF' : 'Evidência'} | {document.size ? `${Math.round(document.size / 1024)} KB` : 'tamanho não informado'}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs text-roman-text-sub">{formatDateLabel(document.uploadedAt)}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => window.open(document.url, '_blank', 'noopener,noreferrer')}
-                                    className="text-sm font-medium text-roman-primary hover:underline"
-                                  >
-                                    Abrir
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleClosureDocumentRemove(ticket.id, document.id)}
-                                    disabled={uploadingTicketId === ticket.id}
-                                    className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
-                                  >
-                                    <Trash2 size={14} />
-                                    Remover
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
                       {ticket.guarantee && (
                         <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
                           <div className="font-medium text-roman-text-main mb-1">Garantia atual</div>
@@ -1542,29 +1561,78 @@ export function FinanceView() {
                         </div>
                       )}
                     </FinanceSection>
+                    )}
+
+                    {activeTab === 'documents' && (
+                      <FinanceSection
+                        title="Documentos do encerramento"
+                        description="Laudos, evidências e anexos da OS."
+                        icon={<FileText size={15} />}
+                      >
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-roman-text-main">Laudos e anexos de encerramento</div>
+                              <div className="text-xs text-roman-text-sub mt-1">Envie PDF para laudos e imagens para evidências fotográficas.</div>
+                            </div>
+                            <label className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
+                              {uploadingTicketId === ticket.id ? 'Enviando...' : 'Anexar documento'}
+                              <input
+                                type="file"
+                                accept=".pdf,image/*"
+                                className="hidden"
+                                disabled={uploadingTicketId === ticket.id}
+                                onChange={event => {
+                                  const file = event.target.files?.[0] || null;
+                                  void handleClosureDocumentUpload(ticket.id, file);
+                                  event.currentTarget.value = '';
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {closureDocuments.length === 0 ? (
+                            <div className="mt-3 text-sm text-roman-text-sub font-serif italic">Nenhum laudo ou anexo vinculado ao encerramento.</div>
+                          ) : (
+                            <div className="mt-3 space-y-2">
+                              {closureDocuments.map(document => (
+                                <div key={document.id} className="border border-roman-border rounded-sm bg-roman-bg px-3 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                  <div>
+                                    <div className="text-sm font-medium text-roman-text-main">{document.name}</div>
+                                    <div className="text-xs text-roman-text-sub">
+                                      {document.category === 'closure_report' ? 'Laudo / PDF' : 'Evidência'} | {document.size ? `${Math.round(document.size / 1024)} KB` : 'tamanho não informado'}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-roman-text-sub">{formatDateLabel(document.uploadedAt)}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => window.open(document.url, '_blank', 'noopener,noreferrer')}
+                                      className="text-sm font-medium text-roman-primary hover:underline"
+                                    >
+                                      Abrir
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleClosureDocumentRemove(ticket.id, document.id)}
+                                      disabled={uploadingTicketId === ticket.id}
+                                      className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                                    >
+                                      <Trash2 size={14} />
+                                      Remover
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </FinanceSection>
+                    )}
                   </div>
 
-                  <aside className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-roman-border pt-4 lg:pt-0 lg:pl-6">
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => openAttachment(`Nota Fiscal: ${vendor}`, 'pdf')} className="flex-1 min-w-[11rem] flex items-center justify-center gap-2 text-roman-primary border border-roman-border rounded-sm py-2 hover:border-roman-primary transition-colors text-sm font-medium">
-                          <FileText size={16} /> Ver NF / Recibo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExportClosureHtml(ticket, contract, measurements, payments, plannedValue, paidValue)}
-                          className="border border-roman-border rounded-sm px-3 py-2 text-xs font-medium text-roman-text-main hover:border-roman-primary transition-colors"
-                        >
-                          HTML
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePrintClosure(ticket, contract, measurements, payments, plannedValue, paidValue)}
-                          className="border border-roman-border rounded-sm px-3 py-2 text-xs font-medium text-roman-text-main hover:border-roman-primary transition-colors"
-                        >
-                          PDF
-                        </button>
-                      </div>
+                  {isSummaryOpen && (
+                    <aside className="w-full xl:w-72 border-t xl:border-t-0 xl:border-l border-roman-border pt-4 xl:pt-0 xl:pl-6">
                       <div className="rounded-xl border border-roman-border bg-roman-bg px-4 py-3">
                         <div className="font-medium text-roman-text-main mb-3">Resumo financeiro</div>
                         <div className="grid grid-cols-1 gap-2">
@@ -1581,20 +1649,17 @@ export function FinanceView() {
                             <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(remainingValue)}</div>
                           </div>
                         </div>
-                        <details className="mt-3 rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
-                          <summary className="cursor-pointer text-xs font-medium text-roman-text-main">Ver mais detalhes</summary>
-                          <div className="mt-3 space-y-1.5 text-xs text-roman-text-sub">
-                            <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
-                            <div>Classificação: {ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
-                            <div>Laudos anexados: {closureDocuments.length}</div>
-                            <div>Parcelas pendentes: {pendingInstallments.length}</div>
-                            <div>Medições registradas: {measurements.length}</div>
-                            <div>Última atualização: {formatDateTimeSafe(ticket.time)}</div>
-                          </div>
-                        </details>
+                        <div className="mt-3 space-y-1.5 rounded-lg border border-roman-border bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
+                          <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
+                          <div>Classificação: {ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
+                          <div>Laudos anexados: {closureDocuments.length}</div>
+                          <div>Parcelas pendentes: {pendingInstallments.length}</div>
+                          <div>Medições registradas: {measurements.length}</div>
+                          <div>Última atualização: {formatDateTimeSafe(ticket.time)}</div>
+                        </div>
                       </div>
-                    </div>
-                  </aside>
+                    </aside>
+                  )}
                 </div>
                 )}
               </div>
