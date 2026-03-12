@@ -42,7 +42,18 @@ function parseNewTicketSubject(text) {
 }
 
 function displayNameFromEmail(raw) {
-  const email = firstEmail(raw);
+  const input = decodeMimeHeader(String(raw || '')).trim();
+  if (!input) return 'Solicitante por e-mail';
+
+  const angleMatch = input.match(/^\s*"?([^"<]+?)"?\s*<[^>]+>\s*$/);
+  const bareNameMatch = input.match(/^\s*"?([^"<@]+?)"?\s*$/);
+
+  const candidate = (angleMatch?.[1] || bareNameMatch?.[1] || '').trim();
+  if (candidate && !candidate.includes('@')) {
+    return candidate.replace(/^"+|"+$/g, '').trim();
+  }
+
+  const email = firstEmail(input);
   if (!email) return 'Solicitante por e-mail';
   return email
     .split('@')[0]
@@ -80,7 +91,12 @@ function stripQuotedReply(value) {
   const text = String(value || '').replace(/\r\n/g, '\n').trim();
   if (!text) return '';
 
-  const markers = [/^\s*On .+ wrote:\s*$/im, /^\s*Em .+ escreveu:\s*$/im, /^\s*-----Original Message-----\s*$/im];
+  const markers = [
+    /^\s*On .+ wrote:?\s*$/im,
+    /^\s*Em .+ escreveu:?\s*$/im,
+    /^\s*-----Original Message-----\s*$/im,
+    /^\s*De:\s.+$/im,
+  ];
   let next = text;
 
   for (const marker of markers) {
@@ -93,7 +109,11 @@ function stripQuotedReply(value) {
 
   return next
     .split('\n')
-    .filter(line => !line.trim().startsWith('>'))
+    .filter(line => {
+      const normalized = line.trim();
+      if (!normalized.startsWith('>')) return true;
+      return false;
+    })
     .join('\n')
     .trim();
 }
