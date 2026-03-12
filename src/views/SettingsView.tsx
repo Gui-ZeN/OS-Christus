@@ -30,15 +30,9 @@ const DEFAULT_TEMPLATE: EmailTemplateSettings = {
   subject: '{{ticket.id}} - {{ticket.subject}}',
   body: `Olá {{requester.name}},
 
-Recebemos sua solicitação e a {{ticket.id}} já entrou na fila de triagem.
+Recebemos sua solicitação e ela já entrou na fila de triagem.
 
-Chamado
-{{ticket.subject}}
-
-Local
-{{ticket.sede}}
-
-{{tracking.url}}`,
+Sede: {{ticket.sede}}`,
 };
 
 const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
@@ -48,120 +42,56 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-Sua solicitação está em triagem com a equipe de manutenção.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+Sua solicitação está em triagem com a equipe de manutenção.`,
   },
   {
     trigger: 'EMAIL-PARECER-TECNICO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-O parecer técnico da {{ticket.id}} foi concluído e a solicitação seguiu para definição da solução.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+O parecer técnico foi concluído e a solicitação seguiu para definição da solução.`,
   },
   {
     trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.`,
   },
   {
     trigger: 'EMAIL-EM-APROVACAO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-Sua solicitação avançou para a etapa de aprovação.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+Sua solicitação avançou para a etapa de aprovação.`,
   },
   {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-Sua solicitação entrou em ações preliminares.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+Sua solicitação entrou em ações preliminares.`,
   },
   {
     trigger: 'EMAIL-EXECUCAO-INICIADA',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-A execução do serviço foi iniciada.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+A execução do serviço foi iniciada.`,
   },
   {
     trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-A equipe concluiu a execução da {{ticket.id}} e agora precisa da sua validação.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+A execução foi concluída e agora depende da sua validação para seguir com o encerramento.`,
   },
   {
     trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-Sua validação foi registrada e a solicitação entrou na etapa de pagamento e encerramento.
-
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-{{tracking.url}}`,
+Sua validação foi registrada. A OS seguiu para pagamento e encerramento.`,
   },
   {
     trigger: 'EMAIL-OS-ENCERRADA',
@@ -170,16 +100,7 @@ Status
 
 A {{ticket.id}} foi encerrada com sucesso.
 
-Chamado
-{{ticket.subject}}
-
-Status final
-{{ticket.status}}
-
-Garantia
-{{guarantee.summary}}
-
-{{tracking.url}}`,
+Garantia: {{guarantee.summary}}`,
   },
   {
     trigger: 'EMAIL-OS-CANCELADA',
@@ -188,27 +109,17 @@ Garantia
 
 A {{ticket.id}} foi cancelada.
 
-Chamado
-{{ticket.subject}}
-
-Status
-{{ticket.status}}
-
-Motivo
-{{message.body}}
-
-{{tracking.url}}`,
+Motivo:
+{{message.body}}`,
   },
   {
     trigger: 'EMAIL-NOVA-MENSAGEM',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-{{message.sender}} enviou uma nova mensagem sobre o chamado.
+{{message.sender}} enviou uma nova mensagem.
 
-{{message.body}}
-
-{{tracking.url}}`,
+{{message.body}}`,
   },
 ];
 const DEFAULT_DIGEST: DailyDigestSettings = {

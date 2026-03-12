@@ -136,11 +136,7 @@ export function buildTicketEmailTemplate({
   const stage = getStageMeta(trigger, status);
   const isCommunication = normalizeToken(trigger).includes('mensagem');
   const cleanedBody = stripSignature(bodyText);
-  const messageParts = [
-    intro || '',
-    cleanedBody || '',
-    !isCommunication && status ? `Status atual: ${status}` : '',
-  ].filter(Boolean);
+  const messageParts = [cleanedBody || intro || ''].filter(Boolean);
   const messageHtml = renderBodyText(messageParts.join('\n\n'));
   const fullLinkLabel = ctaUrl ? esc(ctaUrl) : '';
 
@@ -204,11 +200,9 @@ export function buildTicketEmailTemplate({
 
   const text = [
     title || stage.label,
-    intro || '',
-    '',
     `Ticket: ${ticketId || '-'}`,
-    !isCommunication && status ? `Status: ${status}` : '',
-    cleanedBody ? `\n${cleanedBody}` : '',
+    '',
+    cleanedBody || intro || '',
     '',
     ctaUrl ? `Link completo: ${ctaUrl}` : '',
   ]
