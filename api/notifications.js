@@ -1,6 +1,6 @@
 import { requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
@@ -64,14 +64,14 @@ export default async function handler(req, res) {
 
       if (action === 'markRead') {
         const id = String(body?.id || '').trim();
-        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatorio.' });
+        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
         await db.collection('notifications').doc(id).set({ read: true, updatedAt: new Date() }, { merge: true });
         return sendJson(res, 200, { ok: true });
       }
 
       if (action === 'dismiss') {
         const id = String(body?.id || '').trim();
-        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatorio.' });
+        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
         await db.collection('notifications').doc(id).delete();
         await writeAuditLog({
           actor,
@@ -92,12 +92,13 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { ok: true });
       }
 
-      return sendJson(res, 400, { ok: false, error: 'action invalida.' });
+      return sendJson(res, 400, { ok: false, error: 'Ação inválida.' });
     }
 
     res.setHeader('Allow', 'GET, POST');
-    return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha em notifications.' });
+    return sendError(res, error, 'Falha nas notificações.');
   }
 }
+

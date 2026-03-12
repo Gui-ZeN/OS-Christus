@@ -3,8 +3,8 @@ import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { parseInboundBody, readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
-import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
+import { HttpError, parseInboundBody, readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
 function sortTimeValue(value) {
@@ -183,7 +183,7 @@ async function deleteTicketCascade(db, ticketId) {
   const ticketRef = db.collection('tickets').doc(ticketId);
   const ticketSnap = await ticketRef.get();
   if (!ticketSnap.exists) {
-    throw new Error('Ticket não encontrado.');
+    throw new HttpError(404, 'Ticket não encontrado.');
   }
 
   const ticketData = ticketSnap.data() || {};
@@ -285,22 +285,7 @@ export default async function handler(req, res) {
       }
 
       const user = await requireAuthenticatedUser(req);
-
-      const snap = await col.get();
-      const tickets = snap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }));
-
-      if (user.role !== 'Admin' && user.role !== 'Diretor') {
-        const { regions, sites } = await readTerritoryCatalog(db);
-
-        return sendJson(res, 200, {
-          ok: true,
-          tickets: tickets
-            .filter(ticket => canUserAccessTicket(user, ticket, regions, sites))
-            .map(serializeTicketForApi)
-            .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time)),
-        });
-      }
+      const tickets = await readAccessibleTickets(db, user);
 
       return sendJson(
         res,
@@ -537,7 +522,7 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
     return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de tickets.' });
+    return sendError(res, error, 'Falha no endpoint de tickets.');
   }
 }
 

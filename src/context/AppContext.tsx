@@ -187,6 +187,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
   const [authResolved, setAuthResolved] = useState(!authEnabled);
   const [authorizationResolved, setAuthorizationResolved] = useState(!authEnabled);
+  const [pageVisible, setPageVisible] = useState(
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible'
+  );
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
@@ -240,6 +243,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void (async () => {
       unsubscribe = await subscribeToAuthState(user => {
         const nextEmail = user?.email?.trim().toLowerCase() || '';
+        setCurrentUser(previous =>
+          previous && previous.email?.trim().toLowerCase() === nextEmail ? previous : null
+        );
         setCurrentUserEmailState(nextEmail);
         setAuthorizationResolved(!nextEmail);
         setAuthResolved(true);
@@ -249,14 +255,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [authEnabled]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const handleVisibilityChange = () => {
+      setPageVisible(document.visibilityState === 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  useEffect(() => {
     void refreshTickets();
   }, [refreshTickets]);
 
+  const shouldPollOperationalData = useMemo(() => {
+    if (!authEnabled || !authResolved || !authorizationResolved || !currentUserEmail || !currentUser) {
+      return false;
+    }
+
+    if (!pageVisible) return false;
+
+    return ['home', 'inbox', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'].includes(currentView);
+  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, pageVisible]);
+
   useEffect(() => {
-    if (!currentUserEmail || !currentUser) return undefined;
-    const timer = setInterval(() => void refreshTickets(), 30000);
+    if (!shouldPollOperationalData) return undefined;
+    const timer = setInterval(() => void refreshTickets(), 120000);
     return () => clearInterval(timer);
-  }, [currentUser, currentUserEmail, refreshTickets]);
+  }, [refreshTickets, shouldPollOperationalData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -303,10 +328,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     })();
 
+    if (!shouldPollOperationalData) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = setInterval(() => {
+      void (async () => {
+        try {
+          const remote = await fetchNotifications();
+          if (!cancelled) {
+            setNotifications(remote);
+          }
+        } catch {
+          // Mantém o último estado válido quando a atualização falha.
+        }
+      })();
+    }, 180000);
+
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
-  }, [authEnabled, currentUser, currentUserEmail]);
+  }, [authEnabled, currentUser, currentUserEmail, shouldPollOperationalData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,6 +377,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
           if (!cancelled) {
+            if (currentUser?.email?.trim().toLowerCase() !== currentUserEmail) {
+              setCurrentUser(null);
+            }
             setAuthorizationResolved(true);
           }
           return;
@@ -348,7 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, authResolved, currentUserEmail]);
+  }, [authEnabled, authResolved, currentUser, currentUserEmail]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -447,7 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     runAutomations();
-    const interval = setInterval(runAutomations, 60000);
+    const interval = setInterval(runAutomations, 180000);
     return () => clearInterval(interval);
   }, []);
 

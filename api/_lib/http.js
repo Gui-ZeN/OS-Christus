@@ -1,10 +1,27 @@
 import { parse as parseQueryString } from 'node:querystring';
 import Busboy from 'busboy';
 
+export class HttpError extends Error {
+  constructor(statusCode, message) {
+    super(message);
+    this.name = 'HttpError';
+    this.statusCode = statusCode;
+  }
+}
+
 export function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(payload));
+}
+
+export function sendError(res, error, fallbackMessage = 'Falha interna do servidor.') {
+  const statusCode =
+    error instanceof HttpError && Number.isInteger(error.statusCode) ? error.statusCode : 500;
+  const message =
+    error instanceof Error && error.message ? error.message : fallbackMessage;
+
+  return sendJson(res, statusCode, { ok: false, error: message });
 }
 
 export function readActorFromHeaders(req) {

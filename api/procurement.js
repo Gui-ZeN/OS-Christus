@@ -1,8 +1,8 @@
 ﻿import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
-import { readProcurement, seedProcurementDefaults } from './_lib/procurement.js';
-import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
+import { HttpError, readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { readProcurement, readProcurementForTicketIds, seedProcurementDefaults } from './_lib/procurement.js';
+import { readAccessibleTickets } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
 const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
@@ -43,12 +43,12 @@ function isReviewActive(review) {
 async function ensureBudgetReviewLock(db, ticketId, reviewerName) {
   const ticketSnap = await db.collection('tickets').doc(ticketId).get();
   if (!ticketSnap.exists) {
-    throw new Error('Ticket não encontrado para revisão de orçamento.');
+    throw new HttpError(404, 'Ticket não encontrado para revisão de orçamento.');
   }
 
   const review = ticketSnap.data()?.viewingBy || null;
   if (review && isReviewActive(review) && normalizeKey(review.name) !== normalizeKey(reviewerName)) {
-    throw new Error(`${review.name} já está revisando este orçamento.`);
+    throw new HttpError(409, `${review.name} já está revisando este orçamento.`);
   }
 
   await ticketSnap.ref.set(
@@ -306,27 +306,13 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const user = await requireAuthenticatedUser(req);
-      let data = await readProcurement(db);
-
-      if (user.role !== 'Admin' && user.role !== 'Diretor') {
-        const [ticketsSnap, territory] = await Promise.all([
-          db.collection('tickets').get(),
-          readTerritoryCatalog(db),
-        ]);
-        const allowedTicketIds = new Set(
-          ticketsSnap.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites))
-            .map(ticket => ticket.id)
-        );
-
-        data = {
-          quotesByTicket: Object.fromEntries(Object.entries(data.quotesByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
-          contractsByTicket: Object.fromEntries(Object.entries(data.contractsByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
-          paymentsByTicket: Object.fromEntries(Object.entries(data.paymentsByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
-          measurementsByTicket: Object.fromEntries(Object.entries(data.measurementsByTicket).filter(([ticketId]) => allowedTicketIds.has(ticketId))),
-        };
-      }
+      const data =
+        user.role === 'Admin' || user.role === 'Diretor'
+          ? await readProcurement(db)
+          : await readProcurementForTicketIds(
+              db,
+              (await readAccessibleTickets(db, user)).map(ticket => ticket.id)
+            );
 
       return sendJson(res, 200, { ok: true, ...data });
     }
@@ -340,7 +326,7 @@ export default async function handler(req, res) {
       const classification = body?.classification || null;
 
       if (!ticketId || !type) {
-        return sendJson(res, 400, { ok: false, error: 'ticketId e type sÃ£o obrigatÃ³rios.' });
+        return sendJson(res, 400, { ok: false, error: 'ticketId e type são obrigatórios.' });
       }
 
       if (type === 'quotes') {
@@ -406,13 +392,13 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { ok: true, ...data });
       }
 
-      return sendJson(res, 400, { ok: false, error: 'type invÃ¡lido.' });
+      return sendJson(res, 400, { ok: false, error: 'type inválido.' });
     }
 
     res.setHeader('Allow', 'GET, POST');
-    return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no procurement.' });
+    return sendError(res, error, 'Falha no procurement.');
   }
 }
 

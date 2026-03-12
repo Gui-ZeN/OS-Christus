@@ -1,8 +1,8 @@
-import { requireAdminUser } from './_lib/authz.js';
+﻿import { requireAdminUser } from './_lib/authz.js';
 import { requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { getAuth } from 'firebase-admin/auth';
-import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
+import { readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readDirectory } from './_lib/directory.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
@@ -242,6 +242,8 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
     return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no endpoint de usuários.' });
+    return sendError(res, error, 'Falha no endpoint de usuários.');
   }
 }
+
+

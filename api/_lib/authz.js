@@ -1,5 +1,6 @@
 import { getAuth } from 'firebase-admin/auth';
 import { getAdminDb } from './firebaseAdmin.js';
+import { HttpError } from './http.js';
 
 function readBearerToken(req) {
   const header = String(req.headers.authorization || '').trim();
@@ -10,7 +11,7 @@ function readBearerToken(req) {
 async function resolveAuthenticatedUser(req) {
   const token = readBearerToken(req);
   if (!token) {
-    throw new Error('Token de autenticação ausente.');
+    throw new HttpError(401, 'Token de autenticação ausente.');
   }
 
   const db = getAdminDb();
@@ -28,11 +29,11 @@ async function resolveAuthenticatedUser(req) {
   }
 
   if (!userDoc) {
-    throw new Error('Usuário autenticado sem cadastro no diretório.');
+    throw new HttpError(403, 'Usuário autenticado sem cadastro no diretório.');
   }
 
   if (userDoc.status !== 'Ativo' || userDoc.active === false) {
-    throw new Error('Usuário inativo.');
+    throw new HttpError(403, 'Usuário inativo.');
   }
 
   return {
@@ -56,7 +57,7 @@ export async function requireUserWithRoles(req, allowedRoles) {
   }
 
   if (!allowedRoles.includes(user.role)) {
-    throw new Error('Permissão insuficiente.');
+    throw new HttpError(403, 'Permissão insuficiente.');
   }
 
   return user;

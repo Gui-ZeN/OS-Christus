@@ -8,6 +8,14 @@ function toArray(payload) {
   return Array.isArray(payload) ? payload : payload ? [payload] : [];
 }
 
+function chunkValues(values, size = 10) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
 export async function seedProcurementDefaults(db) {
   const batch = db.batch();
   const now = new Date();
@@ -102,6 +110,83 @@ export async function readProcurement(db) {
     if (!ticketId) continue;
     if (!measurementsByTicket[ticketId]) measurementsByTicket[ticketId] = [];
     measurementsByTicket[ticketId].push(data);
+  }
+
+  for (const ticketId of Object.keys(measurementsByTicket)) {
+    measurementsByTicket[ticketId].sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+  }
+
+  return { quotesByTicket, contractsByTicket, paymentsByTicket, measurementsByTicket };
+}
+
+export async function readProcurementForTicketIds(db, ticketIds) {
+  const ids = [...new Set((Array.isArray(ticketIds) ? ticketIds : []).filter(Boolean))];
+  if (ids.length === 0) {
+    return {
+      quotesByTicket: {},
+      contractsByTicket: {},
+      paymentsByTicket: {},
+      measurementsByTicket: {},
+    };
+  }
+
+  const chunks = chunkValues(ids);
+  const [quotesSnapshots, contractsSnapshots, paymentsSnapshots, measurementsSnapshots] = await Promise.all([
+    Promise.all(chunks.map(chunk => db.collectionGroup('quotes').where('ticketId', 'in', chunk).get())),
+    Promise.all(chunks.map(chunk => db.collectionGroup('contracts').where('ticketId', 'in', chunk).get())),
+    Promise.all(chunks.map(chunk => db.collectionGroup('payments').where('ticketId', 'in', chunk).get())),
+    Promise.all(chunks.map(chunk => db.collectionGroup('measurements').where('ticketId', 'in', chunk).get())),
+  ]);
+
+  const quotesByTicket = {};
+  for (const snapshot of quotesSnapshots) {
+    for (const doc of snapshot.docs) {
+      const data = { id: doc.id, ...doc.data() };
+      const ticketId = data.ticketId;
+      if (!ticketId) continue;
+      if (!quotesByTicket[ticketId]) quotesByTicket[ticketId] = [];
+      quotesByTicket[ticketId].push(data);
+    }
+  }
+
+  const contractsByTicket = {};
+  for (const snapshot of contractsSnapshots) {
+    for (const doc of snapshot.docs) {
+      const data = { id: doc.id, ...doc.data() };
+      const ticketId = data.ticketId;
+      if (!ticketId) continue;
+      contractsByTicket[ticketId] = data;
+    }
+  }
+
+  const paymentsByTicket = {};
+  for (const snapshot of paymentsSnapshots) {
+    for (const doc of snapshot.docs) {
+      const data = { id: doc.id, ...doc.data() };
+      const ticketId = data.ticketId;
+      if (!ticketId) continue;
+      if (!paymentsByTicket[ticketId]) paymentsByTicket[ticketId] = [];
+      paymentsByTicket[ticketId].push(data);
+    }
+  }
+
+  for (const ticketId of Object.keys(paymentsByTicket)) {
+    paymentsByTicket[ticketId].sort((a, b) => Number(a.installmentNumber || 0) - Number(b.installmentNumber || 0));
+  }
+
+  const measurementsByTicket = {};
+  for (const snapshot of measurementsSnapshots) {
+    for (const doc of snapshot.docs) {
+      const data = { id: doc.id, ...doc.data() };
+      const ticketId = data.ticketId;
+      if (!ticketId) continue;
+      if (!measurementsByTicket[ticketId]) measurementsByTicket[ticketId] = [];
+      measurementsByTicket[ticketId].push(data);
+    }
   }
 
   for (const ticketId of Object.keys(measurementsByTicket)) {
