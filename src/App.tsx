@@ -87,6 +87,7 @@ export default function App() {
     currentUserEmail,
     authEnabled,
     authResolved,
+    authorizationResolved,
   } = useApp();
 
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -167,17 +168,17 @@ export default function App() {
 
   useEffect(() => {
     const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
-    if (authEnabled && !authResolved) {
+    if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return;
     }
-    if (!currentUserEmail && !publicViews.has(currentView)) {
+    if (!currentUser && !publicViews.has(currentView)) {
       const params = new URLSearchParams(window.location.search);
       params.set('redirectView', currentView);
       const query = params.toString();
       window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
       navigateTo(VIEWS.LOGIN);
     }
-    if (currentUserEmail && currentView === VIEWS.LOGIN) {
+    if (currentUser && currentView === VIEWS.LOGIN) {
       const params = new URLSearchParams(window.location.search);
       const redirectView = params.get('redirectView') || params.get('view');
       if (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
@@ -186,10 +187,10 @@ export default function App() {
         navigateTo(VIEWS.HOME);
       }
     }
-  }, [authEnabled, authResolved, currentUserEmail, currentView, navigateTo]);
+  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo]);
 
   if (currentView === VIEWS.LANDING) {
-    if (authEnabled && !authResolved) {
+    if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return <ViewLoader fullScreen />;
     }
     return (
@@ -208,7 +209,7 @@ export default function App() {
   }
 
   if (currentView === VIEWS.LOGIN) {
-    if (authEnabled && !authResolved) {
+    if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return <ViewLoader fullScreen />;
     }
     return (
@@ -233,6 +234,10 @@ export default function App() {
         <TrackingView ticketToken={trackingTicketToken} onBack={() => navigateTo(VIEWS.INBOX)} />
       </Suspense>
     );
+  }
+
+  if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
+    return <ViewLoader fullScreen />;
   }
 
   return (

@@ -60,6 +60,7 @@ interface AppContextType {
   logout: () => Promise<void>;
   authEnabled: boolean;
   authResolved: boolean;
+  authorizationResolved: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -185,6 +186,7 @@ async function resolveAuthorizedUser(email: string) {
 export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
   const [authResolved, setAuthResolved] = useState(!authEnabled);
+  const [authorizationResolved, setAuthorizationResolved] = useState(!authEnabled);
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
@@ -209,7 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!currentUserEmail) {
+    if (!currentUserEmail || !currentUser) {
       setAllTickets([]);
       setTicketsLoading(false);
       return;
@@ -230,14 +232,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setTicketsLoading(false);
     }
-  }, [authEnabled, authResolved, currentUserEmail]);
+  }, [authEnabled, authResolved, currentUser, currentUserEmail]);
 
   useEffect(() => {
     if (!authEnabled) return undefined;
     let unsubscribe = () => undefined;
     void (async () => {
       unsubscribe = await subscribeToAuthState(user => {
-        setCurrentUserEmailState(user?.email?.trim().toLowerCase() || '');
+        const nextEmail = user?.email?.trim().toLowerCase() || '';
+        setCurrentUserEmailState(nextEmail);
+        setAuthorizationResolved(!nextEmail);
         setAuthResolved(true);
       });
     })();
@@ -249,10 +253,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshTickets]);
 
   useEffect(() => {
-    if (!currentUserEmail) return undefined;
+    if (!currentUserEmail || !currentUser) return undefined;
     const timer = setInterval(() => void refreshTickets(), 30000);
     return () => clearInterval(timer);
-  }, [currentUserEmail, refreshTickets]);
+  }, [currentUser, currentUserEmail, refreshTickets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,7 +282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!currentUserEmail) {
+    if (!currentUserEmail || !currentUser) {
       setNotifications([]);
       return undefined;
     }
@@ -302,7 +306,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, currentUserEmail]);
+  }, [authEnabled, currentUser, currentUserEmail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -313,22 +317,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!currentUserEmail) {
       setCurrentUser(null);
+      setAuthorizationResolved(true);
       return undefined;
     }
 
     (async () => {
+      setAuthorizationResolved(false);
       try {
         const found = await resolveAuthorizedUser(currentUserEmail);
         if (!cancelled) {
           setCurrentUser(found);
+          setAuthorizationResolved(true);
         }
       } catch (error) {
         if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
+          if (!cancelled) {
+            setAuthorizationResolved(true);
+          }
           return;
         }
+        await logoutFirebaseAuth().catch(() => undefined);
         if (!cancelled) {
           setCurrentUser(null);
           setCurrentUserEmailState('');
+          setAuthorizationResolved(true);
         }
       }
     })();
@@ -628,6 +640,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         authEnabled,
         authResolved,
+        authorizationResolved,
       }}
     >
       {children}
