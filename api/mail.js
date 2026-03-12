@@ -738,11 +738,9 @@ async function handleSend(req, res) {
     const resolvedBody = repairMojibake(storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text);
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
-    const resolvedSubject = buildConversationSubject(
-      ticketId,
-      templateData.ticketSubject || resolvedTicket.subject,
-      templateSubject
-    );
+    const resolvedSubject = ticketId
+      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, subject)
+      : templateSubject;
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
