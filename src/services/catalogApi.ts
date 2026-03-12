@@ -1,4 +1,5 @@
-import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
 
 export interface CatalogRegion {
   id: string;
@@ -63,12 +64,9 @@ export interface CatalogVendorPreference {
 
 export async function fetchCatalog() {
   const response = await fetch('/api/catalog');
-  if (!response.ok) {
-    throw new Error('Falha ao buscar catalogo operacional.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao buscar catálogo operacional.');
   if (!json.ok || !Array.isArray(json.regions) || !Array.isArray(json.sites)) {
-    throw new Error('Resposta invalida do catalogo.');
+    throw new Error('Resposta inválida do catálogo.');
   }
   return {
     regions: json.regions as CatalogRegion[],
@@ -90,12 +88,9 @@ export async function saveCatalogEntry(
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ entity, record }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao salvar item do catalogo.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao salvar item do catálogo.');
   if (!json.ok) {
-    throw new Error(json.error || 'Resposta invalida ao salvar catalogo.');
+    throw new Error(json.error || 'Resposta inválida ao salvar catálogo.');
   }
   return {
     regions: json.regions as CatalogRegion[],
@@ -114,9 +109,9 @@ export async function deleteCatalogEntry(entity: 'regions' | 'sites', id: string
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ entity, id }),
   });
-  const json = await response.json().catch(() => null);
+  const json = await readApiJson<any>(response);
   if (!response.ok || !json?.ok) {
-    throw new Error(json?.error || 'Falha ao excluir item do catálogo.');
+    throw new Error(resolveApiError(json, 'Falha ao excluir item do catálogo.'));
   }
   return {
     regions: json.regions as CatalogRegion[],
@@ -127,3 +122,5 @@ export async function deleteCatalogEntry(entity: 'regions' | 'sites', id: string
     vendorPreferences: (json.vendorPreferences || []) as CatalogVendorPreference[],
   };
 }
+
+

@@ -1,4 +1,5 @@
-import { getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 import { AppNotification } from '../types';
 import { coerceDate } from '../utils/date';
 
@@ -8,12 +9,12 @@ export async function fetchNotifications() {
   const response = await fetch('/api/notifications', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar notifications.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<{ ok: boolean; notifications?: NotificationApi[] }>(
+    response,
+    'Falha ao buscar notificações.'
+  );
   if (!json.ok || !Array.isArray(json.notifications)) {
-    throw new Error('Resposta invalida de notifications.');
+    throw new Error('Resposta inválida de notificações.');
   }
   return (json.notifications as NotificationApi[]).map(item => ({
     ...item,
@@ -23,27 +24,30 @@ export async function fetchNotifications() {
 
 export async function markNotificationReadRemote(id: string) {
   const headers = await getAuthenticatedActorHeaders();
-  await fetch('/api/notifications', {
+  const response = await fetch('/api/notifications', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ action: 'markRead', id }),
   });
+  await expectApiJson(response, 'Falha ao marcar notificação como lida.');
 }
 
 export async function dismissNotificationRemote(id: string) {
   const headers = await getAuthenticatedActorHeaders();
-  await fetch('/api/notifications', {
+  const response = await fetch('/api/notifications', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ action: 'dismiss', id }),
   });
+  await expectApiJson(response, 'Falha ao dispensar notificação.');
 }
 
 export async function markAllNotificationsReadRemote() {
   const headers = await getAuthenticatedActorHeaders();
-  await fetch('/api/notifications', {
+  const response = await fetch('/api/notifications', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ action: 'markAllRead' }),
   });
+  await expectApiJson(response, 'Falha ao marcar notificações como lidas.');
 }

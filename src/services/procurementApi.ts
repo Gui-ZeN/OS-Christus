@@ -1,4 +1,5 @@
 ﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 import { ContractRecord, MeasurementRecord, PaymentRecord, ProcurementClassificationSnapshot, Quote } from '../types';
 import { coerceDate } from '../utils/date';
 
@@ -15,10 +16,7 @@ export async function fetchProcurementData() {
   const response = await fetch('/api/procurement', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar procurement.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao buscar dados financeiros.');
   if (!json.ok) {
     throw new Error('Resposta inválida de procurement.');
   }
@@ -66,9 +64,7 @@ export async function saveQuotes(ticketId: string, quotes: Quote[], classificati
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ ticketId, type: 'quotes', quotes, classification }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao salvar cotações.');
-  }
+  await expectApiJson(response, 'Falha ao salvar cotações.');
 }
 
 export async function saveContract(ticketId: string, contract: ContractRecord, classification?: ProcurementClassificationSnapshot) {
@@ -78,9 +74,7 @@ export async function saveContract(ticketId: string, contract: ContractRecord, c
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ ticketId, type: 'contract', contract, classification }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao salvar contrato.');
-  }
+  await expectApiJson(response, 'Falha ao salvar contrato.');
 }
 
 export async function savePayment(ticketId: string, payment: PaymentRecord, classification?: ProcurementClassificationSnapshot) {
@@ -99,9 +93,7 @@ export async function savePayment(ticketId: string, payment: PaymentRecord, clas
       },
     }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao salvar pagamento.');
-  }
+  await expectApiJson(response, 'Falha ao salvar pagamento.');
 }
 
 export async function saveMeasurement(ticketId: string, measurement: MeasurementRecord, classification?: ProcurementClassificationSnapshot) {
@@ -120,8 +112,8 @@ export async function saveMeasurement(ticketId: string, measurement: Measurement
       },
     }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao salvar medição.');
-  }
+  await expectApiJson(response, 'Falha ao salvar medição.');
 }
+
+
 

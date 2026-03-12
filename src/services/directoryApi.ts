@@ -1,4 +1,5 @@
-import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 
 export interface DirectoryUser {
   id: string;
@@ -26,16 +27,23 @@ export interface DirectoryVendor {
   active?: boolean;
 }
 
+interface UserMutationResponse {
+  ok: boolean;
+  authUid?: string | null;
+}
+
 export async function fetchDirectory() {
   const response = await fetch('/api/directory', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar diretorio.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<{
+    ok: boolean;
+    users?: DirectoryUser[];
+    teams?: DirectoryTeam[];
+    vendors?: DirectoryVendor[];
+  }>(response, 'Falha ao buscar diretório.');
   if (!json.ok) {
-    throw new Error('Resposta invalida do diretorio.');
+    throw new Error('Resposta inválida do diretório.');
   }
   return {
     users: (json.users || []) as DirectoryUser[],
@@ -48,51 +56,49 @@ export async function fetchUsers() {
   const response = await fetch('/api/users', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar usuarios.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<{ ok: boolean; users?: DirectoryUser[] }>(
+    response,
+    'Falha ao buscar usuários.'
+  );
   if (!json.ok || !Array.isArray(json.users)) {
-    throw new Error('Resposta invalida de usuarios.');
+    throw new Error('Resposta inválida de usuários.');
   }
   return json.users as DirectoryUser[];
 }
 
-export async function createUser(user: DirectoryUser, password?: string) {
+export async function createUser(
+  user: DirectoryUser,
+  password?: string
+): Promise<UserMutationResponse> {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ user, password }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao criar usuario.');
-  }
-  return response.json();
+  return expectApiJson<UserMutationResponse>(response, 'Falha ao criar usuário.');
 }
 
-export async function updateUser(id: string, updates: Partial<DirectoryUser>, password?: string) {
+export async function updateUser(
+  id: string,
+  updates: Partial<DirectoryUser>,
+  password?: string
+): Promise<UserMutationResponse> {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/users', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ id, updates, password }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao atualizar usuario.');
-  }
-  return response.json();
+  return expectApiJson<UserMutationResponse>(response, 'Falha ao atualizar usuário.');
 }
 
-export async function deleteUser(id: string) {
+export async function deleteUser(id: string): Promise<{ ok: boolean }> {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/users', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ id }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao excluir usuario.');
-  }
-  return response.json();
+  return expectApiJson<{ ok: boolean }>(response, 'Falha ao excluir usuário.');
 }

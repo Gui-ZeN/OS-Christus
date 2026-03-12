@@ -274,7 +274,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!pageVisible) return false;
 
-    return ['home', 'inbox', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'].includes(currentView);
+    return ['home', 'inbox'].includes(currentView);
   }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, pageVisible]);
 
   useEffect(() => {
@@ -334,22 +334,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    const timer = setInterval(() => {
-      void (async () => {
-        try {
-          const remote = await fetchNotifications();
-          if (!cancelled) {
-            setNotifications(remote);
-          }
-        } catch {
-          // Mantém o último estado válido quando a atualização falha.
-        }
-      })();
-    }, 180000);
-
     return () => {
       cancelled = true;
-      clearInterval(timer);
     };
   }, [authEnabled, currentUser, currentUserEmail, shouldPollOperationalData]);
 

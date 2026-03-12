@@ -1,4 +1,5 @@
-import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 
 export interface EmailTemplateSettings {
   trigger: string;
@@ -65,12 +66,9 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   const response = await fetch('/api/settings', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar settings.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao buscar configurações.');
   if (!json.ok) {
-    throw new Error('Resposta invalida de settings.');
+    throw new Error('Resposta inválida de configurações.');
   }
   const emailTemplates = Array.isArray(json.emailTemplates)
     ? (json.emailTemplates as unknown[])
@@ -95,7 +93,7 @@ export async function saveSettings(section: 'emailTemplates' | 'dailyDigest' | '
     headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
     body: JSON.stringify({ section, data }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao salvar settings.');
-  }
+  await expectApiJson(response, 'Falha ao salvar configurações.'); return;
 }
+
+

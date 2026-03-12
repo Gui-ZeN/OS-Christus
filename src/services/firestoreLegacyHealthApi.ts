@@ -1,4 +1,5 @@
-import { getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 
 export interface FirestoreLegacyHealth {
   summary: {
@@ -19,12 +20,10 @@ export async function fetchFirestoreLegacyHealth() {
   const response = await fetch('/api/admin-tools?route=legacy-health', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar diagnostico de legado do Firestore.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao buscar diagnóstico de legado do Firestore.');
   if (!json.ok) {
-    throw new Error(json.error || 'Resposta invalida do diagnostico de legado.');
+    throw new Error(json.error || 'Resposta inválida do diagnóstico de legado.');
   }
   return json as { ok: true } & FirestoreLegacyHealth;
 }
+

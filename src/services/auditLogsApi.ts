@@ -1,4 +1,5 @@
 ﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 
 export interface AuditLogEntry {
   id: string;
@@ -16,12 +17,11 @@ export async function fetchAuditLogs(limit = 100, includeSystem = false) {
   const response = await fetch(`/api/audit-logs?limit=${limit}&includeSystem=${includeSystem ? 'true' : 'false'}`, {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar auditoria.');
-  }
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao buscar auditoria.');
   if (!json.ok || !Array.isArray(json.logs)) {
     throw new Error('Resposta inválida de auditoria.');
   }
   return json.logs as AuditLogEntry[];
 }
+
+

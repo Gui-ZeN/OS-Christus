@@ -1,4 +1,5 @@
 ﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
 import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 
@@ -141,11 +142,10 @@ export async function fetchTicketsFromApi(): Promise<Ticket[]> {
   const response = await fetch('/api/tickets', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar tickets da API.');
-  }
-
-  const json = await response.json();
+  const json = await expectApiJson<{ ok: boolean; tickets?: ApiTicket[] }>(
+    response,
+    'Falha ao buscar tickets da API.'
+  );
   if (!json.ok || !Array.isArray(json.tickets)) {
     throw new Error('Resposta inválida da API de tickets.');
   }
@@ -155,9 +155,9 @@ export async function fetchTicketsFromApi(): Promise<Ticket[]> {
 
 export async function fetchTrackingDetailsFromApi(trackingToken: string): Promise<TrackingTicketPayload> {
   const response = await fetch(`/api/tickets?tracking=${encodeURIComponent(trackingToken)}`);
-  const json = await response.json();
-  if (!response.ok || !json.ok || !json.ticket) {
-    throw new Error(json.error || 'Falha ao buscar ticket de acompanhamento.');
+  const json = await readApiJson<any>(response);
+  if (!response.ok || !json?.ok || !json.ticket) {
+    throw new Error(resolveApiError(json, 'Falha ao buscar ticket de acompanhamento.'));
   }
 
   return {
@@ -185,12 +185,7 @@ export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ticket }),
   });
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error || 'Falha ao criar ticket na API.');
-  }
-
-  const json = await response.json();
+  const json = await expectApiJson<{ ok: boolean; ticket?: ApiTicket }>(response, 'Falha ao criar ticket na API.');
   if (!json.ok || !json.ticket) {
     throw new Error('Resposta inválida ao criar ticket.');
   }
@@ -207,12 +202,7 @@ export async function createTicketWithFilesInApi(ticket: Partial<Ticket>, files:
     method: 'POST',
     body: formData,
   });
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error || 'Falha ao criar ticket na API.');
-  }
-
-  const json = await response.json();
+  const json = await expectApiJson<{ ok: boolean; ticket?: ApiTicket }>(response, 'Falha ao criar ticket na API.');
   if (!json.ok || !json.ticket) {
     throw new Error('Resposta inválida ao criar ticket.');
   }
@@ -227,9 +217,7 @@ export async function patchTicketInApi(id: string, updates: Partial<Ticket>) {
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ id, updates }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao atualizar ticket na API.');
-  }
+  await expectApiJson(response, 'Falha ao atualizar ticket na API.');
 }
 
 export async function patchTrackingTicketInApi(trackingToken: string, updates: Partial<Ticket>) {
@@ -238,9 +226,7 @@ export async function patchTrackingTicketInApi(trackingToken: string, updates: P
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ trackingToken, updates }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao atualizar ticket por acompanhamento.');
-  }
+  await expectApiJson(response, 'Falha ao atualizar ticket por acompanhamento.');
 }
 
 export async function deleteTicketInApi(id: string) {
@@ -250,7 +236,8 @@ export async function deleteTicketInApi(id: string) {
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ id }),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao excluir ticket na API.');
-  }
+  await expectApiJson(response, 'Falha ao excluir ticket na API.');
 }
+
+
+

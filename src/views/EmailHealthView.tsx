@@ -84,8 +84,6 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 60000);
-    return () => clearInterval(timer);
   }, []);
 
   if (!canAccess) {

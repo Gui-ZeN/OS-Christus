@@ -1,4 +1,5 @@
-import { getAuthenticatedActorHeaders } from './actorHeaders';
+﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 
 export interface IntegrationCheck {
   ok: boolean;
@@ -20,14 +21,11 @@ export async function fetchIntegrationsHealth() {
   const response = await fetch('/api/admin-tools?route=integrations-health', {
     headers: await getAuthenticatedActorHeaders(),
   });
-  if (!response.ok) {
-    throw new Error('Falha ao buscar saúde das integrações.');
-  }
-
-  const json = await response.json();
+  const json = await expectApiJson<any>(response, 'Falha ao buscar saúde das integrações.');
   if (!json.ok) {
     throw new Error(json.error || 'Resposta inválida da saúde das integrações.');
   }
 
   return json as { ok: true } & IntegrationsHealthResponse;
 }
+

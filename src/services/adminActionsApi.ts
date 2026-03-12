@@ -1,4 +1,5 @@
-import { getCurrentIdToken } from './authClient';
+﻿import { getCurrentIdToken } from './authClient';
+import { expectApiJson } from './apiClient';
 
 export interface FirestoreBackfillResult {
   updatedUsers: number;
@@ -20,8 +21,8 @@ export async function runFirestoreLegacyBackfill() {
     },
   });
 
-  const json = await response.json();
-  if (!response.ok || !json.ok) {
+  const json = await expectApiJson<any>(response, 'Falha ao executar backfill.');
+  if (!json.ok) {
     throw new Error(json.error || 'Falha ao executar backfill.');
   }
 
@@ -31,3 +32,5 @@ export async function runFirestoreLegacyBackfill() {
     actor: { email: string | null; name: string | null };
   };
 }
+
+
