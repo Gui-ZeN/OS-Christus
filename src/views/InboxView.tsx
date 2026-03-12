@@ -254,8 +254,6 @@ export function InboxView() {
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
-  const [quickActionsCompact, setQuickActionsCompact] = useState(false);
-  const [quickActionsPinnedOpen, setQuickActionsPinnedOpen] = useState(false);
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
   const canManageStatus = currentUser?.role === 'Admin';
@@ -263,7 +261,6 @@ export function InboxView() {
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
-  const contextScrollRef = useRef<HTMLDivElement>(null);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
   // Estado derivado: usa tickets do contexto (mutável)
@@ -272,7 +269,6 @@ export function InboxView() {
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
   const canEditCoreFields = canManageStatus;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
-  const showQuickActionsExpanded = !quickActionsCompact || quickActionsPinnedOpen;
 
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
@@ -315,11 +311,6 @@ export function InboxView() {
       ].includes(activeTicket.status),
     });
   }, [activeTicket.id, activeTicket.status]);
-
-  useEffect(() => {
-    setQuickActionsCompact(false);
-    setQuickActionsPinnedOpen(false);
-  }, [activeTicket.id]);
 
   useEffect(() => {
     setPrelimForm(createPreliminaryFormState(activeTicket.preliminaryActions));
@@ -482,25 +473,9 @@ export function InboxView() {
     const updates: Partial<Ticket> = {};
     const changes: string[] = [];
 
-    if (ticketDetailsForm.subject.trim() !== activeTicket.subject) {
-      updates.subject = ticketDetailsForm.subject.trim();
-      changes.push('assunto');
-    }
-    if (ticketDetailsForm.requester.trim() !== activeTicket.requester) {
-      updates.requester = ticketDetailsForm.requester.trim();
-      changes.push('solicitante');
-    }
-    if (ticketDetailsForm.requesterEmail.trim() !== (activeTicket.requesterEmail || '')) {
-      updates.requesterEmail = ticketDetailsForm.requesterEmail.trim();
-      changes.push('e-mail do solicitante');
-    }
     if (ticketDetailsForm.type.trim() !== activeTicket.type) {
       updates.type = ticketDetailsForm.type.trim();
       changes.push('tipo de manutenção');
-    }
-    if (ticketDetailsForm.sector.trim() !== activeTicket.sector) {
-      updates.sector = ticketDetailsForm.sector.trim();
-      changes.push('setor');
     }
     if ((ticketDetailsForm.macroServiceId || '') !== (activeTicket.macroServiceId || '')) {
       updates.macroServiceId = nextMacroService?.id || '';
@@ -1999,17 +1974,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div
-              ref={contextScrollRef}
-              onScroll={event => {
-                const nextCompact = event.currentTarget.scrollTop > 28;
-                setQuickActionsCompact(prev => (prev === nextCompact ? prev : nextCompact));
-                if (!nextCompact && quickActionsPinnedOpen) {
-                  setQuickActionsPinnedOpen(false);
-                }
-              }}
-              className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2.5"
-            >
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
               {/* PUBLIC LINK BUTTON */}
               <div className="flex gap-2">
                 <button
@@ -2029,32 +1994,24 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
               </div>
 
-              <section className="sticky top-0 z-10 rounded-xl border border-roman-border bg-roman-surface px-3 py-3 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Ações rápidas</div>
-                    <div className="mt-1 text-[11px] text-roman-text-sub">
-                      {showQuickActionsExpanded ? 'Status, equipe e urgência sempre visíveis.' : 'Toque para expandir o painel rápido.'}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-roman-primary/30 bg-roman-primary/5 px-2.5 py-1 text-[11px] font-medium text-roman-text-main">
-                      {activeTicket.status}
-                    </span>
-                    {quickActionsCompact && (
-                      <button
-                        type="button"
-                        onClick={() => setQuickActionsPinnedOpen(prev => !prev)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-roman-border bg-roman-bg text-roman-text-sub transition-colors hover:border-roman-primary hover:text-roman-text-main"
-                        aria-label={showQuickActionsExpanded ? 'Recolher ações rápidas' : 'Expandir ações rápidas'}
-                      >
-                        <ChevronDown size={16} className={`transition-transform ${showQuickActionsExpanded ? 'rotate-180' : ''}`} />
-                      </button>
-                    )}
-                  </div>
+              <section className="rounded-xl border border-roman-border bg-white px-3 py-3">
+                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
+                <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
+                <div className="mt-3 space-y-2">
+                  <PropertyField label="Status atual" value={activeTicket.status} />
+                  <PropertyField label="Solicitante" value={activeTicket.requester} />
+                  <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
+                  <PropertyField label="Assunto" value={activeTicket.subject} />
+                  <PropertyField label="Setor" value={activeTicket.sector} />
+                  <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
+                  <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
                 </div>
+              </section>
 
-                {showQuickActionsExpanded && <div className="mt-3 space-y-3">
+              <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
+                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atendimento e triagem</div>
+                <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe responsável e decisões de atendimento.</div>
+                <div className="mt-3 space-y-3">
                   {canManageStatus && (
                     <div>
                       <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Status da OS</label>
@@ -2161,7 +2118,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       )}
                     </div>
                   )}
-                </div>}
+                </div>
               </section>
 
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
@@ -2171,8 +2128,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Dados da OS</div>
-                      <div className="mt-1 text-[11px] text-roman-text-sub">Admin pode alterar dados do chamado, exceto região e sede.</div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação interna</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Definições técnicas e administrativas da OS.</div>
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.classification ? 'rotate-180' : ''}`} />
                 </button>
@@ -2180,34 +2137,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div className="mt-3 space-y-2.5">
                     {canEditCoreFields ? (
                       <>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</label>
-                          <input
-                            value={ticketDetailsForm.subject}
-                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, subject: event.target.value }))}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Solicitante</label>
-                          <input
-                            value={ticketDetailsForm.requester}
-                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, requester: event.target.value }))}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do solicitante</label>
-                          <input
-                            type="email"
-                            value={ticketDetailsForm.requesterEmail}
-                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, requesterEmail: event.target.value }))}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          />
-                        </div>
                         <div>
                           <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tipo de manutenção</label>
                           <input
@@ -2245,21 +2174,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             ))}
                           </select>
                         </div>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Setor</label>
-                          <input
-                            value={ticketDetailsForm.sector}
-                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, sector: event.target.value }))}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          />
-                        </div>
                         <button
                           onClick={handleSaveTicketDetails}
                           disabled={isSending}
                           className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
                         >
-                          Salvar dados da OS
+                          Salvar classificação
                         </button>
                       </>
                     ) : (
@@ -2267,11 +2187,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
                         {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
                         {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
-                        <PropertyField label="Setor" value={activeTicket.sector} />
                       </>
                     )}
-                    <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
-                    <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
                   </div>
                 )}
               </section>
