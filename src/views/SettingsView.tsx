@@ -204,15 +204,8 @@ Motivo
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
 
-Há uma nova mensagem sobre a {{ticket.id}}.
+{{message.sender}} enviou uma nova mensagem sobre o chamado.
 
-Chamado
-{{ticket.subject}}
-
-Enviado por
-{{message.sender}}
-
-Mensagem recebida:
 {{message.body}}
 
 {{tracking.url}}`,

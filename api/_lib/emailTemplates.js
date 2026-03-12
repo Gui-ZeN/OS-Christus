@@ -1,4 +1,4 @@
-function esc(value) {
+﻿function esc(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -57,6 +57,44 @@ function getStageMeta(trigger, status) {
   return { eyebrow: 'Atualização', label: 'Atualização da OS', accent: '#6f4f1e' };
 }
 
+function stripSignature(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+
+  const markers = [
+    /^\s*--\s*$/m,
+    /^\s*__+\s*$/m,
+    /^\s*Atenciosamente[,!.\s]*$/im,
+    /^\s*Cordialmente[,!.\s]*$/im,
+    /^\s*Abs[,!.\s]*$/im,
+    /^\s*Assinatura[:\s]*$/im,
+    /^\s*\[image:.*\]\s*$/im,
+  ];
+
+  let next = text;
+  for (const marker of markers) {
+    const match = marker.exec(next);
+    if (match?.index != null && match.index > 0) {
+      next = next.slice(0, match.index).trim();
+      break;
+    }
+  }
+
+  return next
+    .split('\n')
+    .filter(line => {
+      const normalized = line.trim();
+      if (!normalized) return true;
+      if (/^\[image:.*\]$/i.test(normalized)) return false;
+      if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(normalized)) return false;
+      if (/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(normalized.replace(/\s+/g, ' '))) return false;
+      if (/^(R\.|Av\.|Rua|Avenida)\s/i.test(normalized)) return false;
+      return true;
+    })
+    .join('\n')
+    .trim();
+}
+
 function renderBodyText(text) {
   const blocks = String(text || '')
     .split(/\n{2,}/)
@@ -90,22 +128,18 @@ export function buildTicketEmailTemplate({
   title,
   intro,
   ticketId,
-  subject,
   status,
-  region,
-  site,
-  sector,
-  service,
-  guaranteeSummary,
   ctaUrl,
   ctaLabel = 'Acompanhar OS',
   bodyText,
 }) {
   const stage = getStageMeta(trigger, status);
+  const isCommunication = normalizeToken(trigger).includes('mensagem');
+  const cleanedBody = stripSignature(bodyText);
   const messageParts = [
     intro || '',
-    bodyText || '',
-    status ? `Status atual: ${status}` : '',
+    cleanedBody || '',
+    !isCommunication && status ? `Status atual: ${status}` : '',
   ].filter(Boolean);
   const messageHtml = renderBodyText(messageParts.join('\n\n'));
   const fullLinkLabel = ctaUrl ? esc(ctaUrl) : '';
@@ -121,17 +155,17 @@ export function buildTicketEmailTemplate({
             <tr>
               <td style="padding:24px 28px;background:#1f1a15;color:#f8f2e9;">
                 <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">OS Christus</div>
-                <div style="margin-top:18px;display:table;width:100%;">
-                  <div style="display:table-cell;vertical-align:top;padding-right:28px;">
+                <div style="margin-top:18px;display:table;width:100%;table-layout:fixed;">
+                  <div style="display:table-cell;vertical-align:top;padding-right:36px;">
                     <div style="display:inline-block;padding:5px 10px;border:1px solid rgba(255,255,255,0.16);border-radius:999px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;">${esc(stage.eyebrow)}</div>
                     <div style="margin-top:14px;font-size:28px;line-height:1.22;letter-spacing:-0.2px;">${esc(title || stage.label)}</div>
                   </div>
-                  <div style="display:table-cell;vertical-align:top;width:168px;">
-                    <div style="padding:14px 18px;border:1px solid rgba(255,255,255,0.16);border-radius:20px;text-align:right;min-width:148px;background:rgba(255,255,255,0.02);">
-                    <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.72;">Ticket</div>
-                    <div style="margin-top:6px;font-size:22px;font-weight:bold;">${esc(ticketId || '-')}</div>
+                  <div style="display:table-cell;vertical-align:top;width:180px;">
+                    <div style="padding:14px 18px;border:1px solid rgba(255,255,255,0.16);border-radius:20px;text-align:right;min-width:160px;background:rgba(255,255,255,0.02);">
+                      <div style="font-size:10px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.72;">Ticket</div>
+                      <div style="margin-top:6px;font-size:22px;font-weight:bold;">${esc(ticketId || '-')}</div>
+                    </div>
                   </div>
-                </div>
                 </div>
               </td>
             </tr>
@@ -173,8 +207,8 @@ export function buildTicketEmailTemplate({
     intro || '',
     '',
     `Ticket: ${ticketId || '-'}`,
-    `Status: ${status || '-'}`,
-    bodyText ? `\n${bodyText}` : '',
+    !isCommunication && status ? `Status: ${status}` : '',
+    cleanedBody ? `\n${cleanedBody}` : '',
     '',
     ctaUrl ? `Link completo: ${ctaUrl}` : '',
   ]

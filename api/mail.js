@@ -98,6 +98,44 @@ function stripQuotedReply(value) {
     .trim();
 }
 
+function stripSignature(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+
+  const markers = [
+    /^\s*--\s*$/m,
+    /^\s*__+\s*$/m,
+    /^\s*Atenciosamente[,!.\s]*$/im,
+    /^\s*Cordialmente[,!.\s]*$/im,
+    /^\s*Abs[,!.\s]*$/im,
+    /^\s*Assinatura[:\s]*$/im,
+    /^\s*\[image:.*\]\s*$/im,
+  ];
+
+  let next = text;
+  for (const marker of markers) {
+    const match = marker.exec(next);
+    if (match?.index != null && match.index > 0) {
+      next = next.slice(0, match.index).trim();
+      break;
+    }
+  }
+
+  return next
+    .split('\n')
+    .filter(line => {
+      const normalized = line.trim();
+      if (!normalized) return true;
+      if (/^\[image:.*\]$/i.test(normalized)) return false;
+      if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(normalized)) return false;
+      if (/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(normalized.replace(/\s+/g, ' '))) return false;
+      if (/^(R\.|Av\.|Rua|Avenida)\s/i.test(normalized)) return false;
+      return true;
+    })
+    .join('\n')
+    .trim();
+}
+
 function firstEmail(raw) {
   if (!raw) return null;
   const match = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
@@ -208,7 +246,10 @@ function buildInboundHistoryId(messageId, fallbackKey) {
 
 function buildInboundHistoryEntry(message, fallbackSender) {
   const sender = displayNameFromEmail(message.from) || fallbackSender || 'Solicitante';
-  const text = stripQuotedReply(message.text) || stripQuotedReply(stripHtml(message.html)) || 'Resposta recebida por e-mail.';
+  const text =
+    stripSignature(stripQuotedReply(message.text)) ||
+    stripSignature(stripQuotedReply(stripHtml(message.html))) ||
+    'Resposta recebida por e-mail.';
   return {
     id: buildInboundHistoryId(message.messageId || message.id, sender),
     type: 'customer',
@@ -593,7 +634,10 @@ async function createTicketFromInbound(db, message) {
   const attachments = await uploadInboundAttachments(ticketId, message.attachments || []);
   const fromEmail = firstEmail(message.from);
   const requester = displayNameFromEmail(message.from);
-  const description = String(message.text || '').trim() || stripHtml(message.html) || parsedSubject.subject;
+  const description =
+    stripSignature(stripQuotedReply(String(message.text || '').trim())) ||
+    stripSignature(stripQuotedReply(stripHtml(message.html))) ||
+    parsedSubject.subject;
 
   const ticket = {
     id: ticketId,
