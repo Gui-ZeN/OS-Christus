@@ -49,7 +49,7 @@ interface AppContextType {
   markAllNotificationsRead: () => void;
   tickets: Ticket[];
   ticketsLoading: boolean;
-  refreshTickets: () => Promise<void>;
+  refreshTickets: (options?: { silent?: boolean }) => Promise<void>;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
   addTicket: (ticket: Ticket, files?: File[]) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
@@ -209,31 +209,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
 
-  const refreshTickets = useCallback(async () => {
+  const refreshTickets = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     if (authEnabled && !authResolved) {
       return;
     }
 
     if (!currentUserEmail || !currentUser) {
       setAllTickets([]);
-      setTicketsLoading(false);
+      if (!silent) {
+        setTicketsLoading(false);
+      }
       return;
     }
 
     if (!authEnabled) {
       setAllTickets([]);
-      setTicketsLoading(false);
+      if (!silent) {
+        setTicketsLoading(false);
+      }
       return;
     }
 
-    setTicketsLoading(true);
+    if (!silent) {
+      setTicketsLoading(true);
+    }
     try {
       const remote = await fetchTicketsFromApi();
       setAllTickets(remote);
     } catch {
       setAllTickets([]);
     } finally {
-      setTicketsLoading(false);
+      if (!silent) {
+        setTicketsLoading(false);
+      }
     }
   }, [authEnabled, authResolved, currentUser, currentUserEmail]);
 

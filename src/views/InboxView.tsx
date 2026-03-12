@@ -232,6 +232,7 @@ function getExecutionNextActionLabel(ticket: Ticket) {
 
 export function InboxView() {
   const {
+    currentView,
     navigateTo,
     openAttachment,
     activeTicketId,
@@ -271,6 +272,28 @@ export function InboxView() {
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
+
+  useEffect(() => {
+    if (currentView !== 'inbox' || !activeTicketId) return undefined;
+
+    const runSilentRefresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refreshTickets({ silent: true });
+    };
+
+    const interval = window.setInterval(runSilentRefresh, 10000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runSilentRefresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeTicketId, currentView, refreshTickets]);
 
   // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
