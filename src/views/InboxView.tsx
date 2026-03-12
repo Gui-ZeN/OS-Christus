@@ -221,6 +221,15 @@ function normalizeCurrencyInput(value: string) {
   return parsed > 0 ? formatCurrencyInput(parsed) : '';
 }
 
+function getExecutionNextActionLabel(ticket: Ticket) {
+  if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
+  if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
+  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar a validação do solicitante para seguir ao fechamento.';
+  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento financeiro.';
+  if (ticket.status === TICKET_STATUS.CLOSED) return 'Acompanhar garantia e documentos finais, se necessário.';
+  return 'Sem ação operacional pendente nesta etapa.';
+}
+
 export function InboxView() {
   const {
     navigateTo,
@@ -405,6 +414,7 @@ export function InboxView() {
 
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
+  const executionNextActionLabel = getExecutionNextActionLabel(activeTicket);
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
     return serviceCatalog.filter(item => item.macroServiceId === ticketDetailsForm.macroServiceId);
@@ -1960,7 +1970,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 h-full w-[84vw] max-w-80 md:w-[16rem] xl:w-[17rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 h-full w-[88vw] max-w-96 md:w-[18rem] xl:w-[21rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Painel da OS</span>
               <button
@@ -1997,23 +2007,33 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <section className="rounded-xl border border-roman-border bg-white px-3 py-3">
                 <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
                 <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
-                <div className="mt-3 space-y-2">
-                  <PropertyField label="Status atual" value={activeTicket.status} />
+                <div className="mt-3 rounded-xl border border-roman-border bg-roman-bg px-3 py-3">
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</div>
+                  <div className="mt-1 text-[15px] font-serif text-roman-text-main leading-snug">{activeTicket.subject || 'Sem assunto definido'}</div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
                   <PropertyField label="Solicitante" value={activeTicket.requester} />
                   <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
-                  <PropertyField label="Assunto" value={activeTicket.subject} />
                   <PropertyField label="Setor" value={activeTicket.sector} />
                   <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
                   <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
+                  <PropertyField label="Status atual" value={activeTicket.status} />
                 </div>
               </section>
 
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atendimento e triagem</div>
                 <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe responsável e decisões de atendimento.</div>
+                {activeTicket.status === TICKET_STATUS.NEW && (
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3">
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-amber-800">Triagem inicial</div>
+                    <div className="mt-1 text-[12px] text-amber-900">Defina equipe, urgência e decida se a OS será aceita ou cancelada.</div>
+                  </div>
+                )}
                 <div className="mt-3 space-y-3">
-                  {canManageStatus && (
-                    <div>
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {canManageStatus && (
+                      <div>
                       <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Status da OS</label>
                       <select
                         value={statusDraft}
@@ -2025,10 +2045,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <option key={status} value={status}>{status}</option>
                         ))}
                       </select>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 gap-3">
+                      </div>
+                    )}
                     <div>
                       <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Responsável técnico</label>
                       <select
@@ -2133,7 +2151,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.classification ? 'rotate-180' : ''}`} />
                 </button>
-                {sidebarSections.classification && (
+                  {sidebarSections.classification && (
                   <div className="mt-3 space-y-2.5">
                     {canEditCoreFields ? (
                       <>
@@ -2216,21 +2234,26 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
                 activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
                 activeTicket.status === TICKET_STATUS.CLOSED) && (
-                <section className="pt-4 border-t border-roman-border">
+                <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                   <button
                     type="button"
                     onClick={() => setSidebarSections(prev => ({ ...prev, execution: !prev.execution }))}
-                    className="mb-3 flex w-full items-start justify-between gap-3 text-left"
+                    className="flex w-full items-start justify-between gap-3 text-left"
                   >
                     <div>
                       <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Execução</div>
-                      <div className="mt-1 text-[11px] text-roman-text-sub">Preliminares, andamento físico e marcos.</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Preliminares, andamento físico e próximos passos da obra.</div>
                     </div>
                     <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.execution ? 'rotate-180' : ''}`} />
                   </button>
 
                   {sidebarSections.execution ? (
-                    <div className="space-y-2">
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-xl border border-roman-primary/20 bg-roman-primary/5 px-3 py-3">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Próxima ação</div>
+                        <div className="mt-1 text-[12px] font-medium text-roman-text-main">{executionNextActionLabel}</div>
+                      </div>
+
                       {activeTicket.preliminaryActions && (
                         <div className="mb-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                           <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
