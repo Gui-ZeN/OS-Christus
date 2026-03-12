@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { reserveNextTicketId } from './_lib/tickets.js';
 import {
+  decodeMimeHeader,
   gmailGetMessage,
   gmailGetProfile,
   gmailListHistory,

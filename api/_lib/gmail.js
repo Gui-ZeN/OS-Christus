@@ -49,7 +49,7 @@ function decodeQuotedPrintableWord(value) {
   return Buffer.from(normalized, 'latin1').toString('utf8');
 }
 
-function decodeMimeHeader(value) {
+export function decodeMimeHeader(value) {
   const input = String(value || '');
   if (!input) return '';
   return input.replace(/=\?([^?]+)\?([bq])\?([^?]+)\?=/gi, (_, charset, encoding, data) => {
