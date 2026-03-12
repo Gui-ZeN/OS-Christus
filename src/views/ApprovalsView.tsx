@@ -93,6 +93,12 @@ function buildQuoteComparisonSections(quotes: Quote[]) {
   });
 }
 
+function getQuoteGrandTotals(quotes: Quote[]) {
+  return quotes.map(quote =>
+    (quote.items || []).reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice), 0)
+  );
+}
+
 const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
   solutions: TICKET_STATUS.WAITING_BUDGET,
   budgets: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
@@ -364,6 +370,7 @@ export function ApprovalsView() {
   };
 
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
+    const quoteGrandTotals = getQuoteGrandTotals(budget.quotes);
     const rows: string[][] = [
       ['OS', budget.id],
       ['Assunto', budget.subject],
@@ -395,6 +402,14 @@ export function ApprovalsView() {
         quote.recommended ? 'Sim' : 'Não',
         quote.status || 'pending',
         String(quote.items?.length || 0),
+      ]),
+      [],
+      ['Totais gerais por fornecedor'],
+      ['Cotação', 'Fornecedor', 'Total geral'],
+      ...budget.quotes.map((quote, index) => [
+        `Cotação ${index + 1}`,
+        quote.vendor,
+        quoteGrandTotals[index] > 0 ? quoteGrandTotals[index].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : (quote.value || '-'),
       ]),
       [],
       ['Itens das cotações'],
@@ -666,6 +681,10 @@ export function ApprovalsView() {
                 budget.id === activeTicketId ? 'border-roman-primary/50 ring-1 ring-roman-primary/20' : 'border-roman-border hover:border-roman-primary/30'
               }`}
             >
+              {(() => {
+                const quoteGrandTotals = getQuoteGrandTotals(budget.quotes);
+                return (
+                  <>
               {processingId === budget.id && (
                 <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
@@ -753,6 +772,23 @@ export function ApprovalsView() {
                 </div>
               </div>
 
+              <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                {budget.quotes.map((quote, index) => (
+                  <div key={`approval-quote-total-${quote.id}`} className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">Cotação {index + 1}</div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main break-words">
+                      {quote.vendor || 'Fornecedor não informado'}
+                    </div>
+                    <div className="mt-2 text-[11px] text-roman-text-sub">Total geral da proposta</div>
+                    <div className="mt-1 text-lg font-serif text-roman-text-main">
+                      {quoteGrandTotals[index] > 0
+                        ? quoteGrandTotals[index].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        : quote.value || '-'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className="mb-4 rounded-2xl border border-roman-border bg-roman-bg p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -789,20 +825,26 @@ export function ApprovalsView() {
                                 <td className="px-3 py-3 text-roman-text-sub">{row.unit || '-'}</td>
                                 {row.values.map((value, index) => (
                                   <td key={`${row.key}-${index}`} className="px-3 py-3">
-                                    <div className="space-y-1 text-[12px]">
-                                      <div className="flex items-center justify-between gap-3">
-                                        <span className="text-roman-text-sub">Custo</span>
-                                        <span className="text-roman-text-main">{value.costUnitPrice || '-'}</span>
+                                    {!value.costUnitPrice && !value.chargedUnitPrice && !value.chargedTotalPrice ? (
+                                      <div className="rounded-lg border border-dashed border-roman-border/80 bg-roman-bg px-3 py-2 text-center text-[11px] text-roman-text-sub">
+                                        Não cotado nesta proposta
                                       </div>
-                                      <div className="flex items-center justify-between gap-3">
-                                        <span className="text-roman-text-sub">Valor unit.</span>
-                                        <span className="text-roman-text-main">{value.chargedUnitPrice || '-'}</span>
+                                    ) : (
+                                      <div className="space-y-1 text-[12px]">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="text-roman-text-sub">Custo</span>
+                                          <span className="text-roman-text-main">{value.costUnitPrice || '-'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="text-roman-text-sub">Valor unit.</span>
+                                          <span className="text-roman-text-main">{value.chargedUnitPrice || '-'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 font-medium">
+                                          <span className="text-roman-text-sub">Valor cobrado</span>
+                                          <span className="text-roman-text-main">{value.chargedTotalPrice || '-'}</span>
+                                        </div>
                                       </div>
-                                      <div className="flex items-center justify-between gap-3 font-medium">
-                                        <span className="text-roman-text-sub">Valor cobrado</span>
-                                        <span className="text-roman-text-main">{value.chargedTotalPrice || '-'}</span>
-                                      </div>
-                                    </div>
+                                    )}
                                   </td>
                                 ))}
                               </tr>
@@ -820,6 +862,22 @@ export function ApprovalsView() {
                       </div>
                     </div>
                   ))}
+                  <div className="rounded-2xl border border-roman-primary/20 bg-roman-primary/5 overflow-hidden">
+                    <table className="min-w-full text-sm">
+                      <tbody>
+                        <tr>
+                          <td className="px-3 py-3 font-medium text-roman-text-main">Total geral por fornecedor</td>
+                          {budget.quotes.map((quote, index) => (
+                            <td key={`approval-grand-total-${quote.id}`} className="px-3 py-3 font-semibold text-roman-text-main min-w-[12rem]">
+                              {quoteGrandTotals[index] > 0
+                                ? quoteGrandTotals[index].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                : quote.value || '-'}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
@@ -961,6 +1019,9 @@ export function ApprovalsView() {
                   </div>
                 )}
               </div>
+                  </>
+                );
+              })()}
             </div>
           ))}
 

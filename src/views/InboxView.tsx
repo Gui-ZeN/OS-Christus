@@ -1255,6 +1255,14 @@ export function InboxView() {
     return Array.from(sections.values());
   }, [quotes]);
 
+  const quoteGrandTotals = useMemo(
+    () =>
+      quotes.map(quote =>
+        quote.items.reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0)
+      ),
+    [quotes]
+  );
+
   const persistedServicePreference = useMemo(() => {
     const exactService = vendorPreferences
       .filter(
@@ -2798,6 +2806,21 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
               </div>
 
+              <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                {quotes.map((quote, index) => (
+                  <div key={`quote-total-${index}`} className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">Cotação {index + 1}</div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main break-words">
+                      {quote.vendor || 'Fornecedor não informado'}
+                    </div>
+                    <div className="mt-2 text-[11px] text-roman-text-sub">Total geral da proposta</div>
+                    <div className="mt-1 text-lg font-serif text-roman-text-main">
+                      {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : quote.value || '-'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -2813,7 +2836,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 ) : (
                   <div className="mt-4 space-y-4 overflow-x-auto">
                     {quoteComparisonSections.map(section => (
-                      <div key={section.key} className="min-w-[980px] rounded-sm border border-roman-border bg-roman-bg">
+                      <div key={section.key} className="min-w-[980px] rounded-2xl border border-roman-border bg-roman-bg overflow-hidden">
                         <div className="border-b border-roman-border px-4 py-2">
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{section.label}</div>
                         </div>
@@ -2851,9 +2874,19 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                 <td className="px-3 py-2 text-roman-text-sub">{row.unit || '-'}</td>
                                 {row.values.map((value, index) => (
                                   <React.Fragment key={`${row.key}-${index}`}>
-                                    <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">{value.costUnitPrice || '-'}</td>
-                                    <td className="px-3 py-2 text-roman-text-sub">{value.chargedUnitPrice || '-'}</td>
-                                    <td className="px-3 py-2 text-roman-text-main">{value.chargedTotalPrice || '-'}</td>
+                                    {!value.costUnitPrice && !value.chargedUnitPrice && !value.chargedTotalPrice ? (
+                                      <td colSpan={3} className="border-l border-roman-border px-3 py-2">
+                                        <div className="rounded-lg border border-dashed border-roman-border/80 bg-roman-surface px-3 py-2 text-center text-[11px] text-roman-text-sub">
+                                          Não cotado nesta proposta
+                                        </div>
+                                      </td>
+                                    ) : (
+                                      <>
+                                        <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">{value.costUnitPrice || '-'}</td>
+                                        <td className="px-3 py-2 text-roman-text-sub">{value.chargedUnitPrice || '-'}</td>
+                                        <td className="px-3 py-2 text-roman-text-main">{value.chargedTotalPrice || '-'}</td>
+                                      </>
+                                    )}
                                   </React.Fragment>
                                 ))}
                               </tr>
@@ -2879,6 +2912,24 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         </table>
                       </div>
                     ))}
+                    <div className="min-w-[980px] rounded-2xl border border-roman-primary/20 bg-roman-primary/5 overflow-hidden">
+                      <table className="w-full border-collapse text-sm">
+                        <tbody>
+                          <tr>
+                            <td colSpan={3} className="px-3 py-3 font-medium text-roman-text-main">Total geral por fornecedor</td>
+                            {quotes.map((_, index) => (
+                              <React.Fragment key={`grand-total-${index}`}>
+                                <td className="border-l border-roman-border px-3 py-3 text-roman-text-sub">-</td>
+                                <td className="px-3 py-3 text-roman-text-sub">-</td>
+                                <td className="px-3 py-3 font-semibold text-roman-text-main">
+                                  {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : '-'}
+                                </td>
+                              </React.Fragment>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
