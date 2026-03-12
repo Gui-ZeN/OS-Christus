@@ -2031,7 +2031,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 )}
                 <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3">
                     {canManageStatus && (
                       <div>
                       <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Status da OS</label>
