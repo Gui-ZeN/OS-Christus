@@ -1416,26 +1416,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 items-stretch gap-2">
-            <div className="flex h-[72px] flex-col justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
-              <div className="text-[10px] uppercase tracking-widest text-amber-700">Novas</div>
-              <div className="text-lg font-semibold text-amber-900">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
-            </div>
-            <div className="flex h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
-              <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Orçamento</div>
-              <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length}</div>
-            </div>
-            <div className="flex h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
-              <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Execução</div>
-              <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length}</div>
-            </div>
-          </div>
         </div>
 
         {/* Toolbar */}
         <div className="p-3 border-b border-roman-border bg-roman-bg/50">
           <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                Status
+              </label>
+              <div className="relative">
               <select
                 value={inboxFilter.status.length === 1 ? inboxFilter.status[0] : ''}
                 onChange={(e) => {
@@ -1455,8 +1445,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 ))}
               </select>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+              </div>
             </div>
-            <div className="relative min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                Sede
+              </label>
+              <div className="relative">
               <select
                 value={inboxFilter.site.length === 1 ? inboxFilter.site[0] : ''}
                 onChange={(e) => {
@@ -1476,10 +1471,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 ))}
               </select>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+              </div>
             </div>
             <button
               onClick={() => setInboxFilter({ status: [], priority: [], region: [], site: [], type: [] })}
-              className="shrink-0 rounded-sm border border-roman-border px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
+              className="shrink-0 self-end rounded-sm border border-roman-border px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
             >
               Limpar
             </button>
