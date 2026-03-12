@@ -1120,9 +1120,13 @@ export function InboxView() {
     createEmptyQuoteDraft(),
   ]);
   const [proposalHeader, setProposalHeader] = useState<ProposalHeaderDraft>(createProposalHeaderDraft());
+  const quoteDraftTicketRef = useRef<string>('');
 
   // Reseta cotações ao trocar de ticket
   useEffect(() => {
+    const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
+    if (showQuotesModal && !ticketChanged) return;
+
     const currentQuotes = storedQuotesByTicket[activeTicketId] || [];
     const fallbackQuotes = [createEmptyQuoteDraft(), createEmptyQuoteDraft(), createEmptyQuoteDraft()];
     const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
@@ -1162,7 +1166,8 @@ export function InboxView() {
         : createProposalHeaderDraft(activeTicket, currentSiteLabel)
     );
     setQuoteAttachments([null, null, null]);
-  }, [activeTicket, activeTicketId, catalogSites, storedQuotesByTicket]);
+    quoteDraftTicketRef.current = activeTicketId;
+  }, [activeTicket, activeTicketId, catalogSites, showQuotesModal, storedQuotesByTicket]);
 
   // useMemo evita recalcular em todo re-render
   const filteredTickets = useMemo(() => tickets.filter(t => {
