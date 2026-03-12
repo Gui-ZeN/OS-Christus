@@ -82,6 +82,15 @@ export interface ExecutionProgress {
   lastUpdatedAt?: Date | null;
 }
 
+export interface QuoteProposalHeader {
+  unitName?: string | null;
+  location?: string | null;
+  folderLink?: string | null;
+  contractedVendor?: string | null;
+  totalQuantity?: string | null;
+  totalEstimatedValue?: string | null;
+}
+
 export interface Ticket {
   id: string;
   trackingToken: string;
@@ -115,11 +124,13 @@ export interface Ticket {
 
 export interface QuoteItem {
   id: string;
+  section?: string | null;
   description: string;
   materialId?: string | null;
   materialName?: string | null;
   unit?: string | null;
   quantity?: number | null;
+  costUnitPrice?: string | null;
   unitPrice?: string | null;
   totalPrice?: string | null;
 }
@@ -131,6 +142,7 @@ export interface Quote {
   recommended: boolean;
   status?: string;
   attachmentName?: string | null;
+  proposalHeader?: QuoteProposalHeader | null;
   items?: QuoteItem[];
   classification?: ProcurementClassificationSnapshot;
 }

@@ -26,6 +26,21 @@ type QuoteDraft = {
   items: QuoteItem[];
 };
 
+type ProposalHeaderDraft = {
+  unitName: string;
+  location: string;
+  folderLink: string;
+  contractedVendor: string;
+  totalQuantity: string;
+  totalEstimatedValue: string;
+};
+
+const QUOTE_SECTION_OPTIONS = [
+  { value: 'material-mao-de-obra', label: 'Material e mão de obra' },
+  { value: 'materiais-complementares', label: 'Materiais complementares' },
+  { value: 'servicos-complementares', label: 'Serviços complementares' },
+] as const;
+
 const EMPTY_TICKET: Ticket = {
   id: '',
   trackingToken: '',
@@ -181,11 +196,13 @@ function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
 function createEmptyQuoteItem(defaultDescription = '', defaultUnit = ''): QuoteItem {
   return {
     id: crypto.randomUUID(),
+    section: 'material-mao-de-obra',
     description: defaultDescription,
     materialId: null,
     materialName: null,
     unit: defaultUnit || null,
     quantity: null,
+    costUnitPrice: null,
     unitPrice: null,
     totalPrice: null,
   };
@@ -197,6 +214,30 @@ function createEmptyQuoteDraft(): QuoteDraft {
     value: '',
     items: [createEmptyQuoteItem()],
   };
+}
+
+function createProposalHeaderDraft(ticket?: Ticket, siteLabel?: string): ProposalHeaderDraft {
+  return {
+    unitName: siteLabel || ticket?.sede || '',
+    location: '',
+    folderLink: '',
+    contractedVendor: '',
+    totalQuantity: '',
+    totalEstimatedValue: '',
+  };
+}
+
+function getQuoteSections(items: QuoteItem[]) {
+  const values = new Set<string>();
+  for (const item of items) {
+    if (item.section?.trim()) values.add(item.section.trim());
+  }
+  if (values.size === 0) values.add('material-mao-de-obra');
+  return Array.from(values);
+}
+
+function getQuoteSectionLabel(section: string) {
+  return QUOTE_SECTION_OPTIONS.find(option => option.value === section)?.label || section;
 }
 
 function parseCurrencyInput(value: string) {
@@ -1074,11 +1115,13 @@ export function InboxView() {
     createEmptyQuoteDraft(),
     createEmptyQuoteDraft(),
   ]);
+  const [proposalHeader, setProposalHeader] = useState<ProposalHeaderDraft>(createProposalHeaderDraft());
 
   // Reseta cotações ao trocar de ticket
   useEffect(() => {
     const currentQuotes = storedQuotesByTicket[activeTicketId] || [];
     const fallbackQuotes = [createEmptyQuoteDraft(), createEmptyQuoteDraft(), createEmptyQuoteDraft()];
+    const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
     const nextQuotes =
       currentQuotes.length > 0
         ? [0, 1, 2].map(index => ({
@@ -1088,11 +1131,13 @@ export function InboxView() {
               currentQuotes[index]?.items?.length
                 ? currentQuotes[index].items!.map(item => ({
                     id: item.id || crypto.randomUUID(),
+                    section: item.section || 'material-mao-de-obra',
                     description: item.description || '',
                     materialId: item.materialId || null,
                     materialName: item.materialName || null,
                     unit: item.unit || null,
                     quantity: item.quantity ?? null,
+                    costUnitPrice: item.costUnitPrice || null,
                     unitPrice: item.unitPrice || null,
                     totalPrice: item.totalPrice || null,
                   }))
@@ -1100,8 +1145,20 @@ export function InboxView() {
           }))
         : fallbackQuotes;
     setQuotes(nextQuotes);
+    setProposalHeader(
+      currentQuotes[0]?.proposalHeader
+        ? {
+            unitName: currentQuotes[0].proposalHeader?.unitName || currentSiteLabel || activeTicket.sede || '',
+            location: currentQuotes[0].proposalHeader?.location || '',
+            folderLink: currentQuotes[0].proposalHeader?.folderLink || '',
+            contractedVendor: currentQuotes[0].proposalHeader?.contractedVendor || '',
+            totalQuantity: currentQuotes[0].proposalHeader?.totalQuantity || '',
+            totalEstimatedValue: currentQuotes[0].proposalHeader?.totalEstimatedValue || '',
+          }
+        : createProposalHeaderDraft(activeTicket, currentSiteLabel)
+    );
     setQuoteAttachments([null, null, null]);
-  }, [activeTicketId, storedQuotesByTicket]);
+  }, [activeTicket, activeTicketId, catalogSites, storedQuotesByTicket]);
 
   // useMemo evita recalcular em todo re-render
   const filteredTickets = useMemo(() => tickets.filter(t => {
@@ -1137,6 +1194,66 @@ export function InboxView() {
       .map(materialId => catalogMaterials.find(material => material.id === materialId))
       .filter((value): value is CatalogMaterial => Boolean(value));
   }, [activeTicket.serviceCatalogId, catalogMaterials, serviceCatalog]);
+
+  const quoteComparisonSections = useMemo(() => {
+    const sections = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        rows: Array<{
+          key: string;
+          description: string;
+          unit: string;
+          quantity: string;
+          values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }>;
+        }>;
+      }
+    >();
+
+    const sectionKeys = new Set<string>();
+    quotes.forEach(quote => {
+      getQuoteSections(quote.items).forEach(section => sectionKeys.add(section));
+    });
+
+    const orderedSections = Array.from(sectionKeys);
+
+    orderedSections.forEach(section => {
+      const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }> }>();
+      quotes.forEach((quote, quoteIndex) => {
+        quote.items
+          .filter(item => (item.section || 'material-mao-de-obra') === section)
+          .forEach(item => {
+            const rowKey = String(item.description || item.materialName || item.id).trim().toLowerCase();
+            if (!rowMap.has(rowKey)) {
+              rowMap.set(rowKey, {
+                key: rowKey,
+                description: item.description || item.materialName || 'Item sem descrição',
+                unit: item.unit || '',
+                quantity: item.quantity != null ? String(item.quantity) : '',
+                values: quotes.map(() => ({ costUnitPrice: '', chargedUnitPrice: '', chargedTotalPrice: '' })),
+              });
+            }
+            const row = rowMap.get(rowKey)!;
+            row.values[quoteIndex] = {
+              costUnitPrice: item.costUnitPrice || '',
+              chargedUnitPrice: item.unitPrice || '',
+              chargedTotalPrice: item.totalPrice || '',
+            };
+            if (!row.unit && item.unit) row.unit = item.unit;
+            if (!row.quantity && item.quantity != null) row.quantity = String(item.quantity);
+          });
+      });
+
+      sections.set(section, {
+        key: section,
+        label: getQuoteSectionLabel(section),
+        rows: Array.from(rowMap.values()),
+      });
+    });
+
+    return Array.from(sections.values());
+  }, [quotes]);
 
   const persistedServicePreference = useMemo(() => {
     const exactService = vendorPreferences
@@ -1195,6 +1312,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   setQuotes(newQuotes);
 };
 
+  const handleProposalHeaderChange = (field: keyof ProposalHeaderDraft, value: string) => {
+    setProposalHeader(current => ({
+      ...current,
+      [field]: field === 'totalEstimatedValue' ? normalizeCurrencyInput(value) : value,
+    }));
+  };
+
   const recalculateQuoteValue = (draft: QuoteDraft) => {
     const computedTotal = draft.items.reduce((sum, item) => {
       const totalPrice = item.totalPrice ? parseCurrencyInput(item.totalPrice) : 0;
@@ -1230,8 +1354,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             nextItem.materialId = null;
             nextItem.materialName = value ? String(value) : null;
           }
-          if (field === 'unitPrice' || field === 'totalPrice') {
+          if (field === 'costUnitPrice' || field === 'unitPrice' || field === 'totalPrice') {
             nextItem[field] = typeof value === 'string' ? normalizeCurrencyInput(value) : null;
+          }
+          if (field === 'quantity' || field === 'unitPrice') {
+            const quantity = nextItem.quantity ?? 0;
+            const unitPrice = nextItem.unitPrice ? parseCurrencyInput(nextItem.unitPrice) : 0;
+            if (quantity > 0 && unitPrice > 0) {
+              nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
+            }
           }
           return nextItem;
         });
@@ -1307,12 +1438,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         recommended: index === (recommendedIndex >= 0 ? recommendedIndex : 0),
         status: 'pending',
         attachmentName: quoteAttachments[index]?.name || null,
+        proposalHeader: {
+          unitName: proposalHeader.unitName.trim() || null,
+          location: proposalHeader.location.trim() || null,
+          folderLink: proposalHeader.folderLink.trim() || null,
+          contractedVendor: proposalHeader.contractedVendor.trim() || null,
+          totalQuantity: proposalHeader.totalQuantity.trim() || null,
+          totalEstimatedValue: proposalHeader.totalEstimatedValue.trim() || null,
+        },
         items: quote.items
           .map(item => ({
             ...item,
+            section: item.section ? String(item.section).trim() : 'material-mao-de-obra',
             description: String(item.description || '').trim(),
             unit: item.unit ? String(item.unit).trim() : null,
             materialName: item.materialName ? String(item.materialName).trim() : null,
+            costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
             unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
             totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
           }))
@@ -2460,6 +2601,79 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </div>
               )}
 
+              <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-serif text-roman-text-main">Cabeçalho da proposta</h4>
+                    <p className="text-xs text-roman-text-sub">Estruture a rodada com unidade, local e pasta da referência enviada pelo solicitante.</p>
+                  </div>
+                  <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">Comparativo lado a lado</span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Unidade</label>
+                    <input
+                      type="text"
+                      value={proposalHeader.unitName}
+                      onChange={event => handleProposalHeaderChange('unitName', event.target.value)}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Local</label>
+                    <input
+                      type="text"
+                      placeholder="Ex.: 9º andar"
+                      value={proposalHeader.location}
+                      onChange={event => handleProposalHeaderChange('location', event.target.value)}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pasta / Link</label>
+                    <input
+                      type="text"
+                      placeholder="Cole o link da pasta"
+                      value={proposalHeader.folderLink}
+                      onChange={event => handleProposalHeaderChange('folderLink', event.target.value)}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Contratado / referência</label>
+                    <input
+                      type="text"
+                      placeholder="Fornecedor já contratado, se houver"
+                      value={proposalHeader.contractedVendor}
+                      onChange={event => handleProposalHeaderChange('contractedVendor', event.target.value)}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Quantidade total</label>
+                    <input
+                      type="text"
+                      placeholder="Ex.: 212 m²"
+                      value={proposalHeader.totalQuantity}
+                      onChange={event => handleProposalHeaderChange('totalQuantity', event.target.value)}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total previsto</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="R$ 0,00"
+                      value={proposalHeader.totalEstimatedValue}
+                      onChange={event => handleProposalHeaderChange('totalEstimatedValue', event.target.value)}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
                 <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -2584,6 +2798,91 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
               </div>
 
+              <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-serif text-roman-text-main">Comparativo consolidado</h4>
+                    <p className="text-xs text-roman-text-sub">Use esta grade para conferir subtotais e a diferença entre custo unitário e valor cobrado por fornecedor.</p>
+                  </div>
+                </div>
+
+                {quoteComparisonSections.length === 0 ? (
+                  <div className="mt-3 rounded-sm border border-dashed border-roman-border bg-roman-bg px-3 py-4 text-sm text-roman-text-sub">
+                    Adicione itens nas cotações para montar o comparativo lado a lado.
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-4 overflow-x-auto">
+                    {quoteComparisonSections.map(section => (
+                      <div key={section.key} className="min-w-[980px] rounded-sm border border-roman-border bg-roman-bg">
+                        <div className="border-b border-roman-border px-4 py-2">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{section.label}</div>
+                        </div>
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b border-roman-border bg-roman-surface text-left">
+                              <th className="px-3 py-2 font-medium text-roman-text-main">Descrição</th>
+                              <th className="px-3 py-2 font-medium text-roman-text-main">Qtd.</th>
+                              <th className="px-3 py-2 font-medium text-roman-text-main">Und.</th>
+                              {quotes.map((quote, index) => (
+                                <th key={`${section.key}-quote-${index}`} colSpan={3} className="border-l border-roman-border px-3 py-2">
+                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cotação {index + 1}</div>
+                                  <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.vendor || 'Fornecedor não informado'}</div>
+                                </th>
+                              ))}
+                            </tr>
+                            <tr className="border-b border-roman-border bg-roman-surface text-[11px] text-roman-text-sub">
+                              <th />
+                              <th />
+                              <th />
+                              {quotes.map((_, index) => (
+                                <React.Fragment key={`${section.key}-labels-${index}`}>
+                                  <th className="border-l border-roman-border px-3 py-2 font-medium">Custo unit.</th>
+                                  <th className="px-3 py-2 font-medium">Valor unit.</th>
+                                  <th className="px-3 py-2 font-medium">Valor cobrado</th>
+                                </React.Fragment>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {section.rows.map(row => (
+                              <tr key={row.key} className="border-b border-roman-border/70 align-top">
+                                <td className="px-3 py-2 text-roman-text-main">{row.description}</td>
+                                <td className="px-3 py-2 text-roman-text-sub">{row.quantity || '-'}</td>
+                                <td className="px-3 py-2 text-roman-text-sub">{row.unit || '-'}</td>
+                                {row.values.map((value, index) => (
+                                  <React.Fragment key={`${row.key}-${index}`}>
+                                    <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">{value.costUnitPrice || '-'}</td>
+                                    <td className="px-3 py-2 text-roman-text-sub">{value.chargedUnitPrice || '-'}</td>
+                                    <td className="px-3 py-2 text-roman-text-main">{value.chargedTotalPrice || '-'}</td>
+                                  </React.Fragment>
+                                ))}
+                              </tr>
+                            ))}
+                            <tr className="bg-roman-surface">
+                              <td colSpan={3} className="px-3 py-2 font-medium text-roman-text-main">Subtotal da seção</td>
+                              {quotes.map((quote, index) => {
+                                const subtotal = quote.items
+                                  .filter(item => (item.section || 'material-mao-de-obra') === section.key)
+                                  .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0);
+                                return (
+                                  <React.Fragment key={`${section.key}-subtotal-${index}`}>
+                                    <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">-</td>
+                                    <td className="px-3 py-2 text-roman-text-sub">-</td>
+                                    <td className="px-3 py-2 font-medium text-roman-text-main">
+                                      {subtotal > 0 ? formatCurrencyInput(subtotal) : '-'}
+                                    </td>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6 items-start">
                 {[0, 1, 2].map(i => (
                   <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
@@ -2677,6 +2976,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                 </button>
                               </div>
                               <div className="space-y-2">
+                                <select
+                                  value={item.section || 'material-mao-de-obra'}
+                                  onChange={event => handleQuoteItemChange(i, item.id, 'section', event.target.value)}
+                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                >
+                                  {QUOTE_SECTION_OPTIONS.map(option => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
                                 <input
                                   type="text"
                                   placeholder="Adicionar material"
@@ -2727,20 +3035,28 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   <input
                                     type="text"
                                     inputMode="decimal"
-                                    placeholder="R$ 0,00"
-                                    value={item.unitPrice || ''}
-                                    onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
+                                    placeholder="Custo unitário"
+                                    value={item.costUnitPrice || ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'costUnitPrice', event.target.value)}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
                                   <input
                                     type="text"
                                     inputMode="decimal"
-                                    placeholder="R$ 0,00"
-                                    value={item.totalPrice || ''}
-                                    onChange={event => handleQuoteItemChange(i, item.id, 'totalPrice', event.target.value)}
+                                    placeholder="Valor unitário"
+                                    value={item.unitPrice || ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
                                 </div>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  placeholder="Valor cobrado"
+                                  value={item.totalPrice || ''}
+                                  onChange={event => handleQuoteItemChange(i, item.id, 'totalPrice', event.target.value)}
+                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                />
                               </div>
                             </div>
                           ))}

@@ -5,11 +5,93 @@ import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ModalShell } from '../components/ui/ModalShell';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import type { ContractRecord, Quote, TicketStatus } from '../types';
+import type { ContractRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
+
+const QUOTE_SECTION_LABELS: Record<string, string> = {
+  'material-mao-de-obra': 'Material e mão de obra',
+  'materiais-complementares': 'Materiais complementares',
+  'servicos-complementares': 'Serviços complementares',
+};
+
+function getQuoteSectionLabel(section?: string | null) {
+  if (!section) return 'Material e mão de obra';
+  return QUOTE_SECTION_LABELS[section] || section;
+}
+
+function parseCurrencyInput(value: string | null | undefined) {
+  const normalized = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function createEmptyProposalHeader(): QuoteProposalHeader {
+  return {
+    unitName: '',
+    location: '',
+    folderLink: '',
+    contractedVendor: '',
+    totalQuantity: '',
+    totalEstimatedValue: '',
+  };
+}
+
+function getProposalHeaderValue(header: QuoteProposalHeader | null | undefined, key: keyof QuoteProposalHeader) {
+  return (header?.[key] || '').trim();
+}
+
+function buildQuoteComparisonSections(quotes: Quote[]) {
+  const sectionKeys = new Set<string>();
+  quotes.forEach(quote => {
+    (quote.items || []).forEach(item => sectionKeys.add(item.section || 'material-mao-de-obra'));
+  });
+
+  return Array.from(sectionKeys).map(sectionKey => {
+    const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }> }>();
+
+    quotes.forEach((quote, quoteIndex) => {
+      (quote.items || [])
+        .filter(item => (item.section || 'material-mao-de-obra') === sectionKey)
+        .forEach(item => {
+          const key = String(item.description || item.materialName || item.id).trim().toLowerCase();
+          if (!rowMap.has(key)) {
+            rowMap.set(key, {
+              key,
+              description: item.description || item.materialName || 'Item sem descrição',
+              unit: item.unit || '',
+              quantity: item.quantity != null ? String(item.quantity) : '',
+              values: quotes.map(() => ({ costUnitPrice: '', chargedUnitPrice: '', chargedTotalPrice: '' })),
+            });
+          }
+          const row = rowMap.get(key)!;
+          row.values[quoteIndex] = {
+            costUnitPrice: item.costUnitPrice || '',
+            chargedUnitPrice: item.unitPrice || '',
+            chargedTotalPrice: item.totalPrice || '',
+          };
+          if (!row.unit && item.unit) row.unit = item.unit;
+          if (!row.quantity && item.quantity != null) row.quantity = String(item.quantity);
+        });
+    });
+
+    return {
+      key: sectionKey,
+      label: getQuoteSectionLabel(sectionKey),
+      rows: Array.from(rowMap.values()),
+      subtotals: quotes.map(quote =>
+        (quote.items || [])
+          .filter(item => (item.section || 'material-mao-de-obra') === sectionKey)
+          .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice), 0)
+      ),
+    };
+  });
+}
 
 const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
   solutions: TICKET_STATUS.WAITING_BUDGET,
@@ -289,6 +371,12 @@ export function ApprovalsView() {
       ['Data', budget.date.toLocaleDateString('pt-BR')],
       ['Macroserviço', budget.macroServiceName ?? ''],
       ['Serviço', budget.serviceCatalogName ?? ''],
+      ['Unidade', getProposalHeaderValue(budget.proposalHeader, 'unitName')],
+      ['Local', getProposalHeaderValue(budget.proposalHeader, 'location')],
+      ['Pasta / Link', getProposalHeaderValue(budget.proposalHeader, 'folderLink')],
+      ['Contratado / referência', getProposalHeaderValue(budget.proposalHeader, 'contractedVendor')],
+      ['Quantidade total', getProposalHeaderValue(budget.proposalHeader, 'totalQuantity')],
+      ['Valor total previsto', getProposalHeaderValue(budget.proposalHeader, 'totalEstimatedValue')],
       [],
       ['Base histórica'],
       ['OS comparáveis', String(budget.historySummary.comparableTicketCount)],
@@ -310,18 +398,20 @@ export function ApprovalsView() {
       ]),
       [],
       ['Itens das cotações'],
-      ['Cotação', 'Fornecedor', 'Item', 'Material', 'Unidade', 'Quantidade', 'Valor unitário', 'Valor total'],
+      ['Cotação', 'Fornecedor', 'Seção', 'Item', 'Material', 'Unidade', 'Quantidade', 'Custo unitário', 'Valor unitário', 'Valor total'],
       ...budget.quotes.flatMap((quote, index) =>
         (quote.items && quote.items.length > 0
           ? quote.items
-          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, unitPrice: '', totalPrice: '' }]
+          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, unitPrice: '', totalPrice: '', costUnitPrice: '', section: 'material-mao-de-obra' }]
         ).map(item => [
           `Cotação ${index + 1}`,
           quote.vendor,
+          getQuoteSectionLabel(item.section),
           item.description || 'Sem descrição',
           item.materialName || '',
           item.unit || '',
           item.quantity != null ? String(item.quantity) : '',
+          item.costUnitPrice || '',
           item.unitPrice || '',
           item.totalPrice || '',
         ])
@@ -383,6 +473,7 @@ export function ApprovalsView() {
           serviceCatalogName: ticket.serviceCatalogName ?? null,
           viewingBy: ticket.viewingBy ?? null,
           quotes: quotesByTicket[ticket.id] ?? [],
+          proposalHeader: quotesByTicket[ticket.id]?.find(quote => quote.proposalHeader)?.proposalHeader ?? createEmptyProposalHeader(),
           historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
         })),
     [quotesByTicket, tickets]
@@ -640,6 +731,95 @@ export function ApprovalsView() {
                   >
                     Reprovar Todas
                   </button>
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-roman-border bg-roman-bg p-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Cabeçalho da proposta</div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    ['Unidade', getProposalHeaderValue(budget.proposalHeader, 'unitName')],
+                    ['Local', getProposalHeaderValue(budget.proposalHeader, 'location')],
+                    ['Pasta / Link', getProposalHeaderValue(budget.proposalHeader, 'folderLink')],
+                    ['Contratado / referência', getProposalHeaderValue(budget.proposalHeader, 'contractedVendor')],
+                    ['Quantidade total', getProposalHeaderValue(budget.proposalHeader, 'totalQuantity')],
+                    ['Valor total previsto', getProposalHeaderValue(budget.proposalHeader, 'totalEstimatedValue')],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-roman-border/80 bg-roman-surface px-3 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">{label}</div>
+                      <div className="mt-1 text-sm text-roman-text-main break-words">{value || '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-roman-border bg-roman-bg p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Comparativo consolidado</div>
+                    <div className="mt-1 text-sm text-roman-text-sub">Leitura lado a lado dos itens e subtotais por fornecedor.</div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {buildQuoteComparisonSections(budget.quotes).map(section => (
+                    <div key={section.key} className="rounded-2xl border border-roman-border/80 bg-roman-surface">
+                      <div className="border-b border-roman-border/70 px-4 py-3">
+                        <div className="text-sm font-medium text-roman-text-main">{section.label}</div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-roman-bg/70 text-roman-text-sub">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium">Descrição</th>
+                              <th className="px-3 py-2 text-left font-medium">Qtd.</th>
+                              <th className="px-3 py-2 text-left font-medium">Und.</th>
+                              {budget.quotes.map((quote, index) => (
+                                <th key={quote.id} className="px-3 py-2 text-left font-medium min-w-[12rem]">
+                                  <div className="text-roman-text-main">Cotação {index + 1}</div>
+                                  <div className="text-[11px] text-roman-text-sub">{quote.vendor || 'Fornecedor não informado'}</div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {section.rows.map(row => (
+                              <tr key={row.key} className="border-t border-roman-border/60 align-top">
+                                <td className="px-3 py-3 text-roman-text-main">{row.description}</td>
+                                <td className="px-3 py-3 text-roman-text-sub">{row.quantity || '-'}</td>
+                                <td className="px-3 py-3 text-roman-text-sub">{row.unit || '-'}</td>
+                                {row.values.map((value, index) => (
+                                  <td key={`${row.key}-${index}`} className="px-3 py-3">
+                                    <div className="space-y-1 text-[12px]">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-roman-text-sub">Custo</span>
+                                        <span className="text-roman-text-main">{value.costUnitPrice || '-'}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-roman-text-sub">Valor unit.</span>
+                                        <span className="text-roman-text-main">{value.chargedUnitPrice || '-'}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3 font-medium">
+                                        <span className="text-roman-text-sub">Valor cobrado</span>
+                                        <span className="text-roman-text-main">{value.chargedTotalPrice || '-'}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                            <tr className="border-t border-roman-border bg-roman-bg/60">
+                              <td className="px-3 py-3 font-medium text-roman-text-main" colSpan={3}>Subtotal da seção</td>
+                              {section.subtotals.map((subtotal, index) => (
+                                <td key={`${section.key}-subtotal-${index}`} className="px-3 py-3 font-medium text-roman-text-main">
+                                  {subtotal > 0 ? subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                                </td>
+                              ))}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

@@ -196,14 +196,26 @@ async function writeQuotes(db, ticketId, quotes) {
         recommended: Boolean(quote.recommended),
         status: String(quote.status || 'pending'),
         attachmentName: quote.attachmentName ? String(quote.attachmentName) : null,
+        proposalHeader: quote.proposalHeader
+          ? {
+              unitName: quote.proposalHeader.unitName ? String(quote.proposalHeader.unitName).trim() : null,
+              location: quote.proposalHeader.location ? String(quote.proposalHeader.location).trim() : null,
+              folderLink: quote.proposalHeader.folderLink ? String(quote.proposalHeader.folderLink).trim() : null,
+              contractedVendor: quote.proposalHeader.contractedVendor ? String(quote.proposalHeader.contractedVendor).trim() : null,
+              totalQuantity: quote.proposalHeader.totalQuantity ? String(quote.proposalHeader.totalQuantity).trim() : null,
+              totalEstimatedValue: quote.proposalHeader.totalEstimatedValue ? String(quote.proposalHeader.totalEstimatedValue).trim() : null,
+            }
+          : null,
         items: Array.isArray(quote.items)
           ? quote.items.map(item => ({
               id: String(item.id || '').trim() || `item-${Date.now()}`,
+              section: item.section ? String(item.section).trim() : null,
               description: String(item.description || '').trim(),
               materialId: item.materialId ? String(item.materialId).trim() : null,
               materialName: item.materialName ? String(item.materialName).trim() : null,
               unit: item.unit ? String(item.unit).trim() : null,
               quantity: item.quantity != null ? Number(item.quantity) : null,
+              costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
               unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
               totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
             }))
