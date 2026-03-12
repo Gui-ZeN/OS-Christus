@@ -186,7 +186,30 @@ export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket
     body: JSON.stringify({ ticket }),
   });
   if (!response.ok) {
-    throw new Error('Falha ao criar ticket na API.');
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error || 'Falha ao criar ticket na API.');
+  }
+
+  const json = await response.json();
+  if (!json.ok || !json.ticket) {
+    throw new Error('Resposta inválida ao criar ticket.');
+  }
+
+  return hydrateTicket(json.ticket as ApiTicket);
+}
+
+export async function createTicketWithFilesInApi(ticket: Partial<Ticket>, files: File[]): Promise<Ticket> {
+  const formData = new FormData();
+  formData.append('ticket', JSON.stringify(ticket));
+  files.forEach(file => formData.append('attachment', file));
+
+  const response = await fetch('/api/tickets', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error || 'Falha ao criar ticket na API.');
   }
 
   const json = await response.json();

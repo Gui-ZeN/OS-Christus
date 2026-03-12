@@ -13,7 +13,7 @@ import {
   markNotificationReadRemote,
 } from '../services/notificationsApi';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
-import { createTicketInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
+import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
 import { AppNotification, InboxFilter, Ticket, ViewState } from '../types';
 
 interface AppContextType {
@@ -51,7 +51,7 @@ interface AppContextType {
   ticketsLoading: boolean;
   refreshTickets: () => Promise<void>;
   updateTicket: (id: string, updates: Partial<Ticket>) => void;
-  addTicket: (ticket: Ticket) => Promise<Ticket>;
+  addTicket: (ticket: Ticket, files?: File[]) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
   currentUserEmail: string;
   setCurrentUserEmail: (email: string) => void;
@@ -386,8 +386,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   };
 
-  const addTicket = async (ticket: Ticket) => {
-    const createdTicket = await createTicketInApi(ticket);
+  const addTicket = async (ticket: Ticket, files: File[] = []) => {
+    const createdTicket = files.length > 0 ? await createTicketWithFilesInApi(ticket, files) : await createTicketInApi(ticket);
     setAllTickets(prev => [createdTicket, ...prev.filter(item => item.id !== createdTicket.id)]);
     return createdTicket;
   };

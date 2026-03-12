@@ -24,6 +24,27 @@ function toDate(value) {
   return value;
 }
 
+function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map(stripUndefinedDeep)
+      .filter(item => item !== undefined);
+  }
+
+  if (value && typeof value === 'object' && !(value instanceof Date) && !(value instanceof Timestamp)) {
+    const next = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const normalized = stripUndefinedDeep(entry);
+      if (normalized !== undefined) {
+        next[key] = normalized;
+      }
+    }
+    return next;
+  }
+
+  return value === undefined ? undefined : value;
+}
+
 export function normalizeTicketForStorage(ticket) {
   const next = { ...ticket };
   next.time = toDate(next.time) || new Date();
@@ -98,7 +119,7 @@ export function normalizeTicketForStorage(ticket) {
       lastUpdatedAt: toDate(next.executionProgress.lastUpdatedAt) || null,
     };
   }
-  return next;
+  return stripUndefinedDeep(next);
 }
 
 function serializeDate(value) {

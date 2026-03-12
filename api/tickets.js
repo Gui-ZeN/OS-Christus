@@ -3,7 +3,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
+import { parseInboundBody, readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
@@ -123,6 +123,60 @@ async function deleteStoragePaths(paths) {
   }
 
   return deleted;
+}
+
+function slugFilename(value) {
+  return String(value || 'arquivo')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+async function uploadTicketAttachments(ticketId, attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return [];
+
+  const bucket = getStorage().bucket();
+  const uploadedAt = new Date();
+  const results = [];
+
+  for (let index = 0; index < attachments.length; index += 1) {
+    const attachment = attachments[index];
+    if (!attachment?.buffer) continue;
+
+    const filename = slugFilename(attachment.filename || `anexo-${index + 1}`) || `anexo-${Date.now()}-${index + 1}`;
+    const isPdf = String(attachment.mimeType || '').toLowerCase() === 'application/pdf';
+    const baseFolder = isPdf ? 'attachments/tickets/pdfs' : 'attachments/tickets/images';
+    const path = `${baseFolder}/${ticketId}/public-${Date.now()}-${index + 1}-${filename}`;
+    const file = bucket.file(path);
+
+    await file.save(attachment.buffer, {
+      resumable: false,
+      contentType: attachment.mimeType || 'application/octet-stream',
+      metadata: {
+        contentType: attachment.mimeType || 'application/octet-stream',
+      },
+    });
+
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: '2035-01-01',
+    });
+
+    results.push({
+      id: randomUUID(),
+      name: attachment.filename || filename,
+      path,
+      url,
+      contentType: attachment.mimeType || 'application/octet-stream',
+      size: Number(attachment.size || attachment.buffer.length || 0),
+      uploadedAt,
+      category: 'attachment',
+    });
+  }
+
+  return results;
 }
 
 async function deleteTicketCascade(db, ticketId) {
@@ -261,8 +315,17 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const body = await readJsonBody(req);
-      if (!body?.ticket || typeof body.ticket !== 'object') {
+      const parsedBody = await parseInboundBody(req);
+      let ticketPayload = parsedBody?.ticket;
+      if (typeof ticketPayload === 'string') {
+        try {
+          ticketPayload = JSON.parse(ticketPayload);
+        } catch {
+          ticketPayload = null;
+        }
+      }
+
+      if (!ticketPayload || typeof ticketPayload !== 'object') {
         return sendJson(res, 400, { ok: false, error: 'ticket é obrigatório.' });
       }
 
@@ -274,16 +337,21 @@ export default async function handler(req, res) {
         user = null;
       }
 
-      const ticket = user ? normalizeTicketForStorage(body.ticket) : sanitizePublicTicketCreate(body.ticket);
+      const ticket = user ? normalizeTicketForStorage(ticketPayload) : sanitizePublicTicketCreate(ticketPayload);
       const now = new Date();
       const ticketId = await reserveNextTicketId(db);
       const trackingToken =
         String(ticket.trackingToken || '').trim() || `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+      const uploadedAttachments = await uploadTicketAttachments(
+        ticketId,
+        Array.isArray(parsedBody?.attachments) ? parsedBody.attachments : []
+      );
       const createdTicket = {
         ...ticket,
         id: ticketId,
         trackingToken,
         time: ticket.time || now,
+        attachments: [...(Array.isArray(ticket.attachments) ? ticket.attachments : []), ...uploadedAttachments],
         createdAt: now,
         updatedAt: now,
       };

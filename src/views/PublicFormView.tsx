@@ -142,7 +142,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           { id: crypto.randomUUID(), type: 'system', sender: 'Sistema', time: now, text: 'Solicitação registrada via formulário público. Aguardando triagem.' },
         ] as HistoryItem[],
       };
-      const createdTicket = await addTicket(draftTicket);
+      const createdTicket = await addTicket(draftTicket, files);
       void notifyTicketCreated(createdTicket);
       setCreatedId(createdTicket.id);
       setCreatedToken(createdTicket.trackingToken);
