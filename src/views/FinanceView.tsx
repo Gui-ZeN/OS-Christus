@@ -82,6 +82,16 @@ function addMonths(date: Date, months: number) {
   return next;
 }
 
+function getFinanceNextActionLabel(ticket: Ticket) {
+  if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
+  if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
+  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar a validação do solicitante para seguir ao fechamento.';
+  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento.';
+  if (ticket.status === TICKET_STATUS.CLOSED) return 'Fluxo financeiro concluído.';
+  if (ticket.status === TICKET_STATUS.CANCELED) return 'OS cancelada; manter apenas consulta histórica.';
+  return 'Acompanhar evolução da OS e próximos marcos financeiros.';
+}
+
 type FinanceTab = 'execution' | 'financial' | 'guarantee' | 'documents';
 
 function FinanceSection({
@@ -316,7 +326,6 @@ export function FinanceView() {
   const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
-  const [summaryOpenByTicket, setSummaryOpenByTicket] = useState<Record<string, boolean>>({});
 
   if (!canAccess) {
     return (
@@ -1043,8 +1052,6 @@ export function FinanceView() {
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.progressPercent);
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
-            const isSummaryOpen = summaryOpenByTicket[ticket.id] ?? false;
-
             return (
               <div
                 key={ticket.id}
@@ -1062,7 +1069,7 @@ export function FinanceView() {
                   </div>
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">OS em acompanhamento</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -1071,15 +1078,12 @@ export function FinanceView() {
                         {ticket.status}
                       </span>
                     </div>
+                    <div className="mt-1 text-sm font-medium text-roman-text-main">{ticket.subject}</div>
+                    <p className="mt-1 text-xs text-roman-text-sub">
+                      Fornecedor: {vendor} | Próxima ação: {getFinanceNextActionLabel(ticket)}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSummaryOpenByTicket(prev => ({ ...prev, [ticket.id]: !isSummaryOpen }))}
-                      className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                    >
-                      {isSummaryOpen ? 'Ocultar resumo' : 'Ver resumo'}
-                    </button>
                     <button
                       type="button"
                       onClick={() => setCollapsedTickets(prev => ({ ...prev, [ticket.id]: !isCollapsed }))}
@@ -1092,34 +1096,31 @@ export function FinanceView() {
                 </div>
 
                 {!isCollapsed && (
-                <div className="flex flex-col gap-6 xl:flex-row">
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-3 mb-2">
-                        <span className="text-roman-primary font-serif italic text-sm">{ticket.id}</span>
-                        <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">{ticket.status}</span>
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-xs text-roman-text-sub">
+                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Classificação</div>
+                        <div className="mt-1 font-medium text-roman-text-main">{ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
                       </div>
-                      <h3 className="text-xl font-serif text-roman-text-main mb-1">{ticket.subject}</h3>
-                      {(ticket.macroServiceName || ticket.serviceCatalogName) && (
-                        <div className="mb-2 flex flex-wrap gap-2 text-[11px]">
-                          {ticket.macroServiceName && (
-                            <span className="rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-2 py-1 text-roman-primary">
-                              {ticket.macroServiceName}
-                            </span>
-                          )}
-                          {ticket.serviceCatalogName && (
-                            <span className="rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-roman-text-sub">
-                              {ticket.serviceCatalogName}
-                            </span>
-                          )}
+                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Fluxo</div>
+                        <div className="mt-1 font-medium text-roman-text-main">
+                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'Não definido'}
                         </div>
-                      )}
-                      <p className="text-sm text-roman-text-sub">
-                        Fornecedor: {vendor} | Contrato: {contractValue} | Validação: {formatDateTimeSafe(ticket.time)}
-                      </p>
+                      </div>
+                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Andamento</div>
+                        <div className="mt-1 font-medium text-roman-text-main">{progressPercent}%</div>
+                      </div>
+                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Contrato</div>
+                        <div className="mt-1 font-medium text-roman-text-main">{contractValue}</div>
+                      </div>
                     </div>
+                  </div>
 
-                    <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
+                  <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex flex-wrap gap-2">
                           {([
@@ -1623,37 +1624,6 @@ export function FinanceView() {
                       </FinanceSection>
                     )}
                   </div>
-
-                  {isSummaryOpen && (
-                    <aside className="w-full xl:w-72 border-t xl:border-t-0 xl:border-l border-roman-border pt-4 xl:pt-0 xl:pl-6">
-                      <div className="rounded-xl border border-roman-border bg-roman-bg px-4 py-3">
-                        <div className="font-medium text-roman-text-main mb-3">Resumo financeiro</div>
-                        <div className="grid grid-cols-1 gap-2">
-                          <div className="rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Contrato</div>
-                            <div className="mt-1 text-sm font-semibold text-roman-text-main">{contractValue}</div>
-                          </div>
-                          <div className="rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Pago</div>
-                            <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(paidValue)}</div>
-                          </div>
-                          <div className="rounded-lg border border-roman-border bg-roman-surface px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Saldo pendente</div>
-                            <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(remainingValue)}</div>
-                          </div>
-                        </div>
-                        <div className="mt-3 space-y-1.5 rounded-lg border border-roman-border bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
-                          <div>Previsto no plano: {formatCurrency(plannedValue)}</div>
-                          <div>Classificação: {ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
-                          <div>Laudos anexados: {closureDocuments.length}</div>
-                          <div>Parcelas pendentes: {pendingInstallments.length}</div>
-                          <div>Medições registradas: {measurements.length}</div>
-                          <div>Última atualização: {formatDateTimeSafe(ticket.time)}</div>
-                        </div>
-                      </div>
-                    </aside>
-                  )}
-                </div>
                 )}
               </div>
             );
