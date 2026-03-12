@@ -41,6 +41,44 @@ const QUOTE_SECTION_OPTIONS = [
   { value: 'servicos-complementares', label: 'Serviços complementares' },
 ] as const;
 
+const DEFAULT_QUOTE_UNIT_OPTIONS = [
+  'UN',
+  'PÇ',
+  'CX',
+  'PC',
+  'CT',
+  'PR',
+  'RL',
+  'DZ',
+  'GS',
+  'CENTO',
+  'KG',
+  'G',
+  'SC60',
+  'L',
+  'ML',
+  'M3',
+  'M',
+  'CM',
+  'M2',
+] as const;
+
+const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
+
+const TRIAGE_VISIBLE_STATUSES = [
+  TICKET_STATUS.NEW,
+  TICKET_STATUS.WAITING_TECH_OPINION,
+  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+  TICKET_STATUS.WAITING_BUDGET,
+  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+] as const;
+
+function normalizeUnitAbbreviation(value?: string | null) {
+  if (!value) return '';
+  return value.trim().toUpperCase();
+}
+
 const EMPTY_TICKET: Ticket = {
   id: '',
   trackingToken: '',
@@ -482,6 +520,7 @@ export function InboxView() {
 
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
+  const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(activeTicket.status);
   const executionNextActionLabel = getExecutionNextActionLabel(activeTicket);
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
@@ -1052,6 +1091,8 @@ export function InboxView() {
   const [showDeleteTicketModal, setShowDeleteTicketModal] = useState(false);
   const [isDeletingTicket, setIsDeletingTicket] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
+  const [additionalQuoteUnits, setAdditionalQuoteUnits] = useState<string[]>([]);
+  const [pendingCustomUnitByItem, setPendingCustomUnitByItem] = useState<Record<string, string>>({});
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
@@ -1119,6 +1160,20 @@ export function InboxView() {
     createEmptyQuoteDraft(),
     createEmptyQuoteDraft(),
   ]);
+  const quoteUnitOptions = useMemo(() => {
+    const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
+    additionalQuoteUnits.forEach(unit => {
+      const normalized = normalizeUnitAbbreviation(unit);
+      if (normalized) options.add(normalized);
+    });
+    quotes.forEach(quote => {
+      quote.items.forEach(item => {
+        const normalized = normalizeUnitAbbreviation(item.unit);
+        if (normalized) options.add(normalized);
+      });
+    });
+    return Array.from(options);
+  }, [additionalQuoteUnits, quotes]);
   const [proposalHeader, setProposalHeader] = useState<ProposalHeaderDraft>(createProposalHeaderDraft());
   const quoteDraftTicketRef = useRef<string>('');
 
@@ -1166,6 +1221,7 @@ export function InboxView() {
         : createProposalHeaderDraft(activeTicket, currentSiteLabel)
     );
     setQuoteAttachments([null, null, null]);
+    setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
   }, [activeTicket, activeTicketId, catalogSites, showQuotesModal, storedQuotesByTicket]);
 
@@ -1358,11 +1414,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
   const recalculateQuoteValue = (draft: QuoteDraft) => {
     const computedTotal = draft.items.reduce((sum, item) => {
-      const totalPrice = item.totalPrice ? parseCurrencyInput(item.totalPrice) : 0;
-      if (totalPrice > 0) return sum + totalPrice;
       const quantity = item.quantity ?? 0;
       const unitPrice = item.unitPrice ? parseCurrencyInput(item.unitPrice) : 0;
-      return sum + quantity * unitPrice;
+      if (quantity > 0 && unitPrice > 0) return sum + quantity * unitPrice;
+      const totalPrice = item.totalPrice ? parseCurrencyInput(item.totalPrice) : 0;
+      return sum + totalPrice;
     }, 0);
 
     return {
@@ -1382,7 +1438,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             const material = catalogMaterials.find(entry => entry.id === value);
             nextItem.materialId = material?.id || null;
             nextItem.materialName = material?.name || null;
-            nextItem.unit = material?.unit || item.unit || null;
+            nextItem.unit = normalizeUnitAbbreviation(material?.unit || item.unit) || null;
             if (!nextItem.description) {
               nextItem.description = material?.name || '';
             }
@@ -1390,6 +1446,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           if (field === 'materialName') {
             nextItem.materialId = null;
             nextItem.materialName = value ? String(value) : null;
+          }
+          if (field === 'unit') {
+            nextItem.unit = normalizeUnitAbbreviation(typeof value === 'string' ? value : null) || null;
           }
           if (field === 'costUnitPrice' || field === 'unitPrice' || field === 'totalPrice') {
             nextItem[field] = typeof value === 'string' ? sanitizeCurrencyTypingInput(value) : null;
@@ -1399,6 +1458,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             const unitPrice = nextItem.unitPrice ? parseCurrencyInput(nextItem.unitPrice) : 0;
             if (quantity > 0 && unitPrice > 0) {
               nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
+            } else {
+              nextItem.totalPrice = null;
             }
           }
           return nextItem;
@@ -1408,7 +1469,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     );
   };
 
-  const handleQuoteItemCurrencyBlur = (quoteIndex: number, itemId: string, field: 'costUnitPrice' | 'unitPrice' | 'totalPrice') => {
+  const handleQuoteItemCurrencyBlur = (quoteIndex: number, itemId: string, field: 'costUnitPrice' | 'unitPrice') => {
     setQuotes(current =>
       current.map((quote, index) => {
         if (index !== quoteIndex) return quote;
@@ -1418,14 +1479,47 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           nextItem[field] = normalizeCurrencyInput(String(nextItem[field] || ''));
           const quantity = nextItem.quantity ?? 0;
           const unitPrice = nextItem.unitPrice ? parseCurrencyInput(nextItem.unitPrice) : 0;
-          if (quantity > 0 && unitPrice > 0 && (!nextItem.totalPrice || field === 'unitPrice')) {
+          if (quantity > 0 && unitPrice > 0) {
             nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
+          } else {
+            nextItem.totalPrice = null;
           }
           return nextItem;
         });
         return recalculateQuoteValue({ ...quote, items });
       })
     );
+  };
+
+  const buildQuoteItemUnitKey = (quoteIndex: number, itemId: string) => `${quoteIndex}:${itemId}`;
+
+  const handleQuoteItemUnitSelect = (quoteIndex: number, itemId: string, selectedValue: string) => {
+    const itemKey = buildQuoteItemUnitKey(quoteIndex, itemId);
+    if (selectedValue === CUSTOM_QUOTE_UNIT_VALUE) {
+      setPendingCustomUnitByItem(current => ({ ...current, [itemKey]: '' }));
+      return;
+    }
+    setPendingCustomUnitByItem(current => {
+      if (!(itemKey in current)) return current;
+      const next = { ...current };
+      delete next[itemKey];
+      return next;
+    });
+    handleQuoteItemChange(quoteIndex, itemId, 'unit', selectedValue || null);
+  };
+
+  const handleQuoteItemCustomUnitSave = (quoteIndex: number, itemId: string) => {
+    const itemKey = buildQuoteItemUnitKey(quoteIndex, itemId);
+    const normalized = normalizeUnitAbbreviation(pendingCustomUnitByItem[itemKey]);
+    if (!normalized) return;
+
+    setAdditionalQuoteUnits(current => (current.includes(normalized) ? current : [...current, normalized]));
+    handleQuoteItemChange(quoteIndex, itemId, 'unit', normalized);
+    setPendingCustomUnitByItem(current => {
+      const next = { ...current };
+      delete next[itemKey];
+      return next;
+    });
   };
 
   const handleAddQuoteItem = (quoteIndex: number) => {
@@ -1437,6 +1531,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleRemoveQuoteItem = (quoteIndex: number, itemId: string) => {
+    const itemKey = buildQuoteItemUnitKey(quoteIndex, itemId);
+    setPendingCustomUnitByItem(current => {
+      if (!(itemKey in current)) return current;
+      const next = { ...current };
+      delete next[itemKey];
+      return next;
+    });
     setQuotes(current =>
       current.map((quote, index) => {
         if (index !== quoteIndex) return quote;
@@ -2242,6 +2343,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </div>
               </section>
 
+              {(activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) && (
+                <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
+                    <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">Rodada 1</span>
+                  </div>
+                  <button
+                    onClick={() => setShowQuotesModal(true)}
+                    className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
+                  >
+                    <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
+                    Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
+                  </button>
+                </section>
+              )}
+
+              {showTriagePanel && (
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atendimento e triagem</div>
                 <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe responsável e decisões de atendimento.</div>
@@ -2359,6 +2477,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   )}
                 </div>
               </section>
+              )}
 
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <button
@@ -2431,23 +2550,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 )}
               </section>
-
-              {/* BUDGETS SECTION */}
-              {(activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) && (
-                <section className="pt-3 border-t border-roman-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
-                    <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">Rodada 1</span>
-                  </div>
-                  <button
-                    onClick={() => setShowQuotesModal(true)}
-                    className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
-                  >
-                    <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                    Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
-                  </button>
-                </section>
-              )}
 
               {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
               {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
@@ -3125,19 +3227,53 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     onChange={event => handleQuoteItemChange(i, item.id, 'quantity', event.target.value ? Number(event.target.value) : null)}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
-                                  <input
-                                    type="text"
-                                    placeholder="Unidade"
-                                    value={item.unit || ''}
-                                    onChange={event => handleQuoteItemChange(i, item.id, 'unit', event.target.value)}
-                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                  />
+                                  {(() => {
+                                    const itemUnitKey = buildQuoteItemUnitKey(i, item.id);
+                                    const hasCustomUnitInput = Object.prototype.hasOwnProperty.call(pendingCustomUnitByItem, itemUnitKey);
+                                    const selectedUnitValue = hasCustomUnitInput
+                                      ? CUSTOM_QUOTE_UNIT_VALUE
+                                      : normalizeUnitAbbreviation(item.unit) || '';
+
+                                    return (
+                                      <div className="space-y-2">
+                                        <select
+                                          value={selectedUnitValue}
+                                          onChange={event => handleQuoteItemUnitSelect(i, item.id, event.target.value)}
+                                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                        >
+                                          <option value="">Unidade</option>
+                                          {quoteUnitOptions.map(unit => (
+                                            <option key={`unit-${unit}`} value={unit}>{unit}</option>
+                                          ))}
+                                          <option value={CUSTOM_QUOTE_UNIT_VALUE}>+ Outra...</option>
+                                        </select>
+                                        {hasCustomUnitInput && (
+                                          <div className="grid grid-cols-[1fr_auto] gap-2">
+                                            <input
+                                              type="text"
+                                              placeholder="Sigla (ex.: M2)"
+                                              value={pendingCustomUnitByItem[itemUnitKey] || ''}
+                                              onChange={event => setPendingCustomUnitByItem(current => ({ ...current, [itemUnitKey]: event.target.value }))}
+                                              className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => handleQuoteItemCustomUnitSave(i, item.id)}
+                                              className="px-3 py-2 text-xs font-medium rounded-sm border border-roman-primary/30 bg-roman-primary/10 text-roman-primary hover:bg-roman-primary/20"
+                                            >
+                                              Salvar
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
                                     inputMode="decimal"
-                                    placeholder="Custo unitário"
+                                    placeholder="Custo unitário (interno)"
                                     value={item.costUnitPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'costUnitPrice', event.target.value)}
                                     onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'costUnitPrice')}
@@ -3146,21 +3282,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   <input
                                     type="text"
                                     inputMode="decimal"
-                                    placeholder="Valor unitário"
+                                    placeholder="Valor unitário (cliente)"
                                     value={item.unitPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
                                     onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'unitPrice')}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
                                 </div>
+                                <div className="text-[11px] text-roman-text-sub">
+                                  Custo unitário = gasto interno | Valor unitário = preço cobrado ao cliente.
+                                </div>
                                 <input
                                   type="text"
                                   inputMode="decimal"
-                                  placeholder="Valor cobrado"
+                                  placeholder="Valor cobrado (automático)"
                                   value={item.totalPrice || ''}
-                                  onChange={event => handleQuoteItemChange(i, item.id, 'totalPrice', event.target.value)}
-                                  onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'totalPrice')}
-                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  readOnly
+                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg text-roman-text-main/80 cursor-not-allowed"
                                 />
                               </div>
                             </div>
