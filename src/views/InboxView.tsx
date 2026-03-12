@@ -254,6 +254,8 @@ export function InboxView() {
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
+  const [quickActionsCompact, setQuickActionsCompact] = useState(false);
+  const [quickActionsPinnedOpen, setQuickActionsPinnedOpen] = useState(false);
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
   const canManageStatus = currentUser?.role === 'Admin';
@@ -261,6 +263,7 @@ export function InboxView() {
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
+  const contextScrollRef = useRef<HTMLDivElement>(null);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
   // Estado derivado: usa tickets do contexto (mutável)
@@ -269,6 +272,7 @@ export function InboxView() {
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
   const canEditCoreFields = canManageStatus;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
+  const showQuickActionsExpanded = !quickActionsCompact || quickActionsPinnedOpen;
 
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
@@ -311,6 +315,11 @@ export function InboxView() {
       ].includes(activeTicket.status),
     });
   }, [activeTicket.id, activeTicket.status]);
+
+  useEffect(() => {
+    setQuickActionsCompact(false);
+    setQuickActionsPinnedOpen(false);
+  }, [activeTicket.id]);
 
   useEffect(() => {
     setPrelimForm(createPreliminaryFormState(activeTicket.preliminaryActions));
@@ -1990,7 +1999,17 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2.5">
+            <div
+              ref={contextScrollRef}
+              onScroll={event => {
+                const nextCompact = event.currentTarget.scrollTop > 28;
+                setQuickActionsCompact(prev => (prev === nextCompact ? prev : nextCompact));
+                if (!nextCompact && quickActionsPinnedOpen) {
+                  setQuickActionsPinnedOpen(false);
+                }
+              }}
+              className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2.5"
+            >
               {/* PUBLIC LINK BUTTON */}
               <div className="flex gap-2">
                 <button
@@ -2014,14 +2033,28 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Ações rápidas</div>
-                    <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe e urgência sempre visíveis.</div>
+                    <div className="mt-1 text-[11px] text-roman-text-sub">
+                      {showQuickActionsExpanded ? 'Status, equipe e urgência sempre visíveis.' : 'Toque para expandir o painel rápido.'}
+                    </div>
                   </div>
-                  <span className="rounded-full border border-roman-primary/30 bg-roman-primary/5 px-2.5 py-1 text-[11px] font-medium text-roman-text-main">
-                    {activeTicket.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-roman-primary/30 bg-roman-primary/5 px-2.5 py-1 text-[11px] font-medium text-roman-text-main">
+                      {activeTicket.status}
+                    </span>
+                    {quickActionsCompact && (
+                      <button
+                        type="button"
+                        onClick={() => setQuickActionsPinnedOpen(prev => !prev)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-roman-border bg-roman-bg text-roman-text-sub transition-colors hover:border-roman-primary hover:text-roman-text-main"
+                        aria-label={showQuickActionsExpanded ? 'Recolher ações rápidas' : 'Expandir ações rápidas'}
+                      >
+                        <ChevronDown size={16} className={`transition-transform ${showQuickActionsExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mt-3 space-y-3">
+                {showQuickActionsExpanded && <div className="mt-3 space-y-3">
                   {canManageStatus && (
                     <div>
                       <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Status da OS</label>
@@ -2128,7 +2161,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       )}
                     </div>
                   )}
-                </div>
+                </div>}
               </section>
 
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
