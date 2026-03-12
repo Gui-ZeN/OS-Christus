@@ -262,6 +262,10 @@ function normalizeCurrencyInput(value: string) {
   return parsed > 0 ? formatCurrencyInput(parsed) : '';
 }
 
+function sanitizeCurrencyTypingInput(value: string) {
+  return String(value || '').replace(/[^\d,.-]/g, '');
+}
+
 function getExecutionNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
@@ -1316,14 +1320,34 @@ export function InboxView() {
 
 const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: string) => {
   const newQuotes = [...quotes];
-  newQuotes[index][field] = field === 'value' ? normalizeCurrencyInput(value) : value;
+  newQuotes[index][field] = field === 'value' ? sanitizeCurrencyTypingInput(value) : value;
   setQuotes(newQuotes);
 };
+
+  const handleQuoteCurrencyBlur = (index: number, field: 'value') => {
+    setQuotes(current =>
+      current.map((quote, quoteIndex) =>
+        quoteIndex === index
+          ? {
+              ...quote,
+              [field]: normalizeCurrencyInput(quote[field]),
+            }
+          : quote
+      )
+    );
+  };
 
   const handleProposalHeaderChange = (field: keyof ProposalHeaderDraft, value: string) => {
     setProposalHeader(current => ({
       ...current,
-      [field]: field === 'totalEstimatedValue' ? normalizeCurrencyInput(value) : value,
+      [field]: field === 'totalEstimatedValue' ? sanitizeCurrencyTypingInput(value) : value,
+    }));
+  };
+
+  const handleProposalCurrencyBlur = (field: keyof ProposalHeaderDraft) => {
+    setProposalHeader(current => ({
+      ...current,
+      [field]: field === 'totalEstimatedValue' ? normalizeCurrencyInput(String(current[field] || '')) : current[field],
     }));
   };
 
@@ -1363,7 +1387,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             nextItem.materialName = value ? String(value) : null;
           }
           if (field === 'costUnitPrice' || field === 'unitPrice' || field === 'totalPrice') {
-            nextItem[field] = typeof value === 'string' ? normalizeCurrencyInput(value) : null;
+            nextItem[field] = typeof value === 'string' ? sanitizeCurrencyTypingInput(value) : null;
           }
           if (field === 'quantity' || field === 'unitPrice') {
             const quantity = nextItem.quantity ?? 0;
@@ -1371,6 +1395,26 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             if (quantity > 0 && unitPrice > 0) {
               nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
             }
+          }
+          return nextItem;
+        });
+        return recalculateQuoteValue({ ...quote, items });
+      })
+    );
+  };
+
+  const handleQuoteItemCurrencyBlur = (quoteIndex: number, itemId: string, field: 'costUnitPrice' | 'unitPrice' | 'totalPrice') => {
+    setQuotes(current =>
+      current.map((quote, index) => {
+        if (index !== quoteIndex) return quote;
+        const items = quote.items.map(item => {
+          if (item.id !== itemId) return item;
+          const nextItem: QuoteItem = { ...item };
+          nextItem[field] = normalizeCurrencyInput(String(nextItem[field] || ''));
+          const quantity = nextItem.quantity ?? 0;
+          const unitPrice = nextItem.unitPrice ? parseCurrencyInput(nextItem.unitPrice) : 0;
+          if (quantity > 0 && unitPrice > 0 && (!nextItem.totalPrice || field === 'unitPrice')) {
+            nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
           }
           return nextItem;
         });
@@ -2676,6 +2720,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       placeholder="R$ 0,00"
                       value={proposalHeader.totalEstimatedValue}
                       onChange={event => handleProposalHeaderChange('totalEstimatedValue', event.target.value)}
+                      onBlur={() => handleProposalCurrencyBlur('totalEstimatedValue')}
                       className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
                     />
                   </div>
@@ -2976,6 +3021,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           placeholder="R$ 0,00"
                           value={quotes[i].value}
                           onChange={e => handleQuoteChange(i, 'value', e.target.value)}
+                          onBlur={() => handleQuoteCurrencyBlur(i, 'value')}
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
                       </div>
@@ -3089,6 +3135,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     placeholder="Custo unitário"
                                     value={item.costUnitPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'costUnitPrice', event.target.value)}
+                                    onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'costUnitPrice')}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
                                   <input
@@ -3097,6 +3144,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     placeholder="Valor unitário"
                                     value={item.unitPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
+                                    onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'unitPrice')}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
                                 </div>
@@ -3106,6 +3154,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   placeholder="Valor cobrado"
                                   value={item.totalPrice || ''}
                                   onChange={event => handleQuoteItemChange(i, item.id, 'totalPrice', event.target.value)}
+                                  onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'totalPrice')}
                                   className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                 />
                               </div>
