@@ -52,15 +52,6 @@ const PRELIMINARY_ITEMS = [
   { id: 'accessReleased', label: 'Acesso ao local liberado pela unidade' },
 ] as const;
 
-const EXECUTION_STATUS_OPTIONS = [
-  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-  TICKET_STATUS.IN_PROGRESS,
-  TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-  TICKET_STATUS.WAITING_PAYMENT,
-  TICKET_STATUS.CLOSED,
-  TICKET_STATUS.CANCELED,
-] as const;
-
 const INBOX_STATUS_OPTIONS = [
   TICKET_STATUS.NEW,
   TICKET_STATUS.WAITING_TECH_OPINION,
@@ -98,6 +89,16 @@ interface ExecutionSetupFormState {
 interface ProgressUpdateFormState {
   progressPercent: string;
   notes: string;
+}
+
+interface TicketDetailsFormState {
+  subject: string;
+  requester: string;
+  requesterEmail: string;
+  type: string;
+  sector: string;
+  macroServiceId: string;
+  serviceCatalogId: string;
 }
 
 function formatInputDate(value?: Date | null) {
@@ -139,6 +140,18 @@ function createProgressUpdateFormState(ticket?: Ticket): ProgressUpdateFormState
   return {
     progressPercent: String(nextMilestone ?? currentPercent ?? 0),
     notes: '',
+  };
+}
+
+function createTicketDetailsFormState(ticket?: Ticket): TicketDetailsFormState {
+  return {
+    subject: ticket?.subject || '',
+    requester: ticket?.requester || '',
+    requesterEmail: ticket?.requesterEmail || '',
+    type: ticket?.type || '',
+    sector: ticket?.sector || '',
+    macroServiceId: ticket?.macroServiceId || '',
+    serviceCatalogId: ticket?.serviceCatalogId || '',
   };
 }
 
@@ -231,10 +244,9 @@ export function InboxView() {
   const [statusDraft, setStatusDraft] = useState('');
   const [sidebarSections, setSidebarSections] = useState({
     classification: true,
-    triage: true,
     execution: true,
-    administration: false,
   });
+  const [ticketDetailsForm, setTicketDetailsForm] = useState<TicketDetailsFormState>(createTicketDetailsFormState());
   const [teams, setTeams] = useState<DirectoryTeam[]>([]);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
@@ -255,6 +267,8 @@ export function InboxView() {
   const hasTickets = tickets.length > 0;
   const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET;
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
+  const canEditCoreFields = canManageStatus;
+  const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
 
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
@@ -263,6 +277,7 @@ export function InboxView() {
     setCustomEmail(activeTicket.assignedEmail || '');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setStatusDraft(activeTicket.status || '');
+    setTicketDetailsForm(createTicketDetailsFormState(activeTicket));
     setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
     setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
     setReplyFiles([]);
@@ -273,6 +288,13 @@ export function InboxView() {
     activeTicket.assignedTeam,
     activeTicket.priority,
     activeTicket.status,
+    activeTicket.subject,
+    activeTicket.requester,
+    activeTicket.requesterEmail,
+    activeTicket.type,
+    activeTicket.sector,
+    activeTicket.macroServiceId,
+    activeTicket.serviceCatalogId,
     activeTicket.executionProgress?.paymentFlowParts,
     activeTicket.executionProgress?.currentPercent,
   ]);
@@ -280,9 +302,6 @@ export function InboxView() {
   useEffect(() => {
     setSidebarSections({
       classification: true,
-      triage:
-        activeTicket.status === TICKET_STATUS.NEW ||
-        activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION,
       execution: [
         TICKET_STATUS.WAITING_PRELIM_ACTIONS,
         TICKET_STATUS.IN_PROGRESS,
@@ -290,7 +309,6 @@ export function InboxView() {
         TICKET_STATUS.WAITING_PAYMENT,
         TICKET_STATUS.CLOSED,
       ].includes(activeTicket.status),
-      administration: false,
     });
   }, [activeTicket.id, activeTicket.status]);
 
@@ -378,58 +396,123 @@ export function InboxView() {
     if (newValue !== techTeam) {
       setCustomEmail('');
     }
-    updateTicket(activeTicket.id, {
-      assignedTeam: newValue || '',
-      assignedEmail: '',
-    });
   };
 
   const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value;
     setTicketPriority(newValue);
-    updateTicket(activeTicket.id, { priority: newValue || '' });
   };
 
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
   const availableAdminServiceItems = useMemo(() => {
-    if (!activeTicket.macroServiceId) return [];
-    return serviceCatalog.filter(item => item.macroServiceId === activeTicket.macroServiceId);
-  }, [activeTicket.macroServiceId, serviceCatalog]);
+    if (!ticketDetailsForm.macroServiceId) return [];
+    return serviceCatalog.filter(item => item.macroServiceId === ticketDetailsForm.macroServiceId);
+  }, [ticketDetailsForm.macroServiceId, serviceCatalog]);
 
   const handleMacroServiceChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     if (!canManageStatus) return;
     const nextMacroServiceId = event.target.value;
-    const nextMacroService = catalogMacroServices.find(item => item.id === nextMacroServiceId) || null;
-
-    updateTicket(activeTicket.id, {
-      macroServiceId: nextMacroService?.id || '',
-      macroServiceName: nextMacroService?.name || '',
+    setTicketDetailsForm(prev => ({
+      ...prev,
+      macroServiceId: nextMacroServiceId,
       serviceCatalogId: '',
-      serviceCatalogName: '',
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: new Date(),
-          text: nextMacroService
-            ? `Macroserviço definido na triagem: ${nextMacroService.name}.`
-            : 'Macroserviço removido da classificação da OS.',
-        },
-      ],
-    });
+    }));
   };
 
   const handleServiceCatalogChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     if (!canManageStatus) return;
     const nextServiceId = event.target.value;
-    const nextService = serviceCatalog.find(item => item.id === nextServiceId) || null;
+    setTicketDetailsForm(prev => ({ ...prev, serviceCatalogId: nextServiceId }));
+  };
+
+  const buildStatusSideEffects = (nextStatus: string, when: Date) => {
+    const nextPreliminaryActions =
+      nextStatus === TICKET_STATUS.IN_PROGRESS
+        ? {
+            ...(activeTicket.preliminaryActions || {}),
+            actualStartAt: activeTicket.preliminaryActions?.actualStartAt || when,
+            updatedAt: when,
+          }
+        : activeTicket.preliminaryActions;
+
+    const nextClosureChecklist =
+      nextStatus === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+        ? buildValidationClosureChecklist(activeTicket, when)
+        : activeTicket.closureChecklist;
+
+    return {
+      preliminaryActions: nextPreliminaryActions,
+      closureChecklist: nextClosureChecklist,
+    };
+  };
+
+  const resolveReopenStatus = () => {
+    if (activeTicket.executionProgress?.currentPercent) {
+      return activeTicket.executionProgress.currentPercent >= 100
+        ? TICKET_STATUS.WAITING_PAYMENT
+        : TICKET_STATUS.IN_PROGRESS;
+    }
+
+    if (activeTicket.preliminaryActions) {
+      return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
+    }
+
+    if (activeTicket.assignedTeam || activeTicket.priority) {
+      return TICKET_STATUS.WAITING_TECH_OPINION;
+    }
+
+    return TICKET_STATUS.NEW;
+  };
+
+  const handleSaveTicketDetails = () => {
+    if (!canManageStatus || isSending) return;
+
+    const nextMacroService = catalogMacroServices.find(item => item.id === ticketDetailsForm.macroServiceId) || null;
+    const nextService = serviceCatalog.find(item => item.id === ticketDetailsForm.serviceCatalogId) || null;
+    const updates: Partial<Ticket> = {};
+    const changes: string[] = [];
+
+    if (ticketDetailsForm.subject.trim() !== activeTicket.subject) {
+      updates.subject = ticketDetailsForm.subject.trim();
+      changes.push('assunto');
+    }
+    if (ticketDetailsForm.requester.trim() !== activeTicket.requester) {
+      updates.requester = ticketDetailsForm.requester.trim();
+      changes.push('solicitante');
+    }
+    if (ticketDetailsForm.requesterEmail.trim() !== (activeTicket.requesterEmail || '')) {
+      updates.requesterEmail = ticketDetailsForm.requesterEmail.trim();
+      changes.push('e-mail do solicitante');
+    }
+    if (ticketDetailsForm.type.trim() !== activeTicket.type) {
+      updates.type = ticketDetailsForm.type.trim();
+      changes.push('tipo de manutenção');
+    }
+    if (ticketDetailsForm.sector.trim() !== activeTicket.sector) {
+      updates.sector = ticketDetailsForm.sector.trim();
+      changes.push('setor');
+    }
+    if ((ticketDetailsForm.macroServiceId || '') !== (activeTicket.macroServiceId || '')) {
+      updates.macroServiceId = nextMacroService?.id || '';
+      updates.macroServiceName = nextMacroService?.name || '';
+      updates.serviceCatalogId = '';
+      updates.serviceCatalogName = '';
+      changes.push('macroserviço');
+    } else if ((ticketDetailsForm.serviceCatalogId || '') !== (activeTicket.serviceCatalogId || '')) {
+      updates.serviceCatalogId = nextService?.id || '';
+      updates.serviceCatalogName = nextService?.name || '';
+      changes.push('serviço');
+    }
+
+    if (changes.length === 0) {
+      setToast('Nenhuma alteração encontrada nos dados da OS.');
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
 
     updateTicket(activeTicket.id, {
-      serviceCatalogId: nextService?.id || '',
-      serviceCatalogName: nextService?.name || '',
+      ...updates,
       history: [
         ...activeTicket.history,
         {
@@ -437,12 +520,113 @@ export function InboxView() {
           type: 'system',
           sender: displayActorLabel,
           time: new Date(),
-          text: nextService
-            ? `Serviço definido na triagem: ${nextService.name}.`
-            : 'Serviço removido da classificação da OS.',
+          text: `Dados da OS atualizados: ${changes.join(', ')}.`,
         },
       ],
     });
+
+    setToast('Dados da OS atualizados.');
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const handleSaveQuickPanel = () => {
+    if (!canManageStatus || isSending) return;
+
+    if (isExternalTeam && !customEmail.trim()) {
+      setToast('Informe o e-mail do fornecedor para equipes externas.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const nextStatus = statusDraft || activeTicket.status;
+    const nextAssignedEmail = isExternalTeam ? customEmail.trim() : '';
+    const changes: string[] = [];
+    const updates: Partial<Ticket> = {};
+
+    if ((techTeam || '') !== (activeTicket.assignedTeam || '')) {
+      updates.assignedTeam = techTeam || '';
+      changes.push('responsável técnico');
+    }
+    if ((ticketPriority || '') !== (activeTicket.priority || '')) {
+      updates.priority = ticketPriority || '';
+      changes.push('urgência');
+    }
+    if (nextAssignedEmail !== (activeTicket.assignedEmail || '')) {
+      updates.assignedEmail = nextAssignedEmail;
+      changes.push('e-mail do fornecedor');
+    }
+    if (nextStatus !== activeTicket.status) {
+      Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
+      updates.status = nextStatus;
+      changes.push(`status: ${activeTicket.status} -> ${nextStatus}`);
+    }
+
+    if (changes.length === 0) {
+      setToast('Nenhuma alteração encontrada no painel da OS.');
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    updateTicket(activeTicket.id, {
+      ...updates,
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: displayActorLabel,
+          time: new Date(),
+          text: `Painel da OS atualizado: ${changes.join(' · ')}.`,
+        },
+      ],
+    });
+
+    setToast('Painel da OS atualizado.');
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const handleAcceptTicket = () => {
+    if (isSending) return;
+
+    if (!techTeam) {
+      setToast('Defina a equipe responsável antes de aceitar a OS.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (!ticketPriority) {
+      setToast('Defina o grau de urgência antes de aceitar a OS.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (isExternalTeam && !customEmail.trim()) {
+      setToast('Informe o e-mail do fornecedor para encaminhamento externo.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const target = isExternalTeam ? customEmail.trim() : techTeam;
+    updateTicket(activeTicket.id, {
+      status: TICKET_STATUS.WAITING_TECH_OPINION,
+      priority: ticketPriority,
+      assignedTeam: techTeam,
+      assignedEmail: isExternalTeam ? customEmail.trim() : '',
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: displayActorLabel,
+          time: new Date(),
+          text: `Triagem concluída. OS aceita com prioridade ${ticketPriority} e encaminhada para ${target}.`,
+        },
+      ],
+    });
+
+    setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
+    setToast('Triagem concluída e OS aceita.');
+    setTimeout(() => setToast(null), 2500);
   };
 
   // Botão principal de ação: transição de status + registro no histórico
@@ -456,45 +640,7 @@ export function InboxView() {
       const items: HistoryItem[] = [];
       let newStatus = activeTicket.status;
 
-      if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
-        if (!techTeam) {
-          setToast('Erro: defina a equipe responsável antes de concluir a triagem.');
-          setTimeout(() => setToast(null), 3000);
-          setIsSending(false);
-          return;
-        }
-
-        if (!ticketPriority) {
-          setToast('Erro: defina o grau de urgência antes de concluir a triagem.');
-          setTimeout(() => setToast(null), 3000);
-          setIsSending(false);
-          return;
-        }
-
-        if (isExternalTeam && !customEmail.trim()) {
-          setToast('Erro: informe o e-mail do fornecedor para encaminhamento externo.');
-          setTimeout(() => setToast(null), 3000);
-          setIsSending(false);
-          return;
-        }
-
-        newStatus = TICKET_STATUS.WAITING_TECH_OPINION;
-        const target =
-          isExternalTeam && customEmail
-            ? customEmail
-            : techTeam || 'Equipe Técnica';
-
-        if (replyText.trim()) {
-          items.push({ id: crypto.randomUUID(), type: 'system', sender, time: now, text: replyText.trim() });
-        }
-        items.push({
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender,
-          time: new Date(now.getTime() + 1),
-          text: `Triagem concluída. OS aceita com prioridade ${ticketPriority} e encaminhada para ${target}.`,
-        });
-      } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+      if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
         newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
         if (replyText.trim()) {
           items.push({ id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() });
@@ -833,51 +979,6 @@ export function InboxView() {
     window.setTimeout(() => setIsSending(false), 500);
   };
 
-  const handleManualStatusUpdate = () => {
-    if (!canManageStatus || isSending) return;
-    if (!statusDraft || statusDraft === activeTicket.status) {
-      setToast('Selecione um novo status para atualizar a OS.');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
-    setIsSending(true);
-    const now = new Date();
-    const nextPreliminaryActions =
-      statusDraft === TICKET_STATUS.IN_PROGRESS
-        ? {
-            ...(activeTicket.preliminaryActions || {}),
-            actualStartAt: activeTicket.preliminaryActions?.actualStartAt || now,
-            updatedAt: now,
-          }
-        : activeTicket.preliminaryActions;
-
-    const nextClosureChecklist =
-      statusDraft === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
-        ? buildValidationClosureChecklist(activeTicket, now)
-        : activeTicket.closureChecklist;
-
-    updateTicket(activeTicket.id, {
-      status: statusDraft,
-      preliminaryActions: nextPreliminaryActions,
-      closureChecklist: nextClosureChecklist,
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: now,
-          text: `Status atualizado manualmente de "${activeTicket.status}" para "${statusDraft}".`,
-        },
-      ],
-    });
-
-    setToast(`Status atualizado para "${statusDraft}".`);
-    setTimeout(() => setToast(null), 3000);
-    window.setTimeout(() => setIsSending(false), 500);
-  };
-
   const [isSending, setIsSending] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showMobileTicketList, setShowMobileTicketList] = useState(false);
@@ -1054,12 +1155,7 @@ export function InboxView() {
   let internalButtonText = 'Salvar Nota';
   let internalActionText = 'Ação: Registrar nota no histórico';
 
-  if (activeTicket.status === TICKET_STATUS.NEW || activeTicket.status.includes('Aprovada na Triagem')) {
-    internalTabLabel = 'Triagem da OS';
-    internalPlaceholder = 'Registre observações de triagem antes de encaminhar para a equipe técnica...';
-    internalButtonText = 'Concluir Triagem';
-    internalActionText = `Ação: aceitar a OS, definir urgência e encaminhar para ${isExternalTeam && customEmail ? customEmail : techTeam || 'Equipe Técnica'}`;
-  } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+  if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
     internalTabLabel = 'Enviar Parecer à Diretoria';
     internalPlaceholder = 'Consolide o parecer técnico antes de enviar para aprovação...';
     internalButtonText = 'Enviar para Aprovação';
@@ -1320,8 +1416,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleReopenTicket = () => {
+    const nextStatus = resolveReopenStatus();
     updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.IN_PROGRESS,
+      status: nextStatus,
+      ...buildStatusSideEffects(nextStatus, new Date()),
       history: [
         ...activeTicket.history,
         {
@@ -1329,10 +1427,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           type: 'system',
           sender: displayActorLabel,
           time: new Date(),
-          text: 'OS reaberta pelo gestor para continuação do atendimento.',
+          text: `OS reaberta pelo gestor para ${nextStatus}.`,
         },
       ],
     });
+    setStatusDraft(nextStatus);
     setShowActionsMenu(false);
     setToast(`OS ${activeTicket.id} reaberta.`);
     setTimeout(() => setToast(null), 3000);
@@ -1892,8 +1991,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2.5">
-              <PropertyField label="Status Atual" value={activeTicket.status} highlight />
-
               {/* PUBLIC LINK BUTTON */}
               <div className="flex gap-2">
                 <button
@@ -1913,6 +2010,127 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
               </div>
 
+              <section className="sticky top-0 z-10 rounded-xl border border-roman-border bg-roman-surface px-3 py-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Ações rápidas</div>
+                    <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe e urgência sempre visíveis.</div>
+                  </div>
+                  <span className="rounded-full border border-roman-primary/30 bg-roman-primary/5 px-2.5 py-1 text-[11px] font-medium text-roman-text-main">
+                    {activeTicket.status}
+                  </span>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {canManageStatus && (
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Status da OS</label>
+                      <select
+                        value={statusDraft}
+                        onChange={event => setStatusDraft(event.target.value)}
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                        disabled={isSending}
+                      >
+                        {INBOX_STATUS_OPTIONS.map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Responsável técnico</label>
+                      <select
+                        value={techTeam}
+                        onChange={handleTechTeamChange}
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSending || !canEditQuickPanel}
+                      >
+                        <option value="">Selecione a Equipe...</option>
+                        {teams.map(team => (
+                          <option key={team.id} value={team.name}>{team.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Grau de urgência</label>
+                      <select
+                        value={ticketPriority}
+                        onChange={handlePriorityChange}
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSending || !canEditQuickPanel}
+                      >
+                        <option value="">Selecione a urgência...</option>
+                        <option value="Urgente">Urgente</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Normal">Normal</option>
+                        <option value="Trivial">Trivial</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {isExternalTeam && (
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do fornecedor</label>
+                      <input
+                        type="email"
+                        value={customEmail}
+                        onChange={e => setCustomEmail(e.target.value)}
+                        placeholder="fornecedor@email.com"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSending || !canEditQuickPanel}
+                      />
+                    </div>
+                  )}
+
+                  {activeTicket.status === TICKET_STATUS.NEW ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={handleAcceptTicket}
+                        disabled={isSending}
+                        className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-60"
+                      >
+                        {isSending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                        Aceitar OS
+                      </button>
+                      <button
+                        onClick={handleCancelTicket}
+                        disabled={isSending}
+                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                      >
+                        <X size={14} />
+                        Cancelar OS
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2">
+                      {canManageStatus && (
+                        <button
+                          onClick={handleSaveQuickPanel}
+                          disabled={isSending}
+                          className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-60"
+                        >
+                          {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                          Salvar painel
+                        </button>
+                      )}
+                      {canManageStatus && [TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED].includes(activeTicket.status) && (
+                        <button
+                          onClick={handleReopenTicket}
+                          disabled={isSending}
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                        >
+                          <RefreshCw size={14} />
+                          Reabrir OS
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <button
                   type="button"
@@ -1920,23 +2138,59 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação</div>
-                      <div className="mt-1 text-[11px] text-roman-text-sub">Estrutura técnica e localização.</div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Dados da OS</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Admin pode alterar dados do chamado, exceto região e sede.</div>
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.classification ? 'rotate-180' : ''}`} />
                 </button>
                 {sidebarSections.classification && (
                   <div className="mt-3 space-y-2.5">
-                    <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
-                    {canManageStatus ? (
-                      <div className="space-y-3">
+                    {canEditCoreFields ? (
+                      <>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</label>
+                          <input
+                            value={ticketDetailsForm.subject}
+                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, subject: event.target.value }))}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Solicitante</label>
+                          <input
+                            value={ticketDetailsForm.requester}
+                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, requester: event.target.value }))}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do solicitante</label>
+                          <input
+                            type="email"
+                            value={ticketDetailsForm.requesterEmail}
+                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, requesterEmail: event.target.value }))}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tipo de manutenção</label>
+                          <input
+                            value={ticketDetailsForm.type}
+                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, type: event.target.value }))}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
+                          />
+                        </div>
                         <div>
                           <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
                           <select
-                            value={activeTicket.macroServiceId || ''}
+                            value={ticketDetailsForm.macroServiceId}
                             onChange={handleMacroServiceChange}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isClosed}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
                           >
                             <option value="">Definir na triagem</option>
                             {catalogMacroServices.map(item => (
@@ -1947,114 +2201,44 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <div>
                           <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
                           <select
-                            value={activeTicket.serviceCatalogId || ''}
+                            value={ticketDetailsForm.serviceCatalogId}
                             onChange={handleServiceCatalogChange}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
-                            disabled={isClosed || !activeTicket.macroServiceId}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                            disabled={isSending || !ticketDetailsForm.macroServiceId}
                           >
-                            <option value="">{activeTicket.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
+                            <option value="">{ticketDetailsForm.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
                             {availableAdminServiceItems.map(item => (
                               <option key={item.id} value={item.id}>{item.name}</option>
                             ))}
                           </select>
                         </div>
-                      </div>
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Setor</label>
+                          <input
+                            value={ticketDetailsForm.sector}
+                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, sector: event.target.value }))}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending}
+                          />
+                        </div>
+                        <button
+                          onClick={handleSaveTicketDetails}
+                          disabled={isSending}
+                          className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
+                        >
+                          Salvar dados da OS
+                        </button>
+                      </>
                     ) : (
                       <>
+                        <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
                         {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
                         {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
+                        <PropertyField label="Setor" value={activeTicket.sector} />
                       </>
                     )}
                     <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
                     <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
-                    <PropertyField label="Setor" value={activeTicket.sector} />
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => setSidebarSections(prev => ({ ...prev, triage: !prev.triage }))}
-                  className="flex w-full items-start justify-between gap-3 text-left"
-                >
-                  <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Triagem</div>
-                      <div className="mt-1 text-[11px] text-roman-text-sub">Equipe, urgência e aceite inicial.</div>
-                  </div>
-                  <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.triage ? 'rotate-180' : ''}`} />
-                </button>
-                {sidebarSections.triage && (
-                  <div className="mt-3 space-y-3">
-                {activeTicket.status === TICKET_STATUS.NEW && (
-                        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900 space-y-3">
-                    <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-amber-700">Triagem Inicial</div>
-                      <div className="mt-1 font-medium">Defina se a OS será aceita, quem executa e o grau de urgência.</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={handleSend}
-                        disabled={isSending}
-                        className="px-3 py-2 rounded-sm bg-roman-sidebar text-white font-medium disabled:opacity-60"
-                      >
-                        {isSending ? 'Processando...' : 'Aceitar OS'}
-                      </button>
-                      <button
-                        onClick={handleCancelTicket}
-                        disabled={isSending}
-                        className="px-3 py-2 rounded-sm border border-red-300 text-red-700 font-medium bg-white disabled:opacity-60"
-                      >
-                        Cancelar OS
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Responsável (Técnico)</label>
-                  <select
-                    value={techTeam}
-                    onChange={handleTechTeamChange}
-                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isClosed}
-                  >
-                    <option value="">Selecione a Equipe...</option>
-                    {teams.map(team => (
-                      <option key={team.id} value={team.name}>{team.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Grau de urgência</label>
-                  <select
-                    value={ticketPriority}
-                    onChange={handlePriorityChange}
-                    className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isClosed}
-                  >
-                    <option value="">Selecione a urgência...</option>
-                    <option value="Urgente">Urgente</option>
-                    <option value="Alta">Alta</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Trivial">Trivial</option>
-                  </select>
-                </div>
-
-                {isExternalTeam && (
-                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail do Fornecedor</label>
-                    <input
-                      type="email"
-                      value={customEmail}
-                      onChange={e => setCustomEmail(e.target.value)}
-                      placeholder="fornecedor@email.com"
-                      className="w-full border border-roman-primary/50 rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={isClosed}
-                    />
-                  </div>
-                )}
                   </div>
                 )}
               </section>
@@ -2193,46 +2377,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </div>
                     </div>
                   ) : null}
-                </section>
-              )}
-
-              {canManageStatus && EXECUTION_STATUS_OPTIONS.includes(activeTicket.status as (typeof EXECUTION_STATUS_OPTIONS)[number]) && (
-                <section className="pt-3 border-t border-roman-border">
-                  <div className="rounded-sm border border-roman-border bg-roman-bg/50 px-3 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setSidebarSections(prev => ({ ...prev, administration: !prev.administration }))}
-                      className="flex w-full items-start justify-between gap-3 text-left"
-                    >
-                      <div>
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Administração</div>
-                        <div className="mt-1 text-xs text-roman-text-sub">Use apenas para correção manual de etapa ou ajuste excepcional.</div>
-                      </div>
-                      <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.administration ? 'rotate-180' : ''}`} />
-                    </button>
-                    {sidebarSections.administration && (
-                      <div className="mt-4 flex flex-col gap-2">
-                        <select
-                          value={statusDraft}
-                          onChange={event => setStatusDraft(event.target.value)}
-                          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          disabled={isSending}
-                        >
-                          {EXECUTION_STATUS_OPTIONS.map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={handleManualStatusUpdate}
-                          disabled={isSending || !statusDraft || statusDraft === activeTicket.status}
-                          className="w-full px-3 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                          Atualizar status
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </section>
               )}
 
