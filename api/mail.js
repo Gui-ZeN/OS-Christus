@@ -108,7 +108,15 @@ function stripQuotedReply(value) {
     }
   }
 
-  const inlineMarkers = [/\sEm .+? escreveu:?\s*/i, /\sOn .+? wrote:?\s*/i];
+  const inlineMarkers = [
+    /\bEm\s.+?<[^>\n]+>\s+escreveu:\s*/i,
+    /\bOn\s.+?<[^>\n]+>\s+wrote:\s*/i,
+    /\bEm\s.+?[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\s+escreveu:\s*/i,
+    /\bOn\s.+?[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\s+wrote:\s*/i,
+    /\bEm\s.+?escreveu:\s*/i,
+    /\bOn\s.+?wrote:\s*/i,
+  ];
+
   for (const marker of inlineMarkers) {
     const match = marker.exec(next);
     if (match?.index != null && match.index > 0) {
