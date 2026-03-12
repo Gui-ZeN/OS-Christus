@@ -357,15 +357,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const found = await resolveAuthorizedUser(currentUserEmail);
         if (!cancelled) {
-          setCurrentUser(found);
+          setCurrentUser(previous => {
+            if (
+              previous &&
+              previous.email?.trim().toLowerCase() === found.email?.trim().toLowerCase() &&
+              previous.role === found.role &&
+              previous.status === found.status
+            ) {
+              return previous;
+            }
+            return found;
+          });
           setAuthorizationResolved(true);
         }
       } catch (error) {
         if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
           if (!cancelled) {
-            if (currentUser?.email?.trim().toLowerCase() !== currentUserEmail) {
-              setCurrentUser(null);
-            }
             setAuthorizationResolved(true);
           }
           return;
@@ -382,7 +389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, authResolved, currentUser, currentUserEmail]);
+  }, [authEnabled, authResolved, currentUserEmail]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
