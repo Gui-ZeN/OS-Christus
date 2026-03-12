@@ -1417,15 +1417,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           <div className="mt-3 grid grid-cols-3 items-stretch gap-2">
-            <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
+            <div className="flex h-[72px] flex-col justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.15)]">
               <div className="text-[10px] uppercase tracking-widest text-amber-700">Novas</div>
               <div className="text-lg font-semibold text-amber-900">{tickets.filter(t => t.status === TICKET_STATUS.NEW).length}</div>
             </div>
-            <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
+            <div className="flex h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Orçamento</div>
               <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.WAITING_BUDGET).length}</div>
             </div>
-            <div className="flex min-h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
+            <div className="flex h-[72px] flex-col justify-between rounded-xl border border-roman-border bg-roman-bg px-3 py-2">
               <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Execução</div>
               <div className="text-lg font-semibold text-roman-text-main">{tickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length}</div>
             </div>
@@ -1436,27 +1436,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         <div className="p-3 border-b border-roman-border bg-roman-bg/50">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
-              <select
-                value={inboxFilter.status.length === 1 ? inboxFilter.status[0] : ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setInboxFilter({
-                    ...inboxFilter,
-                    status: value ? [value] : [],
-                  });
-                }}
-                className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
-              >
-                <option value="">Todos os status</option>
-                {INBOX_STATUS_OPTIONS.map(status => (
-                  <option key={status} value={status}>
-                    {status} ({tickets.filter(ticket => ticket.status === status).length})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
-            </div>
-            <div className="relative min-w-0 w-28 sm:w-36">
               <select
                 value={inboxFilter.site.length === 1 ? inboxFilter.site[0] : ''}
                 onChange={(e) => {
