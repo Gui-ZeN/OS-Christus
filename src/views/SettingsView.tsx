@@ -634,157 +634,63 @@ export function SettingsView() {
   const sectionMeta = SECTION_META[section];
   const selectedTemplateLabel = useMemo(() => getTemplateTriggerLabel(template.trigger), [template.trigger]);
   const renderedTemplatePreview = useMemo(() => buildEmailPreviewHtml(template, SAMPLE_EMAIL_VARIABLES), [template]);
-  const sectionHighlights = useMemo(() => {
-    if (section === 'access') {
-      return [
-        { label: 'Administração', value: 'Usuários', hint: 'Papéis, status e escopo territorial' },
-        { label: 'Autenticação', value: 'Firebase Auth', hint: 'Conta acompanha o cadastro' },
-        { label: 'Estrutura', value: 'Regiões e sedes', hint: 'Visibilidade controlada por vínculo' },
-      ];
-    }
-    if (section === 'territory') {
-      return [
-        { label: 'Regiões', value: String(regions.length), hint: 'Agrupamentos territoriais ativos' },
-        { label: 'Sedes', value: String(sites.length), hint: 'Unidades disponíveis na operação' },
-        { label: 'Sincronismo', value: catalogLoading ? 'Atualizando' : 'Estável', hint: 'Compartilhado com usuários, OS e dashboards' },
-      ];
-    }
-    if (section === 'catalog') {
-      return [
-        { label: 'Macroserviços', value: String(macroServices.length), hint: 'Camada macro de classificação' },
-        { label: 'Serviços', value: String(serviceCatalog.length), hint: 'Catálogo detalhado para triagem e orçamento' },
-        { label: 'Materiais', value: String(materials.length), hint: 'Base sugerida para composição' },
-      ];
-    }
-    if (section === 'templates') {
-      return [
-        { label: 'Gatilho', value: selectedTemplateLabel || 'Template', hint: template.trigger || 'Fluxo ativo no momento' },
-        { label: 'Assunto', value: template.subject ? 'Personalizado' : 'Padrão', hint: 'Linha usada nas mensagens' },
-        { label: 'Corpo', value: template.body ? 'Ativo' : 'Vazio', hint: 'Conteúdo operacional enviado' },
-      ];
-    }
-    if (section === 'daily-digest') {
-      return [
-        { label: 'Resumo', value: digest.enabled ? 'Ativado' : 'Desativado', hint: 'Rotina automática de envio' },
-        { label: 'Horário', value: digest.time || '--:--', hint: 'Janela configurada para disparo' },
-        { label: 'Destinatários', value: String(countDigestRecipients(digest.recipients)), hint: 'Quantidade atual na lista' },
-      ];
-    }
-    if (section === 'sla') {
-      return [
-        { label: 'Regras', value: String(sla.rules.length), hint: 'Faixas de prioridade configuradas' },
-        { label: 'Urgente', value: sla.rules[0]?.prazo || '-', hint: 'Prazo mais crítico' },
-        { label: 'Normal', value: sla.rules[2]?.prazo || '-', hint: 'Referência padrão da operação' },
-      ];
-    }
-    return [
-      { label: 'Health checks', value: integrationsHealth ? 'Ativos' : 'Pendente', hint: 'Leitura do ambiente técnico' },
-      { label: 'Backfill', value: backfillResult ? 'Executado' : 'Disponível', hint: 'Saneamento legado sob demanda' },
-      { label: 'Legado', value: legacyHealth ? String(legacyCards.reduce((sum, card) => sum + Number(card.value || 0), 0)) : '--', hint: 'Sinais antigos encontrados no projeto' },
-    ];
-  }, [
-    backfillResult,
-    catalogLoading,
-    digest.enabled,
-    digest.recipients,
-    digest.time,
-    integrationsHealth,
-    legacyCards,
-    legacyHealth,
-    macroServices.length,
-    materials.length,
-    section,
-    serviceCatalog.length,
-    sites.length,
-    sla.rules,
-    template.body,
-    template.subject,
-    template.trigger,
-    selectedTemplateLabel,
-    regions.length,
-  ]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-stone-50 p-5 md:p-8">
-      <div className="mx-auto max-w-[1500px] space-y-7">
-        <section className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-          <div className="grid gap-0 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="px-8 py-8 md:px-10">
-              <div className="text-[11px] uppercase tracking-[0.28em] text-roman-primary">Configuração Central</div>
-              <h1 className="mt-4 max-w-2xl text-[2.35rem] font-serif tracking-tight text-roman-text-main">Painel de Estrutura e Governança</h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-roman-text-sub">
-                Um centro administrativo para controlar pessoas, território, catálogo operacional, comunicação e observabilidade sem espalhar configuração pelo sistema.
-              </p>
+    <>
+      <div className="flex-1 overflow-y-auto bg-stone-50 p-5 md:p-8">
+      <div className="mx-auto max-w-[1500px] space-y-5">
+        <section className="rounded-[1.5rem] border border-stone-200 bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:px-8">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>
+          <h1 className="mt-2 text-[2rem] font-serif tracking-tight text-roman-text-main">Estrutura e governança</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-roman-text-sub">
+            Centralize acessos, território, catálogo, comunicação e integrações sem precisar percorrer uma página longa para encontrar cada ajuste.
+          </p>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Escopo</div>
-                  <div className="mt-2 text-lg font-serif text-roman-text-main">Governança</div>
-                  <div className="mt-1 text-sm text-roman-text-sub">Usuários, papéis e visibilidade territorial.</div>
-                </div>
-                <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Base</div>
-                  <div className="mt-2 text-lg font-serif text-roman-text-main">Operação</div>
-                  <div className="mt-1 text-sm text-roman-text-sub">Catálogos, templates e SLA em um só lugar.</div>
-                </div>
-                <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Health</div>
-                  <div className="mt-2 text-lg font-serif text-roman-text-main">Ambiente</div>
-                  <div className="mt-1 text-sm text-roman-text-sub">Status técnico, e-mail e legado monitorados.</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 px-6 py-6 md:grid-cols-2 md:px-8 xl:grid-cols-1 xl:content-start">
-              {sectionHighlights.map(card => (
-                <div key={card.label} className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-5 py-5">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-roman-text-sub">{card.label}</div>
-                  <div className="mt-3 text-2xl font-serif text-roman-text-main">{card.value}</div>
-                  <div className="mt-2 text-sm text-roman-text-sub">{card.hint}</div>
-                </div>
-              ))}
+          <div className="-mx-1 mt-5 overflow-x-auto pb-1">
+            <div className="flex min-w-max gap-2 px-1">
+              {(Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>).map(([key, meta]) => {
+                const Icon = meta.icon;
+                const isActive = section === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSection(key)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'border-stone-900 bg-stone-900 text-white'
+                        : 'border-stone-200 bg-stone-50 text-roman-text-sub hover:border-stone-300 hover:bg-white hover:text-roman-text-main'
+                    }`}
+                  >
+                    <Icon size={15} />
+                    {meta.navLabel}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[1.5rem] border border-stone-200 bg-white p-3 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
-            <div className="rounded-[1.2rem] border border-stone-200 bg-stone-50 px-4 py-4">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-roman-text-sub">Navegação</div>
-              <div className="mt-3 text-xl font-serif text-roman-text-main">Módulos de configuração</div>
-              <p className="mt-2 text-sm leading-6 text-roman-text-sub">Escolha um bloco e concentre a edição sem espalhar ajustes pela operação.</p>
+        <div className="min-w-0 rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:p-8">
+          <div className="mb-6 flex flex-col gap-4 border-b border-stone-200 pb-6 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">{sectionMeta.eyebrow}</div>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 text-roman-primary">
+                  <sectionMeta.icon size={20} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-serif text-roman-text-main">{sectionMeta.title}</h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-roman-text-sub">{sectionMeta.description}</p>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-3 space-y-2">
-            {(Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>).map(([key, meta]) => {
-              const Icon = meta.icon;
-              const isActive = section === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setSection(key)}
-                  className={`w-full rounded-[1rem] border px-3 py-3 text-left transition-all ${
-                    isActive
-                      ? 'border-roman-primary/20 bg-stone-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]'
-                      : 'border-stone-200 bg-stone-50 text-roman-text-sub hover:border-stone-300 hover:bg-white'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl ${isActive ? 'bg-white/10' : 'bg-roman-bg text-roman-primary'}`}>
-                      <Icon size={17} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold">{meta.navLabel}</div>
-                      <div className={`mt-1 text-[11px] leading-5 ${isActive ? 'text-white/72' : 'text-roman-text-sub/80'}`}>{meta.description}</div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-roman-text-sub md:max-w-[320px]">
+              <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Módulo ativo</div>
+              <div className="mt-2 font-medium text-roman-text-main">{sectionMeta.navLabel}</div>
+              <div className="mt-1 leading-6">Troque de aba no topo para acessar outro bloco sem percorrer a página inteira.</div>
             </div>
-          </aside>
-
-          <div className="min-w-0 rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:p-8">
+          </div>
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                 <Loader2 size={18} className="animate-spin" />
@@ -792,32 +698,6 @@ export function SettingsView() {
               </div>
             ) : (
               <>
-                <div className="mb-8 rounded-[1.35rem] border border-stone-200 bg-stone-50 px-6 py-6">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-[10px] uppercase tracking-[0.32em] text-roman-primary">{sectionMeta.eyebrow}</div>
-                      <div className="mt-3 flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-stone-200 bg-white text-roman-primary">
-                          <sectionMeta.icon size={22} />
-                        </div>
-                        <div>
-                          <div className="text-3xl font-serif text-roman-text-main">{sectionMeta.title}</div>
-                          <p className="mt-2 max-w-3xl text-sm leading-6 text-roman-text-sub">{sectionMeta.description}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
-                      {sectionHighlights.map(item => (
-                        <div key={item.label} className="rounded-[1.2rem] border border-stone-200 bg-white px-4 py-4">
-                          <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">{item.label}</div>
-                          <div className="mt-2 text-lg font-serif text-roman-text-main">{item.value}</div>
-                          <div className="mt-2 text-xs leading-5 text-roman-text-sub">{item.hint}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
                 {section === 'access' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1590,7 +1470,7 @@ export function SettingsView() {
           </div>
         </ModalShell>
       )}
-    </div>
+    </>
   );
 }
 
