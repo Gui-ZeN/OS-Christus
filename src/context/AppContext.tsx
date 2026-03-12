@@ -548,6 +548,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const credential = await loginWithGoogle();
+      await credential.user.getIdToken(true);
       const email = credential.user.email?.trim().toLowerCase();
       if (!email) {
         throw new Error('Não foi possível identificar o e-mail da conta Google utilizada.');

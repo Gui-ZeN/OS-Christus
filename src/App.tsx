@@ -216,11 +216,9 @@ export default function App() {
         <SplitLoginView
           onLogin={async (email, password) => {
             await login(email, password);
-            navigateTo(VIEWS.HOME);
           }}
           onGoogleLogin={async () => {
             await loginWithGoogleAccount();
-            navigateTo(VIEWS.HOME);
           }}
           onBack={() => navigateTo(VIEWS.LANDING)}
           authEnabled={authEnabled}

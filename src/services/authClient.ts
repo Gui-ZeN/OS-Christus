@@ -72,9 +72,29 @@ export async function subscribeToAuthState(listener: (user: User | null) => void
   return onAuthStateChanged(auth, listener);
 }
 
-export async function getCurrentIdToken() {
+async function waitForCurrentUser(timeoutMs = 4000) {
   const auth = await getFirebaseClientAuth();
-  const user = auth?.currentUser || null;
+  if (!auth) return null;
+  if (auth.currentUser) return auth.currentUser;
+
+  return await new Promise<User | null>(resolve => {
+    let unsubscribe = () => undefined;
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      resolve(auth.currentUser || null);
+    }, timeoutMs);
+
+    unsubscribe = onAuthStateChanged(auth, user => {
+      if (!user) return;
+      clearTimeout(timeout);
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
+export async function getCurrentIdToken() {
+  const user = await waitForCurrentUser();
   if (!user) return null;
   return user.getIdToken();
 }
