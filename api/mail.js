@@ -108,6 +108,15 @@ function stripQuotedReply(value) {
     }
   }
 
+  const inlineMarkers = [/\sEm .+? escreveu:?\s*/i, /\sOn .+? wrote:?\s*/i];
+  for (const marker of inlineMarkers) {
+    const match = marker.exec(next);
+    if (match?.index != null && match.index > 0) {
+      next = next.slice(0, match.index).trim();
+      break;
+    }
+  }
+
   return next
     .split('\n')
     .filter(line => {
