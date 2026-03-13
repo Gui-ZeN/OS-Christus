@@ -12,13 +12,20 @@ import { buildProcurementClassification } from '../utils/procurementClassificati
 import { formatDateTimeSafe } from '../utils/date';
 
 const QUOTE_SECTION_LABELS: Record<string, string> = {
-  'material-mao-de-obra': 'Material e mão de obra',
+  material: 'Material',
+  'mao-de-obra': 'Mão de obra',
   'materiais-complementares': 'Materiais complementares',
   'servicos-complementares': 'Serviços complementares',
 };
 
+function normalizeQuoteSection(section?: string | null) {
+  const normalized = String(section || '').trim();
+  if (!normalized || normalized === 'material-mao-de-obra') return 'material';
+  return normalized;
+}
+
 function getQuoteSectionLabel(section?: string | null) {
-  if (!section) return 'Material e mão de obra';
+  if (!section) return 'Material';
   return QUOTE_SECTION_LABELS[section] || section;
 }
 
@@ -29,6 +36,10 @@ function parseCurrencyInput(value: string | null | undefined) {
     .replace(',', '.');
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrencyValue(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(0, value || 0));
 }
 
 function createEmptyProposalHeader(): QuoteProposalHeader {
@@ -49,7 +60,7 @@ function getProposalHeaderValue(header: QuoteProposalHeader | null | undefined, 
 function buildQuoteComparisonSections(quotes: Quote[]) {
   const sectionKeys = new Set<string>();
   quotes.forEach(quote => {
-    (quote.items || []).forEach(item => sectionKeys.add(item.section || 'material-mao-de-obra'));
+    (quote.items || []).forEach(item => sectionKeys.add(normalizeQuoteSection(item.section)));
   });
 
   return Array.from(sectionKeys).map(sectionKey => {
@@ -57,7 +68,7 @@ function buildQuoteComparisonSections(quotes: Quote[]) {
 
     quotes.forEach((quote, quoteIndex) => {
       (quote.items || [])
-        .filter(item => (item.section || 'material-mao-de-obra') === sectionKey)
+        .filter(item => normalizeQuoteSection(item.section) === sectionKey)
         .forEach(item => {
           const key = String(item.description || item.materialName || item.id).trim().toLowerCase();
           if (!rowMap.has(key)) {
@@ -86,7 +97,7 @@ function buildQuoteComparisonSections(quotes: Quote[]) {
       rows: Array.from(rowMap.values()),
       subtotals: quotes.map(quote =>
         (quote.items || [])
-          .filter(item => (item.section || 'material-mao-de-obra') === sectionKey)
+          .filter(item => normalizeQuoteSection(item.section) === sectionKey)
           .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice), 0)
       ),
     };
@@ -122,6 +133,50 @@ function triggerCsvDownload(filename: string, rows: string[][]) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+function getQuoteRoundCategory(quote: Quote) {
+  return quote.category === 'additive' ? 'additive' : 'initial';
+}
+
+function getQuoteRoundIndex(quote: Quote) {
+  return Number(quote.additiveIndex || 1);
+}
+
+function filterQuotesByRound(quotes: Quote[], category: 'initial' | 'additive', additiveIndex: number | null = null) {
+  return (Array.isArray(quotes) ? quotes : []).filter(quote => {
+    if (getQuoteRoundCategory(quote) !== category) return false;
+    if (category === 'additive') {
+      return getQuoteRoundIndex(quote) === Number(additiveIndex || 1);
+    }
+    return true;
+  });
+}
+
+function resolvePendingRound(quotes: Quote[]) {
+  const list = Array.isArray(quotes) ? quotes : [];
+  const initialPending = filterQuotesByRound(list, 'initial').filter(quote => (quote.status || 'pending') === 'pending');
+  if (initialPending.length > 0) {
+    return { category: 'initial' as const, additiveIndex: null, quotes: initialPending };
+  }
+
+  const additiveIndices = Array.from(
+    new Set(
+      list
+        .filter(quote => getQuoteRoundCategory(quote) === 'additive')
+        .map(quote => getQuoteRoundIndex(quote))
+        .filter(value => Number.isFinite(value) && value > 0)
+    )
+  ).sort((a, b) => b - a);
+
+  for (const additiveIndex of additiveIndices) {
+    const roundQuotes = filterQuotesByRound(list, 'additive', additiveIndex);
+    if (roundQuotes.some(quote => (quote.status || 'pending') === 'pending')) {
+      return { category: 'additive' as const, additiveIndex, quotes: roundQuotes };
+    }
+  }
+
+  return null;
 }
 
 export function ApprovalsView() {
@@ -199,27 +254,57 @@ export function ApprovalsView() {
     if (tab === 'budgets' && !claimBudgetReview(id)) return;
     setProcessingId(id);
     setTimeout(async () => {
+      let budgetApprovalContext: {
+        isAdditive: boolean;
+        winner: string;
+        shouldMoveStatus: boolean;
+      } | null = null;
+
       if (tab === 'budgets') {
         const currentQuotes = quotesByTicket[id] || [];
         const targetTicket = tickets.find(ticket => ticket.id === id);
-        const nextQuotes = currentQuotes.map(quote => ({
-          ...quote,
-          recommended: quote.id === selectedQuote?.id,
-          status: quote.id === selectedQuote?.id ? 'approved' : 'rejected',
-        }));
-        const approvedQuote = nextQuotes.find(quote => quote.id === selectedQuote?.id);
+        const selectedCategory = selectedQuote?.category === 'additive' ? 'additive' : 'initial';
+        const selectedAdditiveIndex = selectedCategory === 'additive' ? Number(selectedQuote?.additiveIndex || 1) : null;
+        const nextQuotes = currentQuotes.map(quote => {
+          const quoteCategory = quote.category === 'additive' ? 'additive' : 'initial';
+          const quoteAdditiveIndex = quoteCategory === 'additive' ? Number(quote.additiveIndex || 1) : null;
+          const isSameRound =
+            quoteCategory === selectedCategory &&
+            (quoteCategory === 'initial' || quoteAdditiveIndex === selectedAdditiveIndex);
+
+          if (!isSameRound) return quote;
+          return {
+            ...quote,
+            recommended: quote.id === selectedQuote?.id,
+            status: quote.id === selectedQuote?.id ? 'approved' : 'rejected',
+          };
+        });
+        const approvedQuote = nextQuotes.find(quote => quote.id === selectedQuote?.id) || null;
+        const isAdditive = selectedCategory === 'additive';
+        const approvedQuoteValue = parseCurrencyInput(approvedQuote?.totalValue || approvedQuote?.value || '0');
+        const currentContract = contractsByTicket[id];
+        const currentInitialValue = parseCurrencyInput(currentContract?.initialPlannedValue || currentContract?.value || '0');
+        const currentRealizedValue = parseCurrencyInput(currentContract?.realizedValue || currentContract?.value || '0');
+        const nextInitialValue = isAdditive ? currentInitialValue : approvedQuoteValue;
+        const nextRealizedValue = isAdditive
+          ? currentRealizedValue + approvedQuoteValue
+          : approvedQuoteValue;
+        const nextContractValue = nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : approvedQuote?.value || currentContract?.value || 'A confirmar';
+
         try {
           await saveQuotes(id, nextQuotes, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
           if (approvedQuote) {
             await saveContract(
               id,
               {
-                id: 'contract-1',
+                id: currentContract?.id || 'contract-1',
                 vendor: approvedQuote.vendor,
-                value: approvedQuote.value,
+                value: nextContractValue,
+                initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
+                realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
                 status: 'pending_signature',
                 viewingBy: null,
-                signedFileName: null,
+                signedFileName: currentContract?.signedFileName || null,
                 items: approvedQuote.items || [],
               },
               targetTicket ? buildProcurementClassification(targetTicket) : undefined
@@ -233,17 +318,24 @@ export function ApprovalsView() {
           setContractsByTicket(prev => ({
             ...prev,
             [id]: {
-              id: 'contract-1',
+              id: currentContract?.id || 'contract-1',
               vendor: approvedQuote.vendor,
-              value: approvedQuote.value,
+              value: nextContractValue,
+              initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
+              realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
               status: 'pending_signature',
               viewingBy: null,
-              signedFileName: null,
+              signedFileName: currentContract?.signedFileName || null,
               items: approvedQuote.items || [],
             },
           }));
         }
         const winner = selectedQuote?.vendor || 'Fornecedor vencedor';
+        budgetApprovalContext = {
+          isAdditive,
+          winner,
+          shouldMoveStatus: targetTicket?.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+        };
         setToast(`Automação: aprovação enviada para ${winner}.`);
         setTimeout(() => setToast(null), 4000);
       }
@@ -257,11 +349,18 @@ export function ApprovalsView() {
         time: new Date(),
         text:
           tab === 'budgets'
-            ? `Orçamento aprovado. ${selectedQuote?.vendor || 'Fornecedor vencedor'} definido para seguir com o contrato.`
+            ? budgetApprovalContext?.isAdditive
+              ? `Aditivo aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.`
+              : `Orçamento aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para seguir com o contrato.`
             : 'Solução técnica aprovada. OS liberada para a etapa de orçamentação.',
       };
       updateTicket(id, {
-        status: APPROVAL_STATUS[tab],
+        status:
+          tab === 'budgets'
+            ? budgetApprovalContext?.shouldMoveStatus
+              ? APPROVAL_STATUS[tab]
+              : targetTicket?.status || APPROVAL_STATUS[tab]
+            : APPROVAL_STATUS[tab],
         viewingBy: tab === 'budgets' ? null : undefined,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
@@ -392,13 +491,16 @@ export function ApprovalsView() {
       ['Faixa histórica', `${formatBudgetHistoryValue(budget.historySummary.minQuoteValue)} a ${formatBudgetHistoryValue(budget.historySummary.maxQuoteValue)}`],
       ['Fornecedor preferencial', budget.historySummary.preferredVendor?.vendor ?? '-'],
       ['Referência preferencial', budget.historySummary.preferredVendor?.rationale.join(' | ') ?? '-'],
+      ['Rodada em aprovação', budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'],
       [],
       ['Comparativo de cotações'],
-      ['Cotação', 'Fornecedor', 'Valor', 'Recomendada', 'Status', 'Itens'],
+      ['Cotação', 'Fornecedor', 'Material', 'Mão de obra', 'Valor', 'Recomendada', 'Status', 'Itens'],
       ...budget.quotes.map((quote, index) => [
         `Cotação ${index + 1}`,
         quote.vendor,
-        quote.value,
+        quote.materialValue || '',
+        quote.laborValue || '',
+        quote.totalValue || quote.value,
         quote.recommended ? 'Sim' : 'Não',
         quote.status || 'pending',
         String(quote.items?.length || 0),
@@ -417,7 +519,7 @@ export function ApprovalsView() {
       ...budget.quotes.flatMap((quote, index) =>
         (quote.items && quote.items.length > 0
           ? quote.items
-          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, unitPrice: '', totalPrice: '', costUnitPrice: '', section: 'material-mao-de-obra' }]
+          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, unitPrice: '', totalPrice: '', costUnitPrice: '', section: 'material' }]
         ).map(item => [
           `Cotação ${index + 1}`,
           quote.vendor,
@@ -478,19 +580,51 @@ export function ApprovalsView() {
   const budgets = useMemo(
     () =>
       tickets
-        .filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL)
-        .map(ticket => ({
-          id: ticket.id,
-          subject: ticket.subject,
-          requester: ticket.requester,
-          date: ticket.time,
-          macroServiceName: ticket.macroServiceName ?? null,
-          serviceCatalogName: ticket.serviceCatalogName ?? null,
-          viewingBy: ticket.viewingBy ?? null,
-          quotes: quotesByTicket[ticket.id] ?? [],
-          proposalHeader: quotesByTicket[ticket.id]?.find(quote => quote.proposalHeader)?.proposalHeader ?? createEmptyProposalHeader(),
-          historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
-        })),
+        .map(ticket => {
+          const allQuotes = quotesByTicket[ticket.id] ?? [];
+          const pendingRound = resolvePendingRound(allQuotes);
+          const shouldInclude =
+            ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL ||
+            Boolean(pendingRound);
+          if (!shouldInclude) return null;
+
+          const currentRound = pendingRound
+            ? pendingRound
+            : {
+                category: 'initial' as const,
+                additiveIndex: null,
+                quotes: filterQuotesByRound(allQuotes, 'initial'),
+              };
+
+          return {
+            id: ticket.id,
+            subject: ticket.subject,
+            requester: ticket.requester,
+            date: ticket.time,
+            macroServiceName: ticket.macroServiceName ?? null,
+            serviceCatalogName: ticket.serviceCatalogName ?? null,
+            viewingBy: ticket.viewingBy ?? null,
+            quotes: currentRound.quotes,
+            roundCategory: currentRound.category,
+            roundAdditiveIndex: currentRound.additiveIndex,
+            proposalHeader: currentRound.quotes.find(quote => quote.proposalHeader)?.proposalHeader ?? createEmptyProposalHeader(),
+            historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
+          };
+        })
+        .filter((value): value is {
+          id: string;
+          subject: string;
+          requester: string;
+          date: Date;
+          macroServiceName: string | null;
+          serviceCatalogName: string | null;
+          viewingBy: { name: string; at: Date } | null;
+          quotes: Quote[];
+          roundCategory: 'initial' | 'additive';
+          roundAdditiveIndex: number | null;
+          proposalHeader: QuoteProposalHeader;
+          historySummary: ReturnType<typeof buildBudgetHistorySummary>;
+        } => Boolean(value)),
     [quotesByTicket, tickets]
   );
 
@@ -696,6 +830,9 @@ export function ApprovalsView() {
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{budget.id}</span>
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação</span>
+                    <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">
+                      {budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'}
+                    </span>
                     {budget.viewingBy && isReviewActive(budget.viewingBy) && (
                       <span className="text-xs font-medium px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-sm flex items-center gap-1.5 shadow-sm">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
@@ -891,7 +1028,11 @@ export function ApprovalsView() {
                       </div>
                     )}
                     <div className="text-sm text-roman-text-sub mb-1">{quote.vendor}</div>
-                    <div className="text-2xl font-serif text-roman-text-main mb-4">{quote.value}</div>
+                    <div className="text-2xl font-serif text-roman-text-main mb-2">{quote.totalValue || quote.value}</div>
+                    <div className="mb-4 text-[11px] text-roman-text-sub space-y-1">
+                      <div>Material: {quote.materialValue || '-'}</div>
+                      <div>Mão de obra: {quote.laborValue || '-'}</div>
+                    </div>
                     {quote.items && quote.items.length > 0 && (
                       <div className="mb-4 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-2">
                         <div className="text-[10px] uppercase tracking-widest text-roman-text-sub mb-2">Composição</div>

@@ -35,6 +35,7 @@ function normalizeEmailTemplate(value: unknown, fallback?: Partial<EmailTemplate
 }
 
 function normalizeSlaSettings(value: unknown): SlaSettings {
+  const allowedPriorities = ['Urgente', 'Alta', 'Trivial'];
   const sla = (value || {}) as {
     rules?: Array<{ priority?: string; prazo?: string }>;
     urgentHours?: number;
@@ -44,20 +45,23 @@ function normalizeSlaSettings(value: unknown): SlaSettings {
   };
 
   if (Array.isArray(sla.rules)) {
-    return {
-      rules: sla.rules.map(rule => ({
+    const normalized = sla.rules
+      .map(rule => ({
         priority: String(rule.priority || '').trim(),
-        prazo: String(rule.prazo || '').trim(),
-      })),
+        prazo: String(rule.prazo || '').trim() || 'Sem medição de tempo',
+      }))
+      .filter(rule => allowedPriorities.includes(rule.priority));
+    const byPriority = new Map(normalized.map(rule => [rule.priority, rule]));
+    return {
+      rules: allowedPriorities.map(priority => byPriority.get(priority) || ({ priority, prazo: 'Sem medição de tempo' })),
     };
   }
 
   return {
     rules: [
-      { priority: 'Urgente', prazo: `${Number(sla?.urgentHours || 24)}h` },
-      { priority: 'Alta', prazo: `${Number(sla?.highHours || 72)}h` },
-      { priority: 'Normal', prazo: `${Number(sla?.normalHours || 120)}h` },
-      { priority: 'Trivial', prazo: `${Number(sla?.lowHours || 240)}h` },
+      { priority: 'Urgente', prazo: 'Sem medição de tempo' },
+      { priority: 'Alta', prazo: 'Sem medição de tempo' },
+      { priority: 'Trivial', prazo: 'Sem medição de tempo' },
     ],
   };
 }

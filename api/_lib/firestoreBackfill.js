@@ -31,32 +31,36 @@ function toDate(value) {
 }
 
 function normalizeSla(data) {
+  const allowedPriorities = ['Urgente', 'Alta', 'Trivial'];
+
   if (Array.isArray(data?.rules)) {
-    return {
-      rules: data.rules.map(rule => ({
+    const normalizedRules = data.rules
+      .map(rule => ({
         priority: String(rule?.priority || '').trim(),
-        prazo: String(rule?.prazo || '').trim(),
-      })),
+        prazo: String(rule?.prazo || '').trim() || 'Sem medição de tempo',
+      }))
+      .filter(rule => allowedPriorities.includes(rule.priority));
+    const byPriority = new Map(normalizedRules.map(rule => [rule.priority, rule]));
+    return {
+      rules: allowedPriorities.map(priority => byPriority.get(priority) || ({ priority, prazo: 'Sem medição de tempo' })),
     };
   }
 
   if (data && typeof data === 'object') {
     return {
       rules: [
-        { priority: 'Urgente', prazo: `${Number(data.urgentHours || 24)}h` },
-        { priority: 'Alta', prazo: `${Number(data.highHours || 72)}h` },
-        { priority: 'Normal', prazo: `${Number(data.normalHours || 120)}h` },
-        { priority: 'Trivial', prazo: `${Number(data.lowHours || 240)}h` },
+        { priority: 'Urgente', prazo: 'Sem medição de tempo' },
+        { priority: 'Alta', prazo: 'Sem medição de tempo' },
+        { priority: 'Trivial', prazo: 'Sem medição de tempo' },
       ],
     };
   }
 
   return {
     rules: [
-      { priority: 'Urgente', prazo: '24h' },
-      { priority: 'Alta', prazo: '72h' },
-      { priority: 'Normal', prazo: '120h' },
-      { priority: 'Trivial', prazo: '240h' },
+      { priority: 'Urgente', prazo: 'Sem medição de tempo' },
+      { priority: 'Alta', prazo: 'Sem medição de tempo' },
+      { priority: 'Trivial', prazo: 'Sem medição de tempo' },
     ],
   };
 }

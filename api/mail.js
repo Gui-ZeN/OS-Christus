@@ -695,7 +695,7 @@ async function createTicketFromInbound(db, message) {
     siteId: site?.id || null,
     sede: site?.code || parsedSubject.siteCode,
     sector: 'E-mail',
-    priority: 'Normal',
+    priority: 'Trivial',
     attachments,
     history: [
       {

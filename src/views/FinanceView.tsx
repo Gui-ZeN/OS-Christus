@@ -6,7 +6,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
-import { deleteTicketAttachment, uploadClosureDocument } from '../services/ticketStorage';
+import { deleteTicketAttachment, uploadClosureDocument, uploadPaymentAttachment } from '../services/ticketStorage';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedPaymentValue, getApprovedReleasePercent, getNextMilestonePercent, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
@@ -15,12 +15,16 @@ import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerrito
 
 interface MeasurementFormState {
   label: string;
-  progressPercent: string;
+  grossAmount: string;
   notes: string;
 }
 
+interface PaymentSettlementDraft {
+  grossValue: string;
+  taxValue: string;
+}
+
 interface ClosureFormState {
-  requesterApproved: boolean;
   infrastructureApprovalPrimary: boolean;
   infrastructureApprovalSecondary: boolean;
   serviceStartedAt: string;
@@ -46,6 +50,38 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function sanitizeCurrencyTypingInput(value: string) {
+  return String(value || '').replace(/[^\d,.-]/g, '');
+}
+
+function normalizeCurrencyInput(value: string) {
+  const parsed = parseCurrency(value);
+  return parsed > 0 ? formatCurrency(parsed) : '';
+}
+
+function roundProgressPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(2));
+}
+
+function resolveExpectedBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
+  const contractInitial = parseCurrency(contract?.initialPlannedValue || '');
+  if (contractInitial > 0) return contractInitial;
+
+  const paymentBaseline = parseCurrency(payments[0]?.expectedBaselineValue || '');
+  if (paymentBaseline > 0) return paymentBaseline;
+
+  const contractValue = parseCurrency(contract?.value || '');
+  if (contractValue > 0) return contractValue;
+
+  return parseCurrency(payments[0]?.value || '');
+}
+
+function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
+  if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
+  return roundProgressPercent((grossAmount / baselineValue) * 100);
+}
+
 function formatDateLabel(date?: Date | null) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Não definido';
   return date.toLocaleDateString('pt-BR');
@@ -63,7 +99,7 @@ function sumReleasedPercent(payments: PaymentRecord[]) {
 function sumPaidValue(payments: PaymentRecord[]) {
   return payments
     .filter(payment => payment.status === 'paid')
-    .reduce((total, payment) => total + parseCurrency(payment.value), 0);
+    .reduce((total, payment) => total + parseCurrency(payment.grossValue || payment.value), 0);
 }
 
 function sumPlannedValue(payments: PaymentRecord[]) {
@@ -85,7 +121,6 @@ function addMonths(date: Date, months: number) {
 function getFinanceNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
-  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar a validação do solicitante para seguir ao fechamento.';
   if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento.';
   if (ticket.status === TICKET_STATUS.CLOSED) return 'Fluxo financeiro concluído.';
   if (ticket.status === TICKET_STATUS.CANCELED) return 'OS cancelada; manter apenas consulta histórica.';
@@ -244,7 +279,6 @@ function buildClosureExportHtml(
       <div class="meta">
         <div><strong>Início do serviço:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceStartedAt))}</div>
         <div><strong>Término do serviço:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceCompletedAt))}</div>
-        <div><strong>Solicitante aprovou:</strong> ${ticket.closureChecklist?.requesterApproved ? 'Sim' : 'Não'}</div>
         <div><strong>Aprovação técnica 1:</strong> ${ticket.closureChecklist?.infrastructureApprovalPrimary ? 'Sim' : 'Não'}</div>
         <div><strong>Aprovação técnica 2:</strong> ${ticket.closureChecklist?.infrastructureApprovalSecondary ? 'Sim' : 'Não'}</div>
         <div><strong>Garantia:</strong> ${escapeHtml(formatDateLabel(ticket.guarantee?.startAt))} até ${escapeHtml(formatDateLabel(ticket.guarantee?.endAt))}</div>
@@ -283,7 +317,6 @@ function buildClosureExportHtml(
 
 function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState {
   return {
-    requesterApproved: closureChecklist?.requesterApproved ?? false,
     infrastructureApprovalPrimary: closureChecklist?.infrastructureApprovalPrimary ?? false,
     infrastructureApprovalSecondary: closureChecklist?.infrastructureApprovalSecondary ?? false,
     serviceStartedAt: formatInputDate(closureChecklist?.serviceStartedAt),
@@ -297,7 +330,6 @@ function getFinalInstallmentBlockingReasons(closureDraft: ClosureFormState) {
   const reasons: string[] = [];
   const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
 
-  if (!closureDraft.requesterApproved) reasons.push('Solicitante ainda não confirmou a conclusão');
   if (!closureDraft.infrastructureApprovalPrimary) reasons.push('Aprovação técnica 1 pendente');
   if (!closureDraft.infrastructureApprovalSecondary) reasons.push('Aprovação técnica 2 pendente');
   if (!closureDraft.serviceStartedAt) reasons.push('Início do serviço não informado');
@@ -321,8 +353,10 @@ export function FinanceView() {
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [measurementDraftByTicket, setMeasurementDraftByTicket] = useState<Record<string, MeasurementFormState>>({});
   const [measurementFormOpen, setMeasurementFormOpen] = useState<Record<string, boolean>>({});
+  const [paymentDraftByKey, setPaymentDraftByKey] = useState<Record<string, PaymentSettlementDraft>>({});
   const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
   const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
+  const [uploadingPaymentKey, setUploadingPaymentKey] = useState<string | null>(null);
   const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
@@ -378,7 +412,6 @@ export function FinanceView() {
         next[ticket.id] = current
           ? {
               ...current,
-              requesterApproved: current.requesterApproved || seeded.requesterApproved,
               serviceStartedAt: current.serviceStartedAt || seeded.serviceStartedAt,
               serviceCompletedAt: current.serviceCompletedAt || seeded.serviceCompletedAt,
             }
@@ -409,11 +442,12 @@ export function FinanceView() {
           const payments = paymentsByTicket[ticket.id] || [];
           const measurements = measurementsByTicket[ticket.id] || [];
           const contract = contractsByTicket[ticket.id];
-          const totalValue = parseCurrency(contract?.value || payments[0]?.value || '0');
+          const expectedBaselineValue = resolveExpectedBaselineValue(contract, payments);
+          const totalValue = parseCurrency(contract?.realizedValue || contract?.value || payments[0]?.value || '0');
           const totalReleased = sumReleasedPercent(payments);
-          const plannedValue = payments.length > 0 ? sumPlannedValue(payments) : totalValue;
+          const plannedValue = totalValue > 0 ? totalValue : payments.length > 0 ? sumPlannedValue(payments) : 0;
           const paidValue = sumPaidValue(payments);
-          const remainingValue = Math.max(0, plannedValue - paidValue);
+          const remainingValue = plannedValue - paidValue;
           const pendingInstallments = payments.filter(payment => payment.status !== 'paid');
           const nextPendingInstallment = pendingInstallments[0] || null;
           const nextMilestonePercent = getNextMilestonePercent(payments);
@@ -423,6 +457,7 @@ export function FinanceView() {
             payments,
             measurements,
             contract,
+            expectedBaselineValue,
             totalValue,
             totalReleased,
             plannedValue,
@@ -502,11 +537,20 @@ export function FinanceView() {
   }, [financeTickets]);
 
   const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
-    measurementDraftByTicket[ticketId] || {
-      label: '',
-      progressPercent: '',
-      notes: '',
-    };
+    measurementDraftByTicket[ticketId] || (() => {
+      const ticket = tickets.find(item => item.id === ticketId);
+      const payments = paymentsByTicket[ticketId] || [];
+      const contract = contractsByTicket[ticketId];
+      const baselineValue = resolveExpectedBaselineValue(contract, payments);
+      const currentPercent = Math.max(0, Number(ticket?.executionProgress?.currentPercent || 0));
+      const grossAmount = baselineValue > 0 ? (baselineValue * currentPercent) / 100 : 0;
+
+      return {
+        label: '',
+        grossAmount: grossAmount > 0 ? formatCurrency(grossAmount) : '',
+        notes: '',
+      };
+    })();
 
   const setMeasurementDraft = (ticketId: string, updates: Partial<MeasurementFormState>) => {
     setMeasurementDraftByTicket(prev => ({
@@ -526,14 +570,17 @@ export function FinanceView() {
     });
   };
 
-  const getMeasurementReleasePreview = (ticket: Ticket, progressInput: string) => {
-    const progressPercent = Number(progressInput);
-    if (!Number.isFinite(progressPercent) || !ticket.executionProgress?.paymentFlowParts) {
-      return 0;
+  const getMeasurementReleasePreview = (ticket: Ticket, grossInput: string) => {
+    if (!ticket.executionProgress?.paymentFlowParts) {
+      return { progressPercent: 0, releasePercent: 0 };
     }
 
+    const grossAmount = parseCurrency(grossInput);
     const existingPayments = paymentsByTicket[ticket.id] || [];
-    const contractValue = parseCurrency(contractsByTicket[ticket.id]?.value || existingPayments[0]?.value || '0');
+    const contract = contractsByTicket[ticket.id];
+    const baselineValue = resolveExpectedBaselineValue(contract, existingPayments);
+    const progressPercent = calculateProgressPercentFromGross(grossAmount, baselineValue);
+    const contractValue = parseCurrency(contract?.realizedValue || contract?.value || existingPayments[0]?.value || '0');
     const vendor = contractsByTicket[ticket.id]?.vendor || existingPayments[0]?.vendor || ticket.assignedTeam || 'Fornecedor não definido';
     const baselinePayments =
       existingPayments.length > 0
@@ -542,7 +589,49 @@ export function FinanceView() {
           ? createExecutionPaymentPlan(contractValue, vendor, ticket.executionProgress.paymentFlowParts)
           : [];
     const { newlyApproved } = applyProgressToPayments(baselinePayments, progressPercent);
-    return newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0);
+    return {
+      progressPercent,
+      releasePercent: newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0),
+    };
+  };
+
+  const getPaymentDraftKey = (ticketId: string, paymentId: string) => `${ticketId}:${paymentId}`;
+
+  const getPaymentDraft = (ticketId: string, payment: PaymentRecord): PaymentSettlementDraft => {
+    const key = getPaymentDraftKey(ticketId, payment.id);
+    const current = paymentDraftByKey[key];
+    if (current) return current;
+
+    return {
+      grossValue: payment.grossValue || payment.value || '',
+      taxValue: payment.taxValue || '',
+    };
+  };
+
+  const setPaymentDraft = (ticketId: string, payment: PaymentRecord, updates: Partial<PaymentSettlementDraft>) => {
+    const key = getPaymentDraftKey(ticketId, payment.id);
+    setPaymentDraftByKey(prev => {
+      const base = prev[key] || {
+        grossValue: payment.grossValue || payment.value || '',
+        taxValue: payment.taxValue || '',
+      };
+      return {
+        ...prev,
+        [key]: {
+          ...base,
+          ...updates,
+        },
+      };
+    });
+  };
+
+  const clearPaymentDraft = (ticketId: string, paymentId: string) => {
+    const key = getPaymentDraftKey(ticketId, paymentId);
+    setPaymentDraftByKey(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const getClosureDraft = (ticketId: string, closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState =>
@@ -709,12 +798,18 @@ export function FinanceView() {
 
     setProcessingId(ticketId);
     const installments = createExecutionPaymentPlan(totalValue, vendor, parts);
+    const expectedBaselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], installments);
+    const expectedBaselineFormatted = expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : null;
+    const installmentsWithBaseline = installments.map(payment => ({
+      ...payment,
+      expectedBaselineValue: expectedBaselineFormatted,
+    }));
 
     try {
-      for (const installment of installments) {
+      for (const installment of installmentsWithBaseline) {
         await savePayment(ticketId, installment, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
       }
-      setPaymentsByTicket(prev => ({ ...prev, [ticketId]: installments }));
+      setPaymentsByTicket(prev => ({ ...prev, [ticketId]: installmentsWithBaseline }));
       if (targetTicket) {
         updateTicket(ticketId, {
           history: [
@@ -738,22 +833,26 @@ export function FinanceView() {
 
   const handleAddMeasurement = async (ticketId: string) => {
     const draft = getMeasurementDraft(ticketId);
-    const progressPercent = Number(draft.progressPercent);
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
 
     if (!targetTicket) return;
 
-    if (!Number.isFinite(progressPercent)) {
-      setToast('Erro: informe o percentual atual de andamento da obra.');
+    const grossAmount = parseCurrency(draft.grossAmount || '');
+    if (!Number.isFinite(grossAmount) || grossAmount < 0) {
+      setToast('Erro: informe o valor bruto acumulado da obra.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
-    if (progressPercent < 0 || progressPercent > 100) {
-      setToast('Erro: o andamento precisa ficar entre 0% e 100%.');
+    const existingPayments = paymentsByTicket[ticketId] || [];
+    const baselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], existingPayments);
+    if (baselineValue <= 0) {
+      setToast('Erro: valor previsto da obra não encontrado para calcular o andamento.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
+
+    const progressPercent = calculateProgressPercentFromGross(grossAmount, baselineValue);
 
     if (!targetTicket.executionProgress?.paymentFlowParts) {
       setToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.');
@@ -761,7 +860,12 @@ export function FinanceView() {
       return;
     }
 
-    const contractValue = parseCurrency(contractsByTicket[ticketId]?.value || paymentsByTicket[ticketId]?.[0]?.value || '0');
+    const contractValue = parseCurrency(
+      contractsByTicket[ticketId]?.realizedValue ||
+      contractsByTicket[ticketId]?.value ||
+      existingPayments[0]?.value ||
+      '0'
+    );
     if (contractValue <= 0) {
       setToast('Erro: não foi possível calcular o valor do contrato para liberar pagamentos.');
       setTimeout(() => setToast(null), 3000);
@@ -773,7 +877,6 @@ export function FinanceView() {
       paymentsByTicket[ticketId]?.[0]?.vendor ||
       targetTicket.assignedTeam ||
       'Fornecedor não definido';
-    const existingPayments = paymentsByTicket[ticketId] || [];
     const currentProgress = Number(targetTicket.executionProgress?.currentPercent || 0);
 
     if (progressPercent < currentProgress) {
@@ -803,7 +906,7 @@ export function FinanceView() {
     const now = new Date();
     const measurement: MeasurementRecord = {
       id: `measurement-${Date.now()}`,
-      label: draft.label.trim() || `Andamento atualizado para ${normalizedProgress}%`,
+      label: draft.label.trim() || `Andamento atualizado para ${normalizedProgress}% (${formatCurrency(grossAmount)} bruto acumulado)`,
       progressPercent: normalizedProgress,
       releasePercent: newlyReleasedPercent,
       status: newlyApproved.length > 0 ? 'approved' : 'pending',
@@ -811,12 +914,13 @@ export function FinanceView() {
       requestedAt: now,
       approvedAt: newlyApproved.length > 0 ? now : null,
     };
+    const expectedBaselineFormatted = formatCurrency(baselineValue);
     const shouldMoveToValidation =
       normalizedProgress >= 100 &&
-      targetTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
+      targetTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
       targetTicket.status !== TICKET_STATUS.CLOSED &&
       targetTicket.status !== TICKET_STATUS.CANCELED;
-    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : targetTicket.status;
+    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_PAYMENT : targetTicket.status;
     const nextClosureChecklist =
       normalizedProgress >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
 
@@ -825,11 +929,27 @@ export function FinanceView() {
       const classification = buildProcurementClassification(targetTicket);
       if (createdPlan) {
         for (const payment of nextPayments) {
-          await savePayment(ticketId, payment, classification);
+          await savePayment(
+            ticketId,
+            {
+              ...payment,
+              expectedBaselineValue: expectedBaselineFormatted,
+              progressPercent: payment.status === 'approved' ? normalizedProgress : payment.progressPercent ?? null,
+            },
+            classification
+          );
         }
       } else {
         for (const payment of newlyApproved) {
-          await savePayment(ticketId, payment, classification);
+          await savePayment(
+            ticketId,
+            {
+              ...payment,
+              expectedBaselineValue: expectedBaselineFormatted,
+              progressPercent: normalizedProgress,
+            },
+            classification
+          );
         }
       }
       await saveMeasurement(ticketId, measurement, classification);
@@ -839,7 +959,14 @@ export function FinanceView() {
       }));
       setPaymentsByTicket(prev => ({
         ...prev,
-        [ticketId]: nextPayments,
+        [ticketId]: nextPayments.map(payment => ({
+          ...payment,
+          expectedBaselineValue: payment.expectedBaselineValue || expectedBaselineFormatted,
+          progressPercent:
+            payment.status === 'approved' || payment.status === 'paid'
+              ? payment.progressPercent ?? normalizedProgress
+              : payment.progressPercent ?? null,
+        })),
       }));
       updateTicket(ticketId, {
         status: nextStatus,
@@ -860,10 +987,10 @@ export function FinanceView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${measurement.progressPercent}%. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
+                ? `Andamento atualizado para ${measurement.progressPercent}% com bruto acumulado de ${formatCurrency(grossAmount)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
                 : newlyApproved.length > 0
-                  ? `Andamento atualizado para ${measurement.progressPercent}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
-                  : `Andamento atualizado para ${measurement.progressPercent}%. Nenhuma nova parcela foi liberada neste marco.`,
+                  ? `Andamento atualizado para ${measurement.progressPercent}% com bruto acumulado de ${formatCurrency(grossAmount)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
+                  : `Andamento atualizado para ${measurement.progressPercent}% com bruto acumulado de ${formatCurrency(grossAmount)}. Nenhuma nova parcela foi liberada neste marco.`,
           },
         ],
       });
@@ -871,7 +998,7 @@ export function FinanceView() {
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
       setToast(
         shouldMoveToValidation
-          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
+          ? 'Andamento salvo. Obra concluída e enviada para o financeiro.'
           : newlyApproved.length > 0
             ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para pagamento.`
             : 'Andamento salvo sem liberar novas parcelas.'
@@ -879,6 +1006,70 @@ export function FinanceView() {
       setTimeout(() => setToast(null), 3000);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handlePaymentAttachmentUpload = async (ticketId: string, payment: PaymentRecord, files: FileList | null) => {
+    if (!canPay) return;
+    if (!files || files.length === 0) return;
+    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
+    if (!targetTicket) return;
+
+    const paymentKey = getPaymentDraftKey(ticketId, payment.id);
+    setUploadingPaymentKey(paymentKey);
+    try {
+      const uploadedItems = await Promise.all(
+        Array.from(files).map(file => uploadPaymentAttachment(ticketId, payment.id, file))
+      );
+      const nextPayment: PaymentRecord = {
+        ...payment,
+        attachments: [...(payment.attachments || []), ...uploadedItems],
+      };
+      await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
+      setPaymentsByTicket(prev => ({
+        ...prev,
+        [ticketId]: (prev[ticketId] || []).map(item => (item.id === payment.id ? nextPayment : item)),
+      }));
+      setToast(`${uploadedItems.length} anexo(s) vinculados à ${payment.label || 'parcela'}.`);
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos da parcela.'}`);
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setUploadingPaymentKey(null);
+    }
+  };
+
+  const handlePaymentAttachmentRemove = async (ticketId: string, payment: PaymentRecord, attachmentId: string) => {
+    if (!canPay) return;
+    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
+    if (!targetTicket) return;
+
+    const attachment = (payment.attachments || []).find(item => item.id === attachmentId);
+    if (!attachment) return;
+
+    const paymentKey = getPaymentDraftKey(ticketId, payment.id);
+    setUploadingPaymentKey(paymentKey);
+    try {
+      if (attachment.path) {
+        await deleteTicketAttachment(attachment.path);
+      }
+      const nextPayment: PaymentRecord = {
+        ...payment,
+        attachments: (payment.attachments || []).filter(item => item.id !== attachmentId),
+      };
+      await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
+      setPaymentsByTicket(prev => ({
+        ...prev,
+        [ticketId]: (prev[ticketId] || []).map(item => (item.id === payment.id ? nextPayment : item)),
+      }));
+      setToast(`Anexo removido da ${payment.label || 'parcela'}.`);
+      setTimeout(() => setToast(null), 3000);
+    } catch (error) {
+      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo da parcela.'}`);
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setUploadingPaymentKey(null);
     }
   };
 
@@ -892,6 +1083,26 @@ export function FinanceView() {
       return;
     }
 
+    const settlementDraft = getPaymentDraft(ticketId, payment);
+    const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || payment.value || '');
+    const taxAmount = parseCurrency(settlementDraft.taxValue || payment.taxValue || '0');
+    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
+      setToast('Erro: informe o valor bruto da parcela antes de confirmar o pagamento.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (!Number.isFinite(taxAmount) || taxAmount < 0) {
+      setToast('Erro: informe um valor de imposto válido.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (taxAmount > grossAmount) {
+      setToast('Erro: o imposto não pode ser maior do que o valor bruto.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const netAmount = Math.max(0, grossAmount - taxAmount);
+
     const existingPayments = paymentsByTicket[ticketId] || [];
     const pendingPayments = existingPayments.filter(item => item.status !== 'paid');
     const isFinalInstallment = pendingPayments.length === 1 && pendingPayments[0].id === payment.id;
@@ -900,7 +1111,6 @@ export function FinanceView() {
     if (isFinalInstallment) {
       const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
       if (
-        !closureDraft.requesterApproved ||
         !closureDraft.infrastructureApprovalPrimary ||
         !closureDraft.infrastructureApprovalSecondary ||
         !closureDraft.serviceStartedAt ||
@@ -920,10 +1130,15 @@ export function FinanceView() {
         ...payment,
         status: 'paid',
         paidAt: new Date(),
+        grossValue: formatCurrency(grossAmount),
+        taxValue: formatCurrency(taxAmount),
+        netValue: formatCurrency(netAmount),
+        attachments: payment.attachments || [],
       };
       await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
       const nextPayments = existingPayments.map(item => (item.id === payment.id ? nextPayment : item));
       setPaymentsByTicket(prev => ({ ...prev, [ticketId]: nextPayments }));
+      clearPaymentDraft(ticketId, payment.id);
 
       const allPaid = nextPayments.every(item => item.status === 'paid');
       if (targetTicket) {
@@ -933,9 +1148,9 @@ export function FinanceView() {
         const closedAt = allPaid ? new Date() : targetTicket.closureChecklist?.closedAt || null;
         const closureChecklist: ClosureChecklist | undefined = allPaid
           ? {
-              requesterApproved: closureDraft.requesterApproved,
-              requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || targetTicket.requester,
-              requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || new Date(),
+              requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
+              requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
+              requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
               infrastructureApprovalPrimary: closureDraft.infrastructureApprovalPrimary,
               infrastructureApprovalSecondary: closureDraft.infrastructureApprovalSecondary,
               closureNotes: closureDraft.closureNotes.trim(),
@@ -966,8 +1181,8 @@ export function FinanceView() {
               sender: 'Financeiro',
               time: new Date(),
               text: allPaid
-                ? `${payment.label || 'Pagamento'} confirmado. Todas as parcelas foram quitadas, checklist concluído e garantia iniciada.`
-                : `${payment.label || 'Pagamento'} confirmado. Restam ${nextPayments.filter(item => item.status !== 'paid').length} parcela(s) pendente(s).`,
+                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Todas as parcelas foram quitadas, checklist concluído e garantia iniciada.`
+                : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${nextPayments.filter(item => item.status !== 'paid').length} parcela(s) pendente(s).`,
             },
           ],
         });
@@ -994,7 +1209,7 @@ export function FinanceView() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
-          <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de parcelas e confirmação de pagamentos das ordens de serviço validadas.</p>
+          <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de parcelas e confirmação de pagamentos das ordens de serviço em execução e fechamento.</p>
         </header>
 
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
@@ -1041,15 +1256,16 @@ export function FinanceView() {
             </div>
           </div>
 
-          {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
+          {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, expectedBaselineValue, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
             const ticketProcessing = processingId === ticket.id || processingId?.startsWith(`${ticket.id}:`);
             const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
             const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';
             const measurementDraft = getMeasurementDraft(ticket.id);
             const closureDraft = getClosureDraft(ticket.id, ticket.closureChecklist, ticket.guarantee);
             const closureDocuments = ticket.closureChecklist?.documents || [];
-            const progressPercent = Math.min(100, Math.max(0, Number(ticket.executionProgress?.currentPercent || 0)));
-            const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.progressPercent);
+            const progressPercent = Math.max(0, Number(ticket.executionProgress?.currentPercent || 0));
+            const progressBarPercent = Math.min(100, progressPercent);
+            const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.grossAmount);
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
             return (
@@ -1200,7 +1416,7 @@ export function FinanceView() {
                         <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
                           <div
                             className="h-full rounded-full bg-roman-sidebar transition-all"
-                            style={{ width: `${progressPercent}%` }}
+                            style={{ width: `${progressBarPercent}%` }}
                           />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-3 text-xs text-roman-text-sub">
@@ -1242,39 +1458,55 @@ export function FinanceView() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Marco de andamento</label>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto acumulado</label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={measurementDraft.grossAmount}
+                              onChange={event => setMeasurementDraft(ticket.id, { grossAmount: sanitizeCurrencyTypingInput(event.target.value) })}
+                              onBlur={() => setMeasurementDraft(ticket.id, { grossAmount: normalizeCurrencyInput(measurementDraft.grossAmount) })}
+                              placeholder="Ex: 12500,00"
+                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            />
+                          </div>
+                          <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
+                            <div className="font-medium text-roman-text-main mb-1">Percentual calculado</div>
+                            <div>{releasePreview.progressPercent}%</div>
+                            <div className="mt-1">Andamento atual salvo: {progressPercent}%</div>
+                          </div>
+                          {expectedBaselineValue > 0 && (
+                            <div className="md:col-span-2">
+                              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Atalhos por marco</label>
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                               {getPaymentFlowMilestones(ticket.executionProgress?.paymentFlowParts || 1).map(milestone => {
-                                const currentSaved = progressPercent;
-                                const selectedMilestone = Number(measurementDraft.progressPercent || currentSaved);
-                                const isCurrent = selectedMilestone === milestone;
-                                const isCompleted = milestone <= currentSaved;
+                                const projectedGross = (expectedBaselineValue * milestone) / 100;
+                                const isCompleted = milestone <= progressPercent;
                                 return (
                                   <button
                                     key={milestone}
                                     type="button"
-                                    onClick={() => setMeasurementDraft(ticket.id, { progressPercent: String(milestone) })}
+                                    onClick={() => setMeasurementDraft(ticket.id, { grossAmount: formatCurrency(projectedGross) })}
                                     className={[
                                       'rounded-sm border px-3 py-3 text-left transition-colors',
-                                      isCurrent
-                                        ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
-                                        : isCompleted
-                                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                                          : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
+                                      isCompleted
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                        : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
                                     ].join(' ')}
                                   >
                                     <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
                                     <div className="mt-1 text-base font-semibold">{milestone}%</div>
+                                    <div className="mt-1 text-[10px]">{formatCurrency(projectedGross)}</div>
                                   </button>
                                 );
                               })}
                             </div>
                           </div>
+                          )}
                           <div>
                             <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualização</label>
                             <input
                               type="text"
-                              value={`${releasePreview}%`}
+                              value={`${releasePreview.releasePercent}%`}
                               disabled
                               className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
@@ -1291,6 +1523,7 @@ export function FinanceView() {
                           <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                             <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
                             <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'não definido'}</div>
+                            <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'não definido'}</div>
                             <div>Andamento atual salvo: {progressPercent}%</div>
                             <div>Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
                           </div>
@@ -1360,23 +1593,38 @@ export function FinanceView() {
                       description="Conciliação entre contrato, plano e pagamentos."
                       icon={<DollarSign size={15} />}
                     >
-                      <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${remainingValue > 0 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                        {remainingValue > 0 ? 'Saldo pendente' : 'Quitado'}
+                      <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${
+                        remainingValue > 0
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : remainingValue < 0
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-green-50 text-green-700 border-green-200'
+                      }`}>
+                        {remainingValue > 0 ? 'Saldo pendente' : remainingValue < 0 ? 'Pagamento acima do previsto' : 'Quitado'}
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto inicial</div>
+                          <div className="text-lg font-serif text-roman-text-main">{expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'Não informado'}</div>
+                        </div>
+                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Realizado (previsto + aditivos)</div>
+                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(totalValue)}</div>
+                        </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
                           <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
                         </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Saldo a pagar</div>
-                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(remainingValue)}</div>
-                        </div>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
                           <div className="text-lg font-serif text-roman-text-main">
-                            {totalValue > 0 ? `${Math.min(100, Math.round((paidValue / totalValue) * 100))}%` : '0%'}
+                            {totalValue > 0 ? `${roundProgressPercent((paidValue / totalValue) * 100)}%` : '0%'}
+                          </div>
+                          <div className="mt-1 text-xs text-roman-text-sub">
+                            {remainingValue >= 0
+                              ? `Saldo: ${formatCurrency(remainingValue)}`
+                              : `Excedente: ${formatCurrency(Math.abs(remainingValue))}`}
                           </div>
                         </div>
                       </div>
@@ -1420,13 +1668,19 @@ export function FinanceView() {
                                 canPay &&
                                 payment.status === 'approved' &&
                                 (!isFinalInstallment || finalInstallmentBlockingReasons.length === 0);
+                              const paymentDraft = getPaymentDraft(ticket.id, payment);
+                              const grossPreview = parseCurrency(paymentDraft.grossValue || payment.grossValue || payment.value || '0');
+                              const taxPreview = parseCurrency(paymentDraft.taxValue || payment.taxValue || '0');
+                              const netPreview = Math.max(0, grossPreview - taxPreview);
+                              const paymentKey = getPaymentDraftKey(ticket.id, payment.id);
+                              const isUploadingPaymentAttachment = uploadingPaymentKey === paymentKey;
 
                               return (
-                            <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+                            <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 space-y-3">
                               <div className="flex-1">
                                 <div className="text-sm font-medium text-roman-text-main">{payment.label || `Parcela ${payment.installmentNumber || 1}`}</div>
                                 <div className="text-xs text-roman-text-sub">
-                                  {payment.value} | {payment.releasedPercent || 0}% da obra | libera em {payment.milestonePercent || payment.releasedPercent || 0}% | vencimento {formatDateLabel(payment.dueAt)}
+                                  Previsto: {payment.value} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | libera em {payment.milestonePercent || payment.releasedPercent || 0}% | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
                                 {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
@@ -1438,7 +1692,90 @@ export function FinanceView() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3">
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">
+                                <div>
+                                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto</label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={paymentDraft.grossValue}
+                                    onChange={event => setPaymentDraft(ticket.id, payment, { grossValue: sanitizeCurrencyTypingInput(event.target.value) })}
+                                    onBlur={() => setPaymentDraft(ticket.id, payment, { grossValue: normalizeCurrencyInput(paymentDraft.grossValue) })}
+                                    disabled={payment.status === 'paid'}
+                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                    placeholder="Ex: 1000,00"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impostos</label>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={paymentDraft.taxValue}
+                                    onChange={event => setPaymentDraft(ticket.id, payment, { taxValue: sanitizeCurrencyTypingInput(event.target.value) })}
+                                    onBlur={() => setPaymentDraft(ticket.id, payment, { taxValue: normalizeCurrencyInput(paymentDraft.taxValue) })}
+                                    disabled={payment.status === 'paid'}
+                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                    placeholder="Ex: 150,00"
+                                  />
+                                </div>
+                                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Líquido calculado</div>
+                                  <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(netPreview)}</div>
+                                </div>
+                              </div>
+
+                              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                  <div className="text-xs text-roman-text-sub">Anexos da parcela (PDF, PNG, JPG e similares).</div>
+                                  <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
+                                    {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
+                                    <input
+                                      type="file"
+                                      multiple
+                                      accept=".pdf,image/*"
+                                      className="hidden"
+                                      disabled={isUploadingPaymentAttachment || payment.status === 'paid'}
+                                      onChange={event => {
+                                        void handlePaymentAttachmentUpload(ticket.id, payment, event.target.files);
+                                        event.currentTarget.value = '';
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                                {(payment.attachments || []).length > 0 && (
+                                  <div className="mt-2 space-y-2">
+                                    {(payment.attachments || []).map(attachment => (
+                                      <div key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs">
+                                        <div className="min-w-0">
+                                          <div className="truncate font-medium text-roman-text-main">{attachment.name}</div>
+                                          <div className="text-roman-text-sub">{attachment.uploadedAt ? formatDateLabel(attachment.uploadedAt) : 'Sem data'}</div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <button
+                                            type="button"
+                                            onClick={() => window.open(attachment.url, '_blank', 'noopener,noreferrer')}
+                                            className="text-roman-primary hover:underline"
+                                          >
+                                            Abrir
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => void handlePaymentAttachmentRemove(ticket.id, payment, attachment.id)}
+                                            disabled={isUploadingPaymentAttachment}
+                                            className="text-red-700 hover:underline disabled:opacity-50"
+                                          >
+                                            Remover
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between gap-3">
                                 <span className={`text-xs font-medium px-2 py-1 rounded-sm border ${
                                   payment.status === 'paid'
                                     ? 'bg-green-50 text-green-700 border-green-200'
@@ -1474,14 +1811,6 @@ export function FinanceView() {
                     >
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.requesterApproved ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
-                          <input
-                            type="checkbox"
-                            checked={closureDraft.requesterApproved}
-                            onChange={e => setClosureDraft(ticket.id, { requesterApproved: e.target.checked })}
-                          />
-                          Solicitante confirmou a conclusão
-                        </label>
                         <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovalPrimary ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
                           <input
                             type="checkbox"
@@ -1498,10 +1827,6 @@ export function FinanceView() {
                           />
                           Aprovação de infraestrutura 2
                         </label>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
-                          <div>Solicitante: {ticket.closureChecklist?.requesterApprovedBy || ticket.requester}</div>
-                          <div>Aprovação registrada: {formatDateLabel(ticket.closureChecklist?.requesterApprovedAt)}</div>
-                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">

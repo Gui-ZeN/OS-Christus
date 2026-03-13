@@ -58,7 +58,7 @@ function sanitizePublicTicketCreate(rawTicket) {
     siteId: rawTicket.siteId,
     sede: rawTicket.sede,
     sector: rawTicket.sector,
-    priority: rawTicket.priority || 'Normal',
+    priority: rawTicket.priority || 'Trivial',
     attachments: Array.isArray(rawTicket.attachments) ? rawTicket.attachments : [],
     history: Array.isArray(rawTicket.history) ? rawTicket.history : [],
   };
@@ -362,79 +362,10 @@ export default async function handler(req, res) {
       }
 
       if (body?.trackingToken) {
-        const trackingToken = String(body.trackingToken || '').trim();
-        const trackingSnap = await col.where('trackingToken', '==', trackingToken).limit(1).get();
-        if (trackingSnap.empty) {
-          return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
-        }
-
-        const normalized = normalizeTicketForStorage(body.updates);
-        const beforeData = trackingSnap.docs[0].data() || {};
-        const requesterName = beforeData.requester || 'Solicitante';
-        const nextStatus = String(normalized.status || '').trim();
-        const isApproval =
-          nextStatus === 'Aguardando pagamento' &&
-          normalized.closureChecklist?.requesterApproved === true &&
-          beforeData.status === 'Aguardando aprovação da manutenção';
-        const isRejection =
-          nextStatus === 'Em andamento' &&
-          beforeData.status === 'Aguardando aprovação da manutenção';
-
-        if (!isApproval && !isRejection) {
-          return sendJson(res, 400, { ok: false, error: 'Atualização pública inválida para este ticket.' });
-        }
-
-        const nextClosureChecklist = isApproval
-          ? {
-              ...(beforeData.closureChecklist || {}),
-              requesterApproved: true,
-              requesterApprovedBy: requesterName,
-              requesterApprovedAt: new Date(),
-            }
-          : {
-              ...(beforeData.closureChecklist || {}),
-              requesterApproved: false,
-              requesterApprovedBy: null,
-              requesterApprovedAt: null,
-            };
-
-        const nextHistory = [
-          ...(Array.isArray(beforeData.history) ? beforeData.history : []),
-          buildPublicTrackingHistoryEntry(requesterName, isApproval),
-          buildAutomaticStatusHistoryEntry(
-            requesterName,
-            beforeData.status || 'Sem status',
-            nextStatus
-          ),
-        ];
-
-        await trackingSnap.docs[0].ref.set(
-          {
-            status: nextStatus,
-            closureChecklist: nextClosureChecklist,
-            history: nextHistory,
-            updatedAt: new Date(),
-          },
-          { merge: true }
-        );
-
-        await writeAuditLog({
-          actor: requesterName,
-          action: 'tickets.status.change',
-          entity: 'ticket',
-          entityId: trackingSnap.docs[0].id,
-          before: {
-            status: beforeData.status || null,
-            subject: beforeData.subject || null,
-            requester: beforeData.requester || null,
-          },
-          after: {
-            status: nextStatus,
-            subject: beforeData.subject || null,
-            requester: beforeData.requester || null,
-          },
+        return sendJson(res, 403, {
+          ok: false,
+          error: 'Atualizações públicas foram desativadas para este fluxo.',
         });
-        return sendJson(res, 200, { ok: true });
       }
 
       const user = await requireAuthenticatedUser(req);

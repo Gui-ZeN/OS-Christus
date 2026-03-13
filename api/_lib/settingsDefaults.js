@@ -107,10 +107,9 @@ Motivo:
   sla: {
     default: {
       rules: [
-        { priority: 'Urgente', prazo: '24h' },
-        { priority: 'Alta', prazo: '72h' },
-        { priority: 'Normal', prazo: '5 dias úteis' },
-        { priority: 'Trivial', prazo: '10 dias úteis' },
+        { priority: 'Urgente', prazo: 'Sem medição de tempo' },
+        { priority: 'Alta', prazo: 'Sem medição de tempo' },
+        { priority: 'Trivial', prazo: 'Sem medição de tempo' },
       ],
     },
   },

@@ -113,7 +113,7 @@ export function normalizeTicketForStorage(ticket) {
     next.executionProgress = {
       ...next.executionProgress,
       paymentFlowParts: Math.max(1, Number(next.executionProgress.paymentFlowParts || 1)),
-      currentPercent: Math.min(100, Math.max(0, Number(next.executionProgress.currentPercent || 0))),
+      currentPercent: Math.max(0, Number(next.executionProgress.currentPercent || 0)),
       releasedPercent: Math.min(100, Math.max(0, Number(next.executionProgress.releasedPercent || 0))),
       startedAt: toDate(next.executionProgress.startedAt) || null,
       lastUpdatedAt: toDate(next.executionProgress.lastUpdatedAt) || null,

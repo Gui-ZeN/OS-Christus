@@ -111,6 +111,16 @@ async function postEmail(payload: Record<string, unknown>) {
   }
 }
 
+function shouldNotifyRequesterForStatus(status: string) {
+  const blockedStatuses = new Set<string>([
+    TICKET_STATUS.WAITING_BUDGET,
+    TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+    TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+    TICKET_STATUS.WAITING_PAYMENT,
+  ]);
+  return !blockedStatuses.has(status);
+}
+
 async function resolveDirectorEmails() {
   try {
     const users = await fetchUsers();
@@ -177,7 +187,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     },
   });
 
-  if (requesterEmail) {
+  if (requesterEmail && shouldNotifyRequesterForStatus(ticket.status)) {
     await postEmail({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,

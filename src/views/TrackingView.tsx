@@ -1,11 +1,10 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity, FileText, ShieldCheck, ClipboardList, DollarSign, Hammer } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
-import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, TrackingProcurementSummary } from '../services/ticketsApi';
-import type { HistoryItem, Ticket } from '../types';
+import { fetchTrackingDetailsFromApi, TrackingProcurementSummary } from '../services/ticketsApi';
+import type { Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 
@@ -58,8 +57,7 @@ function getTimelineIcon(icon: PublicTimelineItem['icon']) {
 function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary, sites: CatalogSite[]): PublicTimelineItem[] {
   const measurements = procurement.measurements || [];
   const payments = procurement.payments || [];
-  const paidCount = payments.filter(payment => payment.status === 'paid').length;
-  const totalPayments = payments.length;
+  const hasPayments = payments.length > 0;
   const siteLabel = getTicketSiteLabel(ticket, sites);
 
   return [
@@ -115,25 +113,26 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
       id: 'payment',
       title: 'Pagamento',
       description:
-        totalPayments > 0
-          ? `${paidCount} de ${totalPayments} parcela(s) confirmada(s).`
-          : 'Plano de pagamento ainda não gerado.',
+        hasPayments
+          ? 'Etapa financeira em andamento no time interno.'
+          : 'Plano financeiro ainda não iniciado.',
       date: payments.find(payment => payment.status === 'paid')?.paidAt || payments[0]?.dueAt || null,
       status:
-        totalPayments === 0 ? 'pending' : paidCount === totalPayments ? 'done' : ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'current' : 'pending',
+        !hasPayments ? 'pending' : ticket.status === TICKET_STATUS.CLOSED ? 'done' : ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'current' : 'pending',
       icon: 'payment',
     },
     {
       id: 'closure',
       title: 'Encerramento',
-      description: ticket.closureChecklist?.requesterApproved
-        ? 'Solicitante validou a entrega do serviço.'
-        : 'Aguardando validação final do encerramento.',
-      date: ticket.closureChecklist?.requesterApprovedAt || ticket.closureChecklist?.closedAt || null,
+      description:
+        ticket.status === TICKET_STATUS.CLOSED
+          ? 'OS encerrada com sucesso.'
+          : 'Aguardando conclusão financeira para encerramento definitivo.',
+      date: ticket.closureChecklist?.closedAt || null,
       status:
-        ticket.status === TICKET_STATUS.CLOSED || ticket.closureChecklist?.requesterApproved
+        ticket.status === TICKET_STATUS.CLOSED
           ? 'done'
-          : ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+          : ticket.status === TICKET_STATUS.WAITING_PAYMENT
             ? 'current'
             : 'pending',
       icon: 'closure',
@@ -157,7 +156,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const [procurement, setProcurement] = useState<TrackingProcurementSummary>({ contract: null, measurements: [], payments: [] });
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,56 +249,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const closureDocuments = ticket.closureChecklist?.documents || [];
   const siteLabel = getTicketSiteLabel(ticket, sites);
 
-  const handleValidate = async (approved: boolean) => {
-    setIsProcessing(true);
-
-    const newStatus = approved ? TICKET_STATUS.WAITING_PAYMENT : TICKET_STATUS.IN_PROGRESS;
-    const newHistoryItem: HistoryItem = {
-      id: uuidv4(),
-      type: 'customer',
-      sender: ticket.requester,
-      time: new Date(),
-      text: approved
-        ? 'Manutenção aprovada pelo solicitante. Aguardando liberação do pagamento.'
-        : 'Solicitante reportou pendências. Equipe técnica notificada para revisão.',
-    };
-
-    const nextTicket: Ticket = {
-      ...ticket,
-      status: newStatus,
-      closureChecklist: approved
-        ? {
-            requesterApproved: true,
-            requesterApprovedBy: ticket.requester,
-            requesterApprovedAt: new Date(),
-            infrastructureApprovalPrimary: ticket.closureChecklist?.infrastructureApprovalPrimary ?? false,
-            infrastructureApprovalSecondary: ticket.closureChecklist?.infrastructureApprovalSecondary ?? false,
-            closureNotes: ticket.closureChecklist?.closureNotes || '',
-            serviceStartedAt:
-              ticket.closureChecklist?.serviceStartedAt ||
-              ticket.preliminaryActions?.actualStartAt ||
-              ticket.preliminaryActions?.plannedStartAt ||
-              null,
-            serviceCompletedAt: new Date(),
-            closedAt: ticket.closureChecklist?.closedAt || null,
-            documents: ticket.closureChecklist?.documents || [],
-          }
-        : ticket.closureChecklist,
-      history: [...ticket.history, newHistoryItem],
-    };
-
-    try {
-      await patchTrackingTicketInApi(ticketToken, {
-        status: newStatus,
-        closureChecklist: nextTicket.closureChecklist,
-        history: nextTicket.history,
-      });
-      setTicket(nextTicket);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   return (
     <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center py-12 px-4 relative">
       <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-roman-text-sub hover:text-roman-text-main font-medium transition-colors">
@@ -331,26 +279,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               Solicitado por: {ticket.requester} • Setor: {ticket.sector} ({siteLabel})
             </p>
           </div>
-
-          {ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
-            <div className="bg-roman-primary/10 border border-roman-primary/30 p-5 rounded-2xl shadow-sm mb-6 animate-in fade-in slide-in-from-bottom-4">
-              <h3 className="font-serif text-lg font-medium text-roman-primary mb-2 flex items-center gap-2">
-                <CheckSquare size={20} /> Validação da manutenção
-              </h3>
-              <p className="text-sm text-roman-text-main mb-6">
-                A equipe técnica informou que o serviço foi concluído. Verifique o local e confirme se a entrega está aprovada.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button onClick={() => void handleValidate(false)} disabled={isProcessing} className="px-6 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:opacity-50">
-                  Ainda com pendências
-                </button>
-                <button onClick={() => void handleValidate(true)} disabled={isProcessing} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50">
-                  {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                  Serviço aprovado
-                </button>
-              </div>
-            </div>
-          )}
 
           <div>
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>

@@ -161,6 +161,12 @@ function selectRepresentativeQuote(quotes: Quote[]) {
     .sort((a, b) => (a.numericValue ?? 0) - (b.numericValue ?? 0))[0]?.quote ?? null;
 }
 
+function selectInitialRoundQuotes(quotes: Quote[]) {
+  const list = Array.isArray(quotes) ? quotes : [];
+  const initial = list.filter(quote => (quote.category || 'initial') === 'initial');
+  return initial.length > 0 ? initial : list;
+}
+
 export function buildBudgetHistorySummary(
   currentTicket: Ticket | null | undefined,
   tickets: Ticket[],
@@ -195,7 +201,8 @@ export function buildBudgetHistorySummary(
       if (Number.isNaN(ticketDate.getTime()) || ticketDate < cutoffDate) return null;
 
       const candidateQuotes = quotesByTicket[ticket.id] ?? [];
-      if (candidateQuotes.length === 0) return null;
+      const comparableQuotes = selectInitialRoundQuotes(candidateQuotes);
+      if (comparableQuotes.length === 0) return null;
 
       const candidateKeywords = extractKeywords(ticket);
       const sharedTerms = candidateKeywords.filter(term => currentKeywordSet.has(term));
@@ -224,7 +231,7 @@ export function buildBudgetHistorySummary(
 
       if (score < 3 && sharedTerms.length === 0) return null;
 
-      const representative = selectRepresentativeQuote(candidateQuotes);
+      const representative = selectRepresentativeQuote(comparableQuotes);
       if (!representative) return null;
 
       const numericValue = parseCurrency(representative.value);

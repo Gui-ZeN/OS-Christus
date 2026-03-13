@@ -5,7 +5,21 @@ import { coerceDate } from '../utils/date';
 
 type QuoteApi = Quote & { ticketId?: string };
 type ContractApi = ContractRecord & { ticketId?: string };
-type PaymentApi = Omit<PaymentRecord, 'paidAt' | 'dueAt'> & { paidAt?: string | null; dueAt?: string | null; ticketId?: string };
+type PaymentApi = Omit<PaymentRecord, 'paidAt' | 'dueAt' | 'attachments'> & {
+  paidAt?: string | null;
+  dueAt?: string | null;
+  ticketId?: string;
+  attachments?: Array<{
+    id: string;
+    name: string;
+    path: string;
+    url: string;
+    contentType?: string | null;
+    size?: number | null;
+    uploadedAt?: string | null;
+    category?: 'closure_report' | 'closure_evidence' | 'attachment';
+  }> | null;
+};
 type MeasurementApi = Omit<MeasurementRecord, 'requestedAt' | 'approvedAt'> & {
   requestedAt?: string | null;
   approvedAt?: string | null;
@@ -30,6 +44,12 @@ export async function fetchProcurementData() {
           ...value,
           paidAt: value.paidAt ? coerceDate(value.paidAt) : null,
           dueAt: value.dueAt ? coerceDate(value.dueAt) : null,
+          attachments: Array.isArray(value.attachments)
+            ? value.attachments.map(item => ({
+                ...item,
+                uploadedAt: item?.uploadedAt ? coerceDate(item.uploadedAt) : null,
+              }))
+            : [],
         })) as PaymentRecord[],
       ];
     })

@@ -23,6 +23,9 @@ import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerrito
 type QuoteDraft = {
   vendor: string;
   value: string;
+  laborValue?: string;
+  materialValue?: string;
+  totalValue?: string;
   items: QuoteItem[];
 };
 
@@ -36,7 +39,8 @@ type ProposalHeaderDraft = {
 };
 
 const QUOTE_SECTION_OPTIONS = [
-  { value: 'material-mao-de-obra', label: 'Material e mão de obra' },
+  { value: 'material', label: 'Material' },
+  { value: 'mao-de-obra', label: 'Mão de obra' },
   { value: 'materiais-complementares', label: 'Materiais complementares' },
   { value: 'servicos-complementares', label: 'Serviços complementares' },
 ] as const;
@@ -140,7 +144,7 @@ interface ExecutionSetupFormState {
 }
 
 interface ProgressUpdateFormState {
-  progressPercent: string;
+  grossAmount: string;
   notes: string;
 }
 
@@ -185,13 +189,11 @@ function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState
   };
 }
 
-function createProgressUpdateFormState(ticket?: Ticket): ProgressUpdateFormState {
-  const paymentFlowParts = Number(ticket?.executionProgress?.paymentFlowParts || 0);
-  const currentPercent = Number(ticket?.executionProgress?.currentPercent || 0);
-  const milestones = paymentFlowParts ? getPaymentFlowMilestones(paymentFlowParts) : [];
-  const nextMilestone = milestones.find(milestone => milestone > currentPercent);
+function createProgressUpdateFormState(ticket?: Ticket, baselineValue = 0): ProgressUpdateFormState {
+  const currentPercent = Math.max(0, Number(ticket?.executionProgress?.currentPercent || 0));
+  const grossAmount = baselineValue > 0 ? (baselineValue * currentPercent) / 100 : 0;
   return {
-    progressPercent: String(nextMilestone ?? currentPercent ?? 0),
+    grossAmount: grossAmount > 0 ? formatCurrencyInput(grossAmount) : '',
     notes: '',
   };
 }
@@ -234,7 +236,7 @@ function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
 function createEmptyQuoteItem(defaultDescription = '', defaultUnit = ''): QuoteItem {
   return {
     id: crypto.randomUUID(),
-    section: 'material-mao-de-obra',
+    section: 'material',
     description: defaultDescription,
     materialId: null,
     materialName: null,
@@ -250,6 +252,9 @@ function createEmptyQuoteDraft(): QuoteDraft {
   return {
     vendor: '',
     value: '',
+    laborValue: '',
+    materialValue: '',
+    totalValue: '',
     items: [createEmptyQuoteItem()],
   };
 }
@@ -268,9 +273,9 @@ function createProposalHeaderDraft(ticket?: Ticket, siteLabel?: string): Proposa
 function getQuoteSections(items: QuoteItem[]) {
   const values = new Set<string>();
   for (const item of items) {
-    if (item.section?.trim()) values.add(item.section.trim());
+    values.add(normalizeQuoteSection(item.section));
   }
-  if (values.size === 0) values.add('material-mao-de-obra');
+  if (values.size === 0) values.add('material');
   return Array.from(values);
 }
 
@@ -304,10 +309,90 @@ function sanitizeCurrencyTypingInput(value: string) {
   return String(value || '').replace(/[^\d,.-]/g, '');
 }
 
+function roundProgressPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(2));
+}
+
+function resolveExpectedBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
+  const contractInitial = parseCurrencyInput(contract?.initialPlannedValue || '');
+  if (contractInitial > 0) return contractInitial;
+
+  const paymentBaseline = parseCurrencyInput(payments[0]?.expectedBaselineValue || '');
+  if (paymentBaseline > 0) return paymentBaseline;
+
+  const contractValue = parseCurrencyInput(contract?.value || '');
+  if (contractValue > 0) return contractValue;
+
+  return parseCurrencyInput(payments[0]?.value || '');
+}
+
+function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
+  if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
+  return roundProgressPercent((grossAmount / baselineValue) * 100);
+}
+
+function normalizeQuoteSection(section?: string | null) {
+  const normalized = String(section || '').trim();
+  if (!normalized || normalized === 'material-mao-de-obra') return 'material';
+  return normalized;
+}
+
+function isLaborSection(section?: string | null) {
+  const normalized = normalizeQuoteSection(section).toLowerCase();
+  return normalized.includes('mao-de-obra') || normalized.includes('servico');
+}
+
+function summarizeQuoteDraft(draft: QuoteDraft) {
+  const totals = draft.items.reduce(
+    (acc, item) => {
+      const lineTotal = parseCurrencyInput(item.totalPrice || '');
+      if (lineTotal <= 0) return acc;
+      if (isLaborSection(item.section)) {
+        acc.labor += lineTotal;
+      } else {
+        acc.material += lineTotal;
+      }
+      return acc;
+    },
+    { labor: 0, material: 0 }
+  );
+  const total = totals.labor + totals.material;
+  return {
+    laborValue: totals.labor > 0 ? formatCurrencyInput(totals.labor) : '',
+    materialValue: totals.material > 0 ? formatCurrencyInput(totals.material) : '',
+    totalValue: total > 0 ? formatCurrencyInput(total) : '',
+  };
+}
+
+function getAvailableAdditiveRounds(quotes: Quote[]) {
+  return Array.from(
+    new Set(
+      (Array.isArray(quotes) ? quotes : [])
+        .filter(quote => quote.category === 'additive')
+        .map(quote => Number(quote.additiveIndex || 0))
+        .filter(value => Number.isFinite(value) && value > 0)
+    )
+  ).sort((a, b) => a - b);
+}
+
+function getQuotesByRound(quotes: Quote[], roundType: 'initial' | 'additive', additiveIndex: number) {
+  const list = Array.isArray(quotes) ? quotes : [];
+  const filtered = list.filter(quote => {
+    const category = quote.category === 'additive' ? 'additive' : 'initial';
+    if (roundType !== category) return false;
+    if (roundType === 'additive') {
+      return Number(quote.additiveIndex || 1) === Number(additiveIndex || 1);
+    }
+    return true;
+  });
+
+  return filtered.sort((a, b) => String(a.id).localeCompare(String(b.id), 'pt-BR'));
+}
+
 function getExecutionNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
-  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar a validação do solicitante para seguir ao fechamento.';
   if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento financeiro.';
   if (ticket.status === TICKET_STATUS.CLOSED) return 'Acompanhar garantia e documentos finais, se necessário.';
   return 'Sem ação operacional pendente nesta etapa.';
@@ -521,6 +606,12 @@ export function InboxView() {
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
   const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(activeTicket.status);
+  const canManageBudgetRounds =
+    activeTicket.status.includes('Orçamento') ||
+    activeTicket.status.includes('Cotação') ||
+    activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
+    activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
+    activeTicket.status === TICKET_STATUS.CLOSED;
   const executionNextActionLabel = getExecutionNextActionLabel(activeTicket);
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
@@ -554,7 +645,7 @@ export function InboxView() {
         : activeTicket.preliminaryActions;
 
     const nextClosureChecklist =
-      nextStatus === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+      nextStatus === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || nextStatus === TICKET_STATUS.WAITING_PAYMENT
         ? buildValidationClosureChecklist(activeTicket, when)
         : activeTicket.closureChecklist;
 
@@ -874,12 +965,8 @@ export function InboxView() {
     const preliminaryActions = activeTicket.preliminaryActions
       ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || now, updatedAt: now }
       : undefined;
-    const contractValue = Number(
-      String(activeContract?.value || activePayments[0]?.value || '')
-        .replace(/[^\d,.-]/g, '')
-        .replace(/\./g, '')
-        .replace(',', '.')
-    );
+    const contractValue = parseCurrencyInput(activeContract?.realizedValue || activeContract?.value || activePayments[0]?.value || '');
+    const expectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
     const vendor = activeContract?.vendor || activePayments[0]?.vendor || activeTicket.assignedTeam || 'Fornecedor não definido';
     const shouldGeneratePlan = activePayments.length === 0 && Number.isFinite(contractValue) && contractValue > 0;
 
@@ -888,10 +975,24 @@ export function InboxView() {
       if (shouldGeneratePlan) {
         nextPayments = createExecutionPaymentPlan(contractValue, vendor, paymentFlowParts);
         const classification = buildProcurementClassification(activeTicket);
+        const expectedBaselineFormatted = expectedBaselineValue > 0 ? formatCurrencyInput(expectedBaselineValue) : null;
         for (const payment of nextPayments) {
-          await savePayment(activeTicket.id, payment, classification);
+          await savePayment(
+            activeTicket.id,
+            {
+              ...payment,
+              expectedBaselineValue: expectedBaselineFormatted,
+            },
+            classification
+          );
         }
-        setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPayments }));
+        setPaymentsByTicket(prev => ({
+          ...prev,
+          [activeTicket.id]: nextPayments.map(payment => ({
+            ...payment,
+            expectedBaselineValue: expectedBaselineFormatted,
+          })),
+        }));
       }
 
       updateTicket(activeTicket.id, {
@@ -931,7 +1032,8 @@ export function InboxView() {
   };
 
   const handleOpenProgressModal = () => {
-    setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
+    const baselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
+    setProgressUpdateForm(createProgressUpdateFormState(activeTicket, baselineValue));
     setShowProgressModal(true);
   };
 
@@ -943,25 +1045,28 @@ export function InboxView() {
       return;
     }
 
-    const progressPercent = Number(progressUpdateForm.progressPercent || 0);
-    if (!Number.isFinite(progressPercent) || progressPercent < 0 || progressPercent > 100) {
-      setToast('Erro: informe um andamento entre 0% e 100%.');
+    const baselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
+    if (baselineValue <= 0) {
+      setToast('Erro: valor previsto da obra não encontrado para calcular o andamento.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
+    const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
+    if (!Number.isFinite(grossAmount) || grossAmount < 0) {
+      setToast('Erro: informe o valor bruto acumulado da obra.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    const progressPercent = calculateProgressPercentFromGross(grossAmount, baselineValue);
     if (progressPercent < activeProgressPercent) {
-      setToast('Erro: o andamento não pode ser menor do que o percentual já registrado.');
+      setToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
-    const contractValue = Number(
-      String(activeContract?.value || activePayments[0]?.value || '')
-        .replace(/[^\d,.-]/g, '')
-        .replace(/\./g, '')
-        .replace(',', '.')
-    );
+    const contractValue = parseCurrencyInput(activeContract?.realizedValue || activeContract?.value || activePayments[0]?.value || '');
     if (!Number.isFinite(contractValue) || contractValue <= 0) {
       setToast('Erro: contrato não encontrado para calcular as liberações.');
       setTimeout(() => setToast(null), 3000);
@@ -993,9 +1098,10 @@ export function InboxView() {
     try {
       const now = new Date();
       const classification = buildProcurementClassification(activeTicket);
+      const expectedBaselineFormatted = formatCurrencyInput(baselineValue);
       const measurement: MeasurementRecord = {
         id: `measurement-${Date.now()}`,
-        label: `Andamento atualizado para ${normalizedProgress}%`,
+        label: `Andamento atualizado para ${normalizedProgress}% (${formatCurrencyInput(grossAmount)} bruto acumulado)`,
         progressPercent: normalizedProgress,
         releasePercent: newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0),
         status: newlyApproved.length > 0 ? 'approved' : 'pending',
@@ -1005,24 +1111,45 @@ export function InboxView() {
       };
       const shouldMoveToValidation =
         normalizedProgress >= 100 &&
-        activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
+        activeTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
         activeTicket.status !== TICKET_STATUS.CLOSED &&
         activeTicket.status !== TICKET_STATUS.CANCELED;
-      const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
+      const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_PAYMENT : activeTicket.status;
       const nextClosureChecklist =
         normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
       if (createdPlan) {
         for (const payment of nextPayments) {
-          await savePayment(activeTicket.id, payment, classification);
+          const paymentWithBaseline: PaymentRecord = {
+            ...payment,
+            expectedBaselineValue: expectedBaselineFormatted,
+            progressPercent: payment.status === 'approved' ? normalizedProgress : payment.progressPercent ?? null,
+          };
+          await savePayment(activeTicket.id, paymentWithBaseline, classification);
         }
       } else {
         for (const payment of newlyApproved) {
-          await savePayment(activeTicket.id, payment, classification);
+          await savePayment(
+            activeTicket.id,
+            {
+              ...payment,
+              expectedBaselineValue: expectedBaselineFormatted,
+              progressPercent: normalizedProgress,
+            },
+            classification
+          );
         }
       }
       await saveMeasurement(activeTicket.id, measurement, classification);
 
-      setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPayments }));
+      const nextPaymentsWithBaseline = nextPayments.map(payment => ({
+        ...payment,
+        expectedBaselineValue: payment.expectedBaselineValue || expectedBaselineFormatted,
+        progressPercent:
+          payment.status === 'approved' || payment.status === 'paid'
+            ? payment.progressPercent ?? normalizedProgress
+            : payment.progressPercent ?? null,
+      }));
+      setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPaymentsWithBaseline }));
       updateTicket(activeTicket.id, {
         status: nextStatus,
         closureChecklist: nextClosureChecklist,
@@ -1042,10 +1169,10 @@ export function InboxView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${normalizedProgress}%. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                ? `Andamento atualizado para ${normalizedProgress}% com bruto acumulado de ${formatCurrencyInput(grossAmount)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
                 : newlyApproved.length > 0
-                  ? `Andamento atualizado para ${normalizedProgress}%. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-                  : `Andamento atualizado para ${normalizedProgress}%. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+                  ? `Andamento atualizado para ${normalizedProgress}% com bruto acumulado de ${formatCurrencyInput(grossAmount)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                  : `Andamento atualizado para ${normalizedProgress}% com bruto acumulado de ${formatCurrencyInput(grossAmount)}. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
           },
         ],
       });
@@ -1053,7 +1180,7 @@ export function InboxView() {
       setShowProgressModal(false);
       setToast(
         shouldMoveToValidation
-          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
+          ? 'Andamento salvo. Obra concluída e enviada para o financeiro.'
           : newlyApproved.length > 0
             ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para o financeiro.`
             : 'Andamento salvo sem nova liberação financeira.'
@@ -1070,10 +1197,10 @@ export function InboxView() {
     const now = new Date();
     const item: HistoryItem = {
       id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
-      time: now, text: 'Serviço concluído. Aguardando validação do solicitante.',
+      time: now, text: 'Serviço concluído. OS enviada para o financeiro.',
     };
     updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+      status: TICKET_STATUS.WAITING_PAYMENT,
       closureChecklist: buildValidationClosureChecklist(activeTicket, now),
       history: [...activeTicket.history, item],
     });
@@ -1102,13 +1229,17 @@ export function InboxView() {
   const [toast, setToast] = useState<string | null>(null);
   const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
-  const activeProgressPercent = Math.min(100, Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0)));
+  const activeExpectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
+  const activeProgressPercent = Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0));
+  const activeProgressBarPercent = Math.min(100, activeProgressPercent);
   const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activePayments);
   const activeNextMilestonePercent = getNextMilestonePercent(activePayments);
   const activeMilestones = useMemo(
     () => (activeTicket.executionProgress?.paymentFlowParts ? getPaymentFlowMilestones(activeTicket.executionProgress.paymentFlowParts) : []),
     [activeTicket.executionProgress?.paymentFlowParts]
   );
+  const draftGrossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
+  const draftProgressPercent = calculateProgressPercentFromGross(draftGrossAmount, activeExpectedBaselineValue);
   const ticketAttachmentItems = (activeTicket.attachments || [])
     .filter(attachment => attachment?.url)
     .map(attachment => ({
@@ -1160,6 +1291,8 @@ export function InboxView() {
     createEmptyQuoteDraft(),
     createEmptyQuoteDraft(),
   ]);
+  const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
+  const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
   const quoteUnitOptions = useMemo(() => {
     const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
     additionalQuoteUnits.forEach(unit => {
@@ -1175,6 +1308,10 @@ export function InboxView() {
     return Array.from(options);
   }, [additionalQuoteUnits, quotes]);
   const [proposalHeader, setProposalHeader] = useState<ProposalHeaderDraft>(createProposalHeaderDraft());
+  const availableAdditiveRounds = useMemo(
+    () => getAvailableAdditiveRounds(storedQuotesByTicket[activeTicketId] || []),
+    [activeTicketId, storedQuotesByTicket]
+  );
   const quoteDraftTicketRef = useRef<string>('');
 
   // Reseta cotações ao trocar de ticket
@@ -1182,7 +1319,18 @@ export function InboxView() {
     const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
     if (showQuotesModal && !ticketChanged) return;
 
-    const currentQuotes = storedQuotesByTicket[activeTicketId] || [];
+    const allTicketQuotes = storedQuotesByTicket[activeTicketId] || [];
+    const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
+    if (ticketChanged) {
+      setQuoteRoundType('initial');
+      setQuoteAdditiveIndex(additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1);
+    }
+
+    const currentQuotes = getQuotesByRound(
+      allTicketQuotes,
+      ticketChanged ? 'initial' : quoteRoundType,
+      ticketChanged ? (additiveRounds.length > 0 ? Math.max(...additiveRounds) : quoteAdditiveIndex) : quoteAdditiveIndex
+    );
     const fallbackQuotes = [createEmptyQuoteDraft(), createEmptyQuoteDraft(), createEmptyQuoteDraft()];
     const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
     const nextQuotes =
@@ -1190,11 +1338,14 @@ export function InboxView() {
         ? [0, 1, 2].map(index => ({
             vendor: currentQuotes[index]?.vendor || '',
             value: currentQuotes[index]?.value || '',
+            laborValue: currentQuotes[index]?.laborValue || '',
+            materialValue: currentQuotes[index]?.materialValue || '',
+            totalValue: currentQuotes[index]?.totalValue || '',
             items:
               currentQuotes[index]?.items?.length
                 ? currentQuotes[index].items!.map(item => ({
                     id: item.id || crypto.randomUUID(),
-                    section: item.section || 'material-mao-de-obra',
+                    section: normalizeQuoteSection(item.section),
                     description: item.description || '',
                     materialId: item.materialId || null,
                     materialName: item.materialName || null,
@@ -1223,7 +1374,7 @@ export function InboxView() {
     setQuoteAttachments([null, null, null]);
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
-  }, [activeTicket, activeTicketId, catalogSites, showQuotesModal, storedQuotesByTicket]);
+  }, [activeTicket, activeTicketId, catalogSites, quoteAdditiveIndex, quoteRoundType, showQuotesModal, storedQuotesByTicket]);
 
   // useMemo evita recalcular em todo re-render
   const filteredTickets = useMemo(() => tickets.filter(t => {
@@ -1251,6 +1402,21 @@ export function InboxView() {
     () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket),
     [activeTicket, tickets, storedQuotesByTicket]
   );
+
+  const budgetBaselineAndRealized = useMemo(() => {
+    const allQuotes = storedQuotesByTicket[activeTicket.id] || [];
+    const parseValue = (value?: string | null) => parseCurrencyInput(String(value || ''));
+    const approvedInitial = allQuotes.find(quote => (quote.category || 'initial') === 'initial' && quote.status === 'approved') || null;
+    const plannedValue = approvedInitial ? parseValue(approvedInitial.totalValue || approvedInitial.value) : 0;
+    const approvedAdditives = allQuotes
+      .filter(quote => quote.category === 'additive' && quote.status === 'approved')
+      .reduce((sum, quote) => sum + parseValue(quote.totalValue || quote.value), 0);
+    return {
+      plannedValue,
+      realizedValue: plannedValue + approvedAdditives,
+      additiveValue: approvedAdditives,
+    };
+  }, [activeTicket.id, storedQuotesByTicket]);
 
   const suggestedQuoteMaterials = useMemo(() => {
     const service = serviceCatalog.find(item => item.id === activeTicket.serviceCatalogId);
@@ -1287,7 +1453,7 @@ export function InboxView() {
       const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }> }>();
       quotes.forEach((quote, quoteIndex) => {
         quote.items
-          .filter(item => (item.section || 'material-mao-de-obra') === section)
+          .filter(item => normalizeQuoteSection(item.section) === section)
           .forEach(item => {
             const rowKey = String(item.description || item.materialName || item.id).trim().toLowerCase();
             if (!rowMap.has(rowKey)) {
@@ -1420,10 +1586,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       const totalPrice = item.totalPrice ? parseCurrencyInput(item.totalPrice) : 0;
       return sum + totalPrice;
     }, 0);
+    const breakdown = summarizeQuoteDraft(draft);
 
     return {
       ...draft,
       value: computedTotal > 0 ? formatCurrencyInput(computedTotal) : draft.value,
+      laborValue: breakdown.laborValue,
+      materialValue: breakdown.materialValue,
+      totalValue: breakdown.totalValue,
     };
   };
 
@@ -1449,6 +1619,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           }
           if (field === 'unit') {
             nextItem.unit = normalizeUnitAbbreviation(typeof value === 'string' ? value : null) || null;
+          }
+          if (field === 'section') {
+            nextItem.section = normalizeQuoteSection(typeof value === 'string' ? value : null);
           }
           if (field === 'costUnitPrice' || field === 'unitPrice' || field === 'totalPrice') {
             nextItem[field] = typeof value === 'string' ? sanitizeCurrencyTypingInput(value) : null;
@@ -1581,6 +1754,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     }
     setIsSending(true);
     setTimeout(async () => {
+      const roundType = quoteRoundType;
+      const additiveIndex = roundType === 'additive' ? Math.max(1, Number(quoteAdditiveIndex || 1)) : null;
       const preferredVendorName = persistedServicePreference?.vendor
         ? persistedServicePreference.vendor.trim().toLowerCase()
         : budgetHistory.preferredVendor?.vendor
@@ -1593,6 +1768,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         id: `quote-${index + 1}`,
         vendor: quote.vendor.trim(),
         value: quote.value.trim(),
+        laborValue: quote.laborValue || summarizeQuoteDraft(quote).laborValue,
+        materialValue: quote.materialValue || summarizeQuoteDraft(quote).materialValue,
+        totalValue: quote.totalValue || summarizeQuoteDraft(quote).totalValue || quote.value.trim(),
+        category: roundType,
+        additiveIndex,
         recommended: index === (recommendedIndex >= 0 ? recommendedIndex : 0),
         status: 'pending',
         attachmentName: quoteAttachments[index]?.name || null,
@@ -1607,7 +1787,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         items: quote.items
           .map(item => ({
             ...item,
-            section: item.section ? String(item.section).trim() : 'material-mao-de-obra',
+            section: normalizeQuoteSection(item.section),
             description: String(item.description || '').trim(),
             unit: item.unit ? String(item.unit).trim() : null,
             materialName: item.materialName ? String(item.materialName).trim() : null,
@@ -1622,20 +1802,35 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       } catch {
         // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
       }
-      setStoredQuotesByTicket(prev => ({ ...prev, [activeTicket.id]: nextQuotes }));
+      setStoredQuotesByTicket(prev => {
+        const existing = prev[activeTicket.id] || [];
+        const merged = [
+          ...existing.filter(quote => {
+            const category = quote.category === 'additive' ? 'additive' : 'initial';
+            if (category !== roundType) return true;
+            if (roundType === 'additive') return Number(quote.additiveIndex || 1) !== Number(additiveIndex || 1);
+            return false;
+          }),
+          ...nextQuotes,
+        ];
+        return { ...prev, [activeTicket.id]: merged };
+      });
       const historyItem: HistoryItem = {
         id: crypto.randomUUID(),
         type: 'system',
         sender: displayActorLabel,
         time: new Date(),
-        text: 'Orçamentos consolidados e enviados para aprovação da Diretoria.',
+        text:
+          roundType === 'additive'
+            ? `Aditivo ${additiveIndex} consolidado e enviado para aprovação da Diretoria.`
+            : 'Orçamentos consolidados e enviados para aprovação da Diretoria.',
       };
       updateTicket(activeTicket.id, {
-        status: TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+        status: roundType === 'initial' ? TICKET_STATUS.WAITING_BUDGET_APPROVAL : activeTicket.status,
         history: [...activeTicket.history, historyItem],
       });
       setIsSending(false);
-      setToast('Orçamentos enviados para a Diretoria com sucesso!');
+      setToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!');
       setTimeout(() => setToast(null), 3000);
     }, 1500);
   };
@@ -2099,14 +2294,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
               </div>
 
-              {activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
+              {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
                 <div className="mt-4 rounded-sm border border-sky-200 bg-sky-50 px-4 py-3 text-sky-900">
                   <div className="flex items-start gap-3">
                     <CheckSquare size={18} className="mt-0.5 shrink-0 text-sky-700" />
                     <div className="space-y-1">
-                      <div className="text-sm font-semibold">Aguardando validação do solicitante</div>
+                      <div className="text-sm font-semibold">Obra concluída e em fase financeira</div>
                       <div className="text-sm text-sky-800">
-                        A obra foi concluída e o solicitante já recebeu o pedido de confirmação.
+                        A execução foi concluída e os próximos passos seguem no painel Financeiro.
                       </div>
                     </div>
                   </div>
@@ -2343,11 +2538,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </div>
               </section>
 
-              {(activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) && (
+              {canManageBudgetRounds && (
                 <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
-                    <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">Rodada 1</span>
+                    <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">
+                      {quoteRoundType === 'initial' ? 'Orçamento Inicial' : `Aditivo ${quoteAdditiveIndex}`}
+                    </span>
                   </div>
                   <button
                     onClick={() => setShowQuotesModal(true)}
@@ -2412,7 +2609,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <option value="">Selecione a urgência...</option>
                         <option value="Urgente">Urgente</option>
                         <option value="Alta">Alta</option>
-                        <option value="Normal">Normal</option>
                         <option value="Trivial">Trivial</option>
                       </select>
                     </div>
@@ -2593,7 +2789,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             <span>{activeProgressPercent}%</span>
                           </div>
                           <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
-                            <div className="h-full rounded-full bg-roman-sidebar transition-all" style={{ width: `${activeProgressPercent}%` }} />
+                            <div className="h-full rounded-full bg-roman-sidebar transition-all" style={{ width: `${activeProgressBarPercent}%` }} />
                           </div>
                           <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
                             <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
@@ -2637,7 +2833,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             onClick={handleSendForValidation}
                             className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
                           >
-                            <CheckSquare size={14} /> Enviar para Validação (Solicitante)
+                            <CheckSquare size={14} /> Concluir execução e enviar ao Financeiro
                           </button>
                         )}
 
@@ -2647,7 +2843,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           activeTicket.closureChecklist && (
                             <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                               <div className="font-medium text-roman-text-main">Checklist de encerramento</div>
-                              <div>Solicitante: {activeTicket.closureChecklist.requesterApproved ? 'confirmado' : 'pendente'}</div>
                               <div>Infraestrutura 1: {activeTicket.closureChecklist.infrastructureApprovalPrimary ? 'confirmado' : 'pendente'}</div>
                               <div>Infraestrutura 2: {activeTicket.closureChecklist.infrastructureApprovalSecondary ? 'confirmado' : 'pendente'}</div>
                               <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
@@ -2722,8 +2917,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         <ModalShell
           isOpen={showQuotesModal}
           onClose={() => setShowQuotesModal(false)}
-          title="Gestão de Orçamentos"
-          description="Registre no mínimo duas cotações para submeter a rodada à diretoria."
+          title={quoteRoundType === 'additive' ? 'Gestão de Aditivos' : 'Gestão de Orçamentos'}
+          description={quoteRoundType === 'additive' ? 'Registre o aditivo com até 3 cotações para aprovação da diretoria.' : 'Registre no mínimo duas cotações para submeter a rodada à diretoria.'}
           maxWidthClass="max-w-6xl"
           footer={(
             <div className="flex justify-end gap-3">
@@ -2748,7 +2943,53 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         >
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-roman-text-sub">Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.</p>
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">Rodada 1</span>
+                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">
+                  {quoteRoundType === 'initial' ? 'Orçamento Inicial' : `Aditivo ${quoteAdditiveIndex}`}
+                </span>
+              </div>
+
+              <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Tipo da rodada</label>
+                    <select
+                      value={quoteRoundType}
+                      onChange={event => {
+                        const nextType = event.target.value as 'initial' | 'additive';
+                        setQuoteRoundType(nextType);
+                        if (nextType === 'additive') {
+                          const highest = availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0;
+                          setQuoteAdditiveIndex(highest > 0 ? highest : 1);
+                        } else {
+                          setQuoteAdditiveIndex(1);
+                        }
+                      }}
+                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                    >
+                      <option value="initial">Orçamento inicial</option>
+                      <option value="additive">Aditivo</option>
+                    </select>
+                  </div>
+                  {quoteRoundType === 'additive' && (
+                    <div>
+                      <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
+                      <select
+                        value={quoteAdditiveIndex}
+                        onChange={event => setQuoteAdditiveIndex(Number(event.target.value) || 1)}
+                        className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                      >
+                        {availableAdditiveRounds.map(round => (
+                          <option key={`aditivo-round-${round}`} value={round}>
+                            Aditivo {round}
+                          </option>
+                        ))}
+                        <option value={(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1}>
+                          Novo aditivo ({(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1})
+                        </option>
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {(activeTicket.macroServiceName || activeTicket.serviceCatalogName) && (
@@ -2759,6 +3000,27 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 </div>
               )}
+
+              <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor previsto</div>
+                  <div className="mt-1 text-base font-serif text-roman-text-main">
+                    {budgetBaselineAndRealized.plannedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.plannedValue) : '-'}
+                  </div>
+                </div>
+                <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Aditivos aprovados</div>
+                  <div className="mt-1 text-base font-serif text-roman-text-main">
+                    {budgetBaselineAndRealized.additiveValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.additiveValue) : '-'}
+                  </div>
+                </div>
+                <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor realizado</div>
+                  <div className="mt-1 text-base font-serif text-roman-text-main">
+                    {budgetBaselineAndRealized.realizedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.realizedValue) : '-'}
+                  </div>
+                </div>
+              </div>
 
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -2969,6 +3231,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <div className="mt-1 text-lg font-serif text-roman-text-main">
                       {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : quote.value || '-'}
                     </div>
+                    <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
+                      <div>Material: {quote.materialValue || '-'}</div>
+                      <div>Mão de obra: {quote.laborValue || '-'}</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -3047,7 +3313,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               <td colSpan={3} className="px-3 py-2 font-medium text-roman-text-main">Subtotal da seção</td>
                               {quotes.map((quote, index) => {
                                 const subtotal = quote.items
-                                  .filter(item => (item.section || 'material-mao-de-obra') === section.key)
+                                  .filter(item => normalizeQuoteSection(item.section) === section.key)
                                   .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0);
                                 return (
                                   <React.Fragment key={`${section.key}-subtotal-${index}`}>
@@ -3132,6 +3398,20 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
                       </div>
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
+                          <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Material</div>
+                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quotes[i].materialValue || '-'}</div>
+                        </div>
+                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
+                          <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
+                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quotes[i].laborValue || '-'}</div>
+                        </div>
+                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
+                          <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Total da obra (rodada)</div>
+                          <div className="mt-1 text-sm font-semibold text-roman-text-main">{quotes[i].totalValue || quotes[i].value || '-'}</div>
+                        </div>
+                      </div>
                       <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
                         <div className="flex items-center justify-between mb-2">
                           <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Itens do orçamento</label>
@@ -3181,7 +3461,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               </div>
                               <div className="space-y-2">
                                 <select
-                                  value={item.section || 'material-mao-de-obra'}
+                                  value={normalizeQuoteSection(item.section)}
                                   onChange={event => handleQuoteItemChange(i, item.id, 'section', event.target.value)}
                                   className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                 >
@@ -3480,7 +3760,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           isOpen={showProgressModal}
           onClose={() => setShowProgressModal(false)}
           title="Atualizar Andamento da Obra"
-          description="Selecione o marco concluído para liberar a próxima etapa financeira."
+          description="Informe o valor bruto acumulado e o sistema calculará automaticamente o percentual executado."
           maxWidthClass="max-w-xl"
           footer={(
             <div className="flex justify-end gap-3">
@@ -3498,35 +3778,63 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
           )}
         >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm text-roman-text-main">
-                  <span>Selecione o marco de andamento</span>
-                  <span className="font-semibold">{progressUpdateForm.progressPercent || activeProgressPercent}%</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto acumulado</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={progressUpdateForm.grossAmount}
+                    onChange={event => setProgressUpdateForm(prev => ({ ...prev, grossAmount: sanitizeCurrencyTypingInput(event.target.value) }))}
+                    onBlur={() => setProgressUpdateForm(prev => ({ ...prev, grossAmount: normalizeCurrencyInput(prev.grossAmount) }))}
+                    placeholder="Ex: 12500,00"
+                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                  />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  {activeMilestones.map(milestone => {
-                    const isCurrent = Number(progressUpdateForm.progressPercent || activeProgressPercent) === milestone;
-                    const isCompleted = milestone <= activeProgressPercent;
-                    return (
-                      <button
-                        key={milestone}
-                        type="button"
-                        onClick={() => setProgressUpdateForm(prev => ({ ...prev, progressPercent: String(milestone) }))}
-                        className={[
-                          'rounded-sm border px-3 py-3 text-left transition-colors',
-                          isCurrent
-                            ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
-                            : isCompleted
+                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
+                  <div className="font-medium text-roman-text-main">Percentual calculado</div>
+                  <div className="mt-1 text-base font-semibold text-roman-text-main">{draftProgressPercent}%</div>
+                  <div className="mt-1">Andamento atual salvo: {activeProgressPercent}%</div>
+                </div>
+              </div>
+
+              {activeMilestones.length > 0 && activeExpectedBaselineValue > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atalhos por marco</div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    {activeMilestones.map(milestone => {
+                      const projectedGross = (activeExpectedBaselineValue * milestone) / 100;
+                      const isCompleted = milestone <= activeProgressPercent;
+                      return (
+                        <button
+                          key={milestone}
+                          type="button"
+                          onClick={() =>
+                            setProgressUpdateForm(prev => ({
+                              ...prev,
+                              grossAmount: formatCurrencyInput(projectedGross),
+                            }))
+                          }
+                          className={[
+                            'rounded-sm border px-3 py-3 text-left transition-colors',
+                            isCompleted
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                               : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
-                        ].join(' ')}
-                      >
-                        <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
-                        <div className="mt-1 text-base font-semibold">{milestone}%</div>
-                      </button>
-                    );
-                  })}
+                          ].join(' ')}
+                        >
+                          <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
+                          <div className="mt-1 text-base font-semibold">{milestone}%</div>
+                          <div className="mt-1 text-[10px]">{formatCurrencyInput(projectedGross)}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
+                <div className="font-medium text-roman-text-main">Valor de referência</div>
+                <div>Previsto inicial: {activeExpectedBaselineValue > 0 ? formatCurrencyInput(activeExpectedBaselineValue) : 'Não definido'}</div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">

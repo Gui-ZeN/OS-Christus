@@ -136,7 +136,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         siteId: selectedSite?.id,
         sede: formData.sede,
         sector: formData.sector,
-        priority: 'Normal',
+        priority: 'Trivial',
         history: [
           { id: crypto.randomUUID(), type: 'customer', sender: formData.name, time: now, text: formData.description },
           { id: crypto.randomUUID(), type: 'system', sender: 'Sistema', time: now, text: 'Solicitação registrada via formulário público. Aguardando triagem.' },

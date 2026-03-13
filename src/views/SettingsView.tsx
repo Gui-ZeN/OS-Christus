@@ -131,10 +131,9 @@ const DEFAULT_DIGEST: DailyDigestSettings = {
 
 const DEFAULT_SLA: SlaSettings = {
   rules: [
-    { priority: 'Urgente', prazo: '24h' },
-    { priority: 'Alta', prazo: '72h' },
-    { priority: 'Normal', prazo: '5 dias úteis' },
-    { priority: 'Trivial', prazo: '10 dias úteis' },
+    { priority: 'Urgente', prazo: 'Sem medição de tempo' },
+    { priority: 'Alta', prazo: 'Sem medição de tempo' },
+    { priority: 'Trivial', prazo: 'Sem medição de tempo' },
   ],
 };
 
@@ -222,8 +221,8 @@ const SECTION_META: Record<
   },
   sla: {
     eyebrow: 'Regras',
-    title: 'SLA e prazos',
-    description: 'Ajuste as metas por prioridade e mantenha a esteira sob controle.',
+    title: 'Prioridades de atendimento',
+    description: 'Defina as prioridades operacionais sem controle de prazo por horas.',
     navLabel: 'Regras de SLA',
     accent: 'from-violet-100 via-white to-fuchsia-50',
     icon: ShieldCheck,

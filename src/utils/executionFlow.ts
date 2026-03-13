@@ -1,8 +1,13 @@
 import type { PaymentRecord } from '../types';
 
-function clampPercent(value: number) {
+function clampMilestonePercent(value: number) {
   if (!Number.isFinite(value)) return 0;
   return Math.min(100, Math.max(0, Number(value)));
+}
+
+function normalizeProgressPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Number(value));
 }
 
 function formatCurrency(value: number) {
@@ -55,7 +60,7 @@ export function getPaymentFlowMilestones(parts: number) {
       ? Number((100 - cumulativeMilestone).toFixed(2))
       : Number((100 / safeParts).toFixed(2));
     cumulativeMilestone = Number((cumulativeMilestone + chunkPercent).toFixed(2));
-    return clampPercent(cumulativeMilestone);
+    return clampMilestonePercent(cumulativeMilestone);
   });
 }
 
@@ -80,11 +85,11 @@ export function getApprovedPaymentValue(payments: PaymentRecord[]) {
 }
 
 export function applyProgressToPayments(payments: PaymentRecord[], progressPercent: number) {
-  const normalizedProgress = clampPercent(progressPercent);
+  const normalizedProgress = normalizeProgressPercent(progressPercent);
   const newlyApproved: PaymentRecord[] = [];
 
   const nextPayments = payments.map(payment => {
-    const milestone = clampPercent(
+    const milestone = clampMilestonePercent(
       payment.milestonePercent != null
         ? Number(payment.milestonePercent)
         : Number(payment.installmentNumber || 0) * Number(payment.releasedPercent || 0)
@@ -118,5 +123,5 @@ export function getNextMilestonePercent(payments: PaymentRecord[]) {
     ? Number(nextPending.milestonePercent)
     : Number(nextPending.installmentNumber || 0) * Number(nextPending.releasedPercent || 0);
 
-  return clampPercent(milestone);
+  return clampMilestonePercent(milestone);
 }

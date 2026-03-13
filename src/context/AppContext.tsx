@@ -478,30 +478,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const runAutomations = () => {
-      const now = new Date();
-
-      setAllTickets(prev =>
-        prev.map(ticket => {
-          let updated = ticket;
-          if (ticket.sla && ticket.status !== TICKET_STATUS.CLOSED) {
-            if (ticket.sla.status !== 'overdue' && now > ticket.sla.dueAt) {
-              updated = { ...updated, sla: { ...ticket.sla, status: 'overdue' } };
-            } else if (ticket.sla.status === 'on_time' && now.getTime() > ticket.sla.dueAt.getTime() - 2 * 3600000) {
-              updated = { ...updated, sla: { ...ticket.sla, status: 'at_risk' } };
-            }
-          }
-          return updated;
-        })
-      );
-    };
-
-    runAutomations();
-    const interval = setInterval(runAutomations, 180000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const queryTracking = params.get('tracking');
     const pathMatch = window.location.pathname.match(/^\/tracking\/([^/]+)\/?$/);

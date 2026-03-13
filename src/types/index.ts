@@ -139,6 +139,11 @@ export interface Quote {
   id: number | string;
   vendor: string;
   value: string;
+  laborValue?: string | null;
+  materialValue?: string | null;
+  totalValue?: string | null;
+  category?: 'initial' | 'additive';
+  additiveIndex?: number | null;
   recommended: boolean;
   status?: string;
   attachmentName?: string | null;
@@ -151,6 +156,8 @@ export interface ContractRecord {
   id: string;
   vendor: string;
   value: string;
+  initialPlannedValue?: string | null;
+  realizedValue?: string | null;
   status: string;
   viewingBy?: string | null;
   signedFileName?: string | null;
@@ -174,6 +181,11 @@ export interface PaymentRecord {
   id: string;
   vendor: string;
   value: string;
+  grossValue?: string | null;
+  taxValue?: string | null;
+  netValue?: string | null;
+  progressPercent?: number | null;
+  expectedBaselineValue?: string | null;
   status: string;
   label?: string | null;
   installmentNumber?: number | null;
@@ -183,6 +195,7 @@ export interface PaymentRecord {
   releasedPercent?: number | null;
   milestonePercent?: number | null;
   receiptFileName?: string | null;
+  attachments?: TicketAttachment[];
   paidAt?: Date | null;
   classification?: ProcurementClassificationSnapshot;
 }
