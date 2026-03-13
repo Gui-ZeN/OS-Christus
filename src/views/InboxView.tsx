@@ -68,8 +68,9 @@ const DEFAULT_QUOTE_UNIT_OPTIONS = [
 ] as const;
 
 const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
-const MIN_QUOTE_SLOTS = 2;
-const MAX_QUOTE_SLOTS = 3;
+const INITIAL_MIN_QUOTE_SLOTS = 2;
+const INITIAL_MAX_QUOTE_SLOTS = 3;
+const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
 
 const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.NEW,
@@ -400,9 +401,18 @@ function getQuotesByRound(quotes: Quote[], roundType: 'initial' | 'additive', ad
   return filtered.sort((a, b) => String(a.id).localeCompare(String(b.id), 'pt-BR'));
 }
 
+function getRoundMinQuoteSlots(roundType: 'initial' | 'additive') {
+  return roundType === 'additive' ? ADDITIVE_FIXED_QUOTE_SLOTS : INITIAL_MIN_QUOTE_SLOTS;
+}
+
+function getRoundMaxQuoteSlots(roundType: 'initial' | 'additive') {
+  return roundType === 'additive' ? ADDITIVE_FIXED_QUOTE_SLOTS : INITIAL_MAX_QUOTE_SLOTS;
+}
+
 function getExecutionNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
+  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar validação do solicitante para avançar para o financeiro.';
   if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento financeiro.';
   if (ticket.status === TICKET_STATUS.CLOSED) return 'Acompanhar garantia e documentos finais, se necessário.';
   return 'Sem ação operacional pendente nesta etapa.';
@@ -709,6 +719,7 @@ export function InboxView() {
     activeTicket.status.includes('Orçamento') ||
     activeTicket.status.includes('Cotação') ||
     activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
+    activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
     activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
     activeTicket.status === TICKET_STATUS.CLOSED;
   const executionNextActionLabel = getExecutionNextActionLabel(activeTicket);
@@ -757,7 +768,7 @@ export function InboxView() {
   const resolveReopenStatus = () => {
     if (activeTicket.executionProgress?.currentPercent) {
       return activeTicket.executionProgress.currentPercent >= 100
-        ? TICKET_STATUS.WAITING_PAYMENT
+        ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
         : TICKET_STATUS.IN_PROGRESS;
     }
 
@@ -1214,10 +1225,11 @@ export function InboxView() {
       };
       const shouldMoveToValidation =
         normalizedProgress >= 100 &&
+        activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
         activeTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
         activeTicket.status !== TICKET_STATUS.CLOSED &&
         activeTicket.status !== TICKET_STATUS.CANCELED;
-      const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_PAYMENT : activeTicket.status;
+      const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
       const nextClosureChecklist =
         normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
       if (createdPlan) {
@@ -1273,7 +1285,7 @@ export function InboxView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
                 : newlyApproved.length > 0
                   ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
                   : `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
@@ -1284,7 +1296,7 @@ export function InboxView() {
       setShowProgressModal(false);
       setToast(
         shouldMoveToValidation
-          ? 'Andamento salvo. Obra concluída e enviada para o financeiro.'
+          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
           : newlyApproved.length > 0
             ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para o financeiro.`
             : 'Andamento salvo sem nova liberação financeira.'
@@ -1301,10 +1313,10 @@ export function InboxView() {
     const now = new Date();
     const item: HistoryItem = {
       id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
-      time: now, text: 'Serviço concluído. OS enviada para o financeiro.',
+      time: now, text: 'Serviço concluído. OS enviada para validação do solicitante.',
     };
     updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.WAITING_PAYMENT,
+      status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
       closureChecklist: buildValidationClosureChecklist(activeTicket, now),
       history: [...activeTicket.history, item],
     });
@@ -1322,7 +1334,7 @@ export function InboxView() {
   const [showDeleteTicketModal, setShowDeleteTicketModal] = useState(false);
   const [isDeletingTicket, setIsDeletingTicket] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>(
-    Array.from({ length: MIN_QUOTE_SLOTS }, () => null)
+    Array.from({ length: INITIAL_MIN_QUOTE_SLOTS }, () => null)
   );
   const [additionalQuoteUnits, setAdditionalQuoteUnits] = useState<string[]>([]);
   const [pendingCustomUnitByItem, setPendingCustomUnitByItem] = useState<Record<string, string>>({});
@@ -1395,7 +1407,7 @@ export function InboxView() {
   const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
   const [quotes, setQuotes] = useState<QuoteDraft[]>(
-    Array.from({ length: MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft())
+    Array.from({ length: INITIAL_MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft())
   );
   const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
   const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
@@ -1433,16 +1445,19 @@ export function InboxView() {
       setQuoteAdditiveIndex(additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1);
     }
 
+    const targetRoundType: 'initial' | 'additive' = ticketChanged ? 'initial' : quoteRoundType;
+    const targetRoundMinSlots = getRoundMinQuoteSlots(targetRoundType);
+    const targetRoundMaxSlots = getRoundMaxQuoteSlots(targetRoundType);
     const currentQuotes = getQuotesByRound(
       allTicketQuotes,
-      ticketChanged ? 'initial' : quoteRoundType,
+      targetRoundType,
       ticketChanged ? (additiveRounds.length > 0 ? Math.max(...additiveRounds) : quoteAdditiveIndex) : quoteAdditiveIndex
     );
-    const fallbackQuotes = Array.from({ length: MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft());
+    const fallbackQuotes = Array.from({ length: targetRoundMinSlots }, () => createEmptyQuoteDraft());
     const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
     const slotCount = currentQuotes.length > 0
-      ? Math.min(MAX_QUOTE_SLOTS, Math.max(MIN_QUOTE_SLOTS, currentQuotes.length))
-      : MIN_QUOTE_SLOTS;
+      ? Math.min(targetRoundMaxSlots, Math.max(targetRoundMinSlots, currentQuotes.length))
+      : targetRoundMinSlots;
     const nextQuotes =
       currentQuotes.length > 0
         ? Array.from({ length: slotCount }, (_, index) => ({
@@ -1838,13 +1853,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleAddQuoteSlot = () => {
-    if (quotes.length >= MAX_QUOTE_SLOTS) return;
+    if (quotes.length >= getRoundMaxQuoteSlots(quoteRoundType)) return;
     setQuotes(current => [...current, createEmptyQuoteDraft()]);
     setQuoteAttachments(current => [...current, null]);
   };
 
   const handleRemoveQuoteSlot = (index: number) => {
-    if (quotes.length <= MIN_QUOTE_SLOTS) return;
+    if (quotes.length <= getRoundMinQuoteSlots(quoteRoundType)) return;
     setQuotes(current => current.filter((_, quoteIndex) => quoteIndex !== index));
     setQuoteAttachments(current => current.filter((_, quoteIndex) => quoteIndex !== index));
     setPendingCustomUnitByItem({});
@@ -1869,17 +1884,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleSendToDirector = () => {
+    const roundType = quoteRoundType;
     const filled = quotes
       .map((quote, index) => ({ quote, index }))
       .filter(({ quote }) => quote.vendor.trim() !== '' && quote.value.trim() !== '');
-    if (filled.length < 2) {
+    if (roundType === 'additive' && filled.length !== 1) {
+      setToast('Erro: aditivo deve ter exatamente 1 cotação.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (roundType === 'initial' && filled.length < 2) {
       setToast('Erro: Informe no mínimo 2 cotações antes de enviar.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
     setIsSending(true);
     setTimeout(async () => {
-      const roundType = quoteRoundType;
       const additiveIndex = roundType === 'additive' ? Math.max(1, Number(quoteAdditiveIndex || 1)) : null;
       const normalizedAdditiveReason = additiveReason.trim();
       if (roundType === 'additive' && !normalizedAdditiveReason) {
@@ -3068,7 +3088,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             onClick={handleSendForValidation}
                             className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
                           >
-                            <CheckSquare size={14} /> Concluir execução e enviar ao Financeiro
+                            <CheckSquare size={14} /> Concluir execução e enviar ao solicitante
                           </button>
                         )}
 
@@ -3089,6 +3109,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
                           <div className="rounded-sm border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
                             Pagamento e encerramento final agora são concluídos no painel Financeiro, com checklist e garantia.
+                          </div>
+                        )}
+                        {activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
+                          <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                            Aguardando confirmação do solicitante no link de acompanhamento para seguir para o financeiro.
                           </div>
                         )}
 
@@ -3153,7 +3178,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           isOpen={showQuotesModal}
           onClose={() => setShowQuotesModal(false)}
           title={quoteRoundType === 'additive' ? 'Gestão de Aditivos' : 'Gestão de Orçamentos'}
-          description={quoteRoundType === 'additive' ? 'Registre o aditivo com até 3 cotações para aprovação da diretoria.' : 'Registre no mínimo duas cotações para submeter a rodada à diretoria.'}
+          description={quoteRoundType === 'additive' ? 'Registre o aditivo com 1 cotação para aprovação da diretoria.' : 'Registre no mínimo duas cotações para submeter a rodada à diretoria.'}
           maxWidthClass="max-w-6xl"
           footer={(
             <div className="flex justify-end gap-3">
@@ -3172,7 +3197,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           )}
         >
               <div className="flex items-center justify-between mb-6">
-                <p className="text-sm text-roman-text-sub">Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.</p>
+                <p className="text-sm text-roman-text-sub">
+                  {quoteRoundType === 'additive'
+                    ? 'Aditivo deve ser enviado com 1 cotação.'
+                    : 'Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.'}
+                </p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">
                   {quoteRoundType === 'initial' ? 'Orçamento Inicial' : `Aditivo ${quoteAdditiveIndex}`}
                 </span>
@@ -3566,7 +3595,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </div>
 
               <div className="mb-3 flex justify-end">
-                {quotes.length < MAX_QUOTE_SLOTS && (
+                {quotes.length < getRoundMaxQuoteSlots(quoteRoundType) && (
                   <button
                     type="button"
                     onClick={handleAddQuoteSlot}
@@ -3584,7 +3613,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
                       <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
                       <div className="flex items-center gap-3">
-                        {quotes.length > MIN_QUOTE_SLOTS && (
+                        {quotes.length > getRoundMinQuoteSlots(quoteRoundType) && (
                           <button
                             type="button"
                             onClick={() => handleRemoveQuoteSlot(i)}

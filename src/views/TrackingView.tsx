@@ -3,7 +3,7 @@ import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activit
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
-import { fetchTrackingDetailsFromApi, TrackingProcurementSummary } from '../services/ticketsApi';
+import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, TrackingProcurementSummary } from '../services/ticketsApi';
 import type { Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -127,12 +127,14 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
       description:
         ticket.status === TICKET_STATUS.CLOSED
           ? 'OS encerrada com sucesso.'
+          : ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+            ? 'Aguardando confirmação do solicitante sobre a conclusão da obra.'
           : 'Aguardando conclusão financeira para encerramento definitivo.',
       date: ticket.closureChecklist?.closedAt || null,
       status:
         ticket.status === TICKET_STATUS.CLOSED
           ? 'done'
-          : ticket.status === TICKET_STATUS.WAITING_PAYMENT
+          : ticket.status === TICKET_STATUS.WAITING_PAYMENT || ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
             ? 'current'
             : 'pending',
       icon: 'closure',
@@ -156,6 +158,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const [procurement, setProcurement] = useState<TrackingProcurementSummary>({ contract: null, measurements: [], payments: [] });
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmittingValidation, setIsSubmittingValidation] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,6 +222,42 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     return buildPublicTimeline(ticket, procurement, sites);
   }, [ticket, procurement, sites]);
 
+  const canRequesterApprove =
+    Boolean(ticket) &&
+    (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || ticket.status === TICKET_STATUS.WAITING_PAYMENT) &&
+    !ticket.closureChecklist?.requesterApproved;
+
+  const handleRequesterApproval = async () => {
+    if (!ticket || isSubmittingValidation) return;
+    setIsSubmittingValidation(true);
+    try {
+      await patchTrackingTicketInApi(ticket.trackingToken, {
+        closureChecklist: {
+          requesterApprovedBy: ticket.closureChecklist?.requesterApprovedBy || null,
+          requesterApprovedAt: ticket.closureChecklist?.requesterApprovedAt || null,
+          requesterApproved: true,
+          infrastructureApprovalPrimary: ticket.closureChecklist?.infrastructureApprovalPrimary ?? false,
+          infrastructureApprovalSecondary: ticket.closureChecklist?.infrastructureApprovalSecondary ?? false,
+          closureNotes: ticket.closureChecklist?.closureNotes || '',
+          serviceStartedAt: ticket.closureChecklist?.serviceStartedAt || null,
+          serviceCompletedAt: ticket.closureChecklist?.serviceCompletedAt || null,
+          closedAt: ticket.closureChecklist?.closedAt || null,
+          documents: ticket.closureChecklist?.documents || [],
+        },
+      });
+      const refreshed = await fetchTrackingDetailsFromApi(ticket.trackingToken);
+      setTicket(refreshed.ticket);
+      setProcurement(refreshed.procurement);
+      setFeedback('Entrega validada com sucesso. A equipe interna dará sequência ao fluxo financeiro.');
+      window.setTimeout(() => setFeedback(null), 4000);
+    } catch {
+      setFeedback('Não foi possível confirmar a entrega agora. Tente novamente em instantes.');
+      window.setTimeout(() => setFeedback(null), 5000);
+    } finally {
+      setIsSubmittingValidation(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center justify-center px-4">
@@ -279,6 +319,35 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               Solicitado por: {ticket.requester} • Setor: {ticket.sector} ({siteLabel})
             </p>
           </div>
+
+          {(canRequesterApprove || ticket.closureChecklist?.requesterApproved || feedback) && (
+            <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
+              <div className="text-sm font-medium text-roman-text-main">Validação da entrega</div>
+              {ticket.closureChecklist?.requesterApproved ? (
+                <p className="mt-1 text-sm text-emerald-700">
+                  Entrega validada em {formatDateTimeSafe(ticket.closureChecklist.requesterApprovedAt || ticket.time)}.
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-roman-text-sub">
+                  Se a obra foi entregue conforme esperado, confirme abaixo para liberar a continuidade interna.
+                </p>
+              )}
+              {feedback && <p className="mt-2 text-sm text-roman-text-sub">{feedback}</p>}
+              {canRequesterApprove && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleRequesterApproval()}
+                    disabled={isSubmittingValidation}
+                    className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-70"
+                  >
+                    {isSubmittingValidation ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                    Confirmar entrega da obra
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>

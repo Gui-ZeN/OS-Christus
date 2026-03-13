@@ -7,6 +7,12 @@ import { HttpError, parseInboundBody, readActorFromHeaders, readJsonBody, sendEr
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
+const STATUS_IN_PROGRESS = 'Em andamento';
+const STATUS_WAITING_MAINTENANCE_APPROVAL = 'Aguardando aprovação da manutenção';
+const STATUS_WAITING_PAYMENT = 'Aguardando pagamento';
+const STATUS_CLOSED = 'Encerrada';
+const STATUS_CANCELED = 'Cancelada';
+
 function sortTimeValue(value) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
@@ -50,6 +56,39 @@ function sanitizeTicketForPublicTracking(ticket) {
     nextTicket.executionProgress = nextExecution;
   }
   return nextTicket;
+}
+
+function buildPublicTrackingPayload(beforeData, approved) {
+  const now = new Date();
+  const previousChecklist = beforeData?.closureChecklist || {};
+  const requesterLabel = String(beforeData?.requester || '').trim() || 'Solicitante';
+  const currentStatus = String(beforeData?.status || '');
+
+  let nextStatus = currentStatus;
+  if (approved) {
+    if (currentStatus === STATUS_WAITING_MAINTENANCE_APPROVAL) {
+      nextStatus = STATUS_WAITING_PAYMENT;
+    }
+  } else if (currentStatus !== STATUS_CLOSED && currentStatus !== STATUS_CANCELED) {
+    nextStatus = STATUS_IN_PROGRESS;
+  }
+
+  const nextHistory = [
+    ...(Array.isArray(beforeData?.history) ? beforeData.history : []),
+    buildPublicTrackingHistoryEntry(requesterLabel, approved),
+  ];
+
+  return {
+    status: nextStatus,
+    closureChecklist: {
+      ...previousChecklist,
+      requesterApproved: approved,
+      requesterApprovedBy: requesterLabel,
+      requesterApprovedAt: approved ? now : null,
+    },
+    history: nextHistory,
+    updatedAt: now,
+  };
 }
 
 function sanitizePublicTicketCreate(rawTicket) {
@@ -404,10 +443,57 @@ export default async function handler(req, res) {
       }
 
       if (body?.trackingToken) {
-        return sendJson(res, 403, {
-          ok: false,
-          error: 'Atualizações públicas foram desativadas para este fluxo.',
+        const trackingToken = String(body.trackingToken || '').trim();
+        if (!trackingToken) {
+          return sendJson(res, 400, { ok: false, error: 'trackingToken inválido.' });
+        }
+
+        const trackingSnap = await col.where('trackingToken', '==', trackingToken).limit(1).get();
+        if (trackingSnap.empty) {
+          return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
+        }
+
+        const trackingDoc = trackingSnap.docs[0];
+        const beforeData = trackingDoc.data() || {};
+        const approved = body?.updates?.closureChecklist?.requesterApproved;
+        if (approved !== true && approved !== false) {
+          return sendJson(res, 400, {
+            ok: false,
+            error: 'A confirmação do solicitante deve informar closureChecklist.requesterApproved.',
+          });
+        }
+
+        const isAllowedStatus = new Set([
+          STATUS_IN_PROGRESS,
+          STATUS_WAITING_MAINTENANCE_APPROVAL,
+          STATUS_WAITING_PAYMENT,
+          STATUS_CLOSED,
+          STATUS_CANCELED,
+        ]).has(String(beforeData.status || ''));
+        if (!isAllowedStatus) {
+          return sendJson(res, 409, { ok: false, error: 'Status atual não permite validação pública.' });
+        }
+
+        if (approved && beforeData?.closureChecklist?.requesterApproved) {
+          return sendJson(res, 200, { ok: true, alreadyApproved: true });
+        }
+
+        const payload = buildPublicTrackingPayload(beforeData, approved);
+        await trackingDoc.ref.set(payload, { merge: true });
+
+        await writeAuditLog({
+          actor: String(beforeData.requester || 'Solicitante'),
+          action: approved ? 'tickets.tracking.approve' : 'tickets.tracking.reject',
+          entity: 'ticket',
+          entityId: trackingDoc.id,
+          before: beforeData,
+          after: {
+            ...beforeData,
+            ...payload,
+          },
         });
+
+        return sendJson(res, 200, { ok: true });
       }
 
       const user = await requireAuthenticatedUser(req);

@@ -371,6 +371,10 @@ export default async function handler(req, res) {
           ...quote,
           classification: quote?.classification || classification || null,
         }));
+        const additiveQuotes = quotes.filter(quote => (quote?.category === 'additive'));
+        if (additiveQuotes.length > 1) {
+          return sendJson(res, 400, { ok: false, error: 'Aditivo deve conter somente 1 cotação.' });
+        }
         await writeQuotes(db, ticketId, quotes);
         const approvedQuote = quotes.find(quote => String(quote?.status || '').trim() === 'approved');
         if (approvedQuote) {

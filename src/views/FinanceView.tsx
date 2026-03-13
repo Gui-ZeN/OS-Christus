@@ -121,6 +121,7 @@ function addMonths(date: Date, months: number) {
 function getFinanceNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
+  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar validação do solicitante para seguir o fechamento financeiro.';
   if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento.';
   if (ticket.status === TICKET_STATUS.CLOSED) return 'Fluxo financeiro concluído.';
   if (ticket.status === TICKET_STATUS.CANCELED) return 'OS cancelada; manter apenas consulta histórica.';
@@ -912,10 +913,11 @@ export function FinanceView() {
     const expectedBaselineFormatted = formatCurrency(baselineValue);
     const shouldMoveToValidation =
       normalizedProgress >= 100 &&
+      targetTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
       targetTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
       targetTicket.status !== TICKET_STATUS.CLOSED &&
       targetTicket.status !== TICKET_STATUS.CANCELED;
-    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_PAYMENT : targetTicket.status;
+    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : targetTicket.status;
     const nextClosureChecklist =
       normalizedProgress >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
 
@@ -983,7 +985,7 @@ export function FinanceView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
+                ? `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
                 : newlyApproved.length > 0
                   ? `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
                   : `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. Nenhuma nova parcela foi liberada neste marco.`,
@@ -994,7 +996,7 @@ export function FinanceView() {
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
       setToast(
         shouldMoveToValidation
-          ? 'Andamento salvo. Obra concluída e enviada para o financeiro.'
+          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
           : newlyApproved.length > 0
             ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para pagamento.`
             : 'Andamento salvo sem liberar novas parcelas.'
