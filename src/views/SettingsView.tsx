@@ -71,6 +71,26 @@ Sua solicitação avançou para a etapa de aprovação.`,
     recipients: '',
   },
   {
+    trigger: 'EMAIL-DIRETORIA-SOLUCAO',
+    subject: '{{ticket.id}} - Avaliação da Diretoria',
+    body: `Olá Diretoria,
+
+A OS {{ticket.id}} entrou na etapa de solução e requer acompanhamento.
+
+Status atual: {{ticket.status}}`,
+    recipients: '',
+  },
+  {
+    trigger: 'EMAIL-DIRETORIA-APROVACAO',
+    subject: '{{ticket.id}} - Aprovação da Diretoria',
+    body: `Olá Diretoria,
+
+A OS {{ticket.id}} está em aprovação e aguarda decisão.
+
+Status atual: {{ticket.status}}`,
+    recipients: '',
+  },
+  {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
     subject: '{{ticket.id}} - {{ticket.subject}}',
     body: `Olá {{requester.name}},
@@ -100,6 +120,16 @@ A execução foi concluída e agora depende da sua validação para seguir com o
     body: `Olá {{requester.name}},
 
 Sua validação foi registrada. A OS seguiu para pagamento e encerramento.`,
+    recipients: '',
+  },
+  {
+    trigger: 'EMAIL-FINANCEIRO-PAGAMENTO',
+    subject: '{{ticket.id}} - Pagamento pendente',
+    body: `Olá Time Financeiro,
+
+A OS {{ticket.id}} entrou em etapa de pagamento e precisa de tratativa.
+
+Status atual: {{ticket.status}}`,
     recipients: '',
   },
   {

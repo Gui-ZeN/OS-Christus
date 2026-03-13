@@ -2,7 +2,6 @@
 import { Ticket } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
-import { fetchUsers } from './directoryApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function resolveTicketEmail(ticket: Ticket): string | null {
@@ -122,17 +121,28 @@ function shouldNotifyRequesterForStatus(status: string) {
   return !blockedStatuses.has(status);
 }
 
-async function resolveDirectorEmails() {
-  try {
-    const users = await fetchUsers();
-    return [...new Set(
-      users
-        .filter(user => user.role === 'Diretor' && user.status === 'Ativo' && String(user.email || '').trim())
-        .map(user => String(user.email).trim().toLowerCase())
-    )];
-  } catch {
-    return [];
-  }
+const DIRECTOR_FLOW_STATUSES = new Set<string>([
+  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+]);
+
+const FINANCE_FLOW_STATUSES = new Set<string>([
+  TICKET_STATUS.WAITING_PAYMENT,
+]);
+
+async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) {
+  const sentToConfiguredRecipients = await postEmail({
+    ...payload,
+    allowThreadRecipientFallback: false,
+  });
+  if (sentToConfiguredRecipients) return;
+  await postEmail({
+    ...payload,
+    allowThreadRecipientFallback: false,
+    internalCopy: true,
+    skipThread: true,
+  });
 }
 
 export async function notifyTicketCreated(ticket: Ticket) {
@@ -206,37 +216,43 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     });
   }
 
-  if (ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL) {
-    const directorEmails = await resolveDirectorEmails();
-    const reviewPayload = {
+  if (DIRECTOR_FLOW_STATUSES.has(ticket.status)) {
+    const isApprovalStatus =
+      ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL ||
+      ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL;
+    await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
-      trigger: 'EMAIL-EM-APROVACAO',
-      allowThreadRecipientFallback: false,
+      trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
       variables,
       templateData: {
-        title: 'Orçamento aguardando decisão',
-        intro: `${ticket.id} já está pronta para revisão e escolha do orçamento.`,
+        title: isApprovalStatus ? 'Etapa em aprovação da Diretoria' : 'Nova demanda para avaliação da Diretoria',
+        intro: isApprovalStatus
+          ? `${ticket.id} já está pronta para revisão da Diretoria.`
+          : `${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
-        ctaUrl: buildBudgetReviewUrl(ticket),
-        ctaLabel: 'Ver atualização',
+        ctaUrl: isApprovalStatus ? buildBudgetReviewUrl(ticket) : buildTrackingUrl(ticket),
+        ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Acompanhar evolução',
       },
-    };
+    });
+  }
 
-    if (directorEmails.length > 0) {
-      await postEmail({ ...reviewPayload, toEmail: directorEmails.join(', ') });
-    } else {
-      const sentToConfiguredRecipients = await postEmail({
-        ...reviewPayload,
-      });
-      if (!sentToConfiguredRecipients) {
-        await postEmail({
-          ...reviewPayload,
-          internalCopy: true,
-        });
-      }
-    }
+  if (FINANCE_FLOW_STATUSES.has(ticket.status)) {
+    await sendToConfiguredFlowRecipients({
+      ticketId: ticket.id,
+      trackingToken: ticket.trackingToken,
+      trigger: 'EMAIL-FINANCEIRO-PAGAMENTO',
+      variables,
+      templateData: {
+        title: 'Pagamento pendente',
+        intro: `${ticket.id} entrou em etapa financeira e precisa de tratativa de pagamento.`,
+        ticketSubject: ticket.subject,
+        status: ticket.status,
+        ctaUrl: buildTrackingUrl(ticket),
+        ctaLabel: 'Acompanhar OS',
+      },
+    });
   }
 }
 

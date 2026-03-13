@@ -41,10 +41,13 @@ function getStageMeta(trigger: string) {
   if (token.includes('triagem')) return { eyebrow: 'Andamento', label: 'Triagem em andamento', accent: '#8c6239' };
   if (token.includes('parecer')) return { eyebrow: 'Andamento', label: 'Parecer técnico', accent: '#6d5a95' };
   if (token.includes('orcamento') || token.includes('cotacao')) return { eyebrow: 'Comercial', label: 'Orçamentação', accent: '#c07a2f' };
+  if (token.includes('diretoria-solucao') || token.includes('diretoria solucao')) return { eyebrow: 'Diretoria', label: 'Avaliação da solução', accent: '#6f4f1e' };
+  if (token.includes('diretoria-aprovacao') || token.includes('diretoria aprovacao')) return { eyebrow: 'Diretoria', label: 'Aprovação da diretoria', accent: '#73421f' };
   if (token.includes('aprovacao')) return { eyebrow: 'Governança', label: 'Em aprovação', accent: '#8f5f2a' };
   if (token.includes('preliminar')) return { eyebrow: 'Planejamento', label: 'Ações preliminares', accent: '#5f6f8f' };
   if (token.includes('execucao')) return { eyebrow: 'Operação', label: 'Execução iniciada', accent: '#7c4f8f' };
   if (token.includes('validacao')) return { eyebrow: 'Validação', label: 'Confirmação do solicitante', accent: '#8f6a3c' };
+  if (token.includes('financeiro-pagamento') || token.includes('financeiro pagamento')) return { eyebrow: 'Financeiro', label: 'Pagamento pendente', accent: '#8f5a2b' };
   if (token.includes('pagamento')) return { eyebrow: 'Financeiro', label: 'Aguardando pagamento', accent: '#8f5a2b' };
   if (token.includes('encerrada')) return { eyebrow: 'Conclusão', label: 'OS encerrada', accent: '#2e6b47' };
   if (token.includes('cancelada')) return { eyebrow: 'Atenção', label: 'OS cancelada', accent: '#8a2f2f' };
