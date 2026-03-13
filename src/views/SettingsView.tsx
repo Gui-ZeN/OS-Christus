@@ -22,6 +22,7 @@ import { buildEmailPreviewHtml, getTemplateTriggerLabel, SAMPLE_EMAIL_VARIABLES 
 import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
 import { ModalShell } from '../components/ui/ModalShell';
+import { DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 
 type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily-digest' | 'sla' | 'integrations';
 
@@ -370,6 +371,10 @@ export function SettingsView() {
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [materials, setMaterials] = useState<CatalogMaterial[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
+  const [directoryVendors, setDirectoryVendors] = useState<DirectoryVendor[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [vendorSaving, setVendorSaving] = useState(false);
+  const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', tags: '' });
   const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
   const [siteDraft, setSiteDraft] = useState({ id: '', code: '', name: '', regionId: '' });
   const [macroDraft, setMacroDraft] = useState({ code: '', name: '' });
@@ -441,6 +446,19 @@ export function SettingsView() {
     }
   };
 
+  const loadVendors = async () => {
+    setVendorsLoading(true);
+    try {
+      const directory = await fetchDirectory();
+      const ordered = [...(directory.vendors || [])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      setDirectoryVendors(ordered);
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao carregar terceiros.');
+    } finally {
+      setVendorsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (section !== 'integrations') return;
     void loadIntegrations();
@@ -449,6 +467,9 @@ export function SettingsView() {
   useEffect(() => {
     if (!['territory', 'catalog'].includes(section)) return;
     void loadCatalog();
+    if (section === 'catalog') {
+      void loadVendors();
+    }
   }, [section]);
 
   const handleSaveTemplate = async () => {
@@ -636,6 +657,40 @@ export function SettingsView() {
     } finally {
       setCatalogDeleting(false);
       setPendingCatalogDelete(null);
+    }
+  };
+
+  const handleSaveVendor = async () => {
+    const name = vendorDraft.name.trim();
+    if (!name) {
+      setCatalogError('Informe o nome do terceiro.');
+      return;
+    }
+
+    const tags = vendorDraft.tags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean)
+      .filter((tag, index, self) => self.findIndex(item => item.toLowerCase() === tag.toLowerCase()) === index);
+
+    setVendorSaving(true);
+    setCatalogError(null);
+    try {
+      await upsertVendor({
+        id: vendorDraft.id || undefined,
+        name,
+        email: vendorDraft.email.trim() || undefined,
+        tags,
+        active: true,
+      });
+      await loadVendors();
+      setVendorDraft({ id: '', name: '', email: '', tags: '' });
+      setCatalogSaved('Terceiro salvo.');
+      setTimeout(() => setCatalogSaved(null), 3000);
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar terceiro.');
+    } finally {
+      setVendorSaving(false);
     }
   };
 
@@ -1355,6 +1410,116 @@ export function SettingsView() {
                               ))}
                             </div>
                           )}
+                        </section>
+
+                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                          <div className="flex items-center justify-between gap-4 mb-4">
+                            <div>
+                              <h3 className="font-serif text-lg text-roman-text-main">Terceiros e especialidades</h3>
+                              <p className="text-xs text-roman-text-sub mt-1">
+                                Cadastro central para o campo Responsável Técnico (Terceiro), com tags como Gesso, Elétrica e Hidráulica.
+                              </p>
+                            </div>
+                            <div className="text-xs text-roman-text-sub">{directoryVendors.length} terceiro(s)</div>
+                          </div>
+
+                          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-4">
+                            <div className="rounded-xl border border-stone-200 bg-white p-3">
+                              {vendorsLoading ? (
+                                <div className="py-8 text-center text-sm text-roman-text-sub flex items-center justify-center gap-2">
+                                  <Loader2 size={14} className="animate-spin" />
+                                  Carregando terceiros...
+                                </div>
+                              ) : directoryVendors.length === 0 ? (
+                                <div className="py-8 text-center text-sm text-roman-text-sub">Nenhum terceiro cadastrado.</div>
+                              ) : (
+                                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                  {directoryVendors.map(vendor => (
+                                    <div key={vendor.id} className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-medium text-roman-text-main truncate">{vendor.name}</div>
+                                          <div className="text-[11px] text-roman-text-sub truncate">{vendor.email || 'Sem e-mail'}</div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setVendorDraft({
+                                              id: vendor.id,
+                                              name: vendor.name || '',
+                                              email: vendor.email || '',
+                                              tags: (vendor.tags || []).join(', '),
+                                            })
+                                          }
+                                          className="text-xs font-medium text-roman-primary hover:underline"
+                                        >
+                                          Editar
+                                        </button>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {(vendor.tags || []).length > 0 ? (
+                                          (vendor.tags || []).map(tag => (
+                                            <span key={`${vendor.id}-${tag}`} className="rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2 py-0.5 text-[10px] text-roman-primary">
+                                              {tag}
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span className="text-[10px] text-roman-text-sub">Sem tags</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="rounded-xl border border-stone-200 bg-white p-3 space-y-3">
+                              <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">
+                                {vendorDraft.id ? 'Editar terceiro' : 'Novo terceiro'}
+                              </div>
+                              <input
+                                type="text"
+                                value={vendorDraft.name}
+                                onChange={event => setVendorDraft(current => ({ ...current, name: event.target.value }))}
+                                placeholder="Nome do terceiro"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <input
+                                type="email"
+                                value={vendorDraft.email}
+                                onChange={event => setVendorDraft(current => ({ ...current, email: event.target.value }))}
+                                placeholder="terceiro@email.com"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <input
+                                type="text"
+                                value={vendorDraft.tags}
+                                onChange={event => setVendorDraft(current => ({ ...current, tags: event.target.value }))}
+                                placeholder="Tags separadas por vírgula (ex: Gesso, Elétrica)"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveVendor()}
+                                  disabled={vendorSaving}
+                                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {vendorSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                                  {vendorSaving ? 'Salvando...' : vendorDraft.id ? 'Salvar terceiro' : 'Cadastrar terceiro'}
+                                </button>
+                                {vendorDraft.id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setVendorDraft({ id: '', name: '', email: '', tags: '' })}
+                                    className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-white"
+                                  >
+                                    Limpar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </section>
                       </div>
                     )}
