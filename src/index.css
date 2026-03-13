@@ -145,3 +145,68 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* Bridge for legacy neutral Tailwind classes to follow active app theme tokens. */
+.theme-bridge .bg-white {
+  background-color: var(--color-roman-surface) !important;
+}
+
+.theme-bridge .bg-white\/90 {
+  background-color: color-mix(in srgb, var(--color-roman-surface) 90%, transparent) !important;
+}
+
+.theme-bridge .bg-white\/80,
+.theme-bridge .bg-white\/70,
+.theme-bridge .bg-white\/60,
+.theme-bridge .bg-white\/50 {
+  background-color: color-mix(in srgb, var(--color-roman-surface) 78%, transparent) !important;
+}
+
+.theme-bridge .bg-stone-50,
+.theme-bridge .bg-stone-100,
+.theme-bridge .bg-stone-50\/70,
+.theme-bridge .bg-stone-50\/80,
+.theme-bridge .bg-stone-100\/70 {
+  background-color: var(--color-roman-bg) !important;
+}
+
+.theme-bridge .bg-stone-900,
+.theme-bridge .bg-stone-800 {
+  background-color: var(--color-roman-sidebar) !important;
+}
+
+.theme-bridge .border-stone-200,
+.theme-bridge .border-stone-300,
+.theme-bridge .border-stone-700,
+.theme-bridge .border-stone-800,
+.theme-bridge .border-stone-900,
+.theme-bridge .border-stone-200\/80,
+.theme-bridge .border-stone-200\/70 {
+  border-color: var(--color-roman-border) !important;
+}
+
+.theme-bridge .text-stone-500,
+.theme-bridge .text-stone-600 {
+  color: var(--color-roman-text-sub) !important;
+}
+
+.theme-bridge .text-stone-700,
+.theme-bridge .text-stone-800,
+.theme-bridge .text-stone-900 {
+  color: var(--color-roman-text-main) !important;
+}
+
+.theme-bridge .hover\:bg-stone-50:hover,
+.theme-bridge .hover\:bg-white:hover {
+  background-color: var(--color-roman-bg) !important;
+}
+
+.theme-bridge .hover\:bg-stone-800:hover,
+.theme-bridge .hover\:bg-stone-900:hover {
+  background-color: var(--color-roman-primary-hover) !important;
+}
+
+.theme-bridge .hover\:border-stone-300:hover,
+.theme-bridge .hover\:border-stone-700:hover {
+  border-color: var(--color-roman-primary) !important;
+}
+

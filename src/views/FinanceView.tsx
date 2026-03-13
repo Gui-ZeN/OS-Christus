@@ -1220,13 +1220,13 @@ export function FinanceView() {
               <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Pendências: {financeSummary.remaining > 0 ? 'Sim' : 'Não'}</div>
             </div>
           </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-amber-700">Saldo a liberar</div>
-            <div className="mt-2 text-lg font-semibold text-amber-900">{formatCurrency(financeSummary.remaining)}</div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-amber-800/80">
-              <div className="rounded-xl border border-amber-200 bg-white/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
-              <div className="rounded-xl border border-amber-200 bg-white/70 px-3 py-2">Pago: {formatCurrency(financeSummary.paid)}</div>
-              <div className="rounded-xl border border-amber-200 bg-white/70 px-3 py-2">Ação: liberar ou quitar parcelas</div>
+          <div className="rounded-2xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
+            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-primary">Saldo a liberar</div>
+            <div className="mt-2 text-lg font-semibold text-roman-text-main">{formatCurrency(financeSummary.remaining)}</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
+              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
+              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Pago: {formatCurrency(financeSummary.paid)}</div>
+              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Ação: liberar ou quitar parcelas</div>
             </div>
           </div>
         </div>
@@ -1423,7 +1423,7 @@ export function FinanceView() {
                           <span>Execução acumulada</span>
                           <span className="font-semibold">{progressPercent}%</span>
                         </div>
-                        <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
+                        <div className="h-2 rounded-full bg-roman-border-light overflow-hidden">
                           <div
                             className="h-full rounded-full bg-roman-sidebar transition-all"
                             style={{ width: `${progressBarPercent}%` }}

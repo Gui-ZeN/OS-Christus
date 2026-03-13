@@ -2449,12 +2449,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </div>
 
               {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
-                <div className="mt-4 rounded-sm border border-sky-200 bg-sky-50 px-4 py-3 text-sky-900">
+                <div className="mt-4 rounded-sm border border-roman-primary/30 bg-roman-primary/8 px-4 py-3 text-roman-text-main">
                   <div className="flex items-start gap-3">
-                    <CheckSquare size={18} className="mt-0.5 shrink-0 text-sky-700" />
+                    <CheckSquare size={18} className="mt-0.5 shrink-0 text-roman-primary" />
                     <div className="space-y-1">
                       <div className="text-sm font-semibold">Obra concluída e em fase financeira</div>
-                      <div className="text-sm text-sky-800">
+                      <div className="text-sm text-roman-text-sub">
                         A execução foi concluída e os próximos passos seguem no painel Financeiro.
                       </div>
                     </div>
@@ -2559,13 +2559,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                 {/* Formatting Toolbar */}
                 <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <button onClick={() => applyFormatting('bold')} className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Bold size={16} /></button>
-                  <button onClick={() => applyFormatting('italic')} className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><Italic size={16} /></button>
-                  <button onClick={() => applyFormatting('list')} className="p-1 hover:bg-black/5 rounded" disabled={isClosed}><List size={16} /></button>
+                  <button onClick={() => applyFormatting('bold')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Bold size={16} /></button>
+                  <button onClick={() => applyFormatting('italic')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Italic size={16} /></button>
+                  <button onClick={() => applyFormatting('list')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><List size={16} /></button>
                   <div className="w-px h-4 bg-roman-border mx-1"></div>
                   <button
                     onClick={() => replyFileRef.current?.click()}
-                    className={`p-1 hover:bg-black/5 rounded relative ${replyFiles.length > 0 ? 'text-roman-primary' : ''}`}
+                    className={`p-1 hover:bg-roman-bg rounded relative ${replyFiles.length > 0 ? 'text-roman-primary' : ''}`}
                     title="Anexar arquivos"
                     disabled={isClosed}
                   >
@@ -2608,7 +2608,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
 
                 {/* Footer */}
-                <div className="p-3 border-t border-roman-border/50 flex justify-between items-center bg-black/5">
+                <div className="p-3 border-t border-roman-border/50 flex justify-between items-center bg-roman-bg/60">
                   <div className="text-xs text-roman-text-sub font-serif italic">
                     {replyMode === 'internal' ? internalActionText : 'Ação: Notificar solicitante por e-mail'}
                   </div>
@@ -2619,7 +2619,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         setReplyFiles([]);
                         if (replyFileRef.current) replyFileRef.current.value = '';
                       }}
-                      className="px-4 py-1.5 text-roman-text-sub hover:bg-black/5 rounded font-medium transition-colors disabled:opacity-50"
+                      className="px-4 py-1.5 text-roman-text-sub hover:bg-roman-bg rounded font-medium transition-colors disabled:opacity-50"
                       disabled={isClosed}
                     >
                       Cancelar

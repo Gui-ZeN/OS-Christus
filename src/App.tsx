@@ -251,8 +251,8 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
-      <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-y-auto bg-roman-sidebar flex-col py-3 z-20 border-r border-stone-900">
+    <div className="theme-bridge relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
+      <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-20 border-r border-stone-900">
         <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
           <Landmark size={22} />
         </div>
