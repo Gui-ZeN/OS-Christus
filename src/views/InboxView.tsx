@@ -12,6 +12,7 @@ import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
+import { fetchSettings } from '../services/settingsApi';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
@@ -447,6 +448,7 @@ export function InboxView() {
   const [ticketDetailsForm, setTicketDetailsForm] = useState<TicketDetailsFormState>(createTicketDetailsFormState());
   const [teams, setTeams] = useState<DirectoryTeam[]>([]);
   const [vendors, setVendors] = useState<DirectoryVendor[]>([]);
+  const [sharedThirdPartyTags, setSharedThirdPartyTags] = useState<string[]>([]);
   const [thirdPartyTag, setThirdPartyTag] = useState('');
   const [selectedThirdPartyId, setSelectedThirdPartyId] = useState('');
   const [newThirdPartyName, setNewThirdPartyName] = useState('');
@@ -581,6 +583,29 @@ export function InboxView() {
     let cancelled = false;
     (async () => {
       try {
+        const settings = await fetchSettings();
+        if (!cancelled) {
+          setSharedThirdPartyTags(
+            Array.isArray(settings.thirdPartyTags?.tags)
+              ? settings.thirdPartyTags.tags.map(tag => String(tag || '').trim()).filter(Boolean)
+              : []
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setSharedThirdPartyTags([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
         const catalog = await fetchCatalog();
         if (!cancelled) {
           setCatalogRegions(catalog.regions);
@@ -699,14 +724,14 @@ export function InboxView() {
   const thirdPartyTagOptions = useMemo(() => {
     const tags = Array.from(
       new Set(
-        vendors
+        [...sharedThirdPartyTags, ...vendors
           .flatMap(vendor => (Array.isArray(vendor.tags) ? vendor.tags : []))
           .map(tag => String(tag || '').trim())
-          .filter(Boolean)
+          .filter(Boolean)]
       )
     ) as string[];
     return tags.sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [vendors]);
+  }, [sharedThirdPartyTags, vendors]);
   const filteredThirdParties = useMemo(() => {
     if (!thirdPartyTag.trim()) return vendors;
     const normalizedTag = normalizeTagValue(thirdPartyTag);

@@ -13,7 +13,6 @@ import {
   type CatalogMacroService,
   type CatalogMaterial,
   type CatalogServiceItem,
-  type CatalogVendorPreference,
 } from '../services/catalogApi';
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
 import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
@@ -370,11 +369,12 @@ export function SettingsView() {
   const [macroServices, setMacroServices] = useState<CatalogMacroService[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [materials, setMaterials] = useState<CatalogMaterial[]>([]);
-  const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
   const [directoryVendors, setDirectoryVendors] = useState<DirectoryVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [vendorSaving, setVendorSaving] = useState(false);
   const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', tags: '' });
+  const [thirdPartyTags, setThirdPartyTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState('');
   const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
   const [siteDraft, setSiteDraft] = useState({ id: '', code: '', name: '', regionId: '' });
   const [macroDraft, setMacroDraft] = useState({ code: '', name: '' });
@@ -394,12 +394,18 @@ export function SettingsView() {
         setTemplate(remote.emailTemplate || remoteTemplates[0] || DEFAULT_TEMPLATE);
         setDigest(normalizeDigestSettings(remote.dailyDigest));
         setSla(remote.sla || DEFAULT_SLA);
+        setThirdPartyTags(
+          Array.isArray(remote.thirdPartyTags?.tags)
+            ? remote.thirdPartyTags!.tags.map(tag => String(tag || '').trim()).filter(Boolean)
+            : []
+        );
       } catch {
         if (cancelled) return;
         setEmailTemplatesCatalog(DEFAULT_EMAIL_TEMPLATES);
         setTemplate(DEFAULT_EMAIL_TEMPLATES[0] || DEFAULT_TEMPLATE);
         setDigest(DEFAULT_DIGEST);
         setSla(DEFAULT_SLA);
+        setThirdPartyTags([]);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -438,7 +444,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao carregar catalogo.');
     } finally {
@@ -466,6 +471,9 @@ export function SettingsView() {
 
   useEffect(() => {
     if (!['territory', 'catalog'].includes(section)) return;
+    if (section === 'catalog') {
+      setCatalogSubSection('catalog');
+    }
     void loadCatalog();
     if (section === 'catalog') {
       void loadVendors();
@@ -543,7 +551,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
       setMacroDraft({ code: '', name: '' });
       setCatalogSaved('Macroserviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -563,7 +570,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
       setServiceDraft({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
       setCatalogSaved('Serviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -583,7 +589,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
       setMaterialDraft({ code: '', name: '', unit: '' });
       setCatalogSaved('Material salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -603,7 +608,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
       setRegionDraft({ id: '', code: '', name: '', group: 'operacao' });
       setCatalogSaved('Região salva.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -623,7 +627,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
       setSiteDraft({ id: '', code: '', name: '', regionId: '' });
       setCatalogSaved('Sede salva.');
       setTimeout(() => setCatalogSaved(null), 3000);
@@ -643,7 +646,6 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setVendorPreferences(catalog.vendorPreferences);
       if (entity === 'regions' && regionDraft.id === id) {
         setRegionDraft({ id: '', code: '', name: '', group: 'operacao' });
       }
@@ -692,6 +694,31 @@ export function SettingsView() {
     } finally {
       setVendorSaving(false);
     }
+  };
+
+  const persistThirdPartyTags = async (nextTags: string[]) => {
+    const sanitized = Array.from(new Set(nextTags.map(tag => String(tag || '').trim()).filter(Boolean)));
+    setThirdPartyTags(sanitized);
+    try {
+      await saveSettings('thirdPartyTags', { tags: sanitized });
+    } catch {
+      // Mantém estado local em caso de falha temporária.
+    }
+  };
+
+  const handleAddSharedTag = async () => {
+    const normalized = tagDraft.trim();
+    if (!normalized) return;
+    await persistThirdPartyTags([...thirdPartyTags, normalized]);
+    setTagDraft('');
+    setCatalogSaved('Tag de terceiro salva.');
+    setTimeout(() => setCatalogSaved(null), 3000);
+  };
+
+  const handleRemoveSharedTag = async (tag: string) => {
+    await persistThirdPartyTags(thirdPartyTags.filter(item => item !== tag));
+    setCatalogSaved('Tag de terceiro removida.');
+    setTimeout(() => setCatalogSaved(null), 3000);
   };
 
   const clientFirebaseCheck = useMemo(
@@ -841,6 +868,27 @@ export function SettingsView() {
                     <div className="mb-4 space-y-3">
                       {catalogError && <FeedbackBanner tone="error">{catalogError}</FeedbackBanner>}
                       {catalogSaved && <FeedbackBanner tone="success">{catalogSaved}</FeedbackBanner>}
+                    </div>
+
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {([
+                        ['catalog', 'Catálogo'],
+                        ['third-parties', 'Terceiros'],
+                        ['tags', 'Tags compartilhadas'],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setCatalogSubSection(key)}
+                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                            catalogSubSection === key
+                              ? 'bg-roman-sidebar text-white'
+                              : 'border border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
 
                     {catalogLoading ? (
@@ -1209,6 +1257,7 @@ export function SettingsView() {
                       </div>
                     ) : (
                       <div className="space-y-5">
+                        {catalogSubSection === 'catalog' && (
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
                           <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
@@ -1368,50 +1417,9 @@ export function SettingsView() {
                             </div>
                           </section>
                         </div>
+                        )}
 
-                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
-                          <div className="flex items-center justify-between gap-4 mb-4">
-                            <div>
-                              <h3 className="font-serif text-lg text-roman-text-main">Fornecedores preferenciais por histórico</h3>
-                              <p className="text-xs text-roman-text-sub mt-1">Base persistida a partir das aprovações de orçamento dos últimos 24 meses.</p>
-                            </div>
-                            <div className="text-xs text-roman-text-sub">{vendorPreferences.length} registro(s)</div>
-                          </div>
-
-                          {vendorPreferences.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-stone-300 bg-white p-4 text-sm text-roman-text-sub">
-                              Ainda não há preferências persistidas. Elas passam a ser geradas quando a diretoria aprova uma cotação.
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                              {vendorPreferences.slice(0, 12).map(item => (
-                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-4 py-3">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="text-sm font-medium text-roman-text-main">{item.vendor}</div>
-                                      <div className="text-[11px] text-roman-text-sub">
-                                        {item.scopeType === 'material' ? 'Material' : item.scopeType === 'service' ? 'Serviço' : 'Macroserviço'} · {item.scopeName}
-                                      </div>
-                                    </div>
-                                    <div className="text-right text-[11px] text-roman-text-sub">
-                                      <div>{item.approvalCount} aprovação(ões)</div>
-                                      <div>{item.lastTicketId || '-'}</div>
-                                    </div>
-                                  </div>
-                                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-roman-text-sub">
-                                    <div>
-                                      Média aprovada: {item.averageApprovedValue != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.averageApprovedValue) : '-'}
-                                    </div>
-                                    <div>
-                                      Média unitária: {item.averageUnitPrice != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.averageUnitPrice) : '-'}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </section>
-
+                        {catalogSubSection === 'third-parties' && (
                         <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
                           <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
@@ -1498,6 +1506,27 @@ export function SettingsView() {
                                 placeholder="Tags separadas por vírgula (ex: Gesso, Elétrica)"
                                 className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
+                              {thirdPartyTags.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {thirdPartyTags.map(tag => (
+                                    <button
+                                      key={`preset-tag-${tag}`}
+                                      type="button"
+                                      onClick={() => {
+                                        const current = vendorDraft.tags
+                                          .split(',')
+                                          .map(item => item.trim())
+                                          .filter(Boolean);
+                                        if (current.some(item => item.toLowerCase() === tag.toLowerCase())) return;
+                                        setVendorDraft(prev => ({ ...prev, tags: [...current, tag].join(', ') }));
+                                      }}
+                                      className="rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2 py-0.5 text-[10px] text-roman-primary hover:bg-roman-primary/20"
+                                    >
+                                      + {tag}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
@@ -1521,6 +1550,59 @@ export function SettingsView() {
                             </div>
                           </div>
                         </section>
+                        )}
+
+                        {catalogSubSection === 'tags' && (
+                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                          <div className="flex items-center justify-between gap-4 mb-4">
+                            <div>
+                              <h3 className="font-serif text-lg text-roman-text-main">Tags compartilhadas de terceiros</h3>
+                              <p className="text-xs text-roman-text-sub mt-1">
+                                Padronize especialidades disponíveis para seleção (ex: Gesso, Elétrica, Hidráulica).
+                              </p>
+                            </div>
+                            <div className="text-xs text-roman-text-sub">{thirdPartyTags.length} tag(s)</div>
+                          </div>
+
+                          <div className="rounded-xl border border-stone-200 bg-white p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {thirdPartyTags.length === 0 && (
+                                <span className="text-sm text-roman-text-sub">Nenhuma tag cadastrada.</span>
+                              )}
+                              {thirdPartyTags.map(tag => (
+                                <span key={tag} className="inline-flex items-center gap-1.5 rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2.5 py-1 text-xs text-roman-primary">
+                                  {tag}
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRemoveSharedTag(tag)}
+                                    className="text-roman-primary hover:opacity-70"
+                                    aria-label={`Remover tag ${tag}`}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-col gap-3 md:flex-row">
+                            <input
+                              type="text"
+                              value={tagDraft}
+                              onChange={event => setTagDraft(event.target.value)}
+                              placeholder="Nova tag de especialidade"
+                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAddSharedTag()}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                            >
+                              Salvar tag
+                            </button>
+                          </div>
+                        </section>
+                        )}
                       </div>
                     )}
                   </>
@@ -1699,4 +1781,6 @@ export function SettingsView() {
 
 
 
+
+  const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags'>('catalog');
 

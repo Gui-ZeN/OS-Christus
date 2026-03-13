@@ -109,15 +109,21 @@ async function ensureDefaults(db) {
     { ...DEFAULT_SETTINGS.sla.default, updatedAt: now, createdAt: now },
     { merge: true }
   );
+  batch.set(
+    db.collection('settings').doc('thirdPartyTags').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.thirdPartyTags.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
 
   await batch.commit();
 }
 
 async function readSettings(db) {
-  const [templatesSnap, digestSnap, slaSnap] = await Promise.all([
+  const [templatesSnap, digestSnap, slaSnap, thirdPartyTagsSnap] = await Promise.all([
     db.collection('settings').doc('emailTemplates').collection('items').get(),
     db.collection('settings').doc('dailyDigest').collection('items').doc('default').get(),
     db.collection('settings').doc('sla').collection('items').doc('default').get(),
+    db.collection('settings').doc('thirdPartyTags').collection('items').doc('default').get(),
   ]);
 
   const emailTemplates = normalizeEmailTemplates(
@@ -131,6 +137,7 @@ async function readSettings(db) {
     emailTemplates,
     dailyDigest: digestSnap.exists ? digestSnap.data() : null,
     sla: slaSnap.exists ? normalizeSla(slaSnap.data()) : null,
+    thirdPartyTags: thirdPartyTagsSnap.exists ? thirdPartyTagsSnap.data() : null,
   };
 }
 
@@ -159,7 +166,7 @@ export default async function handler(req, res) {
         return sendJson(res, 400, { ok: false, error: 'section e data são obrigatórios.' });
       }
 
-      if (!['emailTemplates', 'dailyDigest', 'sla'].includes(section)) {
+      if (!['emailTemplates', 'dailyDigest', 'sla', 'thirdPartyTags'].includes(section)) {
         return sendJson(res, 400, { ok: false, error: 'section inválida.' });
       }
 
@@ -168,6 +175,16 @@ export default async function handler(req, res) {
           ? normalizeSla(data)
           : section === 'emailTemplates'
             ? normalizeEmailTemplate(data)
+            : section === 'thirdPartyTags'
+              ? {
+                  tags: Array.from(
+                    new Set(
+                      (Array.isArray(data?.tags) ? data.tags : [])
+                        .map(item => String(item || '').trim())
+                        .filter(Boolean)
+                    )
+                  ),
+                }
             : data;
       const docId = section === 'emailTemplates' ? String(normalizedData?.trigger || '').trim() : 'default';
 

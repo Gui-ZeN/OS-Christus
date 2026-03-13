@@ -155,4 +155,9 @@ Motivo:
       ],
     },
   },
+  thirdPartyTags: {
+    default: {
+      tags: [],
+    },
+  },
 };
