@@ -64,7 +64,7 @@ function buildQuoteComparisonSections(quotes: Quote[]) {
   });
 
   return Array.from(sectionKeys).map(sectionKey => {
-    const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }> }>();
+    const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedTotalPrice: string }> }>();
 
     quotes.forEach((quote, quoteIndex) => {
       (quote.items || [])
@@ -77,13 +77,12 @@ function buildQuoteComparisonSections(quotes: Quote[]) {
               description: item.description || item.materialName || 'Item sem descrição',
               unit: item.unit || '',
               quantity: item.quantity != null ? String(item.quantity) : '',
-              values: quotes.map(() => ({ costUnitPrice: '', chargedUnitPrice: '', chargedTotalPrice: '' })),
+              values: quotes.map(() => ({ costUnitPrice: '', chargedTotalPrice: '' })),
             });
           }
           const row = rowMap.get(key)!;
           row.values[quoteIndex] = {
             costUnitPrice: item.costUnitPrice || '',
-            chargedUnitPrice: item.unitPrice || '',
             chargedTotalPrice: item.totalPrice || '',
           };
           if (!row.unit && item.unit) row.unit = item.unit;
@@ -515,11 +514,11 @@ export function ApprovalsView() {
       ]),
       [],
       ['Itens das cotações'],
-      ['Cotação', 'Fornecedor', 'Seção', 'Item', 'Material', 'Unidade', 'Quantidade', 'Custo unitário', 'Valor unitário', 'Valor total'],
+      ['Cotação', 'Fornecedor', 'Seção', 'Item', 'Material', 'Unidade', 'Quantidade', 'Custo unitário', 'Valor total'],
       ...budget.quotes.flatMap((quote, index) =>
         (quote.items && quote.items.length > 0
           ? quote.items
-          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, unitPrice: '', totalPrice: '', costUnitPrice: '', section: 'material' }]
+          : [{ id: 'sem-itens', description: '', materialName: '', unit: '', quantity: null, totalPrice: '', costUnitPrice: '', section: 'material' }]
         ).map(item => [
           `Cotação ${index + 1}`,
           quote.vendor,
@@ -529,7 +528,6 @@ export function ApprovalsView() {
           item.unit || '',
           item.quantity != null ? String(item.quantity) : '',
           item.costUnitPrice || '',
-          item.unitPrice || '',
           item.totalPrice || '',
         ])
       ),
@@ -962,7 +960,7 @@ export function ApprovalsView() {
                                 <td className="px-3 py-3 text-roman-text-sub">{row.unit || '-'}</td>
                                 {row.values.map((value, index) => (
                                   <td key={`${row.key}-${index}`} className="px-3 py-3">
-                                    {!value.costUnitPrice && !value.chargedUnitPrice && !value.chargedTotalPrice ? (
+                                    {!value.costUnitPrice && !value.chargedTotalPrice ? (
                                       <div className="rounded-lg border border-dashed border-roman-border/80 bg-roman-bg px-3 py-2 text-center text-[11px] text-roman-text-sub">
                                         Não cotado nesta proposta
                                       </div>
@@ -971,10 +969,6 @@ export function ApprovalsView() {
                                         <div className="flex items-center justify-between gap-3">
                                           <span className="text-roman-text-sub">Custo</span>
                                           <span className="text-roman-text-main">{value.costUnitPrice || '-'}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between gap-3">
-                                          <span className="text-roman-text-sub">Valor unit.</span>
-                                          <span className="text-roman-text-main">{value.chargedUnitPrice || '-'}</span>
                                         </div>
                                         <div className="flex items-center justify-between gap-3 font-medium">
                                           <span className="text-roman-text-sub">Valor cobrado</span>
@@ -1040,7 +1034,7 @@ export function ApprovalsView() {
                           {quote.items.slice(0, 3).map(item => (
                             <div key={item.id} className="text-[11px] text-roman-text-sub flex items-start justify-between gap-3">
                               <span className="truncate">{item.description || item.materialName || 'Item sem descrição'}</span>
-                              <span className="shrink-0 text-roman-text-main">{item.totalPrice || item.unitPrice || '-'}</span>
+                              <span className="shrink-0 text-roman-text-main">{item.totalPrice || '-'}</span>
                             </div>
                           ))}
                         </div>
@@ -1211,7 +1205,7 @@ export function ApprovalsView() {
                       {contract.items.slice(0, 4).map(item => (
                         <div key={item.id} className="flex items-start justify-between gap-3 text-[11px] text-stone-700">
                           <span className="truncate">{item.description || item.materialName || 'Item sem descrição'}</span>
-                          <span className="shrink-0">{item.totalPrice || item.unitPrice || '-'}</span>
+                          <span className="shrink-0">{item.totalPrice || '-'}</span>
                         </div>
                       ))}
                     </div>

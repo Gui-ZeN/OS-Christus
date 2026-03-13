@@ -233,7 +233,26 @@ function normalizeResolvedTemplate(template) {
     ...template,
     subject: repairMojibake(template.subject),
     body: repairMojibake(template.body),
+    recipients: repairMojibake(template.recipients || ''),
   };
+}
+
+function parseEmailList(input) {
+  if (!input) return [];
+  const values = Array.isArray(input) ? input : String(input).split(/[;,]+/);
+  const emails = values
+    .map(value => firstEmail(value))
+    .filter(Boolean);
+  return [...new Set(emails)];
+}
+
+function sameRecipientSet(current, previous) {
+  if (!Array.isArray(current) || !Array.isArray(previous)) return false;
+  if (current.length !== previous.length) return false;
+  const left = [...new Set(current)].sort();
+  const right = [...new Set(previous)].sort();
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
 }
 
 async function resolveEmailTemplate(db, trigger) {
@@ -415,7 +434,18 @@ async function processGmailInboundMessage(db, msg, source) {
       return false;
     }
 
-    const threadRef = db.collection('emailThreads').doc(ticketId);
+    let threadRef = db.collection('emailThreads').doc(ticketId);
+    if (msg.threadId) {
+      const byThreadSnap = await db
+        .collection('emailThreads')
+        .where('ticketId', '==', ticketId)
+        .limit(20)
+        .get();
+      const matchedDoc = byThreadSnap.docs.find(doc => String(doc.data()?.gmailThreadId || '') === String(msg.threadId));
+      if (matchedDoc) {
+        threadRef = matchedDoc.ref;
+      }
+    }
     const now = msg.internalDate || new Date();
     const toEmail = firstEmail(msg.to);
     const references = String(msg.references || '')
@@ -449,7 +479,7 @@ async function processGmailInboundMessage(db, msg, source) {
         await finalizeInboundMessageLock(lock.ref, {
           ticketId,
           gmailThreadId: msg.threadId || null,
-          threadPath: `emailThreads/${ticketId}`,
+          threadPath: threadRef.path,
           duplicate: true,
         });
         return false;
@@ -486,7 +516,7 @@ async function processGmailInboundMessage(db, msg, source) {
     await finalizeInboundMessageLock(lock.ref, {
       ticketId,
       gmailThreadId: msg.threadId || null,
-      threadPath: `emailThreads/${ticketId}`,
+      threadPath: threadRef.path,
     });
 
     if (!createdTicket) {
@@ -750,6 +780,7 @@ async function handleSend(req, res) {
     const trackingToken = body.trackingToken ? String(body.trackingToken) : null;
     const skipThread = body.skipThread === true;
     const internalCopy = body.internalCopy === true;
+    const allowThreadRecipientFallback = body.allowThreadRecipientFallback !== false;
     const internalEmail = getInternalNotificationEmail();
 
     if (internalCopy && !internalEmail) {
@@ -763,7 +794,7 @@ async function handleSend(req, res) {
     const db = getAdminDb();
     const isPublicCreationEmail =
       trigger === 'EMAIL-NOVA-OS' &&
-      (await canSendPublicCreationEmail(db, ticketId, toEmailInput, internalCopy));
+      (await canSendPublicCreationEmail(db, ticketId, firstEmail(toEmailInput) || '', internalCopy));
 
     if (!isPublicCreationEmail) {
       await requireAuthenticatedUser(req);
@@ -805,14 +836,27 @@ async function handleSend(req, res) {
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
 
-    const toEmail = internalCopy ? internalEmail : toEmailInput || thread?.toEmail || null;
+    const explicitRecipients = parseEmailList(toEmailInput);
+    const templateRecipients = parseEmailList(storedTemplate?.recipients || '');
+    const threadRecipients = parseEmailList(thread?.toEmail || '');
+    const recipients = internalCopy
+      ? (internalEmail ? [internalEmail] : [])
+      : explicitRecipients.length > 0
+        ? explicitRecipients
+        : templateRecipients.length > 0
+          ? templateRecipients
+          : allowThreadRecipientFallback
+            ? threadRecipients
+            : [];
+    const toEmail = recipients.join(', ');
     toEmailForLog = toEmail;
-    if (!toEmail) {
+    if (!toEmail || recipients.length === 0) {
       throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
     }
 
-    const priorMessageId = thread?.lastMessageId || null;
-    const references = thread?.references || [];
+    const reuseThread = !internalCopy && sameRecipientSet(recipients, threadRecipients);
+    const priorMessageId = reuseThread ? thread?.lastMessageId || null : null;
+    const references = reuseThread && Array.isArray(thread?.references) ? thread.references : [];
     const nextReferences = priorMessageId ? [...new Set([...references, priorMessageId])].slice(-20) : references;
 
     const headers = {
@@ -834,7 +878,7 @@ async function handleSend(req, res) {
             references: nextReferences,
             ticketId,
             trackingToken: trackingToken || undefined,
-            threadId: thread?.gmailThreadId || undefined,
+            threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
           })
         : await sendWithSendGrid({
             toEmail,
@@ -857,12 +901,12 @@ async function handleSend(req, res) {
           ticketId,
           toEmail,
           lastMessageId: messageId,
-          gmailThreadId: sendResult.threadId || thread?.gmailThreadId || null,
+          gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
           references: mergedReferences,
           lastDirection: 'outbound',
           lastOutboundAt: now,
           updatedAt: now,
-          participants: FieldValue.arrayUnion(toEmail),
+          ...(recipients.length > 0 ? { participants: FieldValue.arrayUnion(...recipients) } : {}),
         },
         { merge: true }
       );

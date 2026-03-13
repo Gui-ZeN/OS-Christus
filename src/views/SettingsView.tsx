@@ -33,6 +33,7 @@ const DEFAULT_TEMPLATE: EmailTemplateSettings = {
 Recebemos sua solicitação e ela já entrou na fila de triagem.
 
 Sede: {{ticket.sede}}`,
+  recipients: '',
 };
 
 const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
@@ -43,6 +44,7 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSettings[] = [
     body: `Olá {{requester.name}},
 
 Sua solicitação está em triagem com a equipe de manutenção.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-PARECER-TECNICO',
@@ -50,6 +52,7 @@ Sua solicitação está em triagem com a equipe de manutenção.`,
     body: `Olá {{requester.name}},
 
 O parecer técnico foi concluído e a solicitação seguiu para definição da solução.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
@@ -57,6 +60,7 @@ O parecer técnico foi concluído e a solicitação seguiu para definição da s
     body: `Olá {{requester.name}},
 
 Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-EM-APROVACAO',
@@ -64,6 +68,7 @@ Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.
     body: `Olá {{requester.name}},
 
 Sua solicitação avançou para a etapa de aprovação.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-ACOES-PRELIMINARES',
@@ -71,6 +76,7 @@ Sua solicitação avançou para a etapa de aprovação.`,
     body: `Olá {{requester.name}},
 
 Sua solicitação entrou em ações preliminares.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-EXECUCAO-INICIADA',
@@ -78,6 +84,7 @@ Sua solicitação entrou em ações preliminares.`,
     body: `Olá {{requester.name}},
 
 A execução do serviço foi iniciada.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
@@ -85,6 +92,7 @@ A execução do serviço foi iniciada.`,
     body: `Olá {{requester.name}},
 
 A execução foi concluída e agora depende da sua validação para seguir com o encerramento.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
@@ -92,6 +100,7 @@ A execução foi concluída e agora depende da sua validação para seguir com o
     body: `Olá {{requester.name}},
 
 Sua validação foi registrada. A OS seguiu para pagamento e encerramento.`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-OS-ENCERRADA',
@@ -101,6 +110,7 @@ Sua validação foi registrada. A OS seguiu para pagamento e encerramento.`,
 A {{ticket.id}} foi encerrada com sucesso.
 
 Garantia: {{guarantee.summary}}`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-OS-CANCELADA',
@@ -111,6 +121,7 @@ A {{ticket.id}} foi cancelada.
 
 Motivo:
 {{message.body}}`,
+    recipients: '',
   },
   {
     trigger: 'EMAIL-NOVA-MENSAGEM',
@@ -120,6 +131,7 @@ Motivo:
 {{message.sender}} enviou uma nova mensagem.
 
 {{message.body}}`,
+    recipients: '',
   },
 ];
 const DEFAULT_DIGEST: DailyDigestSettings = {
@@ -847,6 +859,9 @@ export function SettingsView() {
                                 <div className={`mt-1 text-[10px] uppercase tracking-[0.2em] ${template.trigger === item.trigger ? 'text-white/50' : 'text-roman-text-sub/80'}`}>
                                   {item.trigger}
                                 </div>
+                                <div className={`mt-1 text-[10px] ${template.trigger === item.trigger ? 'text-white/60' : 'text-roman-text-sub/80'}`}>
+                                  {item.recipients?.trim() ? `Destinatários: ${item.recipients}` : 'Destinatário definido pelo fluxo'}
+                                </div>
                               </div>
                             </button>
                           ))}
@@ -866,6 +881,19 @@ export function SettingsView() {
                               />
                               <div className="mt-2 text-xs text-roman-text-sub">
                                 O assunto fica fixo por OS para manter toda a conversa no mesmo thread do e-mail.
+                              </div>
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Destinatários padrão</label>
+                              <input
+                                type="text"
+                                value={template.recipients}
+                                onChange={event => setTemplate(current => ({ ...current, recipients: event.target.value }))}
+                                placeholder="email1@dominio.com, email2@dominio.com"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <div className="mt-2 text-xs text-roman-text-sub">
+                                Opcional. Quando preenchido, o sistema usa estes e-mails no gatilho sem depender do destinatário do ticket.
                               </div>
                             </div>
                             <div>

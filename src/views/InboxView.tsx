@@ -10,7 +10,7 @@ import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRec
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
-import { DirectoryTeam, fetchDirectory } from '../services/directoryApi';
+import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -189,11 +189,9 @@ function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState
   };
 }
 
-function createProgressUpdateFormState(ticket?: Ticket, baselineValue = 0): ProgressUpdateFormState {
-  const currentPercent = Math.max(0, Number(ticket?.executionProgress?.currentPercent || 0));
-  const grossAmount = baselineValue > 0 ? (baselineValue * currentPercent) / 100 : 0;
+function createProgressUpdateFormState(_ticket?: Ticket): ProgressUpdateFormState {
   return {
-    grossAmount: grossAmount > 0 ? formatCurrencyInput(grossAmount) : '',
+    grossAmount: '',
     notes: '',
   };
 }
@@ -307,6 +305,14 @@ function normalizeCurrencyInput(value: string) {
 
 function sanitizeCurrencyTypingInput(value: string) {
   return String(value || '').replace(/[^\d,.-]/g, '');
+}
+
+function normalizeTagValue(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 function roundProgressPercent(value: number) {
@@ -426,6 +432,12 @@ export function InboxView() {
   });
   const [ticketDetailsForm, setTicketDetailsForm] = useState<TicketDetailsFormState>(createTicketDetailsFormState());
   const [teams, setTeams] = useState<DirectoryTeam[]>([]);
+  const [vendors, setVendors] = useState<DirectoryVendor[]>([]);
+  const [thirdPartyTag, setThirdPartyTag] = useState('');
+  const [selectedThirdPartyId, setSelectedThirdPartyId] = useState('');
+  const [newThirdPartyName, setNewThirdPartyName] = useState('');
+  const [newThirdPartyEmail, setNewThirdPartyEmail] = useState('');
+  const [newThirdPartyTags, setNewThirdPartyTags] = useState('');
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
@@ -480,6 +492,18 @@ export function InboxView() {
     setTicketDetailsForm(createTicketDetailsFormState(activeTicket));
     setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
     setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
+    setThirdPartyTag('');
+    if (activeTicket.assignedEmail) {
+      const matchedVendor = vendors.find(
+        vendor => String(vendor.email || '').trim().toLowerCase() === String(activeTicket.assignedEmail || '').trim().toLowerCase()
+      );
+      setSelectedThirdPartyId(matchedVendor?.id || '');
+    } else {
+      setSelectedThirdPartyId('');
+    }
+    setNewThirdPartyName('');
+    setNewThirdPartyEmail('');
+    setNewThirdPartyTags('');
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
   }, [
@@ -497,6 +521,7 @@ export function InboxView() {
     activeTicket.serviceCatalogId,
     activeTicket.executionProgress?.paymentFlowParts,
     activeTicket.executionProgress?.currentPercent,
+    vendors,
   ]);
 
   useEffect(() => {
@@ -521,12 +546,14 @@ export function InboxView() {
     (async () => {
       try {
         const directory = await fetchDirectory();
-        if (!cancelled && directory.teams.length > 0) {
-          setTeams(directory.teams.filter(team => team.active !== false));
+        if (!cancelled) {
+          setTeams((directory.teams || []).filter(team => team.active !== false));
+          setVendors((directory.vendors || []).filter(vendor => vendor.active !== false));
         }
       } catch {
         if (!cancelled) {
           setTeams([]);
+          setVendors([]);
         }
       }
     })();
@@ -595,6 +622,55 @@ export function InboxView() {
     setTechTeam(newValue);
     if (newValue !== techTeam) {
       setCustomEmail('');
+      setSelectedThirdPartyId('');
+      setThirdPartyTag('');
+    }
+  };
+
+  const handleCreateThirdParty = async () => {
+    const name = newThirdPartyName.trim();
+    if (!name) {
+      setToast('Informe o nome do terceiro para cadastrar.');
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    const tags = newThirdPartyTags
+      .split(',')
+      .map(tag => normalizeTagValue(tag))
+      .filter(Boolean);
+
+    try {
+      const response = await upsertVendor({
+        name,
+        email: newThirdPartyEmail.trim(),
+        tags,
+        active: true,
+      });
+      const nextVendor = response.vendor || {
+        id: normalizeTagValue(name).replace(/[^a-z0-9-]/g, '-') || `terceiro-${Date.now()}`,
+        name,
+        email: newThirdPartyEmail.trim(),
+        tags,
+        active: true,
+      };
+      setVendors(current => {
+        const withoutCurrent = current.filter(item => item.id !== nextVendor.id);
+        return [...withoutCurrent, nextVendor].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      });
+      setSelectedThirdPartyId(nextVendor.id);
+      setCustomEmail(nextVendor.email || '');
+      if (tags.length > 0) {
+        setThirdPartyTag(tags[0]);
+      }
+      setNewThirdPartyName('');
+      setNewThirdPartyEmail('');
+      setNewThirdPartyTags('');
+      setToast('Terceiro cadastrado com sucesso.');
+      setTimeout(() => setToast(null), 2500);
+    } catch (error) {
+      setToast(`Erro ao cadastrar terceiro: ${error instanceof Error ? error.message : 'falha inesperada.'}`);
+      setTimeout(() => setToast(null), 3500);
     }
   };
 
@@ -605,6 +681,25 @@ export function InboxView() {
 
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
+  const selectedThirdParty = vendors.find(vendor => vendor.id === selectedThirdPartyId) || null;
+  const thirdPartyTagOptions = useMemo(() => {
+    const tags = Array.from(
+      new Set(
+        vendors
+          .flatMap(vendor => (Array.isArray(vendor.tags) ? vendor.tags : []))
+          .map(tag => String(tag || '').trim())
+          .filter(Boolean)
+      )
+    ) as string[];
+    return tags.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [vendors]);
+  const filteredThirdParties = useMemo(() => {
+    if (!thirdPartyTag.trim()) return vendors;
+    const normalizedTag = normalizeTagValue(thirdPartyTag);
+    return vendors.filter(vendor =>
+      (vendor.tags || []).some(tag => normalizeTagValue(tag) === normalizedTag)
+    );
+  }, [thirdPartyTag, vendors]);
   const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(activeTicket.status);
   const canManageBudgetRounds =
     activeTicket.status.includes('Orçamento') ||
@@ -724,14 +819,14 @@ export function InboxView() {
   const handleSaveQuickPanel = () => {
     if (!canManageStatus || isSending) return;
 
-    if (isExternalTeam && !customEmail.trim()) {
-      setToast('Informe o e-mail do fornecedor para equipes externas.');
+    if (isExternalTeam && !selectedThirdParty) {
+      setToast('Selecione o terceiro responsável para equipes externas.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
     const nextStatus = statusDraft || activeTicket.status;
-    const nextAssignedEmail = isExternalTeam ? customEmail.trim() : '';
+    const nextAssignedEmail = isExternalTeam ? (customEmail.trim() || String(selectedThirdParty?.email || '').trim()) : '';
     const changes: string[] = [];
     const updates: Partial<Ticket> = {};
 
@@ -745,7 +840,7 @@ export function InboxView() {
     }
     if (nextAssignedEmail !== (activeTicket.assignedEmail || '')) {
       updates.assignedEmail = nextAssignedEmail;
-      changes.push('e-mail do fornecedor');
+      changes.push('e-mail do terceiro');
     }
     if (nextStatus !== activeTicket.status) {
       Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
@@ -792,18 +887,18 @@ export function InboxView() {
       return;
     }
 
-    if (isExternalTeam && !customEmail.trim()) {
-      setToast('Informe o e-mail do fornecedor para encaminhamento externo.');
+    if (isExternalTeam && !selectedThirdParty) {
+      setToast('Selecione o terceiro responsável para encaminhamento externo.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
-    const target = isExternalTeam ? customEmail.trim() : techTeam;
+    const target = isExternalTeam ? selectedThirdParty?.name || 'Terceiro selecionado' : techTeam;
     updateTicket(activeTicket.id, {
       status: TICKET_STATUS.WAITING_TECH_OPINION,
       priority: ticketPriority,
       assignedTeam: techTeam,
-      assignedEmail: isExternalTeam ? customEmail.trim() : '',
+      assignedEmail: isExternalTeam ? (customEmail.trim() || String(selectedThirdParty?.email || '').trim()) : '',
       history: [
         ...activeTicket.history,
         {
@@ -853,7 +948,7 @@ export function InboxView() {
           status: newStatus,
           priority: ticketPriority || activeTicket.priority,
           assignedTeam: techTeam || activeTicket.assignedTeam || '',
-          assignedEmail: isExternalTeam ? customEmail.trim() : '',
+          assignedEmail: isExternalTeam ? (customEmail.trim() || String(selectedThirdParty?.email || '').trim()) : '',
           history: [...activeTicket.history, ...items],
         });
       }
@@ -1032,8 +1127,7 @@ export function InboxView() {
   };
 
   const handleOpenProgressModal = () => {
-    const baselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
-    setProgressUpdateForm(createProgressUpdateFormState(activeTicket, baselineValue));
+    setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
     setShowProgressModal(true);
   };
 
@@ -1053,13 +1147,15 @@ export function InboxView() {
     }
 
     const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
-    if (!Number.isFinite(grossAmount) || grossAmount < 0) {
-      setToast('Erro: informe o valor bruto acumulado da obra.');
+    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
+      setToast('Erro: informe o valor bruto da parcela/etapa.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
-    const progressPercent = calculateProgressPercentFromGross(grossAmount, baselineValue);
+    const currentGross = (baselineValue * activeProgressPercent) / 100;
+    const accumulatedGross = currentGross + grossAmount;
+    const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
     if (progressPercent < activeProgressPercent) {
       setToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.');
       setTimeout(() => setToast(null), 3000);
@@ -1101,10 +1197,11 @@ export function InboxView() {
       const expectedBaselineFormatted = formatCurrencyInput(baselineValue);
       const measurement: MeasurementRecord = {
         id: `measurement-${Date.now()}`,
-        label: `Andamento atualizado para ${normalizedProgress}% (${formatCurrencyInput(grossAmount)} bruto acumulado)`,
+        label: `Andamento atualizado para ${normalizedProgress}% (parcela ${formatCurrencyInput(grossAmount)} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
         progressPercent: normalizedProgress,
         releasePercent: newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0),
         status: newlyApproved.length > 0 ? 'approved' : 'pending',
+        grossValue: formatCurrencyInput(grossAmount),
         notes: progressUpdateForm.notes.trim(),
         requestedAt: now,
         approvedAt: newlyApproved.length > 0 ? now : null,
@@ -1169,10 +1266,10 @@ export function InboxView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${normalizedProgress}% com bruto acumulado de ${formatCurrencyInput(grossAmount)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
                 : newlyApproved.length > 0
-                  ? `Andamento atualizado para ${normalizedProgress}% com bruto acumulado de ${formatCurrencyInput(grossAmount)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-                  : `Andamento atualizado para ${normalizedProgress}% com bruto acumulado de ${formatCurrencyInput(grossAmount)}. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+                  ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+                  : `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
           },
         ],
       });
@@ -1239,7 +1336,9 @@ export function InboxView() {
     [activeTicket.executionProgress?.paymentFlowParts]
   );
   const draftGrossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
-  const draftProgressPercent = calculateProgressPercentFromGross(draftGrossAmount, activeExpectedBaselineValue);
+  const currentAccumulatedGross = activeExpectedBaselineValue > 0 ? (activeExpectedBaselineValue * activeProgressPercent) / 100 : 0;
+  const projectedAccumulatedGross = currentAccumulatedGross + draftGrossAmount;
+  const draftProgressPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeExpectedBaselineValue);
   const ticketAttachmentItems = (activeTicket.attachments || [])
     .filter(attachment => attachment?.url)
     .map(attachment => ({
@@ -1352,7 +1451,7 @@ export function InboxView() {
                     unit: item.unit || null,
                     quantity: item.quantity ?? null,
                     costUnitPrice: item.costUnitPrice || null,
-                    unitPrice: item.unitPrice || null,
+                    unitPrice: null,
                     totalPrice: item.totalPrice || null,
                   }))
                 : [createEmptyQuoteItem()],
@@ -1437,7 +1536,7 @@ export function InboxView() {
           description: string;
           unit: string;
           quantity: string;
-          values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }>;
+          values: Array<{ costUnitPrice: string; chargedTotalPrice: string }>;
         }>;
       }
     >();
@@ -1450,7 +1549,7 @@ export function InboxView() {
     const orderedSections = Array.from(sectionKeys);
 
     orderedSections.forEach(section => {
-      const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedUnitPrice: string; chargedTotalPrice: string }> }>();
+      const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedTotalPrice: string }> }>();
       quotes.forEach((quote, quoteIndex) => {
         quote.items
           .filter(item => normalizeQuoteSection(item.section) === section)
@@ -1462,13 +1561,12 @@ export function InboxView() {
                 description: item.description || item.materialName || 'Item sem descrição',
                 unit: item.unit || '',
                 quantity: item.quantity != null ? String(item.quantity) : '',
-                values: quotes.map(() => ({ costUnitPrice: '', chargedUnitPrice: '', chargedTotalPrice: '' })),
+                values: quotes.map(() => ({ costUnitPrice: '', chargedTotalPrice: '' })),
               });
             }
             const row = rowMap.get(rowKey)!;
             row.values[quoteIndex] = {
               costUnitPrice: item.costUnitPrice || '',
-              chargedUnitPrice: item.unitPrice || '',
               chargedTotalPrice: item.totalPrice || '',
             };
             if (!row.unit && item.unit) row.unit = item.unit;
@@ -1581,8 +1679,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   const recalculateQuoteValue = (draft: QuoteDraft) => {
     const computedTotal = draft.items.reduce((sum, item) => {
       const quantity = item.quantity ?? 0;
-      const unitPrice = item.unitPrice ? parseCurrencyInput(item.unitPrice) : 0;
-      if (quantity > 0 && unitPrice > 0) return sum + quantity * unitPrice;
+      const costUnitPrice = item.costUnitPrice ? parseCurrencyInput(item.costUnitPrice) : 0;
+      if (quantity > 0 && costUnitPrice > 0) return sum + quantity * costUnitPrice;
       const totalPrice = item.totalPrice ? parseCurrencyInput(item.totalPrice) : 0;
       return sum + totalPrice;
     }, 0);
@@ -1623,14 +1721,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           if (field === 'section') {
             nextItem.section = normalizeQuoteSection(typeof value === 'string' ? value : null);
           }
-          if (field === 'costUnitPrice' || field === 'unitPrice' || field === 'totalPrice') {
+          if (field === 'costUnitPrice' || field === 'totalPrice') {
             nextItem[field] = typeof value === 'string' ? sanitizeCurrencyTypingInput(value) : null;
           }
-          if (field === 'quantity' || field === 'unitPrice') {
+          if (field === 'quantity' || field === 'costUnitPrice') {
             const quantity = nextItem.quantity ?? 0;
-            const unitPrice = nextItem.unitPrice ? parseCurrencyInput(nextItem.unitPrice) : 0;
-            if (quantity > 0 && unitPrice > 0) {
-              nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
+            const costUnitPrice = nextItem.costUnitPrice ? parseCurrencyInput(nextItem.costUnitPrice) : 0;
+            if (quantity > 0 && costUnitPrice > 0) {
+              nextItem.totalPrice = formatCurrencyInput(quantity * costUnitPrice);
             } else {
               nextItem.totalPrice = null;
             }
@@ -1642,7 +1740,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     );
   };
 
-  const handleQuoteItemCurrencyBlur = (quoteIndex: number, itemId: string, field: 'costUnitPrice' | 'unitPrice') => {
+  const handleQuoteItemCurrencyBlur = (quoteIndex: number, itemId: string, field: 'costUnitPrice') => {
     setQuotes(current =>
       current.map((quote, index) => {
         if (index !== quoteIndex) return quote;
@@ -1651,9 +1749,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           const nextItem: QuoteItem = { ...item };
           nextItem[field] = normalizeCurrencyInput(String(nextItem[field] || ''));
           const quantity = nextItem.quantity ?? 0;
-          const unitPrice = nextItem.unitPrice ? parseCurrencyInput(nextItem.unitPrice) : 0;
-          if (quantity > 0 && unitPrice > 0) {
-            nextItem.totalPrice = formatCurrencyInput(quantity * unitPrice);
+          const costUnitPrice = nextItem.costUnitPrice ? parseCurrencyInput(nextItem.costUnitPrice) : 0;
+          if (quantity > 0 && costUnitPrice > 0) {
+            nextItem.totalPrice = formatCurrencyInput(quantity * costUnitPrice);
           } else {
             nextItem.totalPrice = null;
           }
@@ -1792,10 +1890,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             unit: item.unit ? String(item.unit).trim() : null,
             materialName: item.materialName ? String(item.materialName).trim() : null,
             costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
-            unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
+            unitPrice: null,
             totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
           }))
-          .filter(item => item.description || item.totalPrice || item.unitPrice || item.quantity),
+          .filter(item => item.description || item.totalPrice || item.quantity),
       }));
       try {
         await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
@@ -2542,17 +2640,30 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
-                    <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-sm font-medium">
-                      {quoteRoundType === 'initial' ? 'Orçamento Inicial' : `Aditivo ${quoteAdditiveIndex}`}
-                    </span>
                   </div>
-                  <button
-                    onClick={() => setShowQuotesModal(true)}
-                    className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
-                  >
-                    <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                    Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setQuoteRoundType('initial');
+                        setShowQuotesModal(true);
+                      }}
+                      className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
+                    >
+                      <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
+                      Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setQuoteRoundType('additive');
+                        setQuoteAdditiveIndex(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 1);
+                        setShowQuotesModal(true);
+                      }}
+                      className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
+                    >
+                      <Plus size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
+                      Gerenciar Aditivos
+                    </button>
+                  </div>
                 </section>
               )}
 
@@ -2593,7 +2704,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       >
                         <option value="">Selecione a Equipe...</option>
                         {teams.map(team => (
-                          <option key={team.id} value={team.name}>{team.name}</option>
+                          <option key={team.id} value={team.name}>{team.type === 'external' ? 'Terceiro' : team.name}</option>
                         ))}
                       </select>
                     </div>
@@ -2615,16 +2726,91 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
 
                   {isExternalTeam && (
-                    <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do fornecedor</label>
-                      <input
-                        type="email"
-                        value={customEmail}
-                        onChange={e => setCustomEmail(e.target.value)}
-                        placeholder="fornecedor@email.com"
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isSending || !canEditQuickPanel}
-                      />
+                    <div className="space-y-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Terceiro</div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Filtro por tag</label>
+                        <select
+                          value={thirdPartyTag}
+                          onChange={event => {
+                            setThirdPartyTag(event.target.value);
+                            setSelectedThirdPartyId('');
+                            setCustomEmail('');
+                          }}
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isSending || !canEditQuickPanel}
+                        >
+                          <option value="">Todas as especialidades</option>
+                          {thirdPartyTagOptions.map(tag => (
+                            <option key={`tag-${tag}`} value={tag}>{tag}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
+                        <select
+                          value={selectedThirdPartyId}
+                          onChange={event => {
+                            const nextId = event.target.value;
+                            setSelectedThirdPartyId(nextId);
+                            const selected = filteredThirdParties.find(vendor => vendor.id === nextId);
+                            setCustomEmail(selected?.email || '');
+                          }}
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isSending || !canEditQuickPanel}
+                        >
+                          <option value="">Selecione o terceiro...</option>
+                          {filteredThirdParties.map(vendor => (
+                            <option key={vendor.id} value={vendor.id}>
+                              {vendor.name} {(vendor.tags || []).length > 0 ? `(${(vendor.tags || []).join(', ')})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do terceiro</label>
+                        <input
+                          type="email"
+                          value={customEmail}
+                          onChange={e => setCustomEmail(e.target.value)}
+                          placeholder="terceiro@email.com"
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isSending || !canEditQuickPanel}
+                        />
+                      </div>
+                      {canEditQuickPanel && (
+                        <div className="space-y-2 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-3">
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cadastrar novo terceiro</div>
+                          <input
+                            type="text"
+                            value={newThirdPartyName}
+                            onChange={event => setNewThirdPartyName(event.target.value)}
+                            placeholder="Nome do terceiro"
+                            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          />
+                          <input
+                            type="email"
+                            value={newThirdPartyEmail}
+                            onChange={event => setNewThirdPartyEmail(event.target.value)}
+                            placeholder="Email (opcional)"
+                            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          />
+                          <input
+                            type="text"
+                            value={newThirdPartyTags}
+                            onChange={event => setNewThirdPartyTags(event.target.value)}
+                            placeholder="Tags separadas por vírgula (ex.: gesso, eletrica)"
+                            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleCreateThirdParty()}
+                            className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                          >
+                            Cadastrar terceiro
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2949,47 +3135,25 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </div>
 
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {quoteRoundType === 'additive' && (
                   <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Tipo da rodada</label>
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
                     <select
-                      value={quoteRoundType}
-                      onChange={event => {
-                        const nextType = event.target.value as 'initial' | 'additive';
-                        setQuoteRoundType(nextType);
-                        if (nextType === 'additive') {
-                          const highest = availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0;
-                          setQuoteAdditiveIndex(highest > 0 ? highest : 1);
-                        } else {
-                          setQuoteAdditiveIndex(1);
-                        }
-                      }}
+                      value={quoteAdditiveIndex}
+                      onChange={event => setQuoteAdditiveIndex(Number(event.target.value) || 1)}
                       className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
                     >
-                      <option value="initial">Orçamento inicial</option>
-                      <option value="additive">Aditivo</option>
+                      {availableAdditiveRounds.map(round => (
+                        <option key={`aditivo-round-${round}`} value={round}>
+                          Aditivo {round}
+                        </option>
+                      ))}
+                      <option value={(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1}>
+                        Novo aditivo ({(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1})
+                      </option>
                     </select>
                   </div>
-                  {quoteRoundType === 'additive' && (
-                    <div>
-                      <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
-                      <select
-                        value={quoteAdditiveIndex}
-                        onChange={event => setQuoteAdditiveIndex(Number(event.target.value) || 1)}
-                        className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                      >
-                        {availableAdditiveRounds.map(round => (
-                          <option key={`aditivo-round-${round}`} value={round}>
-                            Aditivo {round}
-                          </option>
-                        ))}
-                        <option value={(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1}>
-                          Novo aditivo ({(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1})
-                        </option>
-                      </select>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
               {(activeTicket.macroServiceName || activeTicket.serviceCatalogName) && (
@@ -3243,7 +3407,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-serif text-roman-text-main">Comparativo consolidado</h4>
-                    <p className="text-xs text-roman-text-sub">Use esta grade para conferir subtotais e a diferença entre custo unitário e valor cobrado por fornecedor.</p>
+                    <p className="text-xs text-roman-text-sub">Use esta grade para conferir quantidade, custo unitário e total cobrado por fornecedor.</p>
                   </div>
                 </div>
 
@@ -3265,7 +3429,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               <th className="px-3 py-2 font-medium text-roman-text-main">Qtd.</th>
                               <th className="px-3 py-2 font-medium text-roman-text-main">Und.</th>
                               {quotes.map((quote, index) => (
-                                <th key={`${section.key}-quote-${index}`} colSpan={3} className="border-l border-roman-border px-3 py-2">
+                                <th key={`${section.key}-quote-${index}`} colSpan={2} className="border-l border-roman-border px-3 py-2">
                                   <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cotação {index + 1}</div>
                                   <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.vendor || 'Fornecedor não informado'}</div>
                                 </th>
@@ -3278,7 +3442,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               {quotes.map((_, index) => (
                                 <React.Fragment key={`${section.key}-labels-${index}`}>
                                   <th className="border-l border-roman-border px-3 py-2 font-medium">Custo unit.</th>
-                                  <th className="px-3 py-2 font-medium">Valor unit.</th>
                                   <th className="px-3 py-2 font-medium">Valor cobrado</th>
                                 </React.Fragment>
                               ))}
@@ -3292,8 +3455,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                 <td className="px-3 py-2 text-roman-text-sub">{row.unit || '-'}</td>
                                 {row.values.map((value, index) => (
                                   <React.Fragment key={`${row.key}-${index}`}>
-                                    {!value.costUnitPrice && !value.chargedUnitPrice && !value.chargedTotalPrice ? (
-                                      <td colSpan={3} className="border-l border-roman-border px-3 py-2">
+                                    {!value.costUnitPrice && !value.chargedTotalPrice ? (
+                                      <td colSpan={2} className="border-l border-roman-border px-3 py-2">
                                         <div className="rounded-lg border border-dashed border-roman-border/80 bg-roman-surface px-3 py-2 text-center text-[11px] text-roman-text-sub">
                                           Não cotado nesta proposta
                                         </div>
@@ -3301,7 +3464,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     ) : (
                                       <>
                                         <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">{value.costUnitPrice || '-'}</td>
-                                        <td className="px-3 py-2 text-roman-text-sub">{value.chargedUnitPrice || '-'}</td>
                                         <td className="px-3 py-2 text-roman-text-main">{value.chargedTotalPrice || '-'}</td>
                                       </>
                                     )}
@@ -3318,7 +3480,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                 return (
                                   <React.Fragment key={`${section.key}-subtotal-${index}`}>
                                     <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">-</td>
-                                    <td className="px-3 py-2 text-roman-text-sub">-</td>
                                     <td className="px-3 py-2 font-medium text-roman-text-main">
                                       {subtotal > 0 ? formatCurrencyInput(subtotal) : '-'}
                                     </td>
@@ -3338,7 +3499,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             {quotes.map((_, index) => (
                               <React.Fragment key={`grand-total-${index}`}>
                                 <td className="border-l border-roman-border px-3 py-3 text-roman-text-sub">-</td>
-                                <td className="px-3 py-3 text-roman-text-sub">-</td>
                                 <td className="px-3 py-3 font-semibold text-roman-text-main">
                                   {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : '-'}
                                 </td>
@@ -3549,7 +3709,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     );
                                   })()}
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 gap-2">
                                   <input
                                     type="text"
                                     inputMode="decimal"
@@ -3559,18 +3719,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'costUnitPrice')}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    placeholder="Valor unitário (cliente)"
-                                    value={item.unitPrice || ''}
-                                    onChange={event => handleQuoteItemChange(i, item.id, 'unitPrice', event.target.value)}
-                                    onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'unitPrice')}
-                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                  />
-                                </div>
-                                <div className="text-[11px] text-roman-text-sub">
-                                  Custo unitário = gasto interno | Valor unitário = preço cobrado ao cliente.
                                 </div>
                                 <input
                                   type="text"
@@ -3760,7 +3908,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           isOpen={showProgressModal}
           onClose={() => setShowProgressModal(false)}
           title="Atualizar Andamento da Obra"
-          description="Informe o valor bruto acumulado e o sistema calculará automaticamente o percentual executado."
+          description="Informe o valor bruto da parcela/etapa e o sistema somará ao acumulado para calcular o percentual executado."
           maxWidthClass="max-w-xl"
           footer={(
             <div className="flex justify-end gap-3">
@@ -3780,7 +3928,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto acumulado</label>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto desta parcela/etapa</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -3795,6 +3943,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div className="font-medium text-roman-text-main">Percentual calculado</div>
                   <div className="mt-1 text-base font-semibold text-roman-text-main">{draftProgressPercent}%</div>
                   <div className="mt-1">Andamento atual salvo: {activeProgressPercent}%</div>
+                  <div className="mt-1">Bruto acumulado projetado: {formatCurrencyInput(projectedAccumulatedGross)}</div>
                 </div>
               </div>
 
@@ -3803,7 +3952,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atalhos por marco</div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                     {activeMilestones.map(milestone => {
-                      const projectedGross = (activeExpectedBaselineValue * milestone) / 100;
+                      const milestoneGross = (activeExpectedBaselineValue * milestone) / 100;
+                      const projectedGross = Math.max(0, milestoneGross - currentAccumulatedGross);
                       const isCompleted = milestone <= activeProgressPercent;
                       return (
                         <button
@@ -3835,6 +3985,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                 <div className="font-medium text-roman-text-main">Valor de referência</div>
                 <div>Previsto inicial: {activeExpectedBaselineValue > 0 ? formatCurrencyInput(activeExpectedBaselineValue) : 'Não definido'}</div>
+                <div>Bruto acumulado atual: {formatCurrencyInput(currentAccumulatedGross)}</div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">

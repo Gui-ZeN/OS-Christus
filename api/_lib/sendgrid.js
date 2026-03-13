@@ -8,6 +8,18 @@ function compact(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null));
 }
 
+function parseRecipientList(input) {
+  return String(input || '')
+    .split(/[;,]+/)
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .map(value => {
+      const match = value.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+      return match ? match[0].toLowerCase() : '';
+    })
+    .filter(Boolean);
+}
+
 export async function sendWithSendGrid({
   toEmail,
   subject,
@@ -22,10 +34,15 @@ export async function sendWithSendGrid({
   const fromEmail = requiredEnv('SENDGRID_FROM_EMAIL');
   const fromName = process.env.SENDGRID_FROM_NAME || 'OS Christus';
 
+  const recipients = [...new Set(parseRecipientList(toEmail))];
+  if (recipients.length === 0) {
+    throw new Error('Destinatário de e-mail ausente para envio via SendGrid.');
+  }
+
   const payload = compact({
     personalizations: [
       compact({
-        to: [{ email: toEmail }],
+        to: recipients.map(email => ({ email })),
         dynamic_template_data: templateId ? (templateData || {}) : undefined,
       }),
     ],

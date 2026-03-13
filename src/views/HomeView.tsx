@@ -137,7 +137,6 @@ export function HomeView() {
     aguardandoOrcamento: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
     aguardandoAprovacao: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprova')).length,
     encerradas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
-    slaVencido: scopedTickets.filter(ticket => ticket.sla?.status === 'overdue').length,
   }), [scopedTickets]);
 
   const requesterTickets = useMemo(() => {
@@ -208,7 +207,7 @@ export function HomeView() {
   }, [scopedTickets]);
 
   const regionalExecutiveBoard = useMemo(() => {
-    const grouped = new Map<string, { label: string; region: string; open: number; approvals: number; waitingValidation: number; overdue: number; closed: number }>();
+    const grouped = new Map<string, { label: string; region: string; open: number; approvals: number; waitingValidation: number; closed: number }>();
     for (const ticket of scopedTickets) {
       const regionLabel = getTicketRegionLabel(ticket, regions, sites);
       const siteLabel = getTicketSiteLabel(ticket, sites);
@@ -217,13 +216,12 @@ export function HomeView() {
         ? getTicketRegionId(ticket, regions, sites) || regionLabel
         : `${getTicketRegionId(ticket, regions, sites) || regionLabel}|${getTicketSiteId(ticket, sites) || siteLabel}`;
       if (!grouped.has(key)) {
-        grouped.set(key, { label, region: regionLabel, open: 0, approvals: 0, waitingValidation: 0, overdue: 0, closed: 0 });
+        grouped.set(key, { label, region: regionLabel, open: 0, approvals: 0, waitingValidation: 0, closed: 0 });
       }
       const current = grouped.get(key)!;
       if (isOpenStatus(ticket.status)) current.open += 1;
       if (ticket.status.toLowerCase().includes('aprova')) current.approvals += 1;
       if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) current.waitingValidation += 1;
-      if (ticket.sla?.status === 'overdue') current.overdue += 1;
       if (ticket.status === TICKET_STATUS.CLOSED) current.closed += 1;
     }
     return [...grouped.values()]
@@ -404,8 +402,7 @@ export function HomeView() {
         )}
 
         {isExecutive && (
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-            <StatCard title="SLA vencido" value={String(stats.slaVencido)} subtitle="OS fora do prazo" />
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
             <StatCard title="Aguardando validação" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length)} subtitle="Solicitante precisa validar" />
             <StatCard title="Em andamento" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.IN_PROGRESS).length)} subtitle="Obras em execução" />
             <StatCard title="Concluídas" value={String(stats.encerradas)} subtitle="Entregas finalizadas" />
@@ -423,7 +420,7 @@ export function HomeView() {
             ) : (
               <div className="space-y-3">
                 {regionalExecutiveBoard.map(item => (
-                  <div key={`${item.region}-${item.label}`} className="grid grid-cols-1 md:grid-cols-[1.6fr_repeat(5,0.75fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
+                  <div key={`${item.region}-${item.label}`} className="grid grid-cols-1 md:grid-cols-[1.6fr_repeat(4,0.75fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
                     <div>
                       <div className="font-medium text-roman-text-main">{item.label}</div>
                       <div className="text-xs text-roman-text-sub">{selectedRegion === 'all' ? 'Visão regional' : item.region}</div>
@@ -431,7 +428,6 @@ export function HomeView() {
                     <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Abertas</div><div className="font-medium text-roman-text-main">{item.open}</div></div>
                     <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Aprovação</div><div className="font-medium text-roman-text-main">{item.approvals}</div></div>
                     <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Validação</div><div className="font-medium text-roman-text-main">{item.waitingValidation}</div></div>
-                    <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">SLA</div><div className={`font-medium ${item.overdue > 0 ? 'text-red-700' : 'text-roman-text-main'}`}>{item.overdue}</div></div>
                     <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Concluídas</div><div className="font-medium text-roman-text-main">{item.closed}</div></div>
                   </div>
                 ))}

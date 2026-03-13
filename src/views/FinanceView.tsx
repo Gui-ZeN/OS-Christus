@@ -217,8 +217,8 @@ function buildClosureExportHtml(
             <tr>
               <td>${escapeHtml(item.description || item.materialName || 'Item sem descrição')}</td>
               <td>${escapeHtml(String(item.quantity ?? '-'))} ${escapeHtml(item.unit || '')}</td>
-              <td>${escapeHtml(item.unitPrice || '-')}</td>
-              <td>${escapeHtml(item.totalPrice || item.unitPrice || '-')}</td>
+              <td>${escapeHtml(item.costUnitPrice || item.unitPrice || '-')}</td>
+              <td>${escapeHtml(item.totalPrice || '-')}</td>
             </tr>
           `
         )
@@ -288,7 +288,7 @@ function buildClosureExportHtml(
       <h2>Escopo contratado</h2>
       <table>
         <thead>
-          <tr><th>Item</th><th>Quantidade</th><th>Valor unitário</th><th>Valor total</th></tr>
+          <tr><th>Item</th><th>Quantidade</th><th>Custo unitário</th><th>Valor total</th></tr>
         </thead>
         <tbody>${contractRows}</tbody>
       </table>
@@ -537,20 +537,11 @@ export function FinanceView() {
   }, [financeTickets]);
 
   const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
-    measurementDraftByTicket[ticketId] || (() => {
-      const ticket = tickets.find(item => item.id === ticketId);
-      const payments = paymentsByTicket[ticketId] || [];
-      const contract = contractsByTicket[ticketId];
-      const baselineValue = resolveExpectedBaselineValue(contract, payments);
-      const currentPercent = Math.max(0, Number(ticket?.executionProgress?.currentPercent || 0));
-      const grossAmount = baselineValue > 0 ? (baselineValue * currentPercent) / 100 : 0;
-
-      return {
-        label: '',
-        grossAmount: grossAmount > 0 ? formatCurrency(grossAmount) : '',
-        notes: '',
-      };
-    })();
+    measurementDraftByTicket[ticketId] || {
+      label: '',
+      grossAmount: '',
+      notes: '',
+    };
 
   const setMeasurementDraft = (ticketId: string, updates: Partial<MeasurementFormState>) => {
     setMeasurementDraftByTicket(prev => ({
@@ -579,7 +570,9 @@ export function FinanceView() {
     const existingPayments = paymentsByTicket[ticket.id] || [];
     const contract = contractsByTicket[ticket.id];
     const baselineValue = resolveExpectedBaselineValue(contract, existingPayments);
-    const progressPercent = calculateProgressPercentFromGross(grossAmount, baselineValue);
+    const currentProgress = Math.max(0, Number(ticket.executionProgress?.currentPercent || 0));
+    const currentAccumulatedGross = baselineValue > 0 ? (baselineValue * currentProgress) / 100 : 0;
+    const progressPercent = calculateProgressPercentFromGross(currentAccumulatedGross + grossAmount, baselineValue);
     const contractValue = parseCurrency(contract?.realizedValue || contract?.value || existingPayments[0]?.value || '0');
     const vendor = contractsByTicket[ticket.id]?.vendor || existingPayments[0]?.vendor || ticket.assignedTeam || 'Fornecedor não definido';
     const baselinePayments =
@@ -838,8 +831,8 @@ export function FinanceView() {
     if (!targetTicket) return;
 
     const grossAmount = parseCurrency(draft.grossAmount || '');
-    if (!Number.isFinite(grossAmount) || grossAmount < 0) {
-      setToast('Erro: informe o valor bruto acumulado da obra.');
+    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
+      setToast('Erro: informe o valor bruto da parcela/etapa.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -852,7 +845,10 @@ export function FinanceView() {
       return;
     }
 
-    const progressPercent = calculateProgressPercentFromGross(grossAmount, baselineValue);
+    const currentProgress = Number(targetTicket.executionProgress?.currentPercent || 0);
+    const currentAccumulatedGross = (baselineValue * currentProgress) / 100;
+    const accumulatedGross = currentAccumulatedGross + grossAmount;
+    const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
 
     if (!targetTicket.executionProgress?.paymentFlowParts) {
       setToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.');
@@ -877,8 +873,6 @@ export function FinanceView() {
       paymentsByTicket[ticketId]?.[0]?.vendor ||
       targetTicket.assignedTeam ||
       'Fornecedor não definido';
-    const currentProgress = Number(targetTicket.executionProgress?.currentPercent || 0);
-
     if (progressPercent < currentProgress) {
       setToast('Erro: o andamento informado é menor do que o percentual já registrado.');
       setTimeout(() => setToast(null), 3000);
@@ -906,10 +900,11 @@ export function FinanceView() {
     const now = new Date();
     const measurement: MeasurementRecord = {
       id: `measurement-${Date.now()}`,
-      label: draft.label.trim() || `Andamento atualizado para ${normalizedProgress}% (${formatCurrency(grossAmount)} bruto acumulado)`,
+      label: draft.label.trim() || `Andamento atualizado para ${normalizedProgress}% (parcela ${formatCurrency(grossAmount)} | acumulado ${formatCurrency(accumulatedGross)})`,
       progressPercent: normalizedProgress,
       releasePercent: newlyReleasedPercent,
       status: newlyApproved.length > 0 ? 'approved' : 'pending',
+      grossValue: formatCurrency(grossAmount),
       notes: draft.notes.trim(),
       requestedAt: now,
       approvedAt: newlyApproved.length > 0 ? now : null,
@@ -987,10 +982,10 @@ export function FinanceView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${measurement.progressPercent}% com bruto acumulado de ${formatCurrency(grossAmount)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
+                ? `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para o financeiro.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.` : ''}`
                 : newlyApproved.length > 0
-                  ? `Andamento atualizado para ${measurement.progressPercent}% com bruto acumulado de ${formatCurrency(grossAmount)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
-                  : `Andamento atualizado para ${measurement.progressPercent}% com bruto acumulado de ${formatCurrency(grossAmount)}. Nenhuma nova parcela foi liberada neste marco.`,
+                  ? `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${formatCurrency(newlyReleasedValue)}.`
+                  : `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formatCurrency(grossAmount)} e acumulado de ${formatCurrency(accumulatedGross)}. Nenhuma nova parcela foi liberada neste marco.`,
           },
         ],
       });
@@ -1266,6 +1261,8 @@ export function FinanceView() {
             const progressPercent = Math.max(0, Number(ticket.executionProgress?.currentPercent || 0));
             const progressBarPercent = Math.min(100, progressPercent);
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.grossAmount);
+            const currentAccumulatedGross = expectedBaselineValue > 0 ? (expectedBaselineValue * progressPercent) / 100 : 0;
+            const projectedAccumulatedGross = currentAccumulatedGross + parseCurrency(measurementDraft.grossAmount || '');
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
             return (
@@ -1458,7 +1455,7 @@ export function FinanceView() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto acumulado</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto desta parcela/etapa</label>
                             <input
                               type="text"
                               inputMode="decimal"
@@ -1473,13 +1470,15 @@ export function FinanceView() {
                             <div className="font-medium text-roman-text-main mb-1">Percentual calculado</div>
                             <div>{releasePreview.progressPercent}%</div>
                             <div className="mt-1">Andamento atual salvo: {progressPercent}%</div>
+                            <div className="mt-1">Bruto acumulado projetado: {formatCurrency(projectedAccumulatedGross)}</div>
                           </div>
                           {expectedBaselineValue > 0 && (
                             <div className="md:col-span-2">
                               <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Atalhos por marco</label>
                               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                               {getPaymentFlowMilestones(ticket.executionProgress?.paymentFlowParts || 1).map(milestone => {
-                                const projectedGross = (expectedBaselineValue * milestone) / 100;
+                                const milestoneGross = (expectedBaselineValue * milestone) / 100;
+                                const projectedGross = Math.max(0, milestoneGross - currentAccumulatedGross);
                                 const isCompleted = milestone <= progressPercent;
                                 return (
                                   <button
@@ -1524,6 +1523,7 @@ export function FinanceView() {
                             <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
                             <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'não definido'}</div>
                             <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'não definido'}</div>
+                            <div>Bruto acumulado atual: {formatCurrency(currentAccumulatedGross)}</div>
                             <div>Andamento atual salvo: {progressPercent}%</div>
                             <div>Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
                           </div>
@@ -1574,10 +1574,10 @@ export function FinanceView() {
                               <div>
                                 <div className="text-sm font-medium text-roman-text-main">{item.description || item.materialName || 'Item sem descrição'}</div>
                                 <div className="text-xs text-roman-text-sub">
-                                  {(item.quantity ?? '-')}{item.unit ? ` ${item.unit}` : ''} | unitário {item.unitPrice || '-'}
+                                  {(item.quantity ?? '-')}{item.unit ? ` ${item.unit}` : ''} | custo unitário {item.costUnitPrice || item.unitPrice || '-'}
                                 </div>
                               </div>
-                              <div className="text-sm font-serif text-roman-text-main">{item.totalPrice || item.unitPrice || '-'}</div>
+                              <div className="text-sm font-serif text-roman-text-main">{item.totalPrice || '-'}</div>
                             </div>
                           ))}
                         </div>

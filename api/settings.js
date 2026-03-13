@@ -32,6 +32,7 @@ function normalizeEmailTemplate(data, fallback = null) {
       ? FIXED_TICKET_EMAIL_SUBJECT
       : repairMojibake(String(source.subject || fallbackTemplate.subject || '').trim()),
     body: repairMojibake(String(source.body || fallbackTemplate.body || '').trim()),
+    recipients: repairMojibake(String(source.recipients || fallbackTemplate.recipients || '').trim()),
   };
 }
 

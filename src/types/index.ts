@@ -170,6 +170,7 @@ export interface MeasurementRecord {
   label: string;
   progressPercent: number;
   releasePercent: number;
+  grossValue?: string | null;
   status: 'pending' | 'approved' | 'paid';
   notes?: string;
   requestedAt?: Date | null;

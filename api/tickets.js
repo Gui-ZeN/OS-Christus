@@ -239,20 +239,51 @@ async function readPublicTrackingProcurement(ticketRef) {
     ticketRef.collection('measurements').get(),
   ]);
 
-  const contract = contractSnap.empty
+  const contractRaw = contractSnap.empty
     ? null
     : serializeValue({
         id: contractSnap.docs[0].id,
         ...contractSnap.docs[0].data(),
       });
 
+  const contract = contractRaw
+    ? {
+        id: contractRaw.id,
+        vendor: contractRaw.vendor || '',
+        status: contractRaw.status || '',
+        signedFileName: contractRaw.signedFileName || null,
+      }
+    : null;
+
   const payments = paymentsSnap.docs
-    .map(doc => serializeValue({ id: doc.id, ...doc.data() }))
+    .map(doc => {
+      const payment = serializeValue({ id: doc.id, ...doc.data() });
+      return {
+        id: payment.id,
+        status: payment.status || '',
+        label: payment.label || null,
+        installmentNumber: payment.installmentNumber || null,
+        totalInstallments: payment.totalInstallments || null,
+        dueAt: payment.dueAt || null,
+        paidAt: payment.paidAt || null,
+      };
+    })
     .sort((a, b) => Number(a.installmentNumber || 0) - Number(b.installmentNumber || 0));
 
   const measurements = measurementsSnap.docs
-    .map(doc => serializeValue({ id: doc.id, ...doc.data() }))
-    .sort((a, b) => sortTimeValue(b.requestedAt || b.createdAt) - sortTimeValue(a.requestedAt || a.createdAt));
+    .map(doc => {
+      const measurement = serializeValue({ id: doc.id, ...doc.data() });
+      return {
+        id: measurement.id,
+        label: measurement.label || '',
+        status: measurement.status || 'pending',
+        progressPercent: measurement.progressPercent || 0,
+        releasePercent: measurement.releasePercent || 0,
+        requestedAt: measurement.requestedAt || null,
+        approvedAt: measurement.approvedAt || null,
+      };
+    })
+    .sort((a, b) => sortTimeValue(b.requestedAt || b.approvedAt) - sortTimeValue(a.requestedAt || a.approvedAt));
 
   return {
     contract,

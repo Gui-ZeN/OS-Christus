@@ -106,8 +106,10 @@ async function postEmail(payload: Record<string, unknown>) {
       const json = await response.json().catch(() => null);
       throw new Error(json?.error || 'Falha ao enviar e-mail.');
     }
+    return true;
   } catch (error) {
     console.error('[ticketEmail] envio falhou', error);
+    return false;
   }
 }
 
@@ -211,7 +213,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
       trigger: 'EMAIL-EM-APROVACAO',
-      skipThread: true,
+      allowThreadRecipientFallback: false,
       variables,
       templateData: {
         title: 'Orçamento aguardando decisão',
@@ -224,12 +226,17 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     };
 
     if (directorEmails.length > 0) {
-      await Promise.all(directorEmails.map(toEmail => postEmail({ ...reviewPayload, toEmail })));
+      await postEmail({ ...reviewPayload, toEmail: directorEmails.join(', ') });
     } else {
-      await postEmail({
+      const sentToConfiguredRecipients = await postEmail({
         ...reviewPayload,
-        internalCopy: true,
       });
+      if (!sentToConfiguredRecipients) {
+        await postEmail({
+          ...reviewPayload,
+          internalCopy: true,
+        });
+      }
     }
   }
 }

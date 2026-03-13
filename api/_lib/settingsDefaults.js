@@ -9,6 +9,7 @@
 Recebemos sua solicitação e ela já entrou na fila de triagem.
 
 Sede: {{ticket.sede}}`,
+        recipients: '',
       },
       'EMAIL-TRIAGEM-EM-ANDAMENTO': {
         trigger: 'EMAIL-TRIAGEM-EM-ANDAMENTO',
@@ -16,6 +17,7 @@ Sede: {{ticket.sede}}`,
         body: `Olá {{requester.name}},
 
 Sua solicitação está em triagem com a equipe de manutenção.`,
+        recipients: '',
       },
       'EMAIL-PARECER-TECNICO': {
         trigger: 'EMAIL-PARECER-TECNICO',
@@ -23,6 +25,7 @@ Sua solicitação está em triagem com a equipe de manutenção.`,
         body: `Olá {{requester.name}},
 
 O parecer técnico foi concluído e a solicitação seguiu para definição da solução.`,
+        recipients: '',
       },
       'EMAIL-AGUARDANDO-ORCAMENTO': {
         trigger: 'EMAIL-AGUARDANDO-ORCAMENTO',
@@ -30,6 +33,7 @@ O parecer técnico foi concluído e a solicitação seguiu para definição da s
         body: `Olá {{requester.name}},
 
 Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.`,
+        recipients: '',
       },
       'EMAIL-EM-APROVACAO': {
         trigger: 'EMAIL-EM-APROVACAO',
@@ -37,6 +41,7 @@ Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.
         body: `Olá {{requester.name}},
 
 Sua solicitação avançou para a etapa de aprovação.`,
+        recipients: '',
       },
       'EMAIL-ACOES-PRELIMINARES': {
         trigger: 'EMAIL-ACOES-PRELIMINARES',
@@ -44,6 +49,7 @@ Sua solicitação avançou para a etapa de aprovação.`,
         body: `Olá {{requester.name}},
 
 Sua solicitação entrou em ações preliminares.`,
+        recipients: '',
       },
       'EMAIL-EXECUCAO-INICIADA': {
         trigger: 'EMAIL-EXECUCAO-INICIADA',
@@ -51,6 +57,7 @@ Sua solicitação entrou em ações preliminares.`,
         body: `Olá {{requester.name}},
 
 A execução do serviço foi iniciada.`,
+        recipients: '',
       },
       'EMAIL-VALIDACAO-SOLICITANTE': {
         trigger: 'EMAIL-VALIDACAO-SOLICITANTE',
@@ -58,6 +65,7 @@ A execução do serviço foi iniciada.`,
         body: `Olá {{requester.name}},
 
 A execução foi concluída e agora depende da sua validação para seguir com o encerramento.`,
+        recipients: '',
       },
       'EMAIL-AGUARDANDO-PAGAMENTO': {
         trigger: 'EMAIL-AGUARDANDO-PAGAMENTO',
@@ -65,6 +73,7 @@ A execução foi concluída e agora depende da sua validação para seguir com o
         body: `Olá {{requester.name}},
 
 Sua validação foi registrada. A OS seguiu para pagamento e encerramento.`,
+        recipients: '',
       },
       'EMAIL-OS-ENCERRADA': {
         trigger: 'EMAIL-OS-ENCERRADA',
@@ -74,6 +83,7 @@ Sua validação foi registrada. A OS seguiu para pagamento e encerramento.`,
 A {{ticket.id}} foi encerrada com sucesso.
 
 Garantia: {{guarantee.summary}}`,
+        recipients: '',
       },
       'EMAIL-OS-CANCELADA': {
         trigger: 'EMAIL-OS-CANCELADA',
@@ -84,6 +94,7 @@ A {{ticket.id}} foi cancelada.
 
 Motivo:
 {{message.body}}`,
+        recipients: '',
       },
       'EMAIL-NOVA-MENSAGEM': {
         trigger: 'EMAIL-NOVA-MENSAGEM',
@@ -93,6 +104,7 @@ Motivo:
 {{message.sender}} enviou uma nova mensagem.
 
 {{message.body}}`,
+        recipients: '',
       },
     },
   },

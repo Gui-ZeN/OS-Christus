@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend } from 'recharts';
-import { Briefcase, Clock, DollarSign, TrendingDown, TrendingUp } from 'lucide-react';
+import { Briefcase, DollarSign, TrendingUp } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
@@ -426,15 +426,6 @@ export function KpiView() {
     return [...grouped.values()].sort((a, b) => b.custo - a.custo).slice(0, 10);
   }, [contractsByTicket, filteredTickets]);
 
-  const averageResolutionDays = useMemo(() => {
-    const closed = filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED);
-    const durations = closed.map(ticket => {
-      const closedAt = ticket.closureChecklist?.closedAt || ticket.guarantee?.startAt;
-      return closedAt ? daysBetween(ticket.time, closedAt) : daysBetween(ticket.time, new Date());
-    });
-    return average(durations);
-  }, [filteredTickets]);
-
   const pendingPaymentsCount = useMemo(
     () => filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
     [filteredTickets]
@@ -703,13 +694,13 @@ export function KpiView() {
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Clock size={64} />
+                  <TrendingUp size={64} />
                 </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">SLA Médio de Resolução</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{averageResolutionDays.toFixed(1)} dias</div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Aguardando Validação</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{waitingValidationCount}</div>
                 <div className="text-sm text-roman-text-sub mb-4">{waitingValidationCount} OS aguardando validação do solicitante</div>
-                <div className="flex items-center gap-2 text-xs font-medium text-green-700 bg-green-50 w-fit px-2 py-1 rounded-sm border border-green-100">
-                  <TrendingDown size={12} /> visão baseada nas OS do período
+                <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+                  Pagamentos pendentes: {pendingPaymentsCount}
                 </div>
               </div>
 

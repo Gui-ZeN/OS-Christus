@@ -322,6 +322,7 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
       label: String(measurement.label || 'Medição').trim(),
       progressPercent: Number(measurement.progressPercent || 0),
       releasePercent: Number(measurement.releasePercent || 0),
+      grossValue: measurement.grossValue != null ? String(measurement.grossValue).trim() : null,
       status: String(measurement.status || 'approved'),
       notes: measurement.notes ? String(measurement.notes) : '',
       requestedAt: measurement.requestedAt ? new Date(measurement.requestedAt) : now,

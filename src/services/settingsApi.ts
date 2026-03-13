@@ -5,6 +5,7 @@ export interface EmailTemplateSettings {
   trigger: string;
   subject: string;
   body: string;
+  recipients: string;
 }
 
 export interface SettingsPayload {
@@ -31,6 +32,7 @@ function normalizeEmailTemplate(value: unknown, fallback?: Partial<EmailTemplate
     trigger: String(template.trigger || fallback?.trigger || '').trim(),
     subject: String(template.subject || fallback?.subject || '').trim(),
     body: String(template.body || fallback?.body || '').trim(),
+    recipients: String(template.recipients || fallback?.recipients || '').trim(),
   };
 }
 

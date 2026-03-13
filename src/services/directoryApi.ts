@@ -24,6 +24,7 @@ export interface DirectoryVendor {
   id: string;
   name: string;
   email?: string;
+  tags?: string[];
   active?: boolean;
 }
 
@@ -101,4 +102,14 @@ export async function deleteUser(id: string): Promise<{ ok: boolean }> {
     body: JSON.stringify({ id }),
   });
   return expectApiJson<{ ok: boolean }>(response, 'Falha ao excluir usuário.');
+}
+
+export async function upsertVendor(vendor: Partial<DirectoryVendor> & { name: string }) {
+  const headers = await getAuthenticatedActorHeaders();
+  const response = await fetch('/api/directory', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers, ...getActorHeaders() },
+    body: JSON.stringify({ vendor }),
+  });
+  return expectApiJson<{ ok: boolean; vendor?: DirectoryVendor }>(response, 'Falha ao salvar terceiro.');
 }
