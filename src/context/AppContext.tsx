@@ -1,5 +1,6 @@
 ﻿import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { APP_THEMES, AppThemeId, AppThemeOption, DEFAULT_APP_THEME } from '../constants/themes';
 import {
   DirectoryUser,
   fetchUsers,
@@ -61,6 +62,9 @@ interface AppContextType {
   authEnabled: boolean;
   authResolved: boolean;
   authorizationResolved: boolean;
+  theme: AppThemeId;
+  setTheme: (theme: AppThemeId) => void;
+  availableThemes: AppThemeOption[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -133,6 +137,12 @@ function resolveTicketRegionIds(ticket: Ticket, regions: CatalogRegion[], sites:
 function getInitialUserEmail() {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem('os-christus-user-email') || '';
+}
+
+function getInitialTheme(): AppThemeId {
+  if (typeof window === 'undefined') return DEFAULT_APP_THEME;
+  const stored = String(window.localStorage.getItem('os-christus-theme') || '').trim() as AppThemeId;
+  return APP_THEMES.some(theme => theme.id === stored) ? stored : DEFAULT_APP_THEME;
 }
 
 function canUserAccessTicket(
@@ -208,6 +218,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
+  const [theme, setThemeState] = useState<AppThemeId>(getInitialTheme);
 
   const refreshTickets = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -414,6 +425,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem('os-christus-current-view', currentView);
   }, [currentView]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.setAttribute('data-theme', theme);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('os-christus-theme', theme);
+    }
+  }, [theme]);
+
   const tickets = useMemo(
     () => allTickets.filter(ticket => canUserAccessTicket(currentUser, currentUserEmail, ticket, catalogRegions, catalogSites)),
     [allTickets, currentUser, currentUserEmail, catalogRegions, catalogSites]
@@ -557,6 +576,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUserEmailState(normalized);
   };
 
+  const setTheme = (nextTheme: AppThemeId) => {
+    if (!APP_THEMES.some(themeOption => themeOption.id === nextTheme)) return;
+    setThemeState(nextTheme);
+  };
+
   const login = async (email: string, password: string) => {
     const normalized = email.trim().toLowerCase();
     if (authEnabled) {
@@ -667,6 +691,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         authEnabled,
         authResolved,
         authorizationResolved,
+        theme,
+        setTheme,
+        availableThemes: APP_THEMES,
       }}
     >
       {children}

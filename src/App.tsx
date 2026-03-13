@@ -9,6 +9,7 @@ import {
   Inbox,
   Landmark,
   LogOut,
+  Palette,
   ScrollText,
   Settings,
   Shield,
@@ -88,6 +89,9 @@ export default function App() {
     authEnabled,
     authResolved,
     authorizationResolved,
+    theme,
+    setTheme,
+    availableThemes,
   } = useApp();
 
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -241,7 +245,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
+    <div className="relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
       <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-y-auto bg-roman-sidebar flex-col py-3 z-20 border-r border-stone-900">
         <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
           <Landmark size={22} />
@@ -285,6 +289,22 @@ export default function App() {
           </div>
         </div>
       </aside>
+
+      <div className="absolute right-4 top-3 z-30 hidden md:flex items-center gap-2 rounded-full border border-roman-border bg-roman-surface px-3 py-1.5 shadow-sm">
+        <Palette size={14} className="text-roman-primary" />
+        <select
+          value={theme}
+          onChange={event => setTheme(event.target.value as typeof theme)}
+          className="bg-transparent text-xs font-medium text-roman-text-main outline-none"
+          aria-label="Selecionar tema"
+        >
+          {availableThemes.map(option => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {showNotifications && (
         <>

@@ -5,23 +5,79 @@
   --font-serif: "Source Serif 4", Georgia, serif;
   --font-sans: "Manrope", "Segoe UI", sans-serif;
   
-  /* Corporate Roman Palette */
-  --color-roman-bg: #FBFaf8; /* Marble 50 */
-  --color-roman-surface: #FFFFFF;
-  --color-roman-border: #E8E3DB; /* Marble 200 */
-  --color-roman-border-light: #F4F1EB; /* Marble 100 */
-  
-  --color-roman-text-main: #1A1918; /* Stone 900 */
-  --color-roman-text-sub: #68737d; /* Muted stone */
-  
-  --color-roman-primary: #B08D57; /* Bronze */
-  --color-roman-primary-hover: #8C7045;
-  
-  --color-roman-sidebar: #2C2A29; /* Dark stone */
-  --color-roman-sidebar-light: #4A4745;
-  
-  --color-roman-parchment: #FDFBF7; /* For internal notes */
-  --color-roman-parchment-border: #D4C4A8;
+  --color-roman-bg: var(--theme-roman-bg);
+  --color-roman-surface: var(--theme-roman-surface);
+  --color-roman-border: var(--theme-roman-border);
+  --color-roman-border-light: var(--theme-roman-border-light);
+  --color-roman-text-main: var(--theme-roman-text-main);
+  --color-roman-text-sub: var(--theme-roman-text-sub);
+  --color-roman-primary: var(--theme-roman-primary);
+  --color-roman-primary-hover: var(--theme-roman-primary-hover);
+  --color-roman-sidebar: var(--theme-roman-sidebar);
+  --color-roman-sidebar-light: var(--theme-roman-sidebar-light);
+  --color-roman-parchment: var(--theme-roman-parchment);
+  --color-roman-parchment-border: var(--theme-roman-parchment-border);
+}
+
+:root,
+[data-theme="official"] {
+  --theme-roman-bg: #fbfaf8;
+  --theme-roman-surface: #ffffff;
+  --theme-roman-border: #e8e3db;
+  --theme-roman-border-light: #f4f1eb;
+  --theme-roman-text-main: #1a1918;
+  --theme-roman-text-sub: #68737d;
+  --theme-roman-primary: #b08d57;
+  --theme-roman-primary-hover: #8c7045;
+  --theme-roman-sidebar: #2c2a29;
+  --theme-roman-sidebar-light: #4a4745;
+  --theme-roman-parchment: #fdfbf7;
+  --theme-roman-parchment-border: #d4c4a8;
+}
+
+[data-theme="blue-orange"] {
+  --theme-roman-bg: #f7faff;
+  --theme-roman-surface: #ffffff;
+  --theme-roman-border: #d7e3f3;
+  --theme-roman-border-light: #eaf2ff;
+  --theme-roman-text-main: #0e1a2b;
+  --theme-roman-text-sub: #4d647f;
+  --theme-roman-primary: #ff7a00;
+  --theme-roman-primary-hover: #d86500;
+  --theme-roman-sidebar: #0d3b66;
+  --theme-roman-sidebar-light: #15518a;
+  --theme-roman-parchment: #fff7ee;
+  --theme-roman-parchment-border: #f8cfab;
+}
+
+[data-theme="dark"] {
+  --theme-roman-bg: #0e1117;
+  --theme-roman-surface: #161b22;
+  --theme-roman-border: #2a3340;
+  --theme-roman-border-light: #222b36;
+  --theme-roman-text-main: #e6edf3;
+  --theme-roman-text-sub: #9fb0c2;
+  --theme-roman-primary: #4da3ff;
+  --theme-roman-primary-hover: #2d86e6;
+  --theme-roman-sidebar: #080b12;
+  --theme-roman-sidebar-light: #131a24;
+  --theme-roman-parchment: #1c2430;
+  --theme-roman-parchment-border: #2e3c50;
+}
+
+[data-theme="athletico"] {
+  --theme-roman-bg: #0f0a0a;
+  --theme-roman-surface: #171111;
+  --theme-roman-border: #3a2323;
+  --theme-roman-border-light: #2a1a1a;
+  --theme-roman-text-main: #f7f2f2;
+  --theme-roman-text-sub: #c7b6b6;
+  --theme-roman-primary: #e10600;
+  --theme-roman-primary-hover: #b80400;
+  --theme-roman-sidebar: #000000;
+  --theme-roman-sidebar-light: #1a1a1a;
+  --theme-roman-parchment: #1a1212;
+  --theme-roman-parchment-border: #4a2626;
 }
 
 html,
