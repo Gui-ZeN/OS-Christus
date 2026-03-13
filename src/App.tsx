@@ -252,7 +252,7 @@ export default function App() {
 
   return (
     <div className="theme-bridge relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
-      <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-40 border-r border-stone-900">
+      <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-50 border-r border-stone-900">
         <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
           <Landmark size={22} />
         </div>
@@ -280,7 +280,7 @@ export default function App() {
               <Palette size={18} />
             </button>
             {showThemeMenu && (
-              <div className="absolute bottom-0 left-[calc(100%+0.5rem)] z-[90] w-64 rounded-xl border border-roman-border bg-roman-surface p-2.5 shadow-2xl">
+              <div className="fixed left-[4.25rem] bottom-24 z-[120] w-64 rounded-xl border border-roman-border bg-roman-surface p-2.5 shadow-2xl">
                 <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-roman-text-sub">Temas</p>
                 <div className="space-y-1">
                   {availableThemes.map(option => {
