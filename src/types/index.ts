@@ -144,6 +144,7 @@ export interface Quote {
   totalValue?: string | null;
   category?: 'initial' | 'additive';
   additiveIndex?: number | null;
+  additiveReason?: string | null;
   recommended: boolean;
   status?: string;
   attachmentName?: string | null;

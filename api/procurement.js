@@ -198,6 +198,7 @@ async function writeQuotes(db, ticketId, quotes) {
         totalValue: quote.totalValue != null ? String(quote.totalValue).trim() : null,
         category: quote.category === 'additive' ? 'additive' : 'initial',
         additiveIndex: quote.additiveIndex != null ? Number(quote.additiveIndex) : null,
+        additiveReason: quote.additiveReason != null ? String(quote.additiveReason).trim() : null,
         recommended: Boolean(quote.recommended),
         status: String(quote.status || 'pending'),
         attachmentName: quote.attachmentName ? String(quote.attachmentName) : null,

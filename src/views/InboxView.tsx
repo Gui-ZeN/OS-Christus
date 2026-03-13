@@ -1394,6 +1394,7 @@ export function InboxView() {
   );
   const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
   const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
+  const [additiveReason, setAdditiveReason] = useState('');
   const quoteUnitOptions = useMemo(() => {
     const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
     additionalQuoteUnits.forEach(unit => {
@@ -1463,6 +1464,7 @@ export function InboxView() {
           }))
         : fallbackQuotes;
     setQuotes(nextQuotes);
+    setAdditiveReason(currentQuotes[0]?.additiveReason ? String(currentQuotes[0].additiveReason) : '');
     setProposalHeader(
       currentQuotes[0]?.proposalHeader
         ? {
@@ -1874,6 +1876,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     setTimeout(async () => {
       const roundType = quoteRoundType;
       const additiveIndex = roundType === 'additive' ? Math.max(1, Number(quoteAdditiveIndex || 1)) : null;
+      const normalizedAdditiveReason = additiveReason.trim();
+      if (roundType === 'additive' && !normalizedAdditiveReason) {
+        setIsSending(false);
+        setToast('Erro: informe o motivo do aditivo antes de enviar à diretoria.');
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
       const preferredVendorName = persistedServicePreference?.vendor
         ? persistedServicePreference.vendor.trim().toLowerCase()
         : budgetHistory.preferredVendor?.vendor
@@ -1891,6 +1900,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         totalValue: quote.totalValue || summarizeQuoteDraft(quote).totalValue || quote.value.trim(),
         category: roundType,
         additiveIndex,
+        additiveReason: roundType === 'additive' ? normalizedAdditiveReason : null,
         recommended: index === (recommendedIndex >= 0 ? recommendedIndex : 0),
         status: 'pending',
         attachmentName: quoteAttachments[originalIndex]?.name || null,
@@ -1948,6 +1958,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         history: [...activeTicket.history, historyItem],
       });
       setIsSending(false);
+      setShowQuotesModal(false);
       setToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!');
       setTimeout(() => setToast(null), 3000);
     }, 1500);
@@ -3132,12 +3143,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 Fechar
               </button>
               <button
-                onClick={() => {
-                  handleSendToDirector();
-                  if (quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '').length >= 2) {
-                    setShowQuotesModal(false);
-                  }
-                }}
+                onClick={handleSendToDirector}
                 disabled={isSending}
                 className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-70"
               >
@@ -3156,7 +3162,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 {quoteRoundType === 'additive' && (
-                  <div>
+                  <div className="space-y-3">
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
                     <select
                       value={quoteAdditiveIndex}
@@ -3172,6 +3178,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         Novo aditivo ({(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1})
                       </option>
                     </select>
+                    <div>
+                      <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Motivo do aditivo</label>
+                      <textarea
+                        value={additiveReason}
+                        onChange={event => setAdditiveReason(event.target.value)}
+                        placeholder="Descreva o motivo técnico/operacional do aditivo..."
+                        className="w-full min-h-[76px] text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

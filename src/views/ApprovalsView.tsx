@@ -472,6 +472,7 @@ export function ApprovalsView() {
       ['Fornecedor preferencial', budget.historySummary.preferredVendor?.vendor ?? '-'],
       ['Referência preferencial', budget.historySummary.preferredVendor?.rationale.join(' | ') ?? '-'],
       ['Rodada em aprovação', budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'],
+      ...(budget.roundCategory === 'additive' ? [['Motivo do aditivo', budget.additiveReason || '-']] : []),
       [],
       ['Comparativo de cotações'],
       ['Cotação', 'Fornecedor', 'Material', 'Mão de obra', 'Valor', 'Recomendada', 'Status', 'Itens'],
@@ -588,6 +589,10 @@ export function ApprovalsView() {
             quotes: roundQuotes,
             roundCategory: currentRound.category,
             roundAdditiveIndex: currentRound.additiveIndex,
+            additiveReason:
+              currentRound.category === 'additive'
+                ? String(roundQuotes.find(quote => quote.additiveReason)?.additiveReason || '').trim()
+                : '',
             proposalHeader: roundQuotes.find(quote => quote.proposalHeader)?.proposalHeader ?? createEmptyProposalHeader(),
             historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
           };
@@ -602,6 +607,7 @@ export function ApprovalsView() {
           quotes: Quote[];
           roundCategory: 'initial' | 'additive';
           roundAdditiveIndex: number | null;
+          additiveReason: string;
           proposalHeader: QuoteProposalHeader;
           historySummary: ReturnType<typeof buildBudgetHistorySummary>;
         } => Boolean(value)),
@@ -813,6 +819,11 @@ export function ApprovalsView() {
                   </div>
                   <h3 className="text-lg md:text-xl font-serif text-roman-text-main">{budget.subject}</h3>
                   <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDateTimeSafe(budget.date)}</p>
+                  {budget.roundCategory === 'additive' && (
+                    <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      <span className="font-medium">Motivo do aditivo:</span> {budget.additiveReason || 'Não informado'}
+                    </div>
+                  )}
                   {(budget.macroServiceName || budget.serviceCatalogName) && (
                     <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                       {budget.macroServiceName && (
