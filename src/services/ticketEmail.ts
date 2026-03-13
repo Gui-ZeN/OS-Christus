@@ -19,7 +19,6 @@ function buildBudgetReviewUrl(ticket: Ticket) {
     view: 'approvals',
     approvalTab: 'budgets',
     ticketId: ticket.id,
-    claimReview: '1',
   });
   return `${window.location.origin}/?${params.toString()}`;
 }

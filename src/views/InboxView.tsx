@@ -68,6 +68,8 @@ const DEFAULT_QUOTE_UNIT_OPTIONS = [
 ] as const;
 
 const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
+const MIN_QUOTE_SLOTS = 2;
+const MAX_QUOTE_SLOTS = 3;
 
 const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.NEW,
@@ -1314,7 +1316,9 @@ export function InboxView() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showDeleteTicketModal, setShowDeleteTicketModal] = useState(false);
   const [isDeletingTicket, setIsDeletingTicket] = useState(false);
-  const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>([null, null, null]);
+  const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>(
+    Array.from({ length: MIN_QUOTE_SLOTS }, () => null)
+  );
   const [additionalQuoteUnits, setAdditionalQuoteUnits] = useState<string[]>([]);
   const [pendingCustomUnitByItem, setPendingCustomUnitByItem] = useState<Record<string, string>>({});
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
@@ -1385,11 +1389,9 @@ export function InboxView() {
   // useClickOutside substitui o useEffect manual anterior
   const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
-  const [quotes, setQuotes] = useState<QuoteDraft[]>([
-    createEmptyQuoteDraft(),
-    createEmptyQuoteDraft(),
-    createEmptyQuoteDraft(),
-  ]);
+  const [quotes, setQuotes] = useState<QuoteDraft[]>(
+    Array.from({ length: MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft())
+  );
   const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
   const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
   const quoteUnitOptions = useMemo(() => {
@@ -1430,11 +1432,14 @@ export function InboxView() {
       ticketChanged ? 'initial' : quoteRoundType,
       ticketChanged ? (additiveRounds.length > 0 ? Math.max(...additiveRounds) : quoteAdditiveIndex) : quoteAdditiveIndex
     );
-    const fallbackQuotes = [createEmptyQuoteDraft(), createEmptyQuoteDraft(), createEmptyQuoteDraft()];
+    const fallbackQuotes = Array.from({ length: MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft());
     const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
+    const slotCount = currentQuotes.length > 0
+      ? Math.min(MAX_QUOTE_SLOTS, Math.max(MIN_QUOTE_SLOTS, currentQuotes.length))
+      : MIN_QUOTE_SLOTS;
     const nextQuotes =
       currentQuotes.length > 0
-        ? [0, 1, 2].map(index => ({
+        ? Array.from({ length: slotCount }, (_, index) => ({
             vendor: currentQuotes[index]?.vendor || '',
             value: currentQuotes[index]?.value || '',
             laborValue: currentQuotes[index]?.laborValue || '',
@@ -1470,7 +1475,7 @@ export function InboxView() {
           }
         : createProposalHeaderDraft(activeTicket, currentSiteLabel)
     );
-    setQuoteAttachments([null, null, null]);
+    setQuoteAttachments(Array.from({ length: nextQuotes.length }, () => null));
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
   }, [activeTicket, activeTicketId, catalogSites, quoteAdditiveIndex, quoteRoundType, showQuotesModal, storedQuotesByTicket]);
@@ -1825,6 +1830,19 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     setQuoteAttachments(prev => prev.map((item, i) => (i === index ? file : item)));
   };
 
+  const handleAddQuoteSlot = () => {
+    if (quotes.length >= MAX_QUOTE_SLOTS) return;
+    setQuotes(current => [...current, createEmptyQuoteDraft()]);
+    setQuoteAttachments(current => [...current, null]);
+  };
+
+  const handleRemoveQuoteSlot = (index: number) => {
+    if (quotes.length <= MIN_QUOTE_SLOTS) return;
+    setQuotes(current => current.filter((_, quoteIndex) => quoteIndex !== index));
+    setQuoteAttachments(current => current.filter((_, quoteIndex) => quoteIndex !== index));
+    setPendingCustomUnitByItem({});
+  };
+
   const applyFormatting = (type: 'bold' | 'italic' | 'list') => {
     if (!replyTextRef.current) return;
     const el = replyTextRef.current;
@@ -1844,7 +1862,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleSendToDirector = () => {
-    const filled = quotes.filter(q => q.vendor.trim() !== '' && q.value.trim() !== '');
+    const filled = quotes
+      .map((quote, index) => ({ quote, index }))
+      .filter(({ quote }) => quote.vendor.trim() !== '' && quote.value.trim() !== '');
     if (filled.length < 2) {
       setToast('Erro: Informe no mínimo 2 cotações antes de enviar.');
       setTimeout(() => setToast(null), 3000);
@@ -1860,9 +1880,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           ? budgetHistory.preferredVendor.vendor.trim().toLowerCase()
           : null;
       const recommendedIndex = preferredVendorName
-        ? quotes.findIndex(quote => quote.vendor.trim().toLowerCase() === preferredVendorName)
+        ? filled.findIndex(({ quote }) => quote.vendor.trim().toLowerCase() === preferredVendorName)
         : 0;
-      const nextQuotes: Quote[] = quotes.map((quote, index) => ({
+      const nextQuotes: Quote[] = filled.map(({ quote, index: originalIndex }, index) => ({
         id: `quote-${index + 1}`,
         vendor: quote.vendor.trim(),
         value: quote.value.trim(),
@@ -1873,7 +1893,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         additiveIndex,
         recommended: index === (recommendedIndex >= 0 ? recommendedIndex : 0),
         status: 'pending',
-        attachmentName: quoteAttachments[index]?.name || null,
+        attachmentName: quoteAttachments[originalIndex]?.name || null,
         proposalHeader: {
           unitName: proposalHeader.unitName.trim() || null,
           location: proposalHeader.location.trim() || null,
@@ -3512,20 +3532,44 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
               </div>
 
+              <div className="mb-3 flex justify-end">
+                {quotes.length < MAX_QUOTE_SLOTS && (
+                  <button
+                    type="button"
+                    onClick={handleAddQuoteSlot}
+                    className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                  >
+                    <Plus size={12} />
+                    Adicionar cotação
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6 items-start">
-                {[0, 1, 2].map(i => (
+                {quotes.map((quote, i) => (
                   <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
                       <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
-                      <label className="text-xs text-roman-primary hover:underline flex items-center gap-1 cursor-pointer">
-                        <Paperclip size={12} /> {quoteAttachments[i] ? 'Trocar PDF' : 'Anexar PDF'}
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          className="hidden"
-                          onChange={(e) => handleQuoteAttachmentChange(i, e.target.files?.[0] ?? null)}
-                        />
-                      </label>
+                      <div className="flex items-center gap-3">
+                        {quotes.length > MIN_QUOTE_SLOTS && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuoteSlot(i)}
+                            className="text-xs text-red-700 hover:underline"
+                          >
+                            Remover
+                          </button>
+                        )}
+                        <label className="text-xs text-roman-primary hover:underline flex items-center gap-1 cursor-pointer">
+                          <Paperclip size={12} /> {quoteAttachments[i] ? 'Trocar PDF' : 'Anexar PDF'}
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            className="hidden"
+                            onChange={(e) => handleQuoteAttachmentChange(i, e.target.files?.[0] ?? null)}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <div className="space-y-3 flex-1">
                       <div>
@@ -3533,13 +3577,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <input
                           type="text"
                           placeholder="Nome da Empresa"
-                          value={quotes[i].vendor}
+                          value={quote.vendor}
                           onChange={e => handleQuoteChange(i, 'vendor', e.target.value)}
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                         />
-                        {(persistedServicePreference || budgetHistory.preferredVendor) && quotes[i].vendor.trim() && (
-                          <div className={`mt-1 text-[11px] ${quotes[i].vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
-                            {quotes[i].vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase()
+                        {(persistedServicePreference || budgetHistory.preferredVendor) && quote.vendor.trim() && (
+                          <div className={`mt-1 text-[11px] ${quote.vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
+                            {quote.vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase()
                               ? persistedServicePreference
                                 ? 'Coincide com o fornecedor persistido para este serviço.'
                                 : 'Coincide com o fornecedor preferencial da base histórica.'
@@ -3552,7 +3596,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <input
                           type="text"
                           placeholder="R$ 0,00"
-                          value={quotes[i].value}
+                          value={quote.value}
                           onChange={e => handleQuoteChange(i, 'value', e.target.value)}
                           onBlur={() => handleQuoteCurrencyBlur(i, 'value')}
                           className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
@@ -3561,15 +3605,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <div className="grid grid-cols-1 gap-2">
                         <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
                           <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Material</div>
-                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quotes[i].materialValue || '-'}</div>
+                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.materialValue || '-'}</div>
                         </div>
                         <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
                           <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
-                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quotes[i].laborValue || '-'}</div>
+                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.laborValue || '-'}</div>
                         </div>
                         <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
                           <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Total da obra (rodada)</div>
-                          <div className="mt-1 text-sm font-semibold text-roman-text-main">{quotes[i].totalValue || quotes[i].value || '-'}</div>
+                          <div className="mt-1 text-sm font-semibold text-roman-text-main">{quote.totalValue || quote.value || '-'}</div>
                         </div>
                       </div>
                       <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
@@ -3591,7 +3635,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                 key={`${i}-${material.id}`}
                                 type="button"
                                 onClick={() => {
-                                  const targetItem = quotes[i].items[quotes[i].items.length - 1];
+                                  const targetItem = quote.items[quote.items.length - 1];
                                   if (!targetItem) return;
                                   handleQuoteItemChange(i, targetItem.id, 'materialName', material.name);
                                   if (material.unit) {
@@ -3607,7 +3651,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         )}
 
                         <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-                          {quotes[i].items.map((item, itemIndex) => (
+                          {quote.items.map((item, itemIndex) => (
                             <div key={item.id} className="rounded-sm border border-roman-border bg-roman-bg p-3">
                               <div className="mb-2 flex items-center justify-between">
                                 <div className="text-[11px] font-medium text-roman-text-main">Item {itemIndex + 1}</div>

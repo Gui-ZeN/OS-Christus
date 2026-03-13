@@ -114,7 +114,17 @@ const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatu
   budgets: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
   contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
 };
-const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
+
+function isQuoteFilled(quote: Quote) {
+  return (
+    String(quote.vendor || '').trim().length > 0 &&
+    (
+      String(quote.value || '').trim().length > 0 ||
+      String(quote.totalValue || '').trim().length > 0 ||
+      Array.isArray(quote.items) && quote.items.length > 0
+    )
+  );
+}
 
 function normalizeCsvCell(value: unknown) {
   const text = String(value ?? '');
@@ -192,8 +202,6 @@ export function ApprovalsView() {
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
 
-  const currentReviewerName = currentUser?.name || currentUser?.email || 'Diretoria';
-
   if (!canAccess) {
     return (
       <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
@@ -250,7 +258,6 @@ export function ApprovalsView() {
 
   const handleApprove = (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
     if (!canApprove) return;
-    if (tab === 'budgets' && !claimBudgetReview(id)) return;
     setProcessingId(id);
     setTimeout(async () => {
       let budgetApprovalContext: {
@@ -441,32 +448,6 @@ export function ApprovalsView() {
     }, 1500);
   };
 
-  const isReviewActive = (review: { name: string; at: Date } | null | undefined) => {
-    if (!review?.at) return false;
-    return new Date(review.at).getTime() + REVIEW_LOCK_WINDOW_MS > Date.now();
-  };
-
-  const claimBudgetReview = (id: string) => {
-    const targetTicket = tickets.find(ticket => ticket.id === id);
-    const review = targetTicket?.viewingBy;
-    if (review && isReviewActive(review) && review.name !== currentReviewerName) {
-      setToast(`${review.name} já está revisando este orçamento.`);
-      window.setTimeout(() => setToast(null), 3000);
-      return false;
-    }
-
-    if (!review || review.name !== currentReviewerName || !isReviewActive(review)) {
-      updateTicket(id, {
-        viewingBy: {
-          name: currentReviewerName,
-          at: new Date(),
-        },
-      });
-    }
-
-    return true;
-  };
-
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
     const quoteGrandTotals = getQuoteGrandTotals(budget.quotes);
     const rows: string[][] = [
@@ -594,6 +575,9 @@ export function ApprovalsView() {
                 quotes: filterQuotesByRound(allQuotes, 'initial'),
               };
 
+          const roundQuotes = currentRound.quotes.filter(isQuoteFilled);
+          if (roundQuotes.length === 0) return null;
+
           return {
             id: ticket.id,
             subject: ticket.subject,
@@ -601,11 +585,10 @@ export function ApprovalsView() {
             date: ticket.time,
             macroServiceName: ticket.macroServiceName ?? null,
             serviceCatalogName: ticket.serviceCatalogName ?? null,
-            viewingBy: ticket.viewingBy ?? null,
-            quotes: currentRound.quotes,
+            quotes: roundQuotes,
             roundCategory: currentRound.category,
             roundAdditiveIndex: currentRound.additiveIndex,
-            proposalHeader: currentRound.quotes.find(quote => quote.proposalHeader)?.proposalHeader ?? createEmptyProposalHeader(),
+            proposalHeader: roundQuotes.find(quote => quote.proposalHeader)?.proposalHeader ?? createEmptyProposalHeader(),
             historySummary: buildBudgetHistorySummary(ticket, tickets, quotesByTicket),
           };
         })
@@ -616,7 +599,6 @@ export function ApprovalsView() {
           date: Date;
           macroServiceName: string | null;
           serviceCatalogName: string | null;
-          viewingBy: { name: string; at: Date } | null;
           quotes: Quote[];
           roundCategory: 'initial' | 'additive';
           roundAdditiveIndex: number | null;
@@ -681,7 +663,6 @@ export function ApprovalsView() {
     const params = new URLSearchParams(window.location.search);
     const requestedTab = params.get('approvalTab');
     const requestedTicketId = params.get('ticketId');
-    const claimReview = params.get('claimReview') === '1';
 
     if (requestedTab === 'solutions' || requestedTab === 'budgets' || requestedTab === 'contracts') {
       setActiveTab(requestedTab);
@@ -691,14 +672,12 @@ export function ApprovalsView() {
       setActiveTicketId(requestedTicketId);
     }
 
-    if (requestedTab === 'budgets' && requestedTicketId && claimReview) {
+    if (requestedTab === 'budgets' && requestedTicketId) {
       const targetBudget = budgets.find(item => item.id === requestedTicketId);
       if (!targetBudget) return;
-      if (claimBudgetReview(requestedTicketId)) {
-        window.setTimeout(() => {
-          document.getElementById(`approval-budget-${requestedTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 120);
-      }
+      window.setTimeout(() => {
+        document.getElementById(`approval-budget-${requestedTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
     }
   }, [activeTicketId, budgets, currentView, setActiveTicketId]);
 
@@ -831,12 +810,6 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">
                       {budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'}
                     </span>
-                    {budget.viewingBy && isReviewActive(budget.viewingBy) && (
-                      <span className="text-xs font-medium px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-sm flex items-center gap-1.5 shadow-sm">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                        Sendo revisado por {budget.viewingBy.name}
-                      </span>
-                    )}
                   </div>
                   <h3 className="text-lg md:text-xl font-serif text-roman-text-main">{budget.subject}</h3>
                   <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDateTimeSafe(budget.date)}</p>
@@ -857,29 +830,13 @@ export function ApprovalsView() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
-                    type="button"
-                    onClick={() => claimBudgetReview(budget.id)}
-                    disabled={!!(budget.viewingBy && isReviewActive(budget.viewingBy) && budget.viewingBy.name !== currentReviewerName)}
-                    className="px-4 py-2 border border-amber-200 text-amber-800 hover:bg-amber-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {budget.viewingBy && isReviewActive(budget.viewingBy) && budget.viewingBy.name === currentReviewerName
-                      ? 'Você está revisando'
-                      : 'Assumir revisão'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!claimBudgetReview(budget.id)) return;
-                      handleExportBudgetComparison(budget);
-                    }}
+                    onClick={() => handleExportBudgetComparison(budget)}
                     className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm flex items-center gap-2"
                   >
                     <Download size={14} /> Exportar CSV
                   </button>
                   <button
-                    onClick={() => {
-                      if (!claimBudgetReview(budget.id)) return;
-                      openRejectModal(budget.id);
-                    }}
+                    onClick={() => openRejectModal(budget.id)}
                     disabled={processingId === budget.id}
                     className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -1049,7 +1006,7 @@ export function ApprovalsView() {
                       </button>
                       <button
                         onClick={() => handleApprove(budget.id, 'budgets', quote)}
-                        disabled={processingId === budget.id || !!(budget.viewingBy && isReviewActive(budget.viewingBy) && budget.viewingBy.name !== currentReviewerName)}
+                        disabled={processingId === budget.id}
                         className="w-full py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {processingId === budget.id ? 'Processando...' : 'Aprovar esta opção'}
