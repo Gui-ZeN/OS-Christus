@@ -970,6 +970,7 @@ export function FinanceView() {
           paymentFlowParts: targetTicket.executionProgress.paymentFlowParts,
           currentPercent: normalizedProgress,
           releasedPercent,
+          measurementSheetUrl: targetTicket.executionProgress.measurementSheetUrl || null,
           startedAt: targetTicket.executionProgress.startedAt || targetTicket.preliminaryActions?.actualStartAt || now,
           lastUpdatedAt: now,
         },
@@ -1295,6 +1296,16 @@ export function FinanceView() {
                     <p className="mt-1 text-xs text-roman-text-sub">
                       Fornecedor: {vendor} | Próxima ação: {getFinanceNextActionLabel(ticket)}
                     </p>
+                    {ticket.executionProgress?.measurementSheetUrl && (
+                      <a
+                        href={ticket.executionProgress.measurementSheetUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex text-xs text-roman-primary hover:underline"
+                      >
+                        Planilha de medição
+                      </a>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -1421,6 +1432,19 @@ export function FinanceView() {
                           <span>
                             Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'Todos liberados'}
                           </span>
+                          {ticket.executionProgress?.measurementSheetUrl && (
+                            <span>
+                              Planilha:{' '}
+                              <a
+                                href={ticket.executionProgress.measurementSheetUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-roman-primary hover:underline"
+                              >
+                                abrir link
+                              </a>
+                            </span>
+                          )}
                           <span>
                             Última atualização: {formatDateTimeSafe(ticket.executionProgress?.lastUpdatedAt || ticket.time)}
                           </span>

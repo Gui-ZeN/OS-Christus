@@ -78,6 +78,7 @@ export interface ExecutionProgress {
   paymentFlowParts: number;
   currentPercent: number;
   releasedPercent: number;
+  measurementSheetUrl?: string | null;
   startedAt?: Date | null;
   lastUpdatedAt?: Date | null;
 }

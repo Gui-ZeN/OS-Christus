@@ -41,6 +41,17 @@ function buildPublicTrackingHistoryEntry(sender, approved) {
   };
 }
 
+function sanitizeTicketForPublicTracking(ticket) {
+  if (!ticket || typeof ticket !== 'object') return ticket;
+  const nextTicket = { ...ticket };
+  if (nextTicket.executionProgress && typeof nextTicket.executionProgress === 'object') {
+    const nextExecution = { ...nextTicket.executionProgress };
+    delete nextExecution.measurementSheetUrl;
+    nextTicket.executionProgress = nextExecution;
+  }
+  return nextTicket;
+}
+
 function sanitizePublicTicketCreate(rawTicket) {
   const allowed = {
     subject: rawTicket.subject,
@@ -306,10 +317,10 @@ export default async function handler(req, res) {
         }
 
         const trackingDoc = trackingSnap.docs[0];
-        const ticket = serializeTicketForApi({
+        const ticket = sanitizeTicketForPublicTracking(serializeTicketForApi({
           id: trackingDoc.id,
           ...trackingDoc.data(),
-        });
+        }));
         const procurement = await readPublicTrackingProcurement(trackingDoc.ref);
 
         return sendJson(res, 200, { ok: true, ticket, procurement });

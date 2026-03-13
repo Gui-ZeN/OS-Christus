@@ -142,6 +142,7 @@ interface PreliminaryFormState {
 
 interface ExecutionSetupFormState {
   paymentFlowParts: string;
+  measurementSheetUrl: string;
   notes: string;
 }
 
@@ -187,6 +188,7 @@ function createPreliminaryFormState(preliminaryActions?: PreliminaryActions): Pr
 function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState {
   return {
     paymentFlowParts: String(ticket?.executionProgress?.paymentFlowParts || 5),
+    measurementSheetUrl: ticket?.executionProgress?.measurementSheetUrl || '',
     notes: '',
   };
 }
@@ -1051,6 +1053,7 @@ export function InboxView() {
     if (isSending) return;
 
     const paymentFlowParts = Number(executionSetupForm.paymentFlowParts || 0);
+    const measurementSheetUrl = String(executionSetupForm.measurementSheetUrl || '').trim();
     if (!Number.isFinite(paymentFlowParts) || paymentFlowParts < 1 || paymentFlowParts > 5) {
       setToast('Erro: escolha um fluxo de pagamento entre 1x e 5x.');
       setTimeout(() => setToast(null), 3000);
@@ -1099,6 +1102,7 @@ export function InboxView() {
           paymentFlowParts,
           currentPercent: Number(activeTicket.executionProgress?.currentPercent || 0),
           releasedPercent: getApprovedReleasePercent(nextPayments),
+          measurementSheetUrl: measurementSheetUrl || null,
           startedAt: activeTicket.executionProgress?.startedAt || preliminaryActions?.actualStartAt || now,
           lastUpdatedAt: now,
         },
@@ -1256,6 +1260,7 @@ export function InboxView() {
           paymentFlowParts: activeTicket.executionProgress.paymentFlowParts,
           currentPercent: normalizedProgress,
           releasedPercent,
+          measurementSheetUrl: activeTicket.executionProgress.measurementSheetUrl || null,
           startedAt: activeTicket.executionProgress.startedAt || activeTicket.preliminaryActions?.actualStartAt || now,
           lastUpdatedAt: now,
         },
@@ -3012,6 +3017,19 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
                             <div>Parcelas liberadas: {activeReleasedPercent}%</div>
                             <div>Próximo marco: {activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'todos os marcos liberados'}</div>
+                            {activeTicket.executionProgress.measurementSheetUrl && (
+                              <div>
+                                Planilha de medição:{' '}
+                                <a
+                                  href={activeTicket.executionProgress.measurementSheetUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-roman-primary hover:underline"
+                                >
+                                  abrir link
+                                </a>
+                              </div>
+                            )}
                             <div>Última atualização: {formatDateTimeSafe(activeTicket.executionProgress.lastUpdatedAt || activeTicket.time)}</div>
                           </div>
                         </div>
@@ -3941,6 +3959,17 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div>Valor: {activeContract?.value || 'Não informado'}</div>
                   <div>Andamento inicial: {activeProgressPercent}%</div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Link da planilha de medição (opcional)</label>
+                <input
+                  type="url"
+                  value={executionSetupForm.measurementSheetUrl}
+                  onChange={e => setExecutionSetupForm(prev => ({ ...prev, measurementSheetUrl: e.target.value }))}
+                  placeholder="https://docs.google.com/spreadsheets/..."
+                  className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                />
               </div>
 
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
