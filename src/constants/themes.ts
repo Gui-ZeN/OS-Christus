@@ -7,9 +7,9 @@ export interface AppThemeOption {
 
 export const APP_THEMES: AppThemeOption[] = [
   { id: 'official', label: 'Oficial' },
-  { id: 'blue-orange', label: 'Azul, Branco e Laranja' },
+  { id: 'blue-orange', label: 'Horizonte Solar' },
   { id: 'dark', label: 'Dark' },
-  { id: 'athletico', label: 'Vermelho e Preto (Athletico)' },
+  { id: 'athletico', label: 'Rubronegro' },
 ];
 
 export const DEFAULT_APP_THEME: AppThemeId = 'official';

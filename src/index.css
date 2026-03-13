@@ -210,3 +210,72 @@ select:focus-visible {
   border-color: var(--color-roman-primary) !important;
 }
 
+.theme-bridge [class*="bg-amber-50"],
+.theme-bridge [class*="bg-amber-100"],
+.theme-bridge [class*="bg-sky-50"],
+.theme-bridge [class*="bg-sky-100"],
+.theme-bridge [class*="bg-blue-50"],
+.theme-bridge [class*="bg-blue-100"],
+.theme-bridge [class*="bg-indigo-50"],
+.theme-bridge [class*="bg-indigo-100"],
+.theme-bridge [class*="bg-purple-50"],
+.theme-bridge [class*="bg-purple-100"],
+.theme-bridge [class*="bg-orange-50"],
+.theme-bridge [class*="bg-orange-100"],
+.theme-bridge [class*="bg-emerald-50"],
+.theme-bridge [class*="bg-emerald-100"],
+.theme-bridge [class*="bg-green-50"],
+.theme-bridge [class*="bg-green-100"] {
+  background-color: color-mix(in srgb, var(--color-roman-primary) 12%, var(--color-roman-bg)) !important;
+}
+
+.theme-bridge [class*="border-amber-200"],
+.theme-bridge [class*="border-amber-300"],
+.theme-bridge [class*="border-sky-200"],
+.theme-bridge [class*="border-sky-300"],
+.theme-bridge [class*="border-blue-200"],
+.theme-bridge [class*="border-blue-300"],
+.theme-bridge [class*="border-indigo-200"],
+.theme-bridge [class*="border-indigo-300"],
+.theme-bridge [class*="border-purple-200"],
+.theme-bridge [class*="border-purple-300"],
+.theme-bridge [class*="border-orange-200"],
+.theme-bridge [class*="border-orange-300"],
+.theme-bridge [class*="border-emerald-200"],
+.theme-bridge [class*="border-emerald-300"],
+.theme-bridge [class*="border-green-200"],
+.theme-bridge [class*="border-green-300"] {
+  border-color: color-mix(in srgb, var(--color-roman-primary) 40%, var(--color-roman-border)) !important;
+}
+
+.theme-bridge [class*="text-amber-700"],
+.theme-bridge [class*="text-amber-800"],
+.theme-bridge [class*="text-amber-900"],
+.theme-bridge [class*="text-sky-700"],
+.theme-bridge [class*="text-sky-800"],
+.theme-bridge [class*="text-sky-900"],
+.theme-bridge [class*="text-blue-700"],
+.theme-bridge [class*="text-blue-800"],
+.theme-bridge [class*="text-blue-900"],
+.theme-bridge [class*="text-indigo-700"],
+.theme-bridge [class*="text-indigo-800"],
+.theme-bridge [class*="text-indigo-900"],
+.theme-bridge [class*="text-purple-700"],
+.theme-bridge [class*="text-purple-800"],
+.theme-bridge [class*="text-purple-900"],
+.theme-bridge [class*="text-orange-700"],
+.theme-bridge [class*="text-orange-800"],
+.theme-bridge [class*="text-orange-900"],
+.theme-bridge [class*="text-emerald-700"],
+.theme-bridge [class*="text-emerald-800"],
+.theme-bridge [class*="text-emerald-900"],
+.theme-bridge [class*="text-green-700"],
+.theme-bridge [class*="text-green-800"],
+.theme-bridge [class*="text-green-900"] {
+  color: var(--color-roman-primary) !important;
+}
+
+.theme-bridge .hover\:bg-black\/5:hover {
+  background-color: color-mix(in srgb, var(--color-roman-border-light) 70%, transparent) !important;
+}
+

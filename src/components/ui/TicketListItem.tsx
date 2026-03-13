@@ -40,15 +40,15 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
         active
           ? 'border-l-2 border-l-roman-primary bg-roman-bg'
           : isWaitingValidation
-            ? 'border-l-2 border-l-sky-500 bg-sky-50/50 hover:bg-sky-50'
+            ? 'border-l-2 border-l-roman-primary bg-roman-primary/8 hover:bg-roman-primary/12'
           : isNew
-            ? 'border-l-2 border-l-amber-500 bg-amber-50/50 hover:bg-amber-50'
+            ? 'border-l-2 border-l-roman-primary bg-roman-primary/8 hover:bg-roman-primary/12'
             : 'border-l-2 border-l-transparent hover:bg-roman-bg'
       }`}
     >
       <div className="mb-1 flex items-start justify-between">
         <div className="flex min-w-0 items-center gap-2 pr-2">
-          {isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />}
+          {isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-roman-primary" aria-hidden="true" />}
           <span className="truncate font-semibold text-roman-text-main">{requester}</span>
         </div>
         <span className="whitespace-nowrap text-xs font-serif italic text-roman-text-sub">
@@ -70,7 +70,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
                 priority === 'Urgente'
                   ? 'text-red-600'
                   : priority === 'Alta'
-                    ? 'text-orange-600'
+                    ? 'text-roman-primary'
                     : 'text-roman-text-sub'
               }`}
             >
@@ -87,8 +87,8 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
                 sla.status === 'overdue'
                   ? 'border-red-200 bg-red-50 text-red-700'
                   : sla.status === 'at_risk'
-                    ? 'border-amber-200 bg-amber-50 text-amber-700'
-                    : 'border-green-200 bg-green-50 text-green-700'
+                    ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-primary'
+                    : 'border-roman-primary/35 bg-roman-primary/12 text-roman-primary'
               }`}
             >
               <Clock size={10} />
@@ -99,13 +99,13 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
       </div>
 
       {isWaitingValidation && (
-        <div className="mb-2 w-fit rounded-sm border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+        <div className="mb-2 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] font-medium text-roman-primary">
           Aguardando validação do solicitante
         </div>
       )}
 
       {viewingBy && (
-        <div className="animate-in fade-in flex w-fit items-center gap-1.5 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
+        <div className="animate-in fade-in flex w-fit items-center gap-1.5 rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] text-roman-primary">
           <Eye size={10} />
           <span className="font-medium">Sendo visto por {viewingBy.name}</span>
         </div>
