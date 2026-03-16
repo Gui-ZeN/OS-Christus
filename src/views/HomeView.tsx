@@ -139,6 +139,51 @@ export function HomeView() {
     encerradas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
   }), [scopedTickets]);
 
+  const executiveNextActions = useMemo(() => {
+    if (!isExecutive) return [];
+    return [
+      {
+        key: 'approvals',
+        title: 'Aprovar soluções e contratos',
+        subtitle: 'Itens parados em decisão formal.',
+        count: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprova')).length,
+        action: () => navigateTo('approvals'),
+      },
+      {
+        key: 'budget',
+        title: 'Cobrar orçamento e aditivos',
+        subtitle: 'OS aguardando composição financeira.',
+        count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
+        action: () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]),
+      },
+      {
+        key: 'payment',
+        title: 'Liberar pagamentos',
+        subtitle: 'Parcela ou quitação pendente.',
+        count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
+        action: () => navigateTo('finance'),
+      },
+      {
+        key: 'execution',
+        title: 'Acompanhar obras em campo',
+        subtitle: 'Execução ativa ou aguardando fechamento.',
+        count: scopedTickets.filter(ticket =>
+          ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
+          ticket.status === TICKET_STATUS.IN_PROGRESS ||
+          ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
+        ).length,
+        action: () => openInboxWithStatus([
+          TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+          TICKET_STATUS.IN_PROGRESS,
+          TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+        ]),
+      },
+    ]
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+  }, [isExecutive, navigateTo, openInboxWithStatus, scopedTickets]);
+
   const requesterTickets = useMemo(() => {
     if (!isRequester) return [];
     const requesterEmailKey = normalizeText(currentUserEmail);
@@ -402,10 +447,43 @@ export function HomeView() {
         )}
 
         {isExecutive && (
+          <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-roman-border pb-3">
+              <div>
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">Próximas decisões</h2>
+                <p className="mt-1 text-sm text-roman-text-sub">Atalhos do que precisa de ação agora, sem navegar pelo sistema inteiro.</p>
+              </div>
+              <AlertTriangle size={16} className="text-roman-text-sub" />
+            </div>
+            {executiveNextActions.length === 0 ? (
+              <p className="pt-4 text-sm text-roman-text-sub font-serif italic">Nenhuma pendência crítica no recorte atual.</p>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 xl:grid-cols-4 gap-3">
+                {executiveNextActions.map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={item.action}
+                    className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-4 text-left transition-colors hover:border-roman-primary hover:bg-roman-primary/5"
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Próxima ação</div>
+                    <div className="mt-2 text-lg font-medium text-roman-text-main">{item.title}</div>
+                    <div className="mt-1 text-sm text-roman-text-sub">{item.subtitle}</div>
+                    <div className="mt-4 inline-flex items-center rounded-full border border-roman-border px-3 py-1 text-xs font-medium text-roman-text-main">
+                      {item.count} OS
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isExecutive && (
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
-            <StatCard title="Aguardando validação" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length)} subtitle="Solicitante precisa validar" />
-            <StatCard title="Em andamento" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.IN_PROGRESS).length)} subtitle="Obras em execução" />
-            <StatCard title="Concluídas" value={String(stats.encerradas)} subtitle="Entregas finalizadas" />
+            <StatCard title="Entrega aguardando aceite" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length)} subtitle="Obras prontas para fechamento" />
+            <StatCard title="Obras em campo" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.IN_PROGRESS).length)} subtitle="Execução ativa agora" />
+            <StatCard title="Entregas finalizadas" value={String(stats.encerradas)} subtitle="OS já encerradas" />
           </div>
         )}
 

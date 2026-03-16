@@ -578,12 +578,12 @@ export function KpiView() {
         <header className="mb-8 border-b border-roman-border pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">
-              {perspective === 'managerial' ? 'KPI Gerencial' : 'KPI Financeiro'}
+              {perspective === 'managerial' ? 'Painel Executivo' : 'Painel Financeiro'}
             </h1>
             <p className="text-roman-text-sub font-serif italic">
               {perspective === 'managerial'
-                ? 'Operação por sede, tendência, backlog, envelhecimento e capacidade de resposta.'
-                : 'Previsto, pago, saldo, concentração de custo e passivo financeiro por recorte.'}
+                ? 'Leitura consolidada da operação, com foco em volume, risco, decisões pendentes e pressão da fila.'
+                : 'Leitura de compromisso financeiro, desembolso, saldo a liberar e concentração de custo por recorte.'}
             </p>
           </div>
 
@@ -682,13 +682,13 @@ export function KpiView() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <Briefcase size={64} />
                 </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">OS no Período</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Volume operacional</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{filteredTickets.length}</div>
                 <div className="text-sm text-roman-text-sub mb-4">
-                  {filteredTickets.filter(ticket => ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED).length} em aberto
+                  {filteredTickets.filter(ticket => ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED).length} obras ou solicitações ainda em curso
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-                  Encerradas: {filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length}
+                  Entregas concluídas: {filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length}
                 </div>
               </div>
 
@@ -696,9 +696,9 @@ export function KpiView() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <TrendingUp size={64} />
                 </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Aguardando Validação</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fechamento pendente</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{waitingValidationCount}</div>
-                <div className="text-sm text-roman-text-sub mb-4">{waitingValidationCount} OS aguardando validação do solicitante</div>
+                <div className="text-sm text-roman-text-sub mb-4">{waitingValidationCount} entregas dependem de aceite para fechar o ciclo</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
                   Pagamentos pendentes: {pendingPaymentsCount}
                 </div>
@@ -708,7 +708,7 @@ export function KpiView() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <TrendingUp size={64} />
                 </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fila Operacional</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Obras em andamento</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">
                   {filteredTickets.filter(ticket =>
                     ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
@@ -716,36 +716,36 @@ export function KpiView() {
                     ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
                   ).length}
                 </div>
-                <div className="text-sm text-roman-text-sub mb-4">Em preparação, execução ou validação</div>
+                <div className="text-sm text-roman-text-sub mb-4">Em preparação, execução ou aceite final</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-                  Urgentes em aberto: {urgentOpenCount}
+                  Risco alto em aberto: {urgentOpenCount}
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Aguardando Validação</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Aceite final pendente</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{waitingValidationCount}</div>
-                <div className="text-sm text-roman-text-sub">OS concluídas aguardando retorno do solicitante</div>
+                <div className="text-sm text-roman-text-sub">Obras concluídas aguardando retorno para encerrar</div>
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Urgentes em Aberto</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Risco operacional</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{urgentOpenCount}</div>
-                <div className="text-sm text-roman-text-sub">Prioridade urgente ou alta ainda sem encerramento</div>
+                <div className="text-sm text-roman-text-sub">Chamados de prioridade alta ou urgente ainda sem encerramento</div>
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">OS em Garantia</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Cobertura de garantia</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{ticketsInGuaranteeCount}</div>
-                <div className="text-sm text-roman-text-sub">Chamados encerrados ainda dentro do período de garantia</div>
+                <div className="text-sm text-roman-text-sub">OS encerradas ainda protegidas pelo período de garantia</div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Mais antiga em aberto</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior espera em aberto</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{oldestOpenTicket ? `${oldestOpenTicket.days} dias` : '0 dia'}</div>
                 <div className="text-sm text-roman-text-sub truncate" title={oldestOpenTicket?.subject || ''}>
                   {oldestOpenTicket ? `${oldestOpenTicket.id} · ${oldestOpenTicket.subject}` : 'Nenhuma OS aberta no recorte'}
@@ -753,7 +753,7 @@ export function KpiView() {
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Times com backlog</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Concentração de fila</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{backlogPorEquipe.length}</div>
                 <div className="text-sm text-roman-text-sub">
                   {backlogPorEquipe[0] ? `${backlogPorEquipe[0].name} lidera com ${backlogPorEquipe[0].total} OS` : 'Nenhuma fila ativa'}
@@ -773,21 +773,21 @@ export function KpiView() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Previsto no Período</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Compromisso previsto</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.planned.toLocaleString('pt-BR')}</div>
-                <div className="text-sm text-roman-text-sub">Parcelas geradas ou valor contratado como referência</div>
+                <div className="text-sm text-roman-text-sub">Base prevista para pagamento no recorte selecionado</div>
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Pago no Período</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Desembolso realizado</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.paid.toLocaleString('pt-BR')}</div>
                 <div className="text-sm text-roman-text-sub">Somatório das parcelas efetivamente quitadas</div>
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Saldo Financeiro</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Saldo a liberar</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialBalance.toLocaleString('pt-BR')}</div>
-                <div className="text-sm text-roman-text-sub">Diferença entre previsto e pago no período</div>
+                <div className="text-sm text-roman-text-sub">Diferença entre compromisso previsto e pagamento realizado</div>
               </div>
             </div>
 
@@ -796,7 +796,7 @@ export function KpiView() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <DollarSign size={64} />
                 </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior Custo do Período</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior obra do recorte</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {maiorCusto.valor.toLocaleString('pt-BR')}</div>
                 <div className="text-sm text-roman-text-sub truncate mb-4" title={maiorCusto.subject}>{maiorCusto.subject}</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 w-fit px-2 py-1 rounded-sm border border-red-100">
@@ -808,7 +808,7 @@ export function KpiView() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <Briefcase size={64} />
                 </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Top Fornecedor</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fornecedor mais acionado</h3>
                 <div className="text-xl font-medium text-roman-text-main mb-1 truncate" title={topFornecedor.name}>{topFornecedor.name}</div>
                 <div className="text-sm text-roman-text-sub mb-4">{topFornecedor.contratos} contratos fechados</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
@@ -817,9 +817,9 @@ export function KpiView() {
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Valor Contratado</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Base contratada</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{formatCurrencyBRL(financialOverview.contracted)}</div>
-                <div className="text-sm text-roman-text-sub">Base consolidada dos contratos fechados no período</div>
+                <div className="text-sm text-roman-text-sub">Valor consolidado dos contratos fechados no período</div>
               </div>
             </div>
 
