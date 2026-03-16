@@ -871,27 +871,6 @@ export function SettingsView() {
                       {catalogSaved && <FeedbackBanner tone="success">{catalogSaved}</FeedbackBanner>}
                     </div>
 
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {([
-                        ['catalog', 'Catálogo'],
-                        ['third-parties', 'Terceiros'],
-                        ['tags', 'Tags compartilhadas'],
-                      ] as const).map(([key, label]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setCatalogSubSection(key)}
-                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                            catalogSubSection === key
-                              ? 'bg-roman-sidebar text-white'
-                              : 'border border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-
                     {catalogLoading ? (
                       <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
                         <Loader2 size={18} className="animate-spin" />
@@ -1249,6 +1228,27 @@ export function SettingsView() {
                     <div className="mb-4 space-y-3">
                       {catalogError && <FeedbackBanner tone="error">{catalogError}</FeedbackBanner>}
                       {catalogSaved && <FeedbackBanner tone="success">{catalogSaved}</FeedbackBanner>}
+                    </div>
+
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {([
+                        ['catalog', 'Catálogo'],
+                        ['third-parties', 'Terceiros'],
+                        ['tags', 'Tags compartilhadas'],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setCatalogSubSection(key)}
+                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                            catalogSubSection === key
+                              ? 'bg-roman-sidebar text-white'
+                              : 'border border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
 
                     {catalogLoading ? (
