@@ -372,6 +372,7 @@ export function SettingsView() {
   const [directoryVendors, setDirectoryVendors] = useState<DirectoryVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [vendorSaving, setVendorSaving] = useState(false);
+  const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags'>('catalog');
   const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', tags: '' });
   const [thirdPartyTags, setThirdPartyTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
@@ -1777,10 +1778,4 @@ export function SettingsView() {
     </>
   );
 }
-
-
-
-
-
-  const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags'>('catalog');
 
