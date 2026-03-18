@@ -1,10 +1,16 @@
 import { expect, Page, test } from '@playwright/test';
 
+const loginEmail = process.env.E2E_LOGIN_EMAIL;
+const loginPassword = process.env.E2E_LOGIN_PASSWORD;
+
 async function loginAsManager(page: Page) {
+  test.skip(!loginEmail || !loginPassword, 'Defina E2E_LOGIN_EMAIL e E2E_LOGIN_PASSWORD para executar os testes de ciclo de vida.');
   await page.goto('/');
   await page.getByRole('button', { name: /acesso/i }).click();
+  await page.locator('input[type="email"]').fill(loginEmail!);
+  await page.locator('input[type="password"]').fill(loginPassword!);
   await page.getByRole('button', { name: /acessar o sistema/i }).click();
-  await expect(page.getByText(/olá, rafael/i)).toBeVisible();
+  await expect(page.getByText(/olá,/i)).toBeVisible();
 }
 
 async function goToInbox(page: Page) {

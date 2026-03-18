@@ -725,13 +725,16 @@ export function InboxView() {
       a.localeCompare(b, 'pt-BR')
     );
   }, [sharedThirdPartyTags]);
+  const sharedThirdPartyTagSet = useMemo(() => new Set(thirdPartyTagOptions.map(tag => normalizeTagValue(tag))), [thirdPartyTagOptions]);
+  const resolveVendorSharedTags = (vendor: DirectoryVendor) =>
+    (vendor.tags || []).filter(tag => sharedThirdPartyTagSet.has(normalizeTagValue(tag)));
   const filteredThirdParties = useMemo(() => {
     if (!thirdPartyTag.trim()) return vendors;
     const normalizedTag = normalizeTagValue(thirdPartyTag);
     return vendors.filter(vendor =>
-      (vendor.tags || []).some(tag => normalizeTagValue(tag) === normalizedTag)
+      resolveVendorSharedTags(vendor).some(tag => normalizeTagValue(tag) === normalizedTag)
     );
-  }, [thirdPartyTag, vendors]);
+  }, [thirdPartyTag, vendors, sharedThirdPartyTagSet]);
   const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(activeTicket.status);
   const canManageBudgetRounds =
     activeTicket.status.includes('Orçamento') ||
@@ -2858,7 +2861,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <option value="">Selecione o terceiro...</option>
                           {filteredThirdParties.map(vendor => (
                             <option key={vendor.id} value={vendor.id}>
-                              {vendor.name} {(vendor.tags || []).length > 0 ? `(${(vendor.tags || []).join(', ')})` : ''}
+                              {vendor.name} {resolveVendorSharedTags(vendor).length > 0 ? `(${resolveVendorSharedTags(vendor).join(', ')})` : ''}
                             </option>
                           ))}
                         </select>

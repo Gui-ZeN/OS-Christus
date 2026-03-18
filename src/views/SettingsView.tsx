@@ -718,7 +718,27 @@ export function SettingsView() {
   };
 
   const handleRemoveSharedTag = async (tag: string) => {
-    await persistThirdPartyTags(thirdPartyTags.filter(item => item !== tag));
+    const normalized = String(tag || '').trim().toLowerCase();
+    await persistThirdPartyTags(thirdPartyTags.filter(item => item.toLowerCase() !== normalized));
+    const impactedVendors = directoryVendors.filter(vendor => (vendor.tags || []).some(item => item.toLowerCase() === normalized));
+    if (impactedVendors.length > 0) {
+      await Promise.all(
+        impactedVendors.map(vendor =>
+          upsertVendor({
+            id: vendor.id,
+            name: vendor.name,
+            email: vendor.email || undefined,
+            tags: (vendor.tags || []).filter(item => item.toLowerCase() !== normalized),
+            active: vendor.active !== false,
+          })
+        )
+      );
+      await loadVendors();
+      setVendorDraft(current => ({
+        ...current,
+        tags: current.tags.filter(item => item.toLowerCase() !== normalized),
+      }));
+    }
     setCatalogSaved('Tag de terceiro removida.');
     setTimeout(() => setCatalogSaved(null), 3000);
   };
