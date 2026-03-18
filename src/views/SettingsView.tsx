@@ -373,7 +373,7 @@ export function SettingsView() {
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [vendorSaving, setVendorSaving] = useState(false);
   const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags'>('catalog');
-  const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', tags: '' });
+  const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', tags: [] as string[] });
   const [thirdPartyTags, setThirdPartyTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
   const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
@@ -670,11 +670,12 @@ export function SettingsView() {
       return;
     }
 
+    const allowedTags = new Set(thirdPartyTags.map(tag => tag.toLowerCase()));
     const tags = vendorDraft.tags
-      .split(',')
       .map(tag => tag.trim())
       .filter(Boolean)
-      .filter((tag, index, self) => self.findIndex(item => item.toLowerCase() === tag.toLowerCase()) === index);
+      .filter((tag, index, self) => self.findIndex(item => item.toLowerCase() === tag.toLowerCase()) === index)
+      .filter(tag => allowedTags.has(tag.toLowerCase()));
 
     setVendorSaving(true);
     setCatalogError(null);
@@ -687,7 +688,7 @@ export function SettingsView() {
         active: true,
       });
       await loadVendors();
-      setVendorDraft({ id: '', name: '', email: '', tags: '' });
+      setVendorDraft({ id: '', name: '', email: '', tags: [] });
       setCatalogSaved('Terceiro salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -1457,7 +1458,7 @@ export function SettingsView() {
                                               id: vendor.id,
                                               name: vendor.name || '',
                                               email: vendor.email || '',
-                                              tags: (vendor.tags || []).join(', '),
+                                              tags: (vendor.tags || []).filter(Boolean),
                                             })
                                           }
                                           className="text-xs font-medium text-roman-primary hover:underline"
@@ -1500,34 +1501,41 @@ export function SettingsView() {
                                 placeholder="terceiro@email.com"
                                 className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
-                              <input
-                                type="text"
-                                value={vendorDraft.tags}
-                                onChange={event => setVendorDraft(current => ({ ...current, tags: event.target.value }))}
-                                placeholder="Tags separadas por vírgula (ex: Gesso, Elétrica)"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              {thirdPartyTags.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {thirdPartyTags.map(tag => (
-                                    <button
-                                      key={`preset-tag-${tag}`}
-                                      type="button"
-                                      onClick={() => {
-                                        const current = vendorDraft.tags
-                                          .split(',')
-                                          .map(item => item.trim())
-                                          .filter(Boolean);
-                                        if (current.some(item => item.toLowerCase() === tag.toLowerCase())) return;
-                                        setVendorDraft(prev => ({ ...prev, tags: [...current, tag].join(', ') }));
-                                      }}
-                                      className="rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2 py-0.5 text-[10px] text-roman-primary hover:bg-roman-primary/20"
-                                    >
-                                      + {tag}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
+                              <div>
+                                <div className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</div>
+                                {thirdPartyTags.length === 0 ? (
+                                  <div className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] text-roman-text-sub">
+                                    Cadastre tags na aba "Tags compartilhadas" para selecionar aqui.
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap gap-2">
+                                    {thirdPartyTags.map(tag => {
+                                      const selected = vendorDraft.tags.some(item => item.toLowerCase() === tag.toLowerCase());
+                                      return (
+                                        <button
+                                          key={`preset-tag-${tag}`}
+                                          type="button"
+                                          onClick={() =>
+                                            setVendorDraft(prev => ({
+                                              ...prev,
+                                              tags: selected
+                                                ? prev.tags.filter(item => item.toLowerCase() !== tag.toLowerCase())
+                                                : [...prev.tags, tag],
+                                            }))
+                                          }
+                                          className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                                            selected
+                                              ? 'border-roman-primary bg-roman-primary text-white'
+                                              : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                                          }`}
+                                        >
+                                          {tag}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
@@ -1541,7 +1549,7 @@ export function SettingsView() {
                                 {vendorDraft.id && (
                                   <button
                                     type="button"
-                                    onClick={() => setVendorDraft({ id: '', name: '', email: '', tags: '' })}
+                                    onClick={() => setVendorDraft({ id: '', name: '', email: '', tags: [] })}
                                     className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-white"
                                   >
                                     Limpar

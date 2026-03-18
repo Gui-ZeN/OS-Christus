@@ -453,7 +453,7 @@ export function InboxView() {
   const [selectedThirdPartyId, setSelectedThirdPartyId] = useState('');
   const [newThirdPartyName, setNewThirdPartyName] = useState('');
   const [newThirdPartyEmail, setNewThirdPartyEmail] = useState('');
-  const [newThirdPartyTags, setNewThirdPartyTags] = useState('');
+  const [newThirdPartyTags, setNewThirdPartyTags] = useState<string[]>([]);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
@@ -519,7 +519,7 @@ export function InboxView() {
     }
     setNewThirdPartyName('');
     setNewThirdPartyEmail('');
-    setNewThirdPartyTags('');
+    setNewThirdPartyTags([]);
     setReplyFiles([]);
     if (replyFileRef.current) replyFileRef.current.value = '';
   }, [
@@ -675,7 +675,6 @@ export function InboxView() {
     }
 
     const tags = newThirdPartyTags
-      .split(',')
       .map(tag => normalizeTagValue(tag))
       .filter(Boolean);
 
@@ -704,7 +703,7 @@ export function InboxView() {
       }
       setNewThirdPartyName('');
       setNewThirdPartyEmail('');
-      setNewThirdPartyTags('');
+      setNewThirdPartyTags([]);
       setToast('Terceiro cadastrado com sucesso.');
       setTimeout(() => setToast(null), 2500);
     } catch (error) {
@@ -722,16 +721,10 @@ export function InboxView() {
   const isExternalTeam = selectedTeam?.type === 'external';
   const selectedThirdParty = vendors.find(vendor => vendor.id === selectedThirdPartyId) || null;
   const thirdPartyTagOptions = useMemo(() => {
-    const tags = Array.from(
-      new Set(
-        [...sharedThirdPartyTags, ...vendors
-          .flatMap(vendor => (Array.isArray(vendor.tags) ? vendor.tags : []))
-          .map(tag => String(tag || '').trim())
-          .filter(Boolean)]
-      )
-    ) as string[];
-    return tags.sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [sharedThirdPartyTags, vendors]);
+    return (Array.from(new Set(sharedThirdPartyTags.map(tag => String(tag || '').trim()).filter(Boolean))) as string[]).sort((a, b) =>
+      a.localeCompare(b, 'pt-BR')
+    );
+  }, [sharedThirdPartyTags]);
   const filteredThirdParties = useMemo(() => {
     if (!thirdPartyTag.trim()) return vendors;
     const normalizedTag = normalizeTagValue(thirdPartyTag);
@@ -2811,21 +2804,43 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Terceiro</div>
                       <div>
                         <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Filtro por tag</label>
-                        <select
-                          value={thirdPartyTag}
-                          onChange={event => {
-                            setThirdPartyTag(event.target.value);
-                            setSelectedThirdPartyId('');
-                            setCustomEmail('');
-                          }}
-                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={isSending || !canEditQuickPanel}
-                        >
-                          <option value="">Todas as especialidades</option>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setThirdPartyTag('');
+                              setSelectedThirdPartyId('');
+                              setCustomEmail('');
+                            }}
+                            className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                              !thirdPartyTag
+                                ? 'border-roman-primary bg-roman-primary text-white'
+                                : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                            }`}
+                            disabled={isSending || !canEditQuickPanel}
+                          >
+                            Todas
+                          </button>
                           {thirdPartyTagOptions.map(tag => (
-                            <option key={`tag-${tag}`} value={tag}>{tag}</option>
+                            <button
+                              key={`tag-${tag}`}
+                              type="button"
+                              onClick={() => {
+                                setThirdPartyTag(tag);
+                                setSelectedThirdPartyId('');
+                                setCustomEmail('');
+                              }}
+                              className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                                thirdPartyTag === tag
+                                  ? 'border-roman-primary bg-roman-primary text-white'
+                                  : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                              }`}
+                              disabled={isSending || !canEditQuickPanel}
+                            >
+                              {tag}
+                            </button>
                           ))}
-                        </select>
+                        </div>
                       </div>
                       <div>
                         <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
@@ -2876,13 +2891,40 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             placeholder="Email (opcional)"
                             className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                           />
-                          <input
-                            type="text"
-                            value={newThirdPartyTags}
-                            onChange={event => setNewThirdPartyTags(event.target.value)}
-                            placeholder="Tags separadas por vírgula (ex.: gesso, eletrica)"
-                            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
+                          <div>
+                            <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
+                            {thirdPartyTagOptions.length === 0 ? (
+                              <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] text-roman-text-sub">
+                                Cadastre tags em Configurações para selecionar aqui.
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {thirdPartyTagOptions.map(tag => {
+                                  const selected = newThirdPartyTags.some(item => item.toLowerCase() === tag.toLowerCase());
+                                  return (
+                                    <button
+                                      key={`new-third-party-tag-${tag}`}
+                                      type="button"
+                                      onClick={() =>
+                                        setNewThirdPartyTags(prev =>
+                                          selected
+                                            ? prev.filter(item => item.toLowerCase() !== tag.toLowerCase())
+                                            : [...prev, tag]
+                                        )
+                                      }
+                                      className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                                        selected
+                                          ? 'border-roman-primary bg-roman-primary text-white'
+                                          : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                                      }`}
+                                    >
+                                      {tag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => void handleCreateThirdParty()}
