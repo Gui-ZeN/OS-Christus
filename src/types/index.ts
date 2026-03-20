@@ -13,7 +13,7 @@ export interface InboxFilter {
 
 export interface HistoryItem {
   id: string;
-  type: 'customer' | 'system' | 'tech' | 'field_change';
+  type: 'customer' | 'system' | 'tech' | 'internal' | 'field_change';
   sender?: string;
   time: Date;
   text?: string;

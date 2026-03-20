@@ -1054,7 +1054,7 @@ export function InboxView() {
           text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
         });
       } else if (replyText.trim()) {
-        items.push({ id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() });
+        items.push({ id: crypto.randomUUID(), type: 'internal', sender, time: now, text: replyText.trim() });
       }
 
       if (items.length > 0 || newStatus !== activeTicket.status) {
@@ -2611,6 +2611,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   }
 
                   const isExternalMessage = item.type === 'customer';
+                  const isInternalNote = item.type === 'internal';
                   const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
 
                   return (
@@ -2619,6 +2620,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <div className={`w-9 h-9 rounded-sm border flex items-center justify-center font-serif text-base shrink-0 ${
                           isExternalMessage
                             ? 'bg-roman-primary/10 text-roman-primary border-roman-primary/20'
+                            : isInternalNote
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
                             : 'bg-roman-border-light text-roman-text-main border-roman-border'
                         }`}>
                           {senderInitial}
@@ -2634,9 +2637,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             className={`rounded-sm p-4 text-[13px] leading-relaxed shadow-sm border ${
                               isExternalMessage
                                 ? 'bg-roman-primary/5 border-roman-primary/20'
-                                : 'bg-roman-surface border-roman-border'
+                                : isInternalNote
+                                  ? 'bg-amber-50/70 border-amber-200'
+                                  : 'bg-roman-surface border-roman-border'
                             }`}
                           >
+                            {isInternalNote && (
+                              <div className="mb-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                                Nota interna
+                              </div>
+                            )}
                             {item.text}
                           </div>
                         </div>
