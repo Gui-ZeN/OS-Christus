@@ -180,9 +180,10 @@ export default function App() {
     if (currentView === VIEWS.APPROVALS) return;
     const reviewerName = currentUser?.name?.trim();
     if (!reviewerName) return;
+    const reviewerKey = reviewerName.toLocaleLowerCase('pt-BR');
 
     tickets
-      .filter(ticket => ticket.viewingBy?.name === reviewerName)
+      .filter(ticket => String(ticket.viewingBy?.name || '').trim().toLocaleLowerCase('pt-BR') === reviewerKey)
       .forEach(ticket => {
         updateTicket(ticket.id, { viewingBy: null });
       });

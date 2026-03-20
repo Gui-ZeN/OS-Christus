@@ -190,7 +190,7 @@ function resolvePendingRound(quotes: Quote[]) {
 }
 
 export function ApprovalsView() {
-  const { activeTicketId, setActiveTicketId, currentView, openAttachment, updateTicket, tickets, currentUser } = useApp();
+  const { activeTicketId, setActiveTicketId, currentView, openAttachment, updateTicket, tickets, currentUser, refreshTickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
   const [activeTab, setActiveTab] = useState<'solutions' | 'budgets' | 'contracts'>('solutions');
@@ -238,6 +238,31 @@ export function ApprovalsView() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (currentView !== 'approvals') return undefined;
+
+    const runSilentRefresh = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      await refreshTickets({ silent: true });
+    };
+
+    void runSilentRefresh();
+    const interval = window.setInterval(() => {
+      void runSilentRefresh();
+    }, 10000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void runSilentRefresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentView, refreshTickets]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
