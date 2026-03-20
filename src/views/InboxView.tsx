@@ -12,7 +12,7 @@ import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
-import { fetchSettings } from '../services/settingsApi';
+import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
@@ -454,6 +454,8 @@ export function InboxView() {
   const [newThirdPartyName, setNewThirdPartyName] = useState('');
   const [newThirdPartyEmail, setNewThirdPartyEmail] = useState('');
   const [newThirdPartyTags, setNewThirdPartyTags] = useState<string[]>([]);
+  const [newSharedTagDraft, setNewSharedTagDraft] = useState('');
+  const [newSharedTagSaving, setNewSharedTagSaving] = useState(false);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
@@ -709,6 +711,33 @@ export function InboxView() {
     } catch (error) {
       setToast(`Erro ao cadastrar terceiro: ${error instanceof Error ? error.message : 'falha inesperada.'}`);
       setTimeout(() => setToast(null), 3500);
+    }
+  };
+
+  const handleCreateSharedTagInline = async () => {
+    const normalized = String(newSharedTagDraft || '').trim();
+    if (!normalized) return;
+    const exists = sharedThirdPartyTags.some(tag => tag.toLowerCase() === normalized.toLowerCase());
+    if (exists) {
+      setToast('Essa tag já existe.');
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    const nextTags = [...sharedThirdPartyTags, normalized].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    setNewSharedTagSaving(true);
+    try {
+      await saveSettings('thirdPartyTags', { tags: nextTags });
+      setSharedThirdPartyTags(nextTags);
+      setNewThirdPartyTags(prev => (prev.some(item => item.toLowerCase() === normalized.toLowerCase()) ? prev : [...prev, normalized]));
+      setNewSharedTagDraft('');
+      setToast('Tag compartilhada cadastrada.');
+      setTimeout(() => setToast(null), 2500);
+    } catch (error) {
+      setToast(`Erro ao salvar tag: ${error instanceof Error ? error.message : 'falha inesperada.'}`);
+      setTimeout(() => setToast(null), 3500);
+    } finally {
+      setNewSharedTagSaving(false);
     }
   };
 
@@ -2895,7 +2924,26 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                           />
                           <div>
-                            <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
+                              <button
+                                type="button"
+                                onClick={() => void handleCreateSharedTagInline()}
+                                disabled={newSharedTagSaving || !newSharedTagDraft.trim()}
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-roman-border bg-white text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                aria-label="Cadastrar tag compartilhada"
+                                title="Cadastrar tag compartilhada"
+                              >
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={newSharedTagDraft}
+                              onChange={event => setNewSharedTagDraft(event.target.value)}
+                              placeholder="Nova tag (ex.: Gesso)"
+                              className="mb-2 w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            />
                             {thirdPartyTagOptions.length === 0 ? (
                               <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] text-roman-text-sub">
                                 Cadastre tags em Configurações para selecionar aqui.
