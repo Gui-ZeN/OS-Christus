@@ -3583,8 +3583,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         : 'Sem base histórica suficiente para comparar esta OS.'}
                     </p>
                   </div>
-                  <div className="text-xs text-roman-text-sub">
-                    Termos base: {budgetHistory.basisTerms.length > 0 ? budgetHistory.basisTerms.join(', ') : 'não definidos'}
+                  <div className="text-xs text-roman-text-sub md:max-w-[48%]">
+                    <div className="mb-1">Termos base:</div>
+                    {budgetHistory.basisTerms.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {budgetHistory.basisTerms.map(term => (
+                          <span
+                            key={`inbox-basis-term-${activeTicket.id}-${term}`}
+                            className="rounded-sm border border-roman-border bg-roman-surface px-2 py-0.5 text-[11px] text-roman-text-main"
+                          >
+                            {term}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div>não definidos</div>
+                    )}
                   </div>
                 </div>
 

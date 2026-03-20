@@ -1126,8 +1126,22 @@ export function ApprovalsView() {
                         : 'Sem OS comparáveis suficientes nos últimos 24 meses'}
                     </div>
                   </div>
-                  <div className="text-xs text-roman-text-sub">
-                    Termos: {budget.historySummary.basisTerms.length > 0 ? budget.historySummary.basisTerms.join(', ') : 'não definidos'}
+                  <div className="text-xs text-roman-text-sub md:max-w-[48%]">
+                    <div className="mb-1">Termos:</div>
+                    {budget.historySummary.basisTerms.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {budget.historySummary.basisTerms.map(term => (
+                          <span
+                            key={`${budget.id}-basis-term-${term}`}
+                            className="rounded-sm border border-roman-border bg-roman-surface px-2 py-0.5 text-[11px] text-roman-text-main"
+                          >
+                            {term}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div>não definidos</div>
+                    )}
                   </div>
                 </div>
 
