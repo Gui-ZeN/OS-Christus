@@ -29,6 +29,22 @@ const STOP_WORDS = new Set([
   'a',
 ]);
 
+const GENERIC_DOMAIN_TERMS = new Set([
+  'mail',
+  'email',
+  'manutencao',
+  'predial',
+  'servico',
+  'servicos',
+  'obra',
+  'obras',
+  'sistema',
+  'chamado',
+  'chamados',
+  'ticket',
+  'teste',
+]);
+
 export interface BudgetHistoryCase {
   ticketId: string;
   subject: string;
@@ -110,9 +126,55 @@ function extractKeywords(ticket: Ticket) {
       source
         .split(/[^a-z0-9]+/)
         .map(part => part.trim())
-        .filter(part => part.length >= 3 && !STOP_WORDS.has(part))
+        .filter(part => part.length >= 3 && !STOP_WORDS.has(part) && !GENERIC_DOMAIN_TERMS.has(part))
     )
   );
+}
+
+function dedupeTerms(terms: string[]) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  terms.forEach(rawTerm => {
+    const term = String(rawTerm || '').trim();
+    if (!term) return;
+    const key = normalizeText(term);
+    if (seen.has(key)) return;
+    seen.add(key);
+    output.push(term);
+  });
+  return output;
+}
+
+function extractQuotedVendors(ticketId: string, quotesByTicket: QuoteMap) {
+  const quotes = selectInitialRoundQuotes(quotesByTicket[ticketId] ?? []);
+  return dedupeTerms(
+    quotes
+      .map(quote => String(quote.vendor || '').trim())
+      .filter(Boolean)
+      .slice(0, 3)
+  );
+}
+
+function extractThirdPartyNames(ticket: Ticket) {
+  return dedupeTerms(
+    String(ticket.assignedTeam || '')
+      .split(/[,;|/]+/)
+      .map(part => part.trim())
+      .filter(part => part.length >= 2)
+      .slice(0, 3)
+  );
+}
+
+function buildBasisTerms(ticket: Ticket, quotesByTicket: QuoteMap, keywordTerms: string[]) {
+  const structuredTerms = [
+    ticket.macroServiceName ? `macroserviço: ${ticket.macroServiceName}` : '',
+    ticket.serviceCatalogName ? `serviço: ${ticket.serviceCatalogName}` : '',
+    ...extractQuotedVendors(ticket.id, quotesByTicket).map(vendor => `fornecedor: ${vendor}`),
+    ...extractThirdPartyNames(ticket).map(name => `terceiro: ${name}`),
+  ].filter(Boolean);
+
+  const keywordLabels = keywordTerms.slice(0, 4);
+  return dedupeTerms([...structuredTerms, ...keywordLabels]).slice(0, 8);
 }
 
 function parseCurrency(value: string) {
@@ -428,7 +490,7 @@ export function buildBudgetHistorySummary(
     .slice(0, 6);
 
   return {
-    basisTerms: currentKeywords.slice(0, 6),
+    basisTerms: buildBasisTerms(currentTicket, quotesByTicket, currentKeywords),
     similarCases,
     comparableTicketCount: similarCases.length,
     comparableQuoteCount: quoteValues.length,
