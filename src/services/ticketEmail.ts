@@ -162,6 +162,7 @@ function shouldNotifyRequesterForStatus(status: string) {
   const blockedStatuses = new Set<string>([
     TICKET_STATUS.WAITING_BUDGET,
     TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+    TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
     TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
     TICKET_STATUS.WAITING_PAYMENT,
   ]);

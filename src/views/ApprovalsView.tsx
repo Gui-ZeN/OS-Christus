@@ -4,7 +4,6 @@ import { useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
-import { ModalShell } from '../components/ui/ModalShell';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
@@ -112,7 +111,7 @@ function getQuoteGrandTotals(quotes: Quote[]) {
 
 const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
   solutions: TICKET_STATUS.WAITING_BUDGET,
-  budgets: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+  budgets: TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
   contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
 };
 
@@ -197,8 +196,6 @@ export function ApprovalsView() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
-  const [attachContractModalId, setAttachContractModalId] = useState<string | null>(null);
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
@@ -264,25 +261,6 @@ export function ApprovalsView() {
     };
   }, [currentView, refreshTickets]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setAttachContractModalId(null);
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  useEffect(() => {
-    if (!attachContractModalId) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [attachContractModalId]);
-
   const handleApprove = (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
     if (!canApprove) return;
     setProcessingId(id);
@@ -335,7 +313,7 @@ export function ApprovalsView() {
                 value: nextContractValue,
                 initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
                 realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
-                status: 'pending_signature',
+                status: 'pending_upload',
                 viewingBy: null,
                 signedFileName: currentContract?.signedFileName || null,
                 items: approvedQuote.items || [],
@@ -356,7 +334,7 @@ export function ApprovalsView() {
               value: nextContractValue,
               initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
               realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
-              status: 'pending_signature',
+              status: 'pending_upload',
               viewingBy: null,
               signedFileName: currentContract?.signedFileName || null,
               items: approvedQuote.items || [],
@@ -384,7 +362,7 @@ export function ApprovalsView() {
           tab === 'budgets'
             ? budgetApprovalContext?.isAdditive
               ? `Aditivo aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.`
-              : `Orçamento aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para seguir com o contrato.`
+              : `Orçamento aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido; aguardando anexo do contrato pelo gestor.`
             : 'Solução técnica aprovada. OS liberada para a etapa de orçamentação.',
       };
       updateTicket(id, {
@@ -432,47 +410,46 @@ export function ApprovalsView() {
     }, 1500);
   };
 
-  const handleAttachContract = () => {
+  const handleApproveContract = (id: string) => {
     if (!canApprove) return;
-    if (!attachContractModalId) return;
-    setProcessingId(attachContractModalId);
-    const currentContract = contractsByTicket[attachContractModalId];
-    const targetTicket = tickets.find(ticket => ticket.id === attachContractModalId);
+    const currentContract = contractsByTicket[id];
+    const targetTicket = tickets.find(ticket => ticket.id === id);
+    if (!currentContract?.signedFileName) {
+      setToast('Gestor ainda não anexou o contrato. Aprovação indisponível.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
 
+    setProcessingId(id);
     setTimeout(async () => {
       const nextContract: ContractRecord = {
-        id: currentContract?.id || 'contract-1',
-        vendor: currentContract?.vendor || 'A confirmar',
-        value: currentContract?.value || 'A confirmar',
-        status: 'signed',
+        ...currentContract,
+        status: 'approved',
         viewingBy: null,
-        signedFileName: attachedFile?.name || currentContract?.signedFileName || null,
       };
       try {
         await saveContract(
-          attachContractModalId,
+          id,
           nextContract,
           targetTicket ? buildProcurementClassification(targetTicket) : undefined
         );
       } catch {
         // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
       }
-      setContractsByTicket(prev => ({ ...prev, [attachContractModalId]: nextContract }));
+      setContractsByTicket(prev => ({ ...prev, [id]: nextContract }));
       setProcessingId(null);
       const historyItem = {
         id: crypto.randomUUID(),
         type: 'system' as const,
         sender: 'Diretoria',
         time: new Date(),
-        text: `Contrato assinado e anexado${nextContract.signedFileName ? `: ${nextContract.signedFileName}` : '.'}`,
+        text: `Contrato aprovado pela Diretoria${nextContract.signedFileName ? ` (${nextContract.signedFileName})` : '.'}`,
       };
-      updateTicket(attachContractModalId, {
+      updateTicket(id, {
         status: APPROVAL_STATUS.contracts,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
-      setAttachContractModalId(null);
-      setAttachedFile(null);
-    }, 1500);
+    }, 1200);
   };
 
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
@@ -703,6 +680,7 @@ export function ApprovalsView() {
           serviceCatalogName: ticket.serviceCatalogName ?? null,
           value: contractsByTicket[ticket.id]?.value ?? 'A confirmar',
           vendor: contractsByTicket[ticket.id]?.vendor ?? 'A confirmar',
+          signedFileName: contractsByTicket[ticket.id]?.signedFileName ?? null,
           items: contractsByTicket[ticket.id]?.items ?? [],
         })),
     [contractsByTicket, tickets]
@@ -725,7 +703,7 @@ export function ApprovalsView() {
       {
         label: 'Contratos',
         value: contracts.length,
-        hint: 'Assinaturas pendentes',
+        hint: 'Contratos aguardando aprovação',
         active: activeTab === 'contracts',
       },
     ],
@@ -1244,17 +1222,20 @@ export function ApprovalsView() {
               {processingId === contract.id && (
                 <div className="absolute inset-0 bg-roman-parchment/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
                   <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
-                  <span className="font-serif text-roman-text-main font-medium">Processando assinatura...</span>
+                  <span className="font-serif text-roman-text-main font-medium">Processando aprovação...</span>
                 </div>
               )}
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-stone-800 font-serif italic text-sm">{contract.id}</span>
-                  <span className="text-xs text-stone-600 font-medium px-2 py-0.5 bg-white/50 border border-stone-300 rounded-sm">Aguardando Assinatura</span>
+                  <span className="text-xs text-stone-600 font-medium px-2 py-0.5 bg-white/50 border border-stone-300 rounded-sm">Aguardando Aprovação do Contrato</span>
                   <span className="text-xs text-stone-500 ml-auto">{formatDateTimeSafe(contract.date)}</span>
                 </div>
                 <h3 className="text-lg md:text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
                 <p className="text-sm text-stone-600 mb-4">Solicitante: {contract.requester} • Contratada: {contract.vendor}</p>
+                <div className="mb-3 text-xs text-stone-600">
+                  Arquivo anexado pelo gestor: <span className="font-medium text-stone-800">{contract.signedFileName || 'Não informado'}</span>
+                </div>
                 {(contract.macroServiceName || contract.serviceCatalogName) && (
                   <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
                     {contract.macroServiceName && (
@@ -1283,8 +1264,8 @@ export function ApprovalsView() {
                     <div className="mt-2 text-[11px] text-stone-500">{contract.items.length} item(ns) vinculados ao contrato</div>
                   </div>
                 )}
-                <button onClick={() => openAttachment(`Minuta: ${contract.vendor}`, 'pdf')} className="flex items-center gap-2 text-stone-800 hover:underline text-sm font-medium">
-                  <FileText size={16} /> Ler Minuta do Contrato (PDF)
+                <button onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf')} className="flex items-center gap-2 text-stone-800 hover:underline text-sm font-medium">
+                  <FileText size={16} /> Ver contrato anexado (PDF)
                 </button>
               </div>
 
@@ -1294,12 +1275,12 @@ export function ApprovalsView() {
                   <div className="text-2xl font-serif text-stone-900">{contract.value}</div>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                  <button onClick={() => openAttachment(`Minuta: ${contract.vendor}`, 'pdf')} className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
+                  <button onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf')} className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
                     Revisar
                   </button>
-                  <button onClick={() => setAttachContractModalId(contract.id)} disabled={processingId === contract.id} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                  <button onClick={() => handleApproveContract(contract.id)} disabled={processingId === contract.id || !contract.signedFileName} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
                     {processingId === contract.id ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-                    {processingId === contract.id ? 'Processando...' : 'Assinar Contrato'}
+                    {processingId === contract.id ? 'Processando...' : 'Aprovar Contrato'}
                   </button>
                 </div>
               </div>
@@ -1326,47 +1307,6 @@ export function ApprovalsView() {
         requireReason={true}
       />
 
-      {attachContractModalId && (
-        <ModalShell
-          isOpen={Boolean(attachContractModalId)}
-          onClose={() => setAttachContractModalId(null)}
-          title="Anexar Contrato Assinado"
-          description="Envie o PDF assinado para liberar a OS para a próxima etapa."
-          maxWidthClass="max-w-md"
-          footer={(
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setAttachContractModalId(null)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                Cancelar
-              </button>
-              <button onClick={handleAttachContract} disabled={!attachedFile || processingId === attachContractModalId} className="px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                {processingId === attachContractModalId ? 'Enviando...' : 'Confirmar e Enviar'}
-              </button>
-            </div>
-          )}
-        >
-          <div className="border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg relative hover:bg-roman-border-light transition-colors cursor-pointer">
-            <input
-              type="file"
-              accept=".pdf"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              onChange={event => {
-                if (event.target.files && event.target.files.length > 0) {
-                  setAttachedFile(event.target.files[0]);
-                }
-              }}
-            />
-            <FileText size={32} className="mx-auto text-roman-primary mb-3" />
-            {attachedFile ? (
-              <div className="text-roman-text-main font-medium text-sm">{attachedFile.name}</div>
-            ) : (
-              <>
-                <div className="text-roman-text-main font-medium text-sm mb-1">Clique para selecionar ou arraste o arquivo</div>
-                <div className="text-xs text-roman-text-sub">Apenas arquivos PDF</div>
-              </>
-            )}
-          </div>
-        </ModalShell>
-      )}
     </div>
   );
 }

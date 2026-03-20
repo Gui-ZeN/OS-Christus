@@ -210,7 +210,7 @@ export function KpiView() {
     const buckets = [
       { name: 'Nova OS', match: (status: string) => status === TICKET_STATUS.NEW },
       { name: 'Triagem', match: (status: string) => status === TICKET_STATUS.WAITING_TECH_OPINION || status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL },
-      { name: 'Orçamento', match: (status: string) => status === TICKET_STATUS.WAITING_BUDGET || status === TICKET_STATUS.WAITING_BUDGET_APPROVAL || status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL },
+      { name: 'Orçamento', match: (status: string) => status === TICKET_STATUS.WAITING_BUDGET || status === TICKET_STATUS.WAITING_BUDGET_APPROVAL || status === TICKET_STATUS.WAITING_CONTRACT_UPLOAD || status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL },
       { name: 'Preliminar', match: (status: string) => status === TICKET_STATUS.WAITING_PRELIM_ACTIONS },
       { name: 'Execução', match: (status: string) => status === TICKET_STATUS.IN_PROGRESS },
       { name: 'Validação', match: (status: string) => status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL },
@@ -226,7 +226,7 @@ export function KpiView() {
   const tempoPorEtapa = useMemo(() => {
     const groups = [
       { name: 'Triagem', filter: (status: string) => status === TICKET_STATUS.NEW || status === TICKET_STATUS.WAITING_TECH_OPINION },
-      { name: 'Orçamento', filter: (status: string) => status === TICKET_STATUS.WAITING_BUDGET || status === TICKET_STATUS.WAITING_BUDGET_APPROVAL },
+      { name: 'Orçamento', filter: (status: string) => status === TICKET_STATUS.WAITING_BUDGET || status === TICKET_STATUS.WAITING_BUDGET_APPROVAL || status === TICKET_STATUS.WAITING_CONTRACT_UPLOAD },
       { name: 'Aprovação', filter: (status: string) => status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL || status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL },
       { name: 'Execução', filter: (status: string) => status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || status === TICKET_STATUS.IN_PROGRESS || status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL },
       { name: 'Pagamento', filter: (status: string) => status === TICKET_STATUS.WAITING_PAYMENT },

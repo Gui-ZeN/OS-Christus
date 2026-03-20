@@ -81,6 +81,7 @@ const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
   TICKET_STATUS.WAITING_BUDGET,
   TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
   TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
 ] as const;
 
@@ -121,6 +122,7 @@ const INBOX_STATUS_OPTIONS = [
   TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
   TICKET_STATUS.WAITING_BUDGET,
   TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
   TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
   TICKET_STATUS.WAITING_PRELIM_ACTIONS,
   TICKET_STATUS.IN_PROGRESS,
@@ -554,6 +556,7 @@ export function InboxView() {
     setNewThirdPartyEmail('');
     setNewThirdPartyTags([]);
     setReplyFiles([]);
+    setContractDispatchFile(null);
     if (replyFileRef.current) replyFileRef.current.value = '';
   }, [
     activeTicketId,
@@ -814,6 +817,7 @@ export function InboxView() {
   const canManageBudgetRounds =
     activeTicket.status.includes('Orçamento') ||
     activeTicket.status.includes('Cotação') ||
+    activeTicket.status === TICKET_STATUS.WAITING_CONTRACT_UPLOAD ||
     activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
     activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
     activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
@@ -1427,6 +1431,7 @@ export function InboxView() {
   const [showMobileTicketList, setShowMobileTicketList] = useState(false);
   const [showMobileContext, setShowMobileContext] = useState(false);
   const [showQuotesModal, setShowQuotesModal] = useState(false);
+  const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
@@ -1439,6 +1444,7 @@ export function InboxView() {
   const [pendingCustomUnitByItem, setPendingCustomUnitByItem] = useState<Record<string, string>>({});
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+  const [contractDispatchFile, setContractDispatchFile] = useState<File | null>(null);
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [prelimForm, setPrelimForm] = useState<PreliminaryFormState>(createPreliminaryFormState());
   const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
@@ -1468,12 +1474,13 @@ export function InboxView() {
     }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
   const shouldLockBodyScroll =
-    isMobileOverlayOpen || showQuotesModal || showPrelimModal || showExecutionSetupModal || showProgressModal || showDeleteTicketModal;
+    isMobileOverlayOpen || showQuotesModal || showContractDispatchModal || showPrelimModal || showExecutionSetupModal || showProgressModal || showDeleteTicketModal;
 
   useEffect(() => {
     function handleEsc(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       if (showQuotesModal) setShowQuotesModal(false);
+      if (showContractDispatchModal) setShowContractDispatchModal(false);
       if (showPrelimModal) setShowPrelimModal(false);
       if (showExecutionSetupModal) setShowExecutionSetupModal(false);
       if (showProgressModal) setShowProgressModal(false);
@@ -1484,7 +1491,7 @@ export function InboxView() {
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [showQuotesModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showDeleteTicketModal, showMobileTicketList, showMobileContext]);
+  }, [showQuotesModal, showContractDispatchModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showDeleteTicketModal, showMobileTicketList, showMobileContext]);
 
   useEffect(() => {
     setShowActionsMenu(false);
@@ -2097,6 +2104,55 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       setToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!');
       setTimeout(() => setToast(null), 3000);
     }, 1500);
+  };
+
+  const handleSendContractToDirector = async () => {
+    if (!activeContract) {
+      setToast('Contrato base não encontrado. Aprove o orçamento antes de enviar contrato.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (!contractDispatchFile) {
+      setToast('Selecione o arquivo do contrato (PDF) antes de enviar à Diretoria.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    setIsSending(true);
+    const now = new Date();
+    const nextContract: ContractRecord = {
+      ...activeContract,
+      status: 'pending_approval',
+      signedFileName: contractDispatchFile.name,
+      viewingBy: null,
+    };
+
+    try {
+      await saveContract(activeTicket.id, nextContract, buildProcurementClassification(activeTicket));
+    } catch {
+      // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
+    }
+
+    setContractsByTicket(prev => ({ ...prev, [activeTicket.id]: nextContract }));
+    updateTicket(activeTicket.id, {
+      status: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+      history: [
+        ...activeTicket.history,
+        {
+          id: crypto.randomUUID(),
+          type: 'system',
+          sender: displayActorLabel,
+          time: now,
+          text: `Contrato anexado pelo gestor (${contractDispatchFile.name}) e enviado para aprovação da Diretoria.`,
+        },
+      ],
+    });
+
+    setContractDispatchFile(null);
+    setShowContractDispatchModal(false);
+    setIsSending(false);
+    setToast('Contrato enviado para aprovação da Diretoria.');
+    setTimeout(() => setToast(null), 3000);
   };
 
   // Usa trackingToken (opaco) em vez do ID sequencial
@@ -2851,6 +2907,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <Plus size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
                       Gerenciar Aditivos
                     </button>
+                    {activeTicket.status === TICKET_STATUS.WAITING_CONTRACT_UPLOAD && (
+                      <button
+                        onClick={() => setShowContractDispatchModal(true)}
+                        className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                      >
+                        <FileText size={16} />
+                        Anexar Contrato e Enviar para Diretoria
+                      </button>
+                    )}
                   </div>
                 </section>
               )}
@@ -4103,6 +4168,69 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 ))}
               </div>
+
+        </ModalShell>
+      )}
+
+      {showContractDispatchModal && (
+        <ModalShell
+          isOpen={showContractDispatchModal}
+          onClose={() => {
+            if (isSending) return;
+            setShowContractDispatchModal(false);
+          }}
+          title="Anexar Contrato para Diretoria"
+          description="Após o aceite do orçamento, anexe o contrato para a Diretoria aprovar."
+          maxWidthClass="max-w-lg"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowContractDispatchModal(false)}
+                disabled={isSending}
+                className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void handleSendContractToDirector()}
+                disabled={isSending || !contractDispatchFile}
+                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSending ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+                {isSending ? 'Enviando...' : 'Enviar para Aprovação'}
+              </button>
+            </div>
+          )}
+        >
+          <div className="space-y-4">
+            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
+              <div className="font-medium text-roman-text-main mb-1">Resumo do contrato</div>
+              <div>Fornecedor: {activeContract?.vendor || 'Não informado'}</div>
+              <div>Valor: {activeContract?.value || 'Não informado'}</div>
+            </div>
+
+            <div className="border-2 border-dashed border-roman-border rounded-sm p-6 text-center bg-roman-bg relative hover:bg-roman-border-light transition-colors cursor-pointer">
+              <input
+                type="file"
+                accept=".pdf"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={event => {
+                  if (event.target.files && event.target.files.length > 0) {
+                    setContractDispatchFile(event.target.files[0]);
+                  }
+                }}
+              />
+              <FileText size={28} className="mx-auto text-roman-primary mb-2" />
+              {contractDispatchFile ? (
+                <div className="text-sm font-medium text-roman-text-main">{contractDispatchFile.name}</div>
+              ) : (
+                <>
+                  <div className="text-sm font-medium text-roman-text-main mb-1">Selecione o contrato em PDF</div>
+                  <div className="text-xs text-roman-text-sub">Esse arquivo será registrado antes da aprovação da Diretoria</div>
+                </>
+              )}
+            </div>
+          </div>
 
         </ModalShell>
       )}

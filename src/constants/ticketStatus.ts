@@ -4,6 +4,7 @@
   WAITING_SOLUTION_APPROVAL: 'Aguardando Aprovação da Solução',
   WAITING_BUDGET: 'Aguardando Orçamento',
   WAITING_BUDGET_APPROVAL: 'Aguardando Aprovação do Orçamento',
+  WAITING_CONTRACT_UPLOAD: 'Aguardando Anexo de Contrato',
   WAITING_CONTRACT_APPROVAL: 'Aguardando aprovação do contrato',
   WAITING_PRELIM_ACTIONS: 'Aguardando Ações Preliminares',
   IN_PROGRESS: 'Em andamento',
