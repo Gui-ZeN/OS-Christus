@@ -297,58 +297,19 @@ async function resolveFlowFallbackRecipients(db, trigger) {
     .filter(Boolean);
 }
 
-function formatNameFromEmail(email) {
-  const normalized = firstEmail(email);
-  if (!normalized) return null;
-  const localPart = normalized.split('@')[0] || '';
-  const words = localPart
-    .split(/[._-]+/)
-    .map(part => part.trim())
-    .filter(Boolean);
-  if (words.length === 0) return null;
-  return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-}
-
-async function resolveRecipientDisplayName(db, email) {
-  const normalized = firstEmail(email);
-  if (!normalized) return null;
-
-  try {
-    const snap = await db.collection('users').where('email', '==', normalized).limit(1).get();
-    if (!snap.empty) {
-      const user = snap.docs[0]?.data() || {};
-      const name = String(user.name || '').trim();
-      if (name) return name;
-    }
-  } catch {
-    // Segue com fallback por e-mail.
-  }
-
-  return formatNameFromEmail(normalized);
-}
-
-function personalizeDirectorGreeting(body, directorName) {
+function normalizeDirectorGreeting(body) {
   const text = String(body || '');
-  const name = String(directorName || '').trim();
-  if (!text || !name) return text;
+  if (!text.trim()) return 'Olá,';
 
-  if (/Olá\s+Diretoria/i.test(text)) {
-    return text.replace(/Olá\s+Diretoria/i, `Olá ${name}`);
+  const lines = text.split('\n');
+  const firstContentLine = lines.findIndex(line => String(line || '').trim().length > 0);
+
+  if (firstContentLine >= 0 && /^Olá\b/i.test(String(lines[firstContentLine] || '').trim())) {
+    lines[firstContentLine] = 'Olá,';
+    return lines.join('\n');
   }
 
-  if (/^Olá\s+.+/i.test(text)) {
-    return text.replace(/^Olá\s+.+/i, `Olá ${name}`);
-  }
-
-  return `Olá ${name},\n\n${text}`;
-}
-
-function formatGreetingNames(names) {
-  const list = Array.from(new Set((Array.isArray(names) ? names : []).map(name => String(name || '').trim()).filter(Boolean)));
-  if (list.length === 0) return null;
-  if (list.length === 1) return list[0];
-  if (list.length === 2) return `${list[0]} e ${list[1]}`;
-  return `${list.slice(0, -1).join(', ')} e ${list[list.length - 1]}`;
+  return `Olá,\n\n${text}`;
 }
 
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
@@ -935,12 +896,8 @@ async function handleSend(req, res) {
 
     const provider = providerForLog;
     let personalizedBody = resolvedBody;
-    if (isDirectorTrigger && !internalCopy && recipients.length > 0) {
-      const recipientNames = await Promise.all(recipients.map(recipient => resolveRecipientDisplayName(db, recipient)));
-      const greetingNames = formatGreetingNames(recipientNames);
-      if (greetingNames) {
-        personalizedBody = personalizeDirectorGreeting(resolvedBody, greetingNames);
-      }
+    if (isDirectorTrigger && !internalCopy) {
+      personalizedBody = normalizeDirectorGreeting(resolvedBody);
     }
 
     const fallbackTemplate = buildTicketEmailTemplate({

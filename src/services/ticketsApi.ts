@@ -159,6 +159,7 @@ function hydratePayment(item: ApiPayment): PaymentRecord {
 
 export async function fetchTicketsFromApi(): Promise<Ticket[]> {
   const response = await fetch('/api/tickets', {
+    cache: 'no-store',
     headers: await getAuthenticatedActorHeaders(),
   });
   const json = await expectApiJson<{ ok: boolean; tickets?: ApiTicket[] }>(
@@ -173,7 +174,9 @@ export async function fetchTicketsFromApi(): Promise<Ticket[]> {
 }
 
 export async function fetchTrackingDetailsFromApi(trackingToken: string): Promise<TrackingTicketPayload> {
-  const response = await fetch(`/api/tickets?tracking=${encodeURIComponent(trackingToken)}`);
+  const response = await fetch(`/api/tickets?tracking=${encodeURIComponent(trackingToken)}`, {
+    cache: 'no-store',
+  });
   const json = await readApiJson<any>(response);
   if (!response.ok || !json?.ok || !json.ticket) {
     throw new Error(resolveApiError(json, 'Falha ao buscar ticket de acompanhamento.'));
