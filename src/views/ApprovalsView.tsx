@@ -200,6 +200,7 @@ export function ApprovalsView() {
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const reviewingTicketIdRef = useRef<string | null>(null);
+  const approvalQueryAppliedRef = useRef(false);
 
   if (!canAccess) {
     return (
@@ -721,6 +722,7 @@ export function ApprovalsView() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || currentView !== 'approvals') return;
+    if (approvalQueryAppliedRef.current) return;
     const params = new URLSearchParams(window.location.search);
     const requestedTab = params.get('approvalTab');
     const requestedTicketId = params.get('ticketId');
@@ -740,6 +742,11 @@ export function ApprovalsView() {
         document.getElementById(`approval-budget-${requestedTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 120);
     }
+    params.delete('approvalTab');
+    params.delete('ticketId');
+    const query = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+    approvalQueryAppliedRef.current = true;
   }, [activeTicketId, budgets, currentView, setActiveTicketId]);
 
   useEffect(() => {
@@ -1237,6 +1244,11 @@ export function ApprovalsView() {
                 <div className="mb-3 text-xs text-stone-600">
                   Arquivo anexado pelo gestor: <span className="font-medium text-stone-800">{contract.signedFileName || 'Não informado'}</span>
                 </div>
+                {!contract.signedFileName && (
+                  <div className="mb-3 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Contrato sem anexo válido. Peça ao gestor para reenviar pela Inbox em “Anexar Contrato e Enviar para Diretoria”.
+                  </div>
+                )}
                 {(contract.macroServiceName || contract.serviceCatalogName) && (
                   <div className="mb-4 flex flex-wrap gap-2 text-[11px]">
                     {contract.macroServiceName && (

@@ -2144,7 +2144,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     try {
       await saveContract(activeTicket.id, nextContract, buildProcurementClassification(activeTicket));
     } catch {
-      // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
+      setIsSending(false);
+      setToast('Falha ao registrar contrato no servidor. Não foi enviado para aprovação.');
+      setTimeout(() => setToast(null), 3500);
+      return;
     }
 
     setContractsByTicket(prev => ({ ...prev, [activeTicket.id]: nextContract }));
