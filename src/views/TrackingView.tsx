@@ -383,7 +383,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
             <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
               {ticket.history
-                .filter(item => item.type !== 'field_change' && item.text)
+                .filter(item => item.type !== 'field_change' && item.type !== 'internal' && item.text)
                 .map((item, index) => {
                   const isExternalMessage = item.type === 'customer';
 
