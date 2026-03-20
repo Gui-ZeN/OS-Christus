@@ -442,6 +442,7 @@ export function InboxView() {
   const [ticketPriority, setTicketPriority] = useState('');
   const [statusDraft, setStatusDraft] = useState('');
   const [sidebarSections, setSidebarSections] = useState({
+    summary: true,
     classification: true,
     execution: true,
   });
@@ -552,6 +553,7 @@ export function InboxView() {
 
   useEffect(() => {
     setSidebarSections({
+      summary: true,
       classification: true,
       execution: [
         TICKET_STATUS.WAITING_PRELIM_ACTIONS,
@@ -2751,20 +2753,33 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </div>
 
               <section className="rounded-xl border border-roman-border bg-white px-3 py-3">
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
-                <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
-                <div className="mt-3 rounded-xl border border-roman-border bg-roman-bg px-3 py-3">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</div>
-                  <div className="mt-1 text-[15px] font-serif text-roman-text-main leading-snug">{activeTicket.subject || 'Sem assunto definido'}</div>
-                </div>
-                <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
-                  <PropertyField label="Solicitante" value={activeTicket.requester} />
-                  <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
-                  <PropertyField label="Setor" value={activeTicket.sector} />
-                  <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
-                  <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
-                  <PropertyField label="Status atual" value={activeTicket.status} />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSidebarSections(prev => ({ ...prev, summary: !prev.summary }))}
+                  className="flex w-full items-start justify-between gap-3 text-left"
+                >
+                  <div>
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
+                    <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
+                  </div>
+                  <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.summary ? 'rotate-180' : ''}`} />
+                </button>
+                {sidebarSections.summary && (
+                  <>
+                    <div className="mt-3 rounded-xl border border-roman-border bg-roman-bg px-3 py-3">
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</div>
+                      <div className="mt-1 text-[15px] font-serif text-roman-text-main leading-snug">{activeTicket.subject || 'Sem assunto definido'}</div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
+                      <PropertyField label="Solicitante" value={activeTicket.requester} />
+                      <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
+                      <PropertyField label="Setor" value={activeTicket.sector} />
+                      <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
+                      <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
+                      <PropertyField label="Status atual" value={activeTicket.status} />
+                    </div>
+                  </>
+                )}
               </section>
 
               {canManageBudgetRounds && (
