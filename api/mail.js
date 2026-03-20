@@ -283,6 +283,20 @@ function getSystemMailboxEmails() {
     .filter(Boolean);
 }
 
+async function resolveFlowFallbackRecipients(db, trigger) {
+  const normalizedTrigger = String(trigger || '').trim().toUpperCase();
+  if (!normalizedTrigger.startsWith('EMAIL-DIRETORIA-')) return [];
+
+  const snap = await db.collection('users').where('role', '==', 'Diretor').get();
+  if (snap.empty) return [];
+
+  return snap.docs
+    .map(doc => doc.data() || {})
+    .filter(user => user.active !== false && String(user.status || 'Ativo').trim() === 'Ativo')
+    .map(user => firstEmail(user.email))
+    .filter(Boolean);
+}
+
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
   if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
@@ -838,6 +852,7 @@ async function handleSend(req, res) {
 
     const explicitRecipients = parseEmailList(toEmailInput);
     const templateRecipients = parseEmailList(storedTemplate?.recipients || '');
+    const flowFallbackRecipients = await resolveFlowFallbackRecipients(db, trigger);
     const threadRecipients = parseEmailList(thread?.toEmail || '');
     const recipients = internalCopy
       ? (internalEmail ? [internalEmail] : [])
@@ -845,6 +860,8 @@ async function handleSend(req, res) {
         ? explicitRecipients
         : templateRecipients.length > 0
           ? templateRecipients
+          : flowFallbackRecipients.length > 0
+            ? flowFallbackRecipients
           : allowThreadRecipientFallback
             ? threadRecipients
             : [];
