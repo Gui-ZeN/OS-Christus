@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+﻿import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
@@ -22,7 +22,7 @@ import { sendWithSendGrid } from './_lib/sendgrid.js';
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 
 function required(input, name) {
-  if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
+  if (!input || String(input).trim() === '') throw new Error(`Campo obrigatÃ³rio: ${name}`);
   return String(input).trim();
 }
 
@@ -214,13 +214,13 @@ function renderTemplateString(template, variables) {
 
 function repairMojibake(value) {
   const input = String(value || '');
-  if (!input || (!input.includes('Ã') && !input.includes('Â') && !input.includes('â'))) {
+  if (!input || (!input.includes('Ãƒ') && !input.includes('Ã‚') && !input.includes('Ã¢'))) {
     return input;
   }
 
   try {
     const repaired = Buffer.from(input, 'latin1').toString('utf8');
-    if (!repaired || repaired.includes('�')) return input;
+    if (!repaired || repaired.includes('ï¿½')) return input;
     return repaired;
   } catch {
     return input;
@@ -299,8 +299,8 @@ async function resolveFlowFallbackRecipients(db, trigger) {
 
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
-  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
-  if (!cleanSubject) return `${ticketId} - Atualização da OS`;
+  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'AtualizaÃ§Ã£o da OS');
+  if (!cleanSubject) return `${ticketId} - AtualizaÃ§Ã£o da OS`;
   if (cleanSubject.toUpperCase().startsWith(`${ticketId.toUpperCase()} - `)) {
     return repairMojibake(cleanSubject);
   }
@@ -396,7 +396,7 @@ async function authorizeGmailAutomation(req) {
     await requireUserWithRoles(req, ['Admin']);
     return;
   } catch {
-    // Segue para validação por segredo abaixo.
+    // Segue para validaÃ§Ã£o por segredo abaixo.
   }
 
   if (validSecrets.length === 0) {
@@ -405,7 +405,7 @@ async function authorizeGmailAutomation(req) {
   }
 
   if (!provided || !validSecrets.includes(provided)) {
-    throw new Error('Segredo inválido.');
+    throw new Error('Segredo invÃ¡lido.');
   }
 }
 
@@ -729,13 +729,13 @@ async function createTicketFromInbound(db, message) {
     requesterEmail: fromEmail || '',
     time: now,
     status: 'Nova OS',
-    type: 'Manutenção Predial Estrutural',
+    type: 'ManutenÃ§Ã£o Predial Estrutural',
     macroServiceId: null,
     macroServiceName: null,
     serviceCatalogId: null,
     serviceCatalogName: null,
     regionId: region?.id || null,
-    region: region?.name || 'Não definida',
+    region: region?.name || 'NÃ£o definida',
     siteId: site?.id || null,
     sede: site?.code || parsedSubject.siteCode,
     sector: 'E-mail',
@@ -776,7 +776,7 @@ async function handleSend(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
     }
 
     const body = await readJsonBody(req);
@@ -784,7 +784,7 @@ async function handleSend(req, res) {
     ticketIdForLog = ticketId;
 
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
-    const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
+    const subject = body.subject ? String(body.subject) : `AtualizaÃ§Ã£o da OS ${ticketId}`;
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
     const templateId = body.templateId ? String(body.templateId) : null;
@@ -822,15 +822,16 @@ async function handleSend(req, res) {
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
     const resolvedSubject = ticketId
-      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, subject)
+      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, 'AtualizaÃ§Ã£o da OS')
       : templateSubject;
+
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
-      title: templateData.title || `Atualização da OS ${ticketId}`,
+      title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
       intro:
         templateData.intro ||
-        'Sua solicitação recebeu uma nova atualização. Você pode responder este e-mail para continuar a conversa no sistema.',
+        'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
       ticketId,
       subject: templateData.ticketSubject || resolvedSubject,
       status: templateData.status || 'Atualizada',
@@ -849,6 +850,10 @@ async function handleSend(req, res) {
     const threadRef = db.collection('emailThreads').doc(ticketId);
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
+    const canonicalSubject =
+      ticketId && String(thread?.subject || '').trim()
+        ? repairMojibake(String(thread.subject))
+        : resolvedSubject;
 
     const explicitRecipients = parseEmailList(toEmailInput);
     const templateRecipients = parseEmailList(storedTemplate?.recipients || '');
@@ -868,10 +873,10 @@ async function handleSend(req, res) {
     const toEmail = recipients.join(', ');
     toEmailForLog = toEmail;
     if (!toEmail || recipients.length === 0) {
-      throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
+      throw new Error('Campo obrigatÃ³rio: toEmail (ou thread existente com destinatÃ¡rio).');
     }
 
-    const reuseThread = !internalCopy && sameRecipientSet(recipients, threadRecipients);
+    const reuseThread = !internalCopy && Boolean(thread?.lastMessageId);
     const priorMessageId = reuseThread ? thread?.lastMessageId || null : null;
     const references = reuseThread && Array.isArray(thread?.references) ? thread.references : [];
     const nextReferences = priorMessageId ? [...new Set([...references, priorMessageId])].slice(-20) : references;
@@ -888,7 +893,7 @@ async function handleSend(req, res) {
       provider === 'gmail'
         ? await gmailSend({
             toEmail,
-            subject: resolvedSubject,
+            subject: canonicalSubject,
             text: finalText,
             html: finalHtml,
             inReplyTo: priorMessageId || undefined,
@@ -899,7 +904,7 @@ async function handleSend(req, res) {
           })
         : await sendWithSendGrid({
             toEmail,
-            subject: resolvedSubject,
+            subject: canonicalSubject,
             text: finalText,
             html: finalHtml,
             templateId,
@@ -916,6 +921,7 @@ async function handleSend(req, res) {
       await threadRef.set(
         {
           ticketId,
+          subject: canonicalSubject,
           toEmail,
           lastMessageId: messageId,
           gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
@@ -931,7 +937,7 @@ async function handleSend(req, res) {
       await threadRef.collection('messages').add({
         direction: 'outbound',
         toEmail,
-        subject: resolvedSubject,
+        subject: canonicalSubject,
         text: finalText || null,
         html: finalHtml || null,
         templateId: templateId || null,
@@ -950,7 +956,7 @@ async function handleSend(req, res) {
       provider,
       ticketId,
       toEmail,
-      subject: resolvedSubject,
+      subject: canonicalSubject,
       messageId,
     });
 
@@ -979,7 +985,7 @@ async function handleHealth(req, res) {
   try {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
     }
 
     await requireUserWithRoles(req, ['Admin', 'Diretor']);
@@ -1027,11 +1033,11 @@ async function handleHealth(req, res) {
           provider: event.provider || null,
           type: event.type || null,
           ticketId: event.ticketId || null,
-          error: event.error || 'Erro não detalhado',
+          error: event.error || 'Erro nÃ£o detalhado',
         })),
     });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao ler saúde de e-mail.' });
+    return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao ler saÃºde de e-mail.' });
   }
 }
 
@@ -1039,7 +1045,7 @@ async function handleGmailSync(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1093,7 +1099,7 @@ async function handleGmailWatch(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1143,7 +1149,7 @@ async function handleGmailPush(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1459,8 +1465,10 @@ export default async function handler(req, res) {
   if (route === 'inbound') return handleInbound(req, res);
 
   res.setHeader('Allow', 'GET, POST');
-  return sendJson(res, 404, { ok: false, error: 'Rota de mail inválida.' });
+  return sendJson(res, 404, { ok: false, error: 'Rota de mail invÃ¡lida.' });
 }
+
+
 
 
 
