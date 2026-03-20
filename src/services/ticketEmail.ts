@@ -13,10 +13,10 @@ function buildTrackingUrl(ticket: Ticket) {
   return `${window.location.origin}/?tracking=${encodeURIComponent(ticket.trackingToken)}`;
 }
 
-function buildBudgetReviewUrl(ticket: Ticket) {
+function buildDirectorReviewUrl(ticket: Ticket, approvalTab: 'solutions' | 'budgets' | 'contracts') {
   const params = new URLSearchParams({
     view: 'approvals',
-    approvalTab: 'budgets',
+    approvalTab,
     ticketId: ticket.id,
   });
   return `${window.location.origin}/?${params.toString()}`;
@@ -258,9 +258,13 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   }
 
   if (DIRECTOR_FLOW_STATUSES.has(ticket.status)) {
-    const isApprovalStatus =
-      ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL ||
-      ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL;
+    const directorTab =
+      ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL
+        ? 'contracts'
+        : ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
+          ? 'budgets'
+          : 'solutions';
+    const isApprovalStatus = directorTab !== 'solutions';
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
@@ -274,8 +278,8 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
         ticketSubject: ticket.subject,
         status: ticket.status,
         directorSummary,
-        ctaUrl: isApprovalStatus ? buildBudgetReviewUrl(ticket) : buildTrackingUrl(ticket),
-        ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Acompanhar evolução',
+        ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
+        ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Abrir painel da Diretoria',
       },
     });
   }
