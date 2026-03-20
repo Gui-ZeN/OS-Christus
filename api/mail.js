@@ -343,6 +343,14 @@ function personalizeDirectorGreeting(body, directorName) {
   return `Olá ${name},\n\n${text}`;
 }
 
+function formatGreetingNames(names) {
+  const list = Array.from(new Set((Array.isArray(names) ? names : []).map(name => String(name || '').trim()).filter(Boolean)));
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} e ${list[1]}`;
+  return `${list.slice(0, -1).join(', ')} e ${list[list.length - 1]}`;
+}
+
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
   if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'AtualizaÃ§Ã£o da OS');
@@ -926,110 +934,64 @@ async function handleSend(req, res) {
     };
 
     const provider = providerForLog;
-    const shouldPersonalizeDirectorRecipients = isDirectorTrigger && !internalCopy && recipients.length > 0;
-    const sentMessages = [];
-    let finalText = '';
-    let finalHtml = '';
+    let personalizedBody = resolvedBody;
+    if (isDirectorTrigger && !internalCopy && recipients.length > 0) {
+      const recipientNames = await Promise.all(recipients.map(recipient => resolveRecipientDisplayName(db, recipient)));
+      const greetingNames = formatGreetingNames(recipientNames);
+      if (greetingNames) {
+        personalizedBody = personalizeDirectorGreeting(resolvedBody, greetingNames);
+      }
+    }
 
-    const sendOne = async (recipientEmail, contentText, contentHtml) => {
-      return provider === 'gmail'
-        ? gmailSend({
-            toEmail: recipientEmail,
+    const fallbackTemplate = buildTicketEmailTemplate({
+      trigger: trigger || templateId || resolvedSubject,
+      title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
+      intro:
+        templateData.intro ||
+        'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
+      ticketId,
+      subject: templateData.ticketSubject || resolvedSubject,
+      status: templateData.status || 'Atualizada',
+      region: templateData.region || resolvedTicket.region || null,
+      site: templateData.site || resolvedTicket.sede || null,
+      sector: templateData.sector || resolvedTicket.sector || null,
+      service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
+      guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
+      ctaUrl: templateData.ctaUrl || null,
+      ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
+      bodyText: personalizedBody || templateData.bodyText || '',
+    });
+
+    const finalText = personalizedBody || text || fallbackTemplate.text;
+    const finalHtml = html || fallbackTemplate.html;
+
+    const sendResult =
+      provider === 'gmail'
+        ? await gmailSend({
+            toEmail,
             subject: canonicalSubject,
-            text: contentText,
-            html: contentHtml,
+            text: finalText,
+            html: finalHtml,
             inReplyTo: priorMessageId || undefined,
             references: nextReferences,
             ticketId,
             trackingToken: trackingToken || undefined,
             threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
           })
-        : sendWithSendGrid({
-            toEmail: recipientEmail,
+        : await sendWithSendGrid({
+            toEmail,
             subject: canonicalSubject,
-            text: contentText,
-            html: contentHtml,
+            text: finalText,
+            html: finalHtml,
             templateId,
             templateData,
             headers,
             replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
           });
-    };
-
-    if (shouldPersonalizeDirectorRecipients) {
-      for (const recipient of recipients) {
-        const recipientName = await resolveRecipientDisplayName(db, recipient);
-        const personalizedBody = personalizeDirectorGreeting(resolvedBody, recipientName);
-        const fallbackTemplate = buildTicketEmailTemplate({
-          trigger: trigger || templateId || resolvedSubject,
-          title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
-          intro:
-            templateData.intro ||
-            'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
-          ticketId,
-          subject: templateData.ticketSubject || resolvedSubject,
-          status: templateData.status || 'Atualizada',
-          region: templateData.region || resolvedTicket.region || null,
-          site: templateData.site || resolvedTicket.sede || null,
-          sector: templateData.sector || resolvedTicket.sector || null,
-          service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
-          guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
-          ctaUrl: templateData.ctaUrl || null,
-          ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
-          bodyText: personalizedBody || templateData.bodyText || '',
-        });
-
-        const recipientText = personalizedBody || text || fallbackTemplate.text;
-        const recipientHtml = html || fallbackTemplate.html;
-        const result = await sendOne(recipient, recipientText, recipientHtml);
-
-        sentMessages.push({
-          toEmail: recipient,
-          text: recipientText,
-          html: recipientHtml,
-          result,
-        });
-        finalText = recipientText;
-        finalHtml = recipientHtml;
-      }
-    } else {
-      const fallbackTemplate = buildTicketEmailTemplate({
-        trigger: trigger || templateId || resolvedSubject,
-        title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
-        intro:
-          templateData.intro ||
-          'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
-        ticketId,
-        subject: templateData.ticketSubject || resolvedSubject,
-        status: templateData.status || 'Atualizada',
-        region: templateData.region || resolvedTicket.region || null,
-        site: templateData.site || resolvedTicket.sede || null,
-        sector: templateData.sector || resolvedTicket.sector || null,
-        service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
-        guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
-        ctaUrl: templateData.ctaUrl || null,
-        ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
-        bodyText: resolvedBody || templateData.bodyText || '',
-      });
-
-      finalText = resolvedBody || text || fallbackTemplate.text;
-      finalHtml = html || fallbackTemplate.html;
-      const result = await sendOne(toEmail, finalText, finalHtml);
-      sentMessages.push({
-        toEmail,
-        text: finalText,
-        html: finalHtml,
-        result,
-      });
-    }
 
     const now = new Date();
-    const messageIds = sentMessages.map((entry, index) => {
-      return entry.result?.messageId || entry.result?.id || `<os-${ticketId}-${now.getTime()}-${index}@os-christus>`;
-    });
-    const messageId = messageIds[messageIds.length - 1] || `<os-${ticketId}-${now.getTime()}@os-christus>`;
-    const latestThreadId = sentMessages[sentMessages.length - 1]?.result?.threadId || null;
-    const mergedReferences = [...new Set([...nextReferences, ...messageIds])].slice(-20);
+    const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
+    const mergedReferences = [...new Set([...nextReferences, messageId])].slice(-20);
 
     if (!skipThread) {
       await threadRef.set(
@@ -1038,7 +1000,7 @@ async function handleSend(req, res) {
           subject: canonicalSubject,
           toEmail,
           lastMessageId: messageId,
-          gmailThreadId: latestThreadId || (reuseThread ? thread?.gmailThreadId : null) || null,
+          gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
           references: mergedReferences,
           lastDirection: 'outbound',
           lastOutboundAt: now,
@@ -1052,11 +1014,8 @@ async function handleSend(req, res) {
         direction: 'outbound',
         toEmail,
         subject: canonicalSubject,
-        text:
-          shouldPersonalizeDirectorRecipients && recipients.length > 1
-            ? `Envio personalizado para ${recipients.length} destinatário(s) da Diretoria.`
-            : finalText || null,
-        html: shouldPersonalizeDirectorRecipients && recipients.length > 1 ? null : finalHtml || null,
+        text: finalText || null,
+        html: finalHtml || null,
         templateId: templateId || null,
         trigger: trigger || null,
         messageId,
