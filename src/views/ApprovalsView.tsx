@@ -566,6 +566,7 @@ export function ApprovalsView() {
     () =>
       tickets
         .map(ticket => {
+          if (ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL) return null;
           const allQuotes = quotesByTicket[ticket.id] ?? [];
           const pendingRound = resolvePendingRound(allQuotes);
           const shouldInclude =
@@ -714,9 +715,9 @@ export function ApprovalsView() {
 
   const activeTicketTab = useMemo(() => {
     if (!activeTicketId) return null;
+    if (contracts.some(item => item.id === activeTicketId)) return 'contracts' as const;
     if (solutions.some(item => item.id === activeTicketId)) return 'solutions' as const;
     if (budgets.some(item => item.id === activeTicketId)) return 'budgets' as const;
-    if (contracts.some(item => item.id === activeTicketId)) return 'contracts' as const;
     return null;
   }, [activeTicketId, budgets, contracts, solutions]);
 
