@@ -2890,7 +2890,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <option value="">Selecione o terceiro...</option>
                           {filteredThirdParties.map(vendor => (
                             <option key={vendor.id} value={vendor.id}>
-                              {vendor.name} {resolveVendorSharedTags(vendor).length > 0 ? `(${resolveVendorSharedTags(vendor).join(', ')})` : ''}
+                              {vendor.name}
                             </option>
                           ))}
                         </select>
