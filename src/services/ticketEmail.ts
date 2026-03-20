@@ -109,6 +109,22 @@ function resolveDirectorCancellationReason(ticket: Ticket): string | null {
   return null;
 }
 
+function buildDirectorTicketSummary(ticket: Ticket): string {
+  const serviceLabel = ticket.serviceCatalogName || ticket.macroServiceName || 'Não informado';
+  const locationLabel = `${ticket.region || 'Não informada'} / ${ticket.sede || 'Não informada'}`;
+
+  return [
+    'Resumo da OS:',
+    `- Assunto: ${ticket.subject || 'Não informado'}`,
+    `- Solicitante: ${ticket.requester || 'Não informado'}`,
+    `- Setor: ${ticket.sector || 'Não informado'}`,
+    `- Local: ${locationLabel}`,
+    `- Tipo de manutenção: ${ticket.type || 'Não informado'}`,
+    `- Classificação técnica: ${serviceLabel}`,
+    `- Status atual: ${ticket.status || 'Não informado'}`,
+  ].join('\n');
+}
+
 async function postEmail(payload: Record<string, unknown>) {
   try {
     const headers = await getAuthenticatedActorHeaders();
@@ -206,12 +222,17 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
 
   const trigger = resolveStatusTrigger(ticket.status);
   const requesterEmail = resolveTicketEmail(ticket);
+  const directorSummary =
+    DIRECTOR_FLOW_STATUSES.has(ticket.status) ? buildDirectorTicketSummary(ticket) : '';
   const cancellationReason =
     ticket.status === TICKET_STATUS.CANCELED ? resolveDirectorCancellationReason(ticket) : null;
   const messageBody = cancellationReason || `Status alterado de "${previousStatus}" para "${ticket.status}".`;
   const variables = await buildVariables(ticket, {
     previousStatus,
     currentStatus: ticket.status,
+    director: {
+      summary: directorSummary,
+    },
     message: {
       sender: 'Sistema OS Christus',
       body: messageBody,
@@ -252,6 +273,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
           : `${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
+        directorSummary,
         ctaUrl: isApprovalStatus ? buildBudgetReviewUrl(ticket) : buildTrackingUrl(ticket),
         ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Acompanhar evolução',
       },

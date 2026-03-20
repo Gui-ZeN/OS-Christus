@@ -818,7 +818,19 @@ async function handleSend(req, res) {
     const templateSubject = repairMojibake(
       storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject
     );
-    const resolvedBody = repairMojibake(storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text);
+    const baseResolvedBody = repairMojibake(
+      storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text
+    );
+    const isDirectorTrigger = String(trigger || '').startsWith('EMAIL-DIRETORIA-');
+    const directorSummary = String(templateData.directorSummary || '').trim();
+    const resolvedBody =
+      isDirectorTrigger && directorSummary
+        ? (baseResolvedBody
+            ? baseResolvedBody.includes(directorSummary)
+              ? baseResolvedBody
+              : `${baseResolvedBody}\n\n${directorSummary}`
+            : directorSummary)
+        : baseResolvedBody;
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
     const resolvedSubject = ticketId
