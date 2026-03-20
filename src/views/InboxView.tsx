@@ -2379,7 +2379,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 time={ticket.time}
                 status={ticket.status}
                 priority={ticket.priority}
-                viewingBy={ticket.viewingBy}
                 active={activeTicketId === ticket.id}
                 onClick={() => {
                   setActiveTicketId(ticket.id);

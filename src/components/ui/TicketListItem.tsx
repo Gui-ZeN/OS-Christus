@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { AlertCircle, Clock, Eye } from 'lucide-react';
+import { AlertCircle, Clock } from 'lucide-react';
 import { TICKET_STATUS } from '../../constants/ticketStatus';
 import { SLAStatus } from '../../types';
 import { formatDateTimeSafe } from '../../utils/date';
@@ -12,7 +12,6 @@ interface TicketListItemProps {
   time: Date;
   status: string;
   priority?: string;
-  viewingBy?: { name: string; at: Date } | null;
   sla?: SLAStatus;
   active?: boolean;
   onClick: () => void;
@@ -25,7 +24,6 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   time,
   status,
   priority,
-  viewingBy,
   sla,
   active,
   onClick,
@@ -101,13 +99,6 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
       {isWaitingValidation && (
         <div className="mb-2 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] font-medium text-roman-primary">
           Aguardando validação do solicitante
-        </div>
-      )}
-
-      {viewingBy && (
-        <div className="animate-in fade-in flex w-fit items-center gap-1.5 rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] text-roman-primary">
-          <Eye size={10} />
-          <span className="font-medium">Sendo visto por {viewingBy.name}</span>
         </div>
       )}
     </button>
