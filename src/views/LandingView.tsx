@@ -1,5 +1,5 @@
-import React from 'react';
-import { Landmark, ClipboardList, Lock, ArrowRight } from 'lucide-react';
+﻿import React from 'react';
+import { ClipboardList, Lock, ArrowRight } from 'lucide-react';
 
 interface LandingViewProps {
   onOpenForm: () => void;
@@ -8,73 +8,62 @@ interface LandingViewProps {
 
 export function LandingView({ onOpenForm, onLogin }: LandingViewProps) {
   return (
-    <div className="h-screen w-full bg-roman-bg flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Decorative lines */}
-      <div className="absolute top-0 left-0 w-full h-0.5 bg-roman-primary opacity-60"></div>
-      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-roman-border"></div>
-      <div className="absolute top-12 left-12 w-px h-32 bg-roman-border opacity-40"></div>
-      <div className="absolute top-12 right-12 w-px h-32 bg-roman-border opacity-40"></div>
-      <div className="absolute bottom-12 left-12 w-px h-32 bg-roman-border opacity-40"></div>
-      <div className="absolute bottom-12 right-12 w-px h-32 bg-roman-border opacity-40"></div>
+    <div className="relative h-screen w-full overflow-auto bg-roman-bg px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto flex min-h-full w-full max-w-[1320px] items-center justify-center">
+        <div className="w-full rounded-[26px] border border-roman-border bg-roman-surface p-6 shadow-[0_22px_70px_rgba(25,20,16,0.08)] sm:p-8 md:p-10">
+          <header className="text-center">
+            <div className="inline-flex items-center gap-3 rounded-full border border-roman-border bg-roman-bg px-5 py-2 text-[12px] font-medium uppercase tracking-[0.2em] text-roman-text-sub">
+              <span className="h-1.5 w-1.5 rounded-full bg-roman-primary" />
+              Unichristus · Infraestrutura
+              <span className="h-1.5 w-1.5 rounded-full bg-roman-primary" />
+            </div>
+            <h1 className="mt-6 text-4xl font-serif text-roman-text-main sm:text-5xl md:text-6xl">
+              Gestão de <span className="text-roman-primary italic">Manutenção</span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-3xl text-lg text-roman-text-sub sm:text-2xl">
+              Sistema de Ordens de Serviço · Acesso interno
+            </p>
+          </header>
 
-      {/* Header */}
-      <div className="text-center mb-16">
-        <div className="flex items-center justify-center gap-3 text-roman-primary mb-5">
-          <Landmark size={44} strokeWidth={1.2} />
+          <section className="mt-10 grid gap-5 lg:grid-cols-2">
+            <button
+              onClick={onOpenForm}
+              className="group rounded-[22px] border border-roman-border bg-roman-bg p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/50 hover:shadow-lg hover:shadow-black/5 sm:p-8"
+            >
+              <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-roman-border bg-roman-surface text-roman-primary">
+                <ClipboardList size={28} strokeWidth={1.8} />
+              </div>
+              <h2 className="text-3xl font-serif text-roman-text-main">Abrir Chamado</h2>
+              <p className="mt-5 max-w-xl text-lg leading-[1.5] text-roman-text-sub">
+                Registre uma nova solicitação de manutenção. Acompanhe o andamento pelo link enviado ao seu e-mail.
+              </p>
+              <div className="mt-12 inline-flex items-center gap-3 text-lg font-medium text-roman-primary">
+                Registrar OS <ArrowRight size={22} className="transition-transform group-hover:translate-x-1" />
+              </div>
+            </button>
+
+            <button
+              onClick={onLogin}
+              className="group rounded-[22px] border border-roman-border/60 bg-roman-sidebar p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/60 hover:shadow-lg hover:shadow-black/20 sm:p-8"
+            >
+              <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white/85">
+                <Lock size={28} strokeWidth={1.8} />
+              </div>
+              <h2 className="text-3xl font-serif text-white">Acesso à Gestão</h2>
+              <p className="mt-5 max-w-xl text-lg leading-[1.5] text-white/65">
+                Área restrita para triagem, gestores e diretoria. Requer credenciais de acesso institucionais.
+              </p>
+              <div className="mt-12 inline-flex items-center gap-3 text-lg font-medium text-white">
+                Entrar no painel <ArrowRight size={22} className="transition-transform group-hover:translate-x-1" />
+              </div>
+            </button>
+          </section>
+
+          <footer className="pt-12 text-center text-sm text-roman-text-sub/70 sm:text-base">
+            Gestão de Ordens de Serviço · Sistema Interno
+          </footer>
         </div>
-        <h1 className="text-5xl font-serif font-medium text-roman-text-main tracking-wide mb-3">
-          Gestão de Manutenção
-        </h1>
-        <p className="text-roman-text-sub font-serif italic text-lg">
-          Sistema de Ordens de Serviço
-        </p>
       </div>
-
-      {/* Two cards */}
-      <div className="flex gap-6 w-full max-w-2xl px-6">
-        {/* Public: Open OS */}
-        <button
-          onClick={onOpenForm}
-          className="flex-1 group bg-roman-surface border border-roman-border hover:border-roman-primary/50 rounded-sm p-8 text-left transition-all duration-200 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5"
-        >
-          <div className="w-12 h-12 bg-roman-primary/10 rounded-sm flex items-center justify-center mb-5 group-hover:bg-roman-primary/20 transition-colors">
-            <ClipboardList size={24} className="text-roman-primary" strokeWidth={1.5} />
-          </div>
-          <h2 className="text-xl font-serif font-medium text-roman-text-main mb-2">
-            Abrir Chamado
-          </h2>
-          <p className="text-sm text-roman-text-sub leading-relaxed mb-6">
-            Registre uma nova solicitação de manutenção. Acompanhe o andamento pelo link enviado ao seu e-mail.
-          </p>
-          <div className="flex items-center gap-2 text-roman-primary text-sm font-medium">
-            Registrar OS <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-
-        {/* Admin: Login */}
-        <button
-          onClick={onLogin}
-          className="flex-1 group bg-roman-sidebar border border-stone-800 hover:border-stone-700 rounded-sm p-8 text-left transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5"
-        >
-          <div className="w-12 h-12 bg-white/5 rounded-sm flex items-center justify-center mb-5 group-hover:bg-white/10 transition-colors">
-            <Lock size={24} className="text-white/70" strokeWidth={1.5} />
-          </div>
-          <h2 className="text-xl font-serif font-medium text-white mb-2">
-            Acesso à Gestão
-          </h2>
-          <p className="text-sm text-white/50 leading-relaxed mb-6">
-            Área restrita para a equipe de triagem, gestores e diretoria. Requer credenciais de acesso.
-          </p>
-          <div className="flex items-center gap-2 text-white/60 text-sm font-medium group-hover:text-white/80 transition-colors">
-            Entrar no Painel <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </div>
-        </button>
-      </div>
-
-      {/* Footer */}
-      <p className="absolute bottom-6 text-[11px] text-roman-text-sub font-serif italic opacity-50">
-        Gestão de Ordens de Serviço · Sistema Interno
-      </p>
     </div>
   );
 }
