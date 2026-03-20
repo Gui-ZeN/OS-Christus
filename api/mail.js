@@ -297,6 +297,52 @@ async function resolveFlowFallbackRecipients(db, trigger) {
     .filter(Boolean);
 }
 
+function formatNameFromEmail(email) {
+  const normalized = firstEmail(email);
+  if (!normalized) return null;
+  const localPart = normalized.split('@')[0] || '';
+  const words = localPart
+    .split(/[._-]+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (words.length === 0) return null;
+  return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+async function resolveRecipientDisplayName(db, email) {
+  const normalized = firstEmail(email);
+  if (!normalized) return null;
+
+  try {
+    const snap = await db.collection('users').where('email', '==', normalized).limit(1).get();
+    if (!snap.empty) {
+      const user = snap.docs[0]?.data() || {};
+      const name = String(user.name || '').trim();
+      if (name) return name;
+    }
+  } catch {
+    // Segue com fallback por e-mail.
+  }
+
+  return formatNameFromEmail(normalized);
+}
+
+function personalizeDirectorGreeting(body, directorName) {
+  const text = String(body || '');
+  const name = String(directorName || '').trim();
+  if (!text || !name) return text;
+
+  if (/Olá\s+Diretoria/i.test(text)) {
+    return text.replace(/Olá\s+Diretoria/i, `Olá ${name}`);
+  }
+
+  if (/^Olá\s+.+/i.test(text)) {
+    return text.replace(/^Olá\s+.+/i, `Olá ${name}`);
+  }
+
+  return `Olá ${name},\n\n${text}`;
+}
+
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
   if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'AtualizaÃ§Ã£o da OS');
@@ -838,27 +884,6 @@ async function handleSend(req, res) {
       : templateSubject;
 
 
-    const fallbackTemplate = buildTicketEmailTemplate({
-      trigger: trigger || templateId || resolvedSubject,
-      title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
-      intro:
-        templateData.intro ||
-        'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
-      ticketId,
-      subject: templateData.ticketSubject || resolvedSubject,
-      status: templateData.status || 'Atualizada',
-      region: templateData.region || resolvedTicket.region || null,
-      site: templateData.site || resolvedTicket.sede || null,
-      sector: templateData.sector || resolvedTicket.sector || null,
-      service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
-      guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
-      ctaUrl: templateData.ctaUrl || null,
-      ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
-      bodyText: resolvedBody || templateData.bodyText || '',
-    });
-
-    const finalText = resolvedBody || text || fallbackTemplate.text;
-    const finalHtml = html || fallbackTemplate.html;
     const threadRef = db.collection('emailThreads').doc(ticketId);
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
@@ -887,6 +912,36 @@ async function handleSend(req, res) {
     if (!toEmail || recipients.length === 0) {
       throw new Error('Campo obrigatÃ³rio: toEmail (ou thread existente com destinatÃ¡rio).');
     }
+
+    const personalizedBody =
+      isDirectorTrigger && !internalCopy && recipients.length === 1
+        ? personalizeDirectorGreeting(
+            resolvedBody,
+            await resolveRecipientDisplayName(db, recipients[0])
+          )
+        : resolvedBody;
+
+    const fallbackTemplate = buildTicketEmailTemplate({
+      trigger: trigger || templateId || resolvedSubject,
+      title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
+      intro:
+        templateData.intro ||
+        'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
+      ticketId,
+      subject: templateData.ticketSubject || resolvedSubject,
+      status: templateData.status || 'Atualizada',
+      region: templateData.region || resolvedTicket.region || null,
+      site: templateData.site || resolvedTicket.sede || null,
+      sector: templateData.sector || resolvedTicket.sector || null,
+      service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
+      guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
+      ctaUrl: templateData.ctaUrl || null,
+      ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
+      bodyText: personalizedBody || templateData.bodyText || '',
+    });
+
+    const finalText = personalizedBody || text || fallbackTemplate.text;
+    const finalHtml = html || fallbackTemplate.html;
 
     const reuseThread = !internalCopy && Boolean(thread?.lastMessageId);
     const priorMessageId = reuseThread ? thread?.lastMessageId || null : null;
