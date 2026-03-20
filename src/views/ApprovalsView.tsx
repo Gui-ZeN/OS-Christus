@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Download, FileText, Image as ImageIcon, Loader2, Shield, X } from 'lucide-react';
+import { useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -201,6 +202,7 @@ export function ApprovalsView() {
   const [toast, setToast] = useState<string | null>(null);
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+  const reviewingTicketIdRef = useRef<string | null>(null);
 
   if (!canAccess) {
     return (
@@ -618,14 +620,35 @@ export function ApprovalsView() {
   );
 
   useEffect(() => {
-    if (currentView !== 'approvals' || !activeTicketId) return;
-    if (activeTab !== 'solutions' && activeTab !== 'budgets') return;
     const reviewerName = currentUser?.name?.trim();
     if (!reviewerName) return;
 
+    const clearPreviousReview = () => {
+      const previousTicketId = reviewingTicketIdRef.current;
+      if (!previousTicketId) return;
+      const previousTicket = tickets.find(ticket => ticket.id === previousTicketId);
+      if (previousTicket?.viewingBy?.name === reviewerName) {
+        updateTicket(previousTicketId, { viewingBy: null });
+      }
+      reviewingTicketIdRef.current = null;
+    };
+
+    if (currentView !== 'approvals' || !activeTicketId || (activeTab !== 'solutions' && activeTab !== 'budgets')) {
+      clearPreviousReview();
+      return;
+    }
+
+    const previousTicketId = reviewingTicketIdRef.current;
+    if (previousTicketId && previousTicketId !== activeTicketId) {
+      clearPreviousReview();
+    }
+
     const currentTicket = tickets.find(ticket => ticket.id === activeTicketId);
     if (!currentTicket) return;
-    if (currentTicket.viewingBy?.name === reviewerName) return;
+    if (currentTicket.viewingBy?.name === reviewerName) {
+      reviewingTicketIdRef.current = activeTicketId;
+      return;
+    }
     if (currentTicket.viewingBy?.name && currentTicket.viewingBy.name !== reviewerName) return;
 
     const ticketVisibleInActiveTab =
@@ -640,6 +663,7 @@ export function ApprovalsView() {
         at: new Date(),
       },
     });
+    reviewingTicketIdRef.current = activeTicketId;
   }, [activeTab, activeTicketId, budgets, currentUser?.name, currentView, solutions, tickets, updateTicket]);
 
   const contracts = useMemo(

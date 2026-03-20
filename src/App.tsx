@@ -81,6 +81,8 @@ export default function App() {
     dismissNotification,
     markAllNotificationsRead,
     setActiveTicketId,
+    tickets,
+    updateTicket,
     login,
     loginWithGoogleAccount,
     logout,
@@ -173,6 +175,18 @@ export default function App() {
       navigateTo(VIEWS.HOME);
     }
   }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, restrictedViews]);
+
+  useEffect(() => {
+    if (currentView === VIEWS.APPROVALS) return;
+    const reviewerName = currentUser?.name?.trim();
+    if (!reviewerName) return;
+
+    tickets
+      .filter(ticket => ticket.viewingBy?.name === reviewerName)
+      .forEach(ticket => {
+        updateTicket(ticket.id, { viewingBy: null });
+      });
+  }, [currentView, currentUser?.name, tickets, updateTicket]);
 
   useEffect(() => {
     if (currentView === VIEWS.USERS) {
