@@ -41,15 +41,14 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
   };
 
   return (
-    <div className="h-screen w-full overflow-auto bg-roman-bg px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto flex min-h-full w-full max-w-[1420px] items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[24px] border border-roman-border bg-roman-surface shadow-[0_22px_70px_rgba(25,20,16,0.12)] lg:grid-cols-[1.05fr_1fr]">
-          <section className="relative hidden min-h-[760px] overflow-hidden border-r border-roman-border lg:block">
+    <div className="h-screen w-full overflow-hidden bg-roman-bg">
+      <div className="grid h-full w-full bg-roman-surface lg:grid-cols-[1.05fr_1fr]">
+          <section className="relative hidden h-full overflow-hidden border-r border-roman-border lg:block">
             <div className="absolute inset-0 bg-roman-sidebar" />
             <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.05)_0_2px,transparent_2px_42px)]" />
             <div className="relative z-10 flex h-full flex-col justify-between p-14">
               <div>
-                <p className="text-[12px] uppercase tracking-[0.2em] text-white/55">Unichristus · Infraestrutura</p>
+                <p className="text-[12px] uppercase tracking-[0.2em] text-white/55">Grupo Christus · Infraestrutura</p>
                 <h1 className="mt-8 text-6xl font-serif leading-[1.08] text-white">
                   Gestão de
                   <br />
@@ -65,7 +64,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
             </div>
           </section>
 
-          <section className="min-h-[760px] bg-roman-surface p-7 sm:p-10 lg:p-14">
+          <section className="h-full overflow-auto bg-roman-surface p-7 sm:p-10 lg:p-14">
             <button
               onClick={onBack}
               className="mb-14 inline-flex items-center gap-2 text-base text-roman-text-sub transition-colors hover:text-roman-text-main"
@@ -141,7 +140,6 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
               )}
             </div>
           </section>
-        </div>
       </div>
     </div>
   );
