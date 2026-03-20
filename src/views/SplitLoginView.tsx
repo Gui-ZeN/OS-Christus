@@ -59,23 +59,9 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
                   Painel centralizado de triagem, abertura e acompanhamento de ordens de serviço.
                 </p>
               </div>
-
-              <div className="grid max-w-md grid-cols-3 gap-8">
-                <div>
-                  <div className="text-5xl font-serif text-white">177</div>
-                  <div className="mt-2 text-base text-white/50">OS / semestre</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-serif text-white">3</div>
-                  <div className="mt-2 text-base text-white/50">Unidades</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-serif text-white">98%</div>
-                  <div className="mt-2 text-base text-white/50">Resolvidas</div>
-                </div>
+              <div className="max-w-md rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-base leading-relaxed text-white/70">
+                Ambiente interno para gestão de chamados, aprovações e comunicação operacional.
               </div>
-
-              <div className="pt-8 text-base text-white/40">Sistema v2.4 · 2026</div>
             </div>
           </section>
 
