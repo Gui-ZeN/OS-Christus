@@ -2698,11 +2698,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   : 'bg-roman-surface border-roman-border'
                             }`}
                           >
-                            {isInternalNote && (
-                              <div className="mb-2 inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                                Nota interna
-                              </div>
-                            )}
                             {item.text}
                           </div>
                         </div>
