@@ -626,6 +626,7 @@ export function ApprovalsView() {
     const currentTicket = tickets.find(ticket => ticket.id === activeTicketId);
     if (!currentTicket) return;
     if (currentTicket.viewingBy?.name === reviewerName) return;
+    if (currentTicket.viewingBy?.name && currentTicket.viewingBy.name !== reviewerName) return;
 
     const ticketVisibleInActiveTab =
       activeTab === 'solutions'
@@ -796,7 +797,7 @@ export function ApprovalsView() {
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{solution.id}</span>
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
-                    {solution.viewingBy && (
+                    {solution.viewingBy && solution.viewingBy.name !== (currentUser?.name || '').trim() && (
                       <span className="text-xs text-roman-primary font-medium px-2 py-0.5 bg-roman-primary/10 border border-roman-primary/30 rounded-sm">
                         Sendo revisado por {solution.viewingBy.name}
                       </span>
@@ -848,7 +849,7 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">
                       {budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'}
                     </span>
-                    {budget.viewingBy && (
+                    {budget.viewingBy && budget.viewingBy.name !== (currentUser?.name || '').trim() && (
                       <span className="text-xs text-roman-primary font-medium px-2 py-0.5 bg-roman-primary/10 border border-roman-primary/30 rounded-sm">
                         Sendo revisado por {budget.viewingBy.name}
                       </span>
