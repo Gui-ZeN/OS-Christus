@@ -2,6 +2,7 @@
 import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
 import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
+import { repairMojibake } from '../utils/text';
 
 type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
   time: string;
@@ -75,10 +76,28 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
 
   return {
     ...ticket,
+    subject: repairMojibake(ticket.subject),
+    requester: repairMojibake(ticket.requester),
+    requesterEmail: repairMojibake(ticket.requesterEmail || ''),
+    type: repairMojibake(ticket.type),
+    macroServiceName: repairMojibake(ticket.macroServiceName || ''),
+    serviceCatalogName: repairMojibake(ticket.serviceCatalogName || ''),
+    region: repairMojibake(ticket.region),
+    sede: repairMojibake(ticket.sede),
+    sector: repairMojibake(ticket.sector),
+    priority: repairMojibake(ticket.priority),
     time: coerceDate(ticket.time),
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
     sla: ticket.sla ? { ...ticket.sla, dueAt: coerceDate(ticket.sla.dueAt) } : undefined,
-    history: ticket.history.map(item => ({ ...item, time: coerceDate(item.time) })),
+    history: ticket.history.map(item => ({
+      ...item,
+      sender: item.sender ? repairMojibake(item.sender) : item.sender,
+      text: item.text ? repairMojibake(item.text) : item.text,
+      field: item.field ? repairMojibake(item.field) : item.field,
+      from: item.from ? repairMojibake(item.from) : item.from,
+      to: item.to ? repairMojibake(item.to) : item.to,
+      time: coerceDate(item.time),
+    })),
     preliminaryActions: ticket.preliminaryActions
       ? {
           ...ticket.preliminaryActions,
