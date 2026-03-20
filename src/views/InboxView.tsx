@@ -2907,8 +2907,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         onClick={() => setShowContractDispatchModal(true)}
                         className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2"
                       >
-                        <FileText size={16} />
-                        Anexar Contrato e Enviar para Diretoria
+                        <FileText size={16} className="shrink-0" />
+                        <span className="leading-tight text-center">Anexar Contrato e Enviar para Diretoria</span>
                       </button>
                     )}
                   </div>
