@@ -13,6 +13,7 @@ import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
+import { uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -2006,14 +2007,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         setTimeout(() => setToast(null), 3000);
         return;
       }
-      const preferredVendorName = persistedServicePreference?.vendor
-        ? persistedServicePreference.vendor.trim().toLowerCase()
-        : budgetHistory.preferredVendor?.vendor
-          ? budgetHistory.preferredVendor.vendor.trim().toLowerCase()
-          : null;
-      const recommendedIndex = preferredVendorName
-        ? filled.findIndex(({ quote }) => quote.vendor.trim().toLowerCase() === preferredVendorName)
-        : 0;
+      const roundAttachmentKey = roundType === 'additive' ? `additive-${additiveIndex}` : 'initial';
+      const uploadedAttachments = await Promise.all(
+        filled.map(async ({ index }, quoteOrder) => {
+          const attachmentFile = quoteAttachments[index];
+          if (!attachmentFile) return { index, uploaded: null as Awaited<ReturnType<typeof uploadQuoteAttachment>> | null };
+          try {
+            const uploaded = await uploadQuoteAttachment(activeTicket.id, roundAttachmentKey, `quote-${quoteOrder + 1}`, attachmentFile);
+            return { index, uploaded };
+          } catch {
+            return { index, uploaded: null };
+          }
+        })
+      );
+      const uploadedByOriginalIndex = new Map<number, Awaited<ReturnType<typeof uploadQuoteAttachment>>>();
+      uploadedAttachments.forEach(item => {
+        if (item.uploaded) uploadedByOriginalIndex.set(item.index, item.uploaded);
+      });
       const nextQuotes: Quote[] = filled.map(({ quote, index: originalIndex }, index) => ({
         id: `quote-${index + 1}`,
         vendor: quote.vendor.trim(),
@@ -2024,9 +2034,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         category: roundType,
         additiveIndex,
         additiveReason: roundType === 'additive' ? normalizedAdditiveReason : null,
-        recommended: index === (recommendedIndex >= 0 ? recommendedIndex : 0),
+        recommended: false,
         status: 'pending',
-        attachmentName: quoteAttachments[originalIndex]?.name || null,
+        attachmentName: uploadedByOriginalIndex.get(originalIndex)?.name || quoteAttachments[originalIndex]?.name || null,
+        attachmentUrl: uploadedByOriginalIndex.get(originalIndex)?.url || null,
+        attachmentPath: uploadedByOriginalIndex.get(originalIndex)?.path || null,
         proposalHeader: {
           unitName: proposalHeader.unitName.trim() || null,
           location: proposalHeader.location.trim() || null,

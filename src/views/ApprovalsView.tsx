@@ -502,14 +502,13 @@ export function ApprovalsView() {
       ...(budget.roundCategory === 'additive' ? [['Motivo do aditivo', budget.additiveReason || '-']] : []),
       [],
       ['Comparativo de cotações'],
-      ['Cotação', 'Fornecedor', 'Material', 'Mão de obra', 'Valor', 'Recomendada', 'Status', 'Itens'],
+      ['Cotação', 'Fornecedor', 'Material', 'Mão de obra', 'Valor', 'Status', 'Itens'],
       ...budget.quotes.map((quote, index) => [
         `Cotação ${index + 1}`,
         quote.vendor,
         quote.materialValue || '',
         quote.laborValue || '',
         quote.totalValue || quote.value,
-        quote.recommended ? 'Sim' : 'Não',
         quote.status || 'pending',
         String(quote.items?.length || 0),
       ]),
@@ -1069,8 +1068,7 @@ export function ApprovalsView() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {budget.quotes.map(quote => (
-                  <div key={quote.id} className={`border rounded-sm p-4 flex flex-col ${quote.recommended ? 'border-roman-primary bg-roman-primary/5' : 'border-roman-border bg-roman-bg'}`}>
-                    {quote.recommended && <div className="text-[10px] font-serif uppercase tracking-widest text-roman-primary mb-2 font-bold flex items-center gap-1"><CheckCircle size={12} /> Recomendado pelo Gestor</div>}
+                  <div key={quote.id} className="border rounded-sm p-4 flex flex-col border-roman-border bg-roman-bg">
                     {budget.historySummary.preferredVendor && quote.vendor.trim().toLowerCase() === budget.historySummary.preferredVendor.vendor.trim().toLowerCase() && (
                       <div className="text-[10px] font-serif uppercase tracking-widest text-emerald-700 mb-2 font-bold">
                         Histórico favorece este fornecedor
@@ -1099,8 +1097,12 @@ export function ApprovalsView() {
                       </div>
                     )}
                     <div className="mt-auto flex flex-col gap-2">
-                      <button onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf')} className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors">
-                        <FileText size={14} /> Ver PDF
+                      <button
+                        onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf', { url: quote.attachmentUrl || null })}
+                        disabled={!quote.attachmentUrl}
+                        className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FileText size={14} /> {quote.attachmentUrl ? 'Ver PDF' : 'PDF indisponível'}
                       </button>
                       <button
                         onClick={() => handleApprove(budget.id, 'budgets', quote)}

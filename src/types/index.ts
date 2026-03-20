@@ -149,6 +149,8 @@ export interface Quote {
   recommended: boolean;
   status?: string;
   attachmentName?: string | null;
+  attachmentUrl?: string | null;
+  attachmentPath?: string | null;
   proposalHeader?: QuoteProposalHeader | null;
   items?: QuoteItem[];
   classification?: ProcurementClassificationSnapshot;

@@ -66,6 +66,38 @@ export async function uploadPaymentAttachment(ticketId: string, paymentId: strin
   };
 }
 
+export async function uploadQuoteAttachment(
+  ticketId: string,
+  roundKey: string,
+  quoteId: string,
+  file: File
+): Promise<TicketAttachment> {
+  const app = getFirebaseClientApp();
+  if (!app) {
+    throw new Error('Firebase Storage não configurado no frontend.');
+  }
+
+  const storage = getStorage(app);
+  const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
+  const path = `attachments/tickets/quotes/${ticketId}/${roundKey}/${quoteId}/${Date.now()}-${safeName}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || undefined,
+  });
+  const url = await getDownloadURL(storageRef);
+
+  return {
+    id: crypto.randomUUID(),
+    name: file.name,
+    path,
+    url,
+    contentType: file.type || null,
+    size: file.size,
+    uploadedAt: new Date(),
+    category: 'attachment',
+  };
+}
+
 export async function deleteTicketAttachment(path: string) {
   const app = getFirebaseClientApp();
   if (!app) {
