@@ -16,7 +16,7 @@ Sede: {{ticket.sede}}`,
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-Sua solicitação está em triagem com a equipe de manutenção.`,
+Sua solicitação foi aceita para atendimento e seguirá para o plano técnico.`,
         recipients: '',
       },
       'EMAIL-PARECER-TECNICO': {
@@ -24,7 +24,7 @@ Sua solicitação está em triagem com a equipe de manutenção.`,
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-O parecer técnico foi concluído e a solicitação seguiu para definição da solução.`,
+O plano técnico foi definido e autorizado para seguir com a execução.`,
         recipients: '',
       },
       'EMAIL-AGUARDANDO-ORCAMENTO': {
@@ -32,7 +32,7 @@ O parecer técnico foi concluído e a solicitação seguiu para definição da s
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.`,
+Sua OS está em planejamento administrativo para execução.`,
         recipients: '',
       },
       'EMAIL-EM-APROVACAO': {
@@ -40,7 +40,7 @@ Sua solicitação entrou na etapa de orçamento e comparação com fornecedores.
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-Sua solicitação avançou para a etapa de aprovação.`,
+Sua OS está em preparação administrativa para execução.`,
         recipients: '',
       },
       'EMAIL-DIRETORIA-SOLUCAO': {
@@ -68,7 +68,7 @@ Status atual: {{ticket.status}}`,
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-Sua solicitação entrou em ações preliminares.`,
+Sua obra entrou na etapa de preparação da execução.`,
         recipients: '',
       },
       'EMAIL-EXECUCAO-INICIADA': {
@@ -76,7 +76,7 @@ Sua solicitação entrou em ações preliminares.`,
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-A execução do serviço foi iniciada.`,
+A execução da obra foi iniciada.`,
         recipients: '',
       },
       'EMAIL-VALIDACAO-SOLICITANTE': {
@@ -84,7 +84,7 @@ A execução do serviço foi iniciada.`,
         subject: '{{ticket.id}} - {{ticket.subject}}',
         body: `Olá {{requester.name}},
 
-A execução foi concluída e agora depende da sua validação para seguir com o encerramento.`,
+A execução da obra foi concluída. Confirme a entrega no link de acompanhamento.`,
         recipients: '',
       },
       'EMAIL-AGUARDANDO-PAGAMENTO': {

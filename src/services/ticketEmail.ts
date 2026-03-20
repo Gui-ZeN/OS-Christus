@@ -169,6 +169,98 @@ function shouldNotifyRequesterForStatus(status: string) {
   return !blockedStatuses.has(status);
 }
 
+function buildRequesterStatusLabel(status: string) {
+  switch (status) {
+    case TICKET_STATUS.NEW:
+      return 'Solicitação registrada';
+    case TICKET_STATUS.WAITING_TECH_OPINION:
+      return 'Solicitação aceita para atendimento';
+    case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
+      return 'Plano técnico em avaliação';
+    case TICKET_STATUS.WAITING_BUDGET:
+    case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
+    case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
+    case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
+      return 'Planejamento administrativo em andamento';
+    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
+      return 'Obra em preparação';
+    case TICKET_STATUS.IN_PROGRESS:
+      return 'Execução iniciada';
+    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
+      return 'Execução concluída';
+    case TICKET_STATUS.WAITING_PAYMENT:
+      return 'Entrega validada';
+    case TICKET_STATUS.CLOSED:
+      return 'Obra concluída';
+    case TICKET_STATUS.CANCELED:
+      return 'Solicitação encerrada';
+    default:
+      return status || 'Atualização da solicitação';
+  }
+}
+
+function buildRequesterUpdateCopy(status: string, messageBody: string, cancellationReason: string | null) {
+  switch (status) {
+    case TICKET_STATUS.WAITING_TECH_OPINION:
+      return {
+        title: 'Solicitação aceita para atendimento',
+        intro: 'Sua solicitação foi aceita pela equipe e seguirá para o plano técnico.',
+        ctaLabel: 'Acompanhar solicitação',
+      };
+    case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
+      return {
+        title: 'Plano técnico definido',
+        intro: 'A solução técnica foi definida e autorizada para seguir com a execução.',
+        ctaLabel: 'Acompanhar solicitação',
+      };
+    case TICKET_STATUS.WAITING_BUDGET:
+    case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
+    case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
+    case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
+      return {
+        title: 'Planejamento administrativo em andamento',
+        intro: 'Sua OS está em preparação administrativa para execução.',
+        ctaLabel: 'Acompanhar solicitação',
+      };
+    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
+      return {
+        title: 'Obra em preparação',
+        intro: 'A equipe está concluindo as preparações para iniciar a execução.',
+        ctaLabel: 'Acompanhar solicitação',
+      };
+    case TICKET_STATUS.IN_PROGRESS:
+      return {
+        title: 'Execução da obra iniciada',
+        intro: 'A obra foi iniciada pela equipe técnica.',
+        ctaLabel: 'Acompanhar execução',
+      };
+    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
+      return {
+        title: 'Execução concluída',
+        intro: 'A obra foi concluída. Confirme a entrega no link para seguir com o encerramento.',
+        ctaLabel: 'Avaliar e confirmar entrega',
+      };
+    case TICKET_STATUS.CLOSED:
+      return {
+        title: 'Obra concluída e encerrada',
+        intro: 'Sua solicitação foi concluída com sucesso.',
+        ctaLabel: 'Ver encerramento',
+      };
+    case TICKET_STATUS.CANCELED:
+      return {
+        title: 'Solicitação encerrada',
+        intro: cancellationReason || messageBody,
+        ctaLabel: 'Ver atualização',
+      };
+    default:
+      return {
+        title: 'Atualização da solicitação',
+        intro: messageBody,
+        ctaLabel: 'Ver atualização',
+      };
+  }
+}
+
 const DIRECTOR_FLOW_STATUSES = new Set<string>([
   TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
   TICKET_STATUS.WAITING_BUDGET_APPROVAL,
@@ -255,6 +347,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   });
 
   if (requesterEmail && shouldNotifyRequesterForStatus(ticket.status)) {
+    const requesterCopy = buildRequesterUpdateCopy(ticket.status, messageBody, cancellationReason);
     await postEmail({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
@@ -262,12 +355,12 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       trigger: trigger || 'EMAIL-NOVA-MENSAGEM',
       variables,
       templateData: {
-        title: 'Atualização da solicitação',
-        intro: messageBody,
+        title: requesterCopy.title,
+        intro: requesterCopy.intro,
         ticketSubject: ticket.subject,
-        status: ticket.status,
+        status: buildRequesterStatusLabel(ticket.status),
         ctaUrl: buildTrackingUrl(ticket),
-        ctaLabel: 'Ver atualização',
+        ctaLabel: requesterCopy.ctaLabel,
       },
     });
   }

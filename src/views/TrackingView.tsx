@@ -54,6 +54,36 @@ function getTimelineIcon(icon: PublicTimelineItem['icon']) {
   }
 }
 
+function getPublicStatusLabel(status: string) {
+  switch (status) {
+    case TICKET_STATUS.NEW:
+      return 'Solicitação registrada';
+    case TICKET_STATUS.WAITING_TECH_OPINION:
+      return 'Solicitação aceita para atendimento';
+    case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
+      return 'Plano técnico em avaliação';
+    case TICKET_STATUS.WAITING_BUDGET:
+    case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
+    case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
+    case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
+      return 'Planejamento administrativo';
+    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
+      return 'Obra em preparação';
+    case TICKET_STATUS.IN_PROGRESS:
+      return 'Execução iniciada';
+    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
+      return 'Execução concluída';
+    case TICKET_STATUS.WAITING_PAYMENT:
+      return 'Entrega validada';
+    case TICKET_STATUS.CLOSED:
+      return 'Obra concluída';
+    case TICKET_STATUS.CANCELED:
+      return 'Solicitação encerrada';
+    default:
+      return status || 'Atualização';
+  }
+}
+
 function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary, sites: CatalogSite[]): PublicTimelineItem[] {
   const measurements = procurement.measurements || [];
   const payments = procurement.payments || [];
@@ -71,7 +101,7 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
     },
     {
       id: 'preliminary',
-      title: 'Ações preliminares',
+      title: 'Preparação da execução',
       description: ticket.preliminaryActions
         ? `Checklist operacional ${ticket.preliminaryActions.updatedAt ? 'atualizado' : 'iniciado'} com material, cronograma e alinhamentos.`
         : 'Planejamento pré-execução ainda não informado no sistema.',
@@ -308,7 +338,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             <div className="text-right">
               <div className="text-2xl font-serif text-roman-text-main font-medium">#{ticket.id}</div>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-roman-primary/10 text-roman-primary border border-roman-primary/20 rounded-xl text-sm font-medium mt-2">
-                <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span> {ticket.status}
+                <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span> {getPublicStatusLabel(ticket.status)}
               </div>
             </div>
           </div>
