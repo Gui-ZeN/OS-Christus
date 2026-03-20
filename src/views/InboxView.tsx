@@ -14,6 +14,7 @@ import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '..
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { deleteTicketInApi } from '../services/ticketsApi';
+import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent, getPaymentFlowMilestones } from '../utils/executionFlow';
@@ -472,20 +473,40 @@ export function InboxView() {
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
+  const lastMailSyncAtRef = useRef(0);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (currentView !== 'inbox' || !activeTicketId) return undefined;
 
-    const runSilentRefresh = () => {
+    const runSilentRefresh = async () => {
       if (document.visibilityState !== 'visible') return;
-      void refreshTickets({ silent: true });
+      await refreshTickets({ silent: true });
+
+      const canRunMailSync = currentUser?.role === 'Admin';
+      if (!canRunMailSync) return;
+
+      const now = Date.now();
+      const elapsed = now - lastMailSyncAtRef.current;
+      if (elapsed < 60000) return;
+      lastMailSyncAtRef.current = now;
+
+      try {
+        await fetch('/api/mail?route=gmail-sync', {
+          method: 'POST',
+          headers: await getAuthenticatedActorHeaders(),
+        });
+      } catch {
+        // Sync silencioso: erro não deve bloquear atualização da inbox.
+      }
     };
 
-    const interval = window.setInterval(runSilentRefresh, 10000);
+    const interval = window.setInterval(() => {
+      void runSilentRefresh();
+    }, 10000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        runSilentRefresh();
+        void runSilentRefresh();
       }
     };
 
@@ -494,7 +515,7 @@ export function InboxView() {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [activeTicketId, currentView, refreshTickets]);
+  }, [activeTicketId, currentUser?.role, currentView, refreshTickets]);
 
   // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
