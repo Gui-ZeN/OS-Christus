@@ -913,36 +913,6 @@ async function handleSend(req, res) {
       throw new Error('Campo obrigatÃ³rio: toEmail (ou thread existente com destinatÃ¡rio).');
     }
 
-    const personalizedBody =
-      isDirectorTrigger && !internalCopy && recipients.length === 1
-        ? personalizeDirectorGreeting(
-            resolvedBody,
-            await resolveRecipientDisplayName(db, recipients[0])
-          )
-        : resolvedBody;
-
-    const fallbackTemplate = buildTicketEmailTemplate({
-      trigger: trigger || templateId || resolvedSubject,
-      title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
-      intro:
-        templateData.intro ||
-        'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
-      ticketId,
-      subject: templateData.ticketSubject || resolvedSubject,
-      status: templateData.status || 'Atualizada',
-      region: templateData.region || resolvedTicket.region || null,
-      site: templateData.site || resolvedTicket.sede || null,
-      sector: templateData.sector || resolvedTicket.sector || null,
-      service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
-      guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
-      ctaUrl: templateData.ctaUrl || null,
-      ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
-      bodyText: personalizedBody || templateData.bodyText || '',
-    });
-
-    const finalText = personalizedBody || text || fallbackTemplate.text;
-    const finalHtml = html || fallbackTemplate.html;
-
     const reuseThread = !internalCopy && Boolean(thread?.lastMessageId);
     const priorMessageId = reuseThread ? thread?.lastMessageId || null : null;
     const references = reuseThread && Array.isArray(thread?.references) ? thread.references : [];
@@ -956,33 +926,110 @@ async function handleSend(req, res) {
     };
 
     const provider = providerForLog;
-    const sendResult =
-      provider === 'gmail'
-        ? await gmailSend({
-            toEmail,
+    const shouldPersonalizeDirectorRecipients = isDirectorTrigger && !internalCopy && recipients.length > 0;
+    const sentMessages = [];
+    let finalText = '';
+    let finalHtml = '';
+
+    const sendOne = async (recipientEmail, contentText, contentHtml) => {
+      return provider === 'gmail'
+        ? gmailSend({
+            toEmail: recipientEmail,
             subject: canonicalSubject,
-            text: finalText,
-            html: finalHtml,
+            text: contentText,
+            html: contentHtml,
             inReplyTo: priorMessageId || undefined,
             references: nextReferences,
             ticketId,
             trackingToken: trackingToken || undefined,
             threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
           })
-        : await sendWithSendGrid({
-            toEmail,
+        : sendWithSendGrid({
+            toEmail: recipientEmail,
             subject: canonicalSubject,
-            text: finalText,
-            html: finalHtml,
+            text: contentText,
+            html: contentHtml,
             templateId,
             templateData,
             headers,
             replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
           });
+    };
+
+    if (shouldPersonalizeDirectorRecipients) {
+      for (const recipient of recipients) {
+        const recipientName = await resolveRecipientDisplayName(db, recipient);
+        const personalizedBody = personalizeDirectorGreeting(resolvedBody, recipientName);
+        const fallbackTemplate = buildTicketEmailTemplate({
+          trigger: trigger || templateId || resolvedSubject,
+          title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
+          intro:
+            templateData.intro ||
+            'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
+          ticketId,
+          subject: templateData.ticketSubject || resolvedSubject,
+          status: templateData.status || 'Atualizada',
+          region: templateData.region || resolvedTicket.region || null,
+          site: templateData.site || resolvedTicket.sede || null,
+          sector: templateData.sector || resolvedTicket.sector || null,
+          service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
+          guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
+          ctaUrl: templateData.ctaUrl || null,
+          ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
+          bodyText: personalizedBody || templateData.bodyText || '',
+        });
+
+        const recipientText = personalizedBody || text || fallbackTemplate.text;
+        const recipientHtml = html || fallbackTemplate.html;
+        const result = await sendOne(recipient, recipientText, recipientHtml);
+
+        sentMessages.push({
+          toEmail: recipient,
+          text: recipientText,
+          html: recipientHtml,
+          result,
+        });
+        finalText = recipientText;
+        finalHtml = recipientHtml;
+      }
+    } else {
+      const fallbackTemplate = buildTicketEmailTemplate({
+        trigger: trigger || templateId || resolvedSubject,
+        title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
+        intro:
+          templateData.intro ||
+          'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
+        ticketId,
+        subject: templateData.ticketSubject || resolvedSubject,
+        status: templateData.status || 'Atualizada',
+        region: templateData.region || resolvedTicket.region || null,
+        site: templateData.site || resolvedTicket.sede || null,
+        sector: templateData.sector || resolvedTicket.sector || null,
+        service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
+        guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
+        ctaUrl: templateData.ctaUrl || null,
+        ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
+        bodyText: resolvedBody || templateData.bodyText || '',
+      });
+
+      finalText = resolvedBody || text || fallbackTemplate.text;
+      finalHtml = html || fallbackTemplate.html;
+      const result = await sendOne(toEmail, finalText, finalHtml);
+      sentMessages.push({
+        toEmail,
+        text: finalText,
+        html: finalHtml,
+        result,
+      });
+    }
 
     const now = new Date();
-    const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
-    const mergedReferences = [...new Set([...nextReferences, messageId])].slice(-20);
+    const messageIds = sentMessages.map((entry, index) => {
+      return entry.result?.messageId || entry.result?.id || `<os-${ticketId}-${now.getTime()}-${index}@os-christus>`;
+    });
+    const messageId = messageIds[messageIds.length - 1] || `<os-${ticketId}-${now.getTime()}@os-christus>`;
+    const latestThreadId = sentMessages[sentMessages.length - 1]?.result?.threadId || null;
+    const mergedReferences = [...new Set([...nextReferences, ...messageIds])].slice(-20);
 
     if (!skipThread) {
       await threadRef.set(
@@ -991,7 +1038,7 @@ async function handleSend(req, res) {
           subject: canonicalSubject,
           toEmail,
           lastMessageId: messageId,
-          gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
+          gmailThreadId: latestThreadId || (reuseThread ? thread?.gmailThreadId : null) || null,
           references: mergedReferences,
           lastDirection: 'outbound',
           lastOutboundAt: now,
@@ -1005,8 +1052,11 @@ async function handleSend(req, res) {
         direction: 'outbound',
         toEmail,
         subject: canonicalSubject,
-        text: finalText || null,
-        html: finalHtml || null,
+        text:
+          shouldPersonalizeDirectorRecipients && recipients.length > 1
+            ? `Envio personalizado para ${recipients.length} destinatário(s) da Diretoria.`
+            : finalText || null,
+        html: shouldPersonalizeDirectorRecipients && recipients.length > 1 ? null : finalHtml || null,
         templateId: templateId || null,
         trigger: trigger || null,
         messageId,
