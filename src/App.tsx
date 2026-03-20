@@ -165,10 +165,14 @@ export default function App() {
   }, [attachmentPreview]);
 
   useEffect(() => {
+    if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
+      return;
+    }
+    if (!currentUser) return;
     if (restrictedViews.has(currentView)) {
       navigateTo(VIEWS.HOME);
     }
-  }, [currentView, navigateTo, restrictedViews]);
+  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, restrictedViews]);
 
   useEffect(() => {
     if (currentView === VIEWS.USERS) {
@@ -192,12 +196,18 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const redirectView = params.get('redirectView') || params.get('view');
       if (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
+        if (redirectView === VIEWS.APPROVALS) {
+          const requestedTicketId = params.get('ticketId');
+          if (requestedTicketId) {
+            setActiveTicketId(requestedTicketId);
+          }
+        }
         navigateTo(redirectView as ViewState);
       } else {
         navigateTo(VIEWS.HOME);
       }
     }
-  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo]);
+  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, setActiveTicketId]);
 
   if (currentView === VIEWS.LANDING) {
     if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {

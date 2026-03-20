@@ -367,7 +367,7 @@ export function ApprovalsView() {
               ? APPROVAL_STATUS[tab]
               : targetTicket?.status || APPROVAL_STATUS[tab]
             : APPROVAL_STATUS[tab],
-        viewingBy: tab === 'budgets' ? null : undefined,
+        viewingBy: null,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
     }, 1500);
@@ -398,7 +398,7 @@ export function ApprovalsView() {
       };
       updateTicket(rejectTargetId, {
         status: TICKET_STATUS.CANCELED,
-        viewingBy: activeTab === 'budgets' ? null : undefined,
+        viewingBy: null,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
       setRejectTargetId(null);
@@ -552,6 +552,7 @@ export function ApprovalsView() {
           subject: ticket.subject,
           requester: ticket.requester,
           date: ticket.time,
+          viewingBy: ticket.viewingBy || null,
           technicalOpinion: [...ticket.history].reverse().find(item => item.type === 'tech')?.text ?? 'Parecer não disponível.',
         })),
     [tickets]
@@ -584,6 +585,7 @@ export function ApprovalsView() {
             subject: ticket.subject,
             requester: ticket.requester,
             date: ticket.time,
+            viewingBy: ticket.viewingBy || null,
             macroServiceName: ticket.macroServiceName ?? null,
             serviceCatalogName: ticket.serviceCatalogName ?? null,
             quotes: roundQuotes,
@@ -602,6 +604,7 @@ export function ApprovalsView() {
           subject: string;
           requester: string;
           date: Date;
+          viewingBy: { name: string; at: Date } | null;
           macroServiceName: string | null;
           serviceCatalogName: string | null;
           quotes: Quote[];
@@ -613,6 +616,30 @@ export function ApprovalsView() {
         } => Boolean(value)),
     [quotesByTicket, tickets]
   );
+
+  useEffect(() => {
+    if (currentView !== 'approvals' || !activeTicketId) return;
+    if (activeTab !== 'solutions' && activeTab !== 'budgets') return;
+    const reviewerName = currentUser?.name?.trim();
+    if (!reviewerName) return;
+
+    const currentTicket = tickets.find(ticket => ticket.id === activeTicketId);
+    if (!currentTicket) return;
+    if (currentTicket.viewingBy?.name === reviewerName) return;
+
+    const ticketVisibleInActiveTab =
+      activeTab === 'solutions'
+        ? solutions.some(item => item.id === activeTicketId)
+        : budgets.some(item => item.id === activeTicketId);
+    if (!ticketVisibleInActiveTab) return;
+
+    updateTicket(activeTicketId, {
+      viewingBy: {
+        name: reviewerName,
+        at: new Date(),
+      },
+    });
+  }, [activeTab, activeTicketId, budgets, currentUser?.name, currentView, solutions, tickets, updateTicket]);
 
   const contracts = useMemo(
     () =>
@@ -769,6 +796,11 @@ export function ApprovalsView() {
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{solution.id}</span>
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
+                    {solution.viewingBy && (
+                      <span className="text-xs text-roman-primary font-medium px-2 py-0.5 bg-roman-primary/10 border border-roman-primary/30 rounded-sm">
+                        Sendo revisado por {solution.viewingBy.name}
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg md:text-xl font-serif text-roman-text-main">{solution.subject}</h3>
                   <p className="text-sm text-roman-text-sub">Solicitante: {solution.requester} · Parecer emitido: {formatDateTimeSafe(solution.date)}</p>
@@ -816,6 +848,11 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">
                       {budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'}
                     </span>
+                    {budget.viewingBy && (
+                      <span className="text-xs text-roman-primary font-medium px-2 py-0.5 bg-roman-primary/10 border border-roman-primary/30 rounded-sm">
+                        Sendo revisado por {budget.viewingBy.name}
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg md:text-xl font-serif text-roman-text-main">{budget.subject}</h3>
                   <p className="text-sm text-roman-text-sub">Solicitante: {budget.requester} • Enviado: {formatDateTimeSafe(budget.date)}</p>
