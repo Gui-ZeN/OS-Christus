@@ -301,15 +301,24 @@ function normalizeDirectorGreeting(body) {
   const text = String(body || '');
   if (!text.trim()) return 'Olá,';
 
-  const lines = text.split('\n');
-  const firstContentLine = lines.findIndex(line => String(line || '').trim().length > 0);
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const normalized = [];
+  let greetingFound = false;
 
-  if (firstContentLine >= 0 && /^Ol[áa]\b/i.test(String(lines[firstContentLine] || '').trim())) {
-    lines[firstContentLine] = 'Olá,';
-    return lines.join('\n');
+  for (const line of lines) {
+    const trimmed = String(line || '').trim();
+    if (/^Ol[áa]\b/i.test(trimmed)) {
+      if (greetingFound) continue;
+      normalized.push('Olá,');
+      greetingFound = true;
+      continue;
+    }
+    normalized.push(line);
   }
 
-  return `Olá,\n\n${text}`;
+  const compacted = normalized.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (greetingFound) return compacted;
+  return `Olá,\n\n${compacted}`;
 }
 
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {

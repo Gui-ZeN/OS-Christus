@@ -130,8 +130,6 @@ function buildDirectorEmailBody(ticket: Ticket, isApprovalStatus: boolean, summa
     : `A OS ${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`;
 
   return [
-    'Olá,',
-    '',
     intro,
     `Status atual: ${ticket.status || 'Não informado'}`,
     '',
