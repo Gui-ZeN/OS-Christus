@@ -304,7 +304,7 @@ function normalizeDirectorGreeting(body) {
   const lines = text.split('\n');
   const firstContentLine = lines.findIndex(line => String(line || '').trim().length > 0);
 
-  if (firstContentLine >= 0 && /^Olá\b/i.test(String(lines[firstContentLine] || '').trim())) {
+  if (firstContentLine >= 0 && /^Ol[áa]\b/i.test(String(lines[firstContentLine] || '').trim())) {
     lines[firstContentLine] = 'Olá,';
     return lines.join('\n');
   }
@@ -833,13 +833,14 @@ async function handleSend(req, res) {
     const templateSubject = repairMojibake(
       storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject
     );
-    const baseResolvedBody = repairMojibake(
+    const isDirectorTrigger = String(trigger || '').startsWith('EMAIL-DIRETORIA-');
+    const directorBodyOverride = isDirectorTrigger ? String(templateData.bodyText || '').trim() : '';
+    const baseResolvedBody = directorBodyOverride || repairMojibake(
       storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text
     );
-    const isDirectorTrigger = String(trigger || '').startsWith('EMAIL-DIRETORIA-');
     const directorSummary = String(templateData.directorSummary || '').trim();
     const resolvedBody =
-      isDirectorTrigger && directorSummary
+      isDirectorTrigger && !directorBodyOverride && directorSummary
         ? (baseResolvedBody
             ? baseResolvedBody.includes(directorSummary)
               ? baseResolvedBody

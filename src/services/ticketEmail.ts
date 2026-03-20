@@ -114,7 +114,6 @@ function buildDirectorTicketSummary(ticket: Ticket): string {
   const locationLabel = `${ticket.region || 'Não informada'} / ${ticket.sede || 'Não informada'}`;
 
   return [
-    'Resumo da OS:',
     `- Assunto: ${ticket.subject || 'Não informado'}`,
     `- Solicitante: ${ticket.requester || 'Não informado'}`,
     `- Setor: ${ticket.sector || 'Não informado'}`,
@@ -122,6 +121,23 @@ function buildDirectorTicketSummary(ticket: Ticket): string {
     `- Tipo de manutenção: ${ticket.type || 'Não informado'}`,
     `- Classificação técnica: ${serviceLabel}`,
     `- Status atual: ${ticket.status || 'Não informado'}`,
+  ].join('\n');
+}
+
+function buildDirectorEmailBody(ticket: Ticket, isApprovalStatus: boolean, summaryList: string): string {
+  const intro = isApprovalStatus
+    ? `A OS ${ticket.id} está em aprovação e aguarda decisão.`
+    : `A OS ${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`;
+
+  return [
+    'Olá,',
+    '',
+    intro,
+    `Status atual: ${ticket.status || 'Não informado'}`,
+    '',
+    'Resumo da OS:',
+    '',
+    summaryList,
   ].join('\n');
 }
 
@@ -265,6 +281,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
           ? 'budgets'
           : 'solutions';
     const isApprovalStatus = directorTab !== 'solutions';
+    const directorBody = buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary);
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
@@ -277,7 +294,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
           : `${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
-        directorSummary,
+        bodyText: directorBody,
         ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
         ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Abrir painel da Diretoria',
       },
