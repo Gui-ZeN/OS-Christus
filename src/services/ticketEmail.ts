@@ -92,6 +92,23 @@ function resolveStatusTrigger(status: string) {
   }
 }
 
+function resolveDirectorCancellationReason(ticket: Ticket): string | null {
+  const historyItems = Array.isArray(ticket.history) ? [...ticket.history] : [];
+  for (let index = historyItems.length - 1; index >= 0; index -= 1) {
+    const item = historyItems[index];
+    const text = String(item?.text || '').trim();
+    if (!text) continue;
+    if (!/OS cancelada pela Diretoria\./i.test(text)) continue;
+
+    const match = text.match(/Motivo:\s*(.+)$/i);
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
+    return text;
+  }
+  return null;
+}
+
 async function postEmail(payload: Record<string, unknown>) {
   try {
     const headers = await getAuthenticatedActorHeaders();
@@ -189,12 +206,15 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
 
   const trigger = resolveStatusTrigger(ticket.status);
   const requesterEmail = resolveTicketEmail(ticket);
+  const cancellationReason =
+    ticket.status === TICKET_STATUS.CANCELED ? resolveDirectorCancellationReason(ticket) : null;
+  const messageBody = cancellationReason || `Status alterado de "${previousStatus}" para "${ticket.status}".`;
   const variables = await buildVariables(ticket, {
     previousStatus,
     currentStatus: ticket.status,
     message: {
       sender: 'Sistema OS Christus',
-      body: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
+      body: messageBody,
     },
   });
 
@@ -207,7 +227,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       variables,
       templateData: {
         title: 'Atualização da solicitação',
-        intro: `Status alterado de "${previousStatus}" para "${ticket.status}".`,
+        intro: messageBody,
         ticketSubject: ticket.subject,
         status: ticket.status,
         ctaUrl: buildTrackingUrl(ticket),
