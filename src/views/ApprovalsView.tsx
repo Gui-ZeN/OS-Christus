@@ -681,6 +681,7 @@ export function ApprovalsView() {
           value: contractsByTicket[ticket.id]?.value ?? 'A confirmar',
           vendor: contractsByTicket[ticket.id]?.vendor ?? 'A confirmar',
           signedFileName: contractsByTicket[ticket.id]?.signedFileName ?? null,
+          signedFileUrl: contractsByTicket[ticket.id]?.signedFileUrl ?? null,
           items: contractsByTicket[ticket.id]?.items ?? [],
         })),
     [contractsByTicket, tickets]
@@ -1261,10 +1262,13 @@ export function ApprovalsView() {
                         </div>
                       ))}
                     </div>
-                    <div className="mt-2 text-[11px] text-stone-500">{contract.items.length} item(ns) vinculados ao contrato</div>
                   </div>
                 )}
-                <button onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf')} className="flex items-center gap-2 text-stone-800 hover:underline text-sm font-medium">
+                <button
+                  onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', { url: contract.signedFileUrl || null })}
+                  disabled={!contract.signedFileUrl}
+                  className="flex items-center gap-2 text-stone-800 hover:underline text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                >
                   <FileText size={16} /> Ver contrato anexado (PDF)
                 </button>
               </div>
@@ -1275,7 +1279,11 @@ export function ApprovalsView() {
                   <div className="text-2xl font-serif text-stone-900">{contract.value}</div>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
-                  <button onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf')} className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm">
+                  <button
+                    onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', { url: contract.signedFileUrl || null })}
+                    disabled={!contract.signedFileUrl}
+                    className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     Revisar
                   </button>
                   <button onClick={() => handleApproveContract(contract.id)} disabled={processingId === contract.id || !contract.signedFileName} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">

@@ -249,6 +249,10 @@ async function writeContract(db, ticketId, contract, classification) {
       status: String(contract.status || 'pending_signature'),
       viewingBy: contract.viewingBy ? String(contract.viewingBy) : null,
       signedFileName: contract.signedFileName ? String(contract.signedFileName) : null,
+      signedFileUrl: contract.signedFileUrl ? String(contract.signedFileUrl) : null,
+      signedFilePath: contract.signedFilePath ? String(contract.signedFilePath) : null,
+      signedFileContentType: contract.signedFileContentType ? String(contract.signedFileContentType) : null,
+      signedFileSize: contract.signedFileSize != null ? Number(contract.signedFileSize) : null,
       items: Array.isArray(contract.items)
         ? contract.items.map(item => ({
             id: String(item.id || '').trim() || `item-${Date.now()}`,

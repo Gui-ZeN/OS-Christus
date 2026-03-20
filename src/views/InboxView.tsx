@@ -13,7 +13,7 @@ import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
-import { uploadQuoteAttachment } from '../services/ticketStorage';
+import { uploadContractAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -2120,10 +2120,24 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
     setIsSending(true);
     const now = new Date();
+    let uploadedContract: Awaited<ReturnType<typeof uploadContractAttachment>> | null = null;
+    try {
+      uploadedContract = await uploadContractAttachment(activeTicket.id, contractDispatchFile);
+    } catch {
+      setIsSending(false);
+      setToast('Falha ao enviar o PDF do contrato. Tente novamente.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     const nextContract: ContractRecord = {
       ...activeContract,
       status: 'pending_approval',
-      signedFileName: contractDispatchFile.name,
+      signedFileName: uploadedContract?.name || contractDispatchFile.name,
+      signedFileUrl: uploadedContract?.url || null,
+      signedFilePath: uploadedContract?.path || null,
+      signedFileContentType: uploadedContract?.contentType || null,
+      signedFileSize: uploadedContract?.size ?? null,
       viewingBy: null,
     };
 

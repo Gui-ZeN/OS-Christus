@@ -165,6 +165,10 @@ export interface ContractRecord {
   status: string;
   viewingBy?: string | null;
   signedFileName?: string | null;
+  signedFileUrl?: string | null;
+  signedFilePath?: string | null;
+  signedFileContentType?: string | null;
+  signedFileSize?: number | null;
   items?: QuoteItem[];
   classification?: ProcurementClassificationSnapshot;
 }
