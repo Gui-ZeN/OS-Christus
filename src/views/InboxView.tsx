@@ -450,12 +450,14 @@ export function InboxView() {
   const [vendors, setVendors] = useState<DirectoryVendor[]>([]);
   const [sharedThirdPartyTags, setSharedThirdPartyTags] = useState<string[]>([]);
   const [thirdPartyTag, setThirdPartyTag] = useState('');
-  const [selectedThirdPartyId, setSelectedThirdPartyId] = useState('');
+  const [selectedThirdPartyIds, setSelectedThirdPartyIds] = useState<string[]>([]);
+  const [thirdPartySelectDraftId, setThirdPartySelectDraftId] = useState('');
   const [newThirdPartyName, setNewThirdPartyName] = useState('');
   const [newThirdPartyEmail, setNewThirdPartyEmail] = useState('');
   const [newThirdPartyTags, setNewThirdPartyTags] = useState<string[]>([]);
   const [newSharedTagDraft, setNewSharedTagDraft] = useState('');
   const [newSharedTagSaving, setNewSharedTagSaving] = useState(false);
+  const [quickPanelExpanded, setQuickPanelExpanded] = useState(true);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
@@ -512,13 +514,19 @@ export function InboxView() {
     setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
     setThirdPartyTag('');
     if (activeTicket.assignedEmail) {
-      const matchedVendor = vendors.find(
-        vendor => String(vendor.email || '').trim().toLowerCase() === String(activeTicket.assignedEmail || '').trim().toLowerCase()
-      );
-      setSelectedThirdPartyId(matchedVendor?.id || '');
+      const assignedEmails = String(activeTicket.assignedEmail || '')
+        .split(',')
+        .map(item => item.trim().toLowerCase())
+        .filter(Boolean);
+      const matchedIds = vendors
+        .filter(vendor => assignedEmails.includes(String(vendor.email || '').trim().toLowerCase()))
+        .map(vendor => vendor.id);
+      setSelectedThirdPartyIds(matchedIds);
     } else {
-      setSelectedThirdPartyId('');
+      setSelectedThirdPartyIds([]);
     }
+    setThirdPartySelectDraftId('');
+    setQuickPanelExpanded(activeTicket.status === TICKET_STATUS.NEW);
     setNewThirdPartyName('');
     setNewThirdPartyEmail('');
     setNewThirdPartyTags([]);
@@ -663,7 +671,8 @@ export function InboxView() {
     setTechTeam(newValue);
     if (newValue !== techTeam) {
       setCustomEmail('');
-      setSelectedThirdPartyId('');
+      setSelectedThirdPartyIds([]);
+      setThirdPartySelectDraftId('');
       setThirdPartyTag('');
     }
   };
@@ -698,8 +707,10 @@ export function InboxView() {
         const withoutCurrent = current.filter(item => item.id !== nextVendor.id);
         return [...withoutCurrent, nextVendor].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
       });
-      setSelectedThirdPartyId(nextVendor.id);
-      setCustomEmail(nextVendor.email || '');
+      setSelectedThirdPartyIds(current =>
+        current.some(item => item === nextVendor.id) ? current : [...current, nextVendor.id]
+      );
+      setThirdPartySelectDraftId('');
       if (tags.length > 0) {
         setThirdPartyTag(tags[0]);
       }
@@ -748,7 +759,18 @@ export function InboxView() {
 
   const selectedTeam = teams.find(team => team.name === techTeam);
   const isExternalTeam = selectedTeam?.type === 'external';
-  const selectedThirdParty = vendors.find(vendor => vendor.id === selectedThirdPartyId) || null;
+  const selectedThirdParties = vendors.filter(vendor => selectedThirdPartyIds.includes(vendor.id));
+  const selectedThirdPartyEmails = selectedThirdParties
+    .map(vendor => String(vendor.email || '').trim())
+    .filter(Boolean);
+  const resolveAssignedEmails = () => {
+    const manualEmails = customEmail
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+    return Array.from(new Set([...selectedThirdPartyEmails, ...manualEmails])).join(', ');
+  };
+  const quickPanelCollapsed = activeTicket.status !== TICKET_STATUS.NEW && !quickPanelExpanded;
   const thirdPartyTagOptions = useMemo(() => {
     return (Array.from(new Set(sharedThirdPartyTags.map(tag => String(tag || '').trim()).filter(Boolean))) as string[]).sort((a, b) =>
       a.localeCompare(b, 'pt-BR')
@@ -884,14 +906,14 @@ export function InboxView() {
   const handleSaveQuickPanel = () => {
     if (!canManageStatus || isSending) return;
 
-    if (isExternalTeam && !selectedThirdParty) {
-      setToast('Selecione o terceiro responsável para equipes externas.');
+    if (isExternalTeam && selectedThirdParties.length === 0) {
+      setToast('Selecione ao menos um terceiro responsável para equipes externas.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
     const nextStatus = statusDraft || activeTicket.status;
-    const nextAssignedEmail = isExternalTeam ? (customEmail.trim() || String(selectedThirdParty?.email || '').trim()) : '';
+    const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const changes: string[] = [];
     const updates: Partial<Ticket> = {};
 
@@ -952,18 +974,21 @@ export function InboxView() {
       return;
     }
 
-    if (isExternalTeam && !selectedThirdParty) {
-      setToast('Selecione o terceiro responsável para encaminhamento externo.');
+    if (isExternalTeam && selectedThirdParties.length === 0) {
+      setToast('Selecione ao menos um terceiro responsável para encaminhamento externo.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
 
-    const target = isExternalTeam ? selectedThirdParty?.name || 'Terceiro selecionado' : techTeam;
+    const target = isExternalTeam
+      ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || 'Terceiro selecionado')
+      : techTeam;
+    const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     updateTicket(activeTicket.id, {
       status: TICKET_STATUS.WAITING_TECH_OPINION,
       priority: ticketPriority,
       assignedTeam: techTeam,
-      assignedEmail: isExternalTeam ? (customEmail.trim() || String(selectedThirdParty?.email || '').trim()) : '',
+      assignedEmail: nextAssignedEmail,
       history: [
         ...activeTicket.history,
         {
@@ -1013,7 +1038,7 @@ export function InboxView() {
           status: newStatus,
           priority: ticketPriority || activeTicket.priority,
           assignedTeam: techTeam || activeTicket.assignedTeam || '',
-          assignedEmail: isExternalTeam ? (customEmail.trim() || String(selectedThirdParty?.email || '').trim()) : '',
+          assignedEmail: isExternalTeam ? resolveAssignedEmails() : '',
           history: [...activeTicket.history, ...items],
         });
       }
@@ -2783,6 +2808,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <div className="mt-1 text-[12px] text-amber-900">Defina equipe, urgência e decida se a OS será aceita ou cancelada.</div>
                   </div>
                 )}
+                {quickPanelCollapsed && (
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-sub">
+                      Responsável: <span className="font-medium text-roman-text-main">{techTeam || 'Não definido'}</span> ·
+                      Urgência: <span className="font-medium text-roman-text-main"> {ticketPriority || 'Não definida'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setQuickPanelExpanded(true)}
+                      className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                    >
+                      Atualizar OS
+                    </button>
+                  </div>
+                )}
+                {!quickPanelCollapsed && (
                 <div className="mt-3 space-y-3">
                   <div className="grid grid-cols-1 gap-3">
                     {canManageStatus && (
@@ -2841,8 +2882,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             type="button"
                             onClick={() => {
                               setThirdPartyTag('');
-                              setSelectedThirdPartyId('');
-                              setCustomEmail('');
+                              setThirdPartySelectDraftId('');
                             }}
                             className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                               !thirdPartyTag
@@ -2859,8 +2899,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               type="button"
                               onClick={() => {
                                 setThirdPartyTag(tag);
-                                setSelectedThirdPartyId('');
-                                setCustomEmail('');
+                                setThirdPartySelectDraftId('');
                               }}
                               className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                                 thirdPartyTag === tag
@@ -2877,12 +2916,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <div>
                         <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
                         <select
-                          value={selectedThirdPartyId}
+                          value={thirdPartySelectDraftId}
                           onChange={event => {
                             const nextId = event.target.value;
-                            setSelectedThirdPartyId(nextId);
-                            const selected = filteredThirdParties.find(vendor => vendor.id === nextId);
-                            setCustomEmail(selected?.email || '');
+                            setThirdPartySelectDraftId(nextId);
+                            if (!nextId) return;
+                            setSelectedThirdPartyIds(current => (current.includes(nextId) ? current : [...current, nextId]));
                           }}
                           className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={isSending || !canEditQuickPanel}
@@ -2895,6 +2934,24 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           ))}
                         </select>
                       </div>
+                      {selectedThirdParties.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedThirdParties.map(vendor => (
+                            <span key={`selected-vendor-${vendor.id}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
+                              {vendor.name}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedThirdPartyIds(current => current.filter(id => id !== vendor.id))}
+                                className="text-roman-primary hover:opacity-70"
+                                aria-label={`Remover ${vendor.name}`}
+                                title={`Remover ${vendor.name}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div>
                         <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do terceiro</label>
                         <input
@@ -3029,9 +3086,18 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           Reabrir OS
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setQuickPanelExpanded(false)}
+                        disabled={isSending}
+                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
+                      >
+                        Fechar painel
+                      </button>
                     </div>
                   )}
                 </div>
+                )}
               </section>
               )}
 
