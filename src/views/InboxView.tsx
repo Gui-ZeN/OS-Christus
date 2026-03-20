@@ -1054,7 +1054,7 @@ export function InboxView() {
           text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
         });
       } else if (replyText.trim()) {
-        items.push({ id: crypto.randomUUID(), type: 'system', sender, time: now, text: replyText.trim() });
+        items.push({ id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() });
       }
 
       if (items.length > 0 || newStatus !== activeTicket.status) {
