@@ -11,7 +11,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
-import { fetchProcurementData, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
+import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { uploadContractAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi } from '../services/ticketsApi';
