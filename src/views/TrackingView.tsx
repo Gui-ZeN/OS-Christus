@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity, FileText, ShieldCheck, ClipboardList, DollarSign, Hammer } from 'lucide-react';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
@@ -89,17 +89,31 @@ function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
   if (item.type === 'customer' || item.type === 'tech') return true;
   if (item.type !== 'system') return false;
 
-  // Evita expor detalhes administrativos/financeiros no portal público.
-  const text = item.text.toLowerCase();
-  const hasSensitiveTerm =
-    text.includes('orçamento') ||
-    text.includes('orcamento') ||
-    text.includes('contrato') ||
-    text.includes('aditivo') ||
-    text.includes('pagamento') ||
-    text.includes('parcela') ||
-    text.includes('r$');
+  const normalizedText = item.text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
+  const hasExecutionStart =
+    normalizedText.includes('execucao iniciada') ||
+    normalizedText.includes('inicio da execucao');
+
+  const isNoisyInternalUpdate =
+    normalizedText.includes('triagem concluida') ||
+    normalizedText.includes('painel da os atualizado');
+
+  if (isNoisyInternalUpdate && !hasExecutionStart) return false;
+
+  // Evita expor detalhes administrativos/financeiros no portal público.
+  const hasSensitiveTerm =
+    normalizedText.includes('orcamento') ||
+    normalizedText.includes('contrato') ||
+    normalizedText.includes('aditivo') ||
+    normalizedText.includes('pagamento') ||
+    normalizedText.includes('parcela') ||
+    normalizedText.includes('r$');
+
+  if (hasExecutionStart) return true;
   return !hasSensitiveTerm;
 }
 
@@ -203,12 +217,17 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
 
 export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const { tickets } = useApp();
+  const latestTicketsRef = useRef(tickets);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [procurement, setProcurement] = useState<TrackingProcurementSummary>({ contract: null, measurements: [], payments: [] });
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmittingValidation, setIsSubmittingValidation] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    latestTicketsRef.current = tickets;
+  }, [tickets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,7 +270,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
         }
       } catch {
         if (!cancelled) {
-          setTicket(tickets.find(item => item.trackingToken === ticketToken) || null);
+          setTicket(latestTicketsRef.current.find(item => item.trackingToken === ticketToken) || null);
           setProcurement({ contract: null, measurements: [], payments: [] });
         }
       } finally {
@@ -264,7 +283,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [ticketToken, tickets]);
+  }, [ticketToken]);
 
   const timeline = useMemo(() => {
     if (!ticket) return [];
