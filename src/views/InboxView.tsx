@@ -813,15 +813,17 @@ export function InboxView() {
       resolveVendorSharedTags(vendor).some(tag => normalizeTagValue(tag) === normalizedTag)
     );
   }, [thirdPartyTag, vendors, sharedThirdPartyTagSet]);
-  const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(activeTicket.status);
+  const panelStatus = (statusDraft || activeTicket.status || '').trim();
+  const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(panelStatus as (typeof TRIAGE_VISIBLE_STATUSES)[number]);
   const canManageBudgetRounds =
-    activeTicket.status.includes('Orçamento') ||
-    activeTicket.status.includes('Cotação') ||
-    activeTicket.status === TICKET_STATUS.WAITING_CONTRACT_UPLOAD ||
-    activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
-    activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
-    activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
-    activeTicket.status === TICKET_STATUS.CLOSED;
+    panelStatus.includes('Orçamento') ||
+    panelStatus.includes('Cotação') ||
+    panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD ||
+    (panelStatus.includes('Anexo') && panelStatus.includes('Contrato')) ||
+    panelStatus === TICKET_STATUS.IN_PROGRESS ||
+    panelStatus === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
+    panelStatus === TICKET_STATUS.WAITING_PAYMENT ||
+    panelStatus === TICKET_STATUS.CLOSED;
   const executionNextActionLabel = getExecutionNextActionLabel(activeTicket);
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
@@ -2919,13 +2921,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <Plus size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
                       Gerenciar Aditivos
                     </button>
-                    {activeTicket.status === TICKET_STATUS.WAITING_CONTRACT_UPLOAD && (
+                    {(panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD || (panelStatus.includes('Anexo') && panelStatus.includes('Contrato'))) && (
                       <button
                         onClick={() => setShowContractDispatchModal(true)}
-                        className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                        className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-xl font-medium transition-colors text-xs"
                       >
-                        <FileText size={16} className="shrink-0" />
-                        <span className="leading-tight text-center">Anexar Contrato e Enviar para Diretoria</span>
+                        <span className="leading-tight text-center block">Anexar Contrato e Enviar para Diretoria</span>
                       </button>
                     )}
                   </div>
