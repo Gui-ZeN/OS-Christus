@@ -84,6 +84,25 @@ function getPublicStatusLabel(status: string) {
   }
 }
 
+function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
+  if (!item?.text?.trim()) return false;
+  if (item.type === 'customer' || item.type === 'tech') return true;
+  if (item.type !== 'system') return false;
+
+  // Evita expor detalhes administrativos/financeiros no portal público.
+  const text = item.text.toLowerCase();
+  const hasSensitiveTerm =
+    text.includes('orçamento') ||
+    text.includes('orcamento') ||
+    text.includes('contrato') ||
+    text.includes('aditivo') ||
+    text.includes('pagamento') ||
+    text.includes('parcela') ||
+    text.includes('r$');
+
+  return !hasSensitiveTerm;
+}
+
 function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary, sites: CatalogSite[]): PublicTimelineItem[] {
   const measurements = procurement.measurements || [];
   const payments = procurement.payments || [];
@@ -383,7 +402,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
             <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
               {ticket.history
-                .filter(item => (item.type === 'tech' || item.type === 'customer') && item.text)
+                .filter(isPublicSafeHistoryItem)
                 .map((item, index) => {
                   const isExternalMessage = item.type === 'customer';
 
@@ -419,6 +438,11 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     </div>
                   );
                 })}
+              {ticket.history.filter(isPublicSafeHistoryItem).length === 0 && (
+                <div className="rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
+                  Ainda não há atualizações públicas disponíveis no histórico.
+                </div>
+              )}
             </div>
           </div>
         </div>
