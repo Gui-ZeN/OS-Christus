@@ -936,8 +936,9 @@ async function handleSend(req, res) {
     };
 
     const provider = providerForLog;
+    const skipDirectorGreeting = Boolean(templateData?.skipGreeting);
     let personalizedBody = resolvedBody;
-    if (isDirectorTrigger && !internalCopy) {
+    if (isDirectorTrigger && !internalCopy && !skipDirectorGreeting) {
       personalizedBody = normalizeDirectorGreeting(resolvedBody);
     }
 
