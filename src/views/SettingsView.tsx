@@ -314,10 +314,14 @@ export function SettingsView() {
   const [tagDraft, setTagDraft] = useState('');
   const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
   const [siteDraft, setSiteDraft] = useState({ id: '', code: '', name: '', regionId: '' });
-  const [macroDraft, setMacroDraft] = useState({ code: '', name: '' });
-  const [serviceDraft, setServiceDraft] = useState({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
-  const [materialDraft, setMaterialDraft] = useState({ code: '', name: '', unit: '' });
-  const [pendingCatalogDelete, setPendingCatalogDelete] = useState<{ entity: 'regions' | 'sites'; id: string; label: string } | null>(null);
+  const [macroDraft, setMacroDraft] = useState({ id: '', code: '', name: '' });
+  const [serviceDraft, setServiceDraft] = useState({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
+  const [materialDraft, setMaterialDraft] = useState({ id: '', code: '', name: '', unit: '' });
+  const [pendingCatalogDelete, setPendingCatalogDelete] = useState<{
+    entity: 'regions' | 'sites' | 'macroServices' | 'serviceCatalog' | 'materials';
+    id: string;
+    label: string;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -456,7 +460,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setMacroDraft({ code: '', name: '' });
+      setMacroDraft({ id: '', code: '', name: '' });
       setCatalogSaved('Macroserviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -475,7 +479,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setServiceDraft({ code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
+      setServiceDraft({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
       setCatalogSaved('Serviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -494,7 +498,7 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setMaterialDraft({ code: '', name: '', unit: '' });
+      setMaterialDraft({ id: '', code: '', name: '', unit: '' });
       setCatalogSaved('Material salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -542,7 +546,11 @@ export function SettingsView() {
     }
   };
 
-  const handleDeleteCatalogItem = async (entity: 'regions' | 'sites', id: string, label: string) => {
+  const handleDeleteCatalogItem = async (
+    entity: 'regions' | 'sites' | 'macroServices' | 'serviceCatalog' | 'materials',
+    id: string,
+    label: string
+  ) => {
     setCatalogDeleting(true);
     try {
       const catalog = await deleteCatalogEntry(entity, id);
@@ -557,7 +565,23 @@ export function SettingsView() {
       if (entity === 'sites' && siteDraft.id === id) {
         setSiteDraft({ id: '', code: '', name: '', regionId: '' });
       }
-      setCatalogSaved(entity === 'regions' ? 'Região excluída.' : 'Sede excluída.');
+      if (entity === 'macroServices' && macroDraft.id === id) {
+        setMacroDraft({ id: '', code: '', name: '' });
+      }
+      if (entity === 'serviceCatalog' && serviceDraft.id === id) {
+        setServiceDraft({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
+      }
+      if (entity === 'materials' && materialDraft.id === id) {
+        setMaterialDraft({ id: '', code: '', name: '', unit: '' });
+      }
+      const deletedLabelByEntity: Record<typeof entity, string> = {
+        regions: 'Região excluída.',
+        sites: 'Sede excluída.',
+        macroServices: 'Macroserviço excluído.',
+        serviceCatalog: 'Serviço excluído.',
+        materials: 'Material excluído.',
+      };
+      setCatalogSaved(deletedLabelByEntity[entity]);
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : 'Falha ao excluir item do catálogo.');
@@ -1082,8 +1106,34 @@ export function SettingsView() {
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {macroServices.map(item => (
                                 <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
-                                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                  <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
+                                      <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => setMacroDraft({ id: item.id, name: item.name || '', code: item.code || '' })}
+                                        className="text-xs font-medium text-roman-primary hover:underline"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setPendingCatalogDelete({
+                                            entity: 'macroServices',
+                                            id: item.id,
+                                            label: item.name || item.id,
+                                          })
+                                        }
+                                        className="text-xs font-medium text-red-700 hover:underline"
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1108,8 +1158,17 @@ export function SettingsView() {
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'macroServices' ? <Loader2 size={14} className="animate-spin" /> : null}
-                                {catalogSavingEntity === 'macroServices' ? 'Salvando...' : 'Salvar macroserviço'}
+                                {catalogSavingEntity === 'macroServices' ? 'Salvando...' : macroDraft.id ? 'Salvar macroserviço' : 'Criar macroserviço'}
                               </button>
+                              {macroDraft.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setMacroDraft({ id: '', code: '', name: '' })}
+                                  className="inline-flex w-full items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-100"
+                                >
+                                  Cancelar edição
+                                </button>
+                              )}
                             </div>
                           </section>
 
@@ -1121,9 +1180,43 @@ export function SettingsView() {
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {serviceCatalog.map(item => (
                                 <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
-                                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                  <div className="text-[11px] text-roman-text-sub">
-                                    {(macroServices.find(macro => macro.id === item.macroServiceId)?.name || item.macroServiceId)} · {item.code || item.id}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
+                                      <div className="text-[11px] text-roman-text-sub">
+                                        {(macroServices.find(macro => macro.id === item.macroServiceId)?.name || item.macroServiceId)} · {item.code || item.id}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setServiceDraft({
+                                            id: item.id,
+                                            name: item.name || '',
+                                            code: item.code || '',
+                                            macroServiceId: item.macroServiceId || '',
+                                            suggestedMaterialIds: Array.isArray(item.suggestedMaterialIds) ? item.suggestedMaterialIds : [],
+                                          })
+                                        }
+                                        className="text-xs font-medium text-roman-primary hover:underline"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setPendingCatalogDelete({
+                                            entity: 'serviceCatalog',
+                                            id: item.id,
+                                            label: item.name || item.id,
+                                          })
+                                        }
+                                        className="text-xs font-medium text-red-700 hover:underline"
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -1181,8 +1274,17 @@ export function SettingsView() {
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'serviceCatalog' ? <Loader2 size={14} className="animate-spin" /> : null}
-                                {catalogSavingEntity === 'serviceCatalog' ? 'Salvando...' : 'Salvar serviço'}
+                                {catalogSavingEntity === 'serviceCatalog' ? 'Salvando...' : serviceDraft.id ? 'Salvar serviço' : 'Criar serviço'}
                               </button>
+                              {serviceDraft.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setServiceDraft({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] })}
+                                  className="inline-flex w-full items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-100"
+                                >
+                                  Cancelar edição
+                                </button>
+                              )}
                             </div>
                           </section>
 
@@ -1194,8 +1296,41 @@ export function SettingsView() {
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {materials.map(item => (
                                 <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
-                                  <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                                  <div className="text-[11px] text-roman-text-sub">{item.code || item.id}{item.unit ? ` · ${item.unit}` : ''}</div>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
+                                      <div className="text-[11px] text-roman-text-sub">{item.code || item.id}{item.unit ? ` · ${item.unit}` : ''}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setMaterialDraft({
+                                            id: item.id,
+                                            name: item.name || '',
+                                            code: item.code || '',
+                                            unit: item.unit || '',
+                                          })
+                                        }
+                                        className="text-xs font-medium text-roman-primary hover:underline"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setPendingCatalogDelete({
+                                            entity: 'materials',
+                                            id: item.id,
+                                            label: item.name || item.id,
+                                          })
+                                        }
+                                        className="text-xs font-medium text-red-700 hover:underline"
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1227,8 +1362,17 @@ export function SettingsView() {
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'materials' ? <Loader2 size={14} className="animate-spin" /> : null}
-                                {catalogSavingEntity === 'materials' ? 'Salvando...' : 'Salvar material'}
+                                {catalogSavingEntity === 'materials' ? 'Salvando...' : materialDraft.id ? 'Salvar material' : 'Criar material'}
                               </button>
+                              {materialDraft.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setMaterialDraft({ id: '', code: '', name: '', unit: '' })}
+                                  className="inline-flex w-full items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-100"
+                                >
+                                  Cancelar edição
+                                </button>
+                              )}
                             </div>
                           </section>
                         </div>
@@ -1558,7 +1702,17 @@ export function SettingsView() {
         <ModalShell
           isOpen={!!pendingCatalogDelete}
           onClose={() => setPendingCatalogDelete(null)}
-          title={pendingCatalogDelete.entity === 'regions' ? 'Excluir região' : 'Excluir sede'}
+          title={
+            pendingCatalogDelete.entity === 'regions'
+              ? 'Excluir região'
+              : pendingCatalogDelete.entity === 'sites'
+                ? 'Excluir sede'
+                : pendingCatalogDelete.entity === 'macroServices'
+                  ? 'Excluir macroserviço'
+                  : pendingCatalogDelete.entity === 'serviceCatalog'
+                    ? 'Excluir serviço'
+                    : 'Excluir material'
+          }
           description={`Essa ação remove permanentemente ${pendingCatalogDelete.label}. Se houver vínculo operacional, a exclusão será bloqueada pelo sistema.`}
           maxWidthClass="max-w-lg"
           footer={(

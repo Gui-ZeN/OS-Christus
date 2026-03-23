@@ -102,7 +102,10 @@ export async function saveCatalogEntry(
   };
 }
 
-export async function deleteCatalogEntry(entity: 'regions' | 'sites', id: string) {
+export async function deleteCatalogEntry(
+  entity: 'regions' | 'sites' | 'macroServices' | 'serviceCatalog' | 'materials',
+  id: string
+) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/catalog', {
     method: 'DELETE',

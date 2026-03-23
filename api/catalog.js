@@ -186,7 +186,7 @@ function normalizeCatalogRecord(entity, record) {
     throw new Error('name e obrigatorio.');
   }
   if (!id) {
-    throw new Error('Não foi possível gerar id para o registro.');
+    throw new Error('Nao foi possivel gerar id para o registro.');
   }
 
   const base = {
@@ -276,9 +276,9 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('tickets').where('regionId', '==', id).limit(1).get(),
     ]);
 
-    if (!sitesSnap.empty) throw new Error('Não é possível excluir a região enquanto existirem sedes vinculadas.');
-    if (!usersSnap.empty) throw new Error('Não é possível excluir a região enquanto houver usuários vinculados.');
-    if (!ticketsSnap.empty) throw new Error('Não é possível excluir a região porque ela já está vinculada a tickets.');
+    if (!sitesSnap.empty) throw new Error('Nao e possivel excluir a regiao enquanto existirem sedes vinculadas.');
+    if (!usersSnap.empty) throw new Error('Nao e possivel excluir a regiao enquanto houver usuarios vinculados.');
+    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir a regiao porque ela ja esta vinculada a tickets.');
     return;
   }
 
@@ -288,11 +288,70 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('tickets').where('siteId', '==', id).limit(1).get(),
     ]);
 
-    if (!usersSnap.empty) throw new Error('Não é possível excluir a sede enquanto houver usuários vinculados.');
-    if (!ticketsSnap.empty) throw new Error('Não é possível excluir a sede porque ela já está vinculada a tickets.');
+    if (!usersSnap.empty) throw new Error('Nao e possivel excluir a sede enquanto houver usuarios vinculados.');
+    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir a sede porque ela ja esta vinculada a tickets.');
+    return;
+  }
+
+  if (entity === 'macroServices') {
+    const [servicesSnap, ticketsSnap, vendorScopeSnap] = await Promise.all([
+      db.collection('serviceCatalog').where('macroServiceId', '==', id).limit(1).get(),
+      db.collection('tickets').where('macroServiceId', '==', id).limit(1).get(),
+      db.collection('vendorPreferenceEvents').where('scopeId', '==', id).limit(25).get(),
+    ]);
+
+    if (!servicesSnap.empty) throw new Error('Nao e possivel excluir o macroservico enquanto houver servicos vinculados.');
+    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir o macroservico porque ele ja esta vinculado a tickets.');
+    if (
+      vendorScopeSnap.docs.some(doc => {
+        const scopeType = String(doc.data()?.scopeType || '').trim();
+        return scopeType === 'macroService';
+      })
+    ) {
+      throw new Error('Nao e possivel excluir o macroservico porque ele ja possui historico de fornecedores.');
+    }
+    return;
+  }
+
+  if (entity === 'serviceCatalog') {
+    const [ticketsSnap, vendorServiceSnap, vendorScopeSnap] = await Promise.all([
+      db.collection('tickets').where('serviceCatalogId', '==', id).limit(1).get(),
+      db.collection('vendorPreferenceEvents').where('serviceCatalogId', '==', id).limit(1).get(),
+      db.collection('vendorPreferenceEvents').where('scopeId', '==', id).limit(25).get(),
+    ]);
+
+    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir o servico porque ele ja esta vinculado a tickets.');
+    if (!vendorServiceSnap.empty) throw new Error('Nao e possivel excluir o servico porque ele ja possui historico de fornecedores.');
+    if (
+      vendorScopeSnap.docs.some(doc => {
+        const scopeType = String(doc.data()?.scopeType || '').trim();
+        return scopeType === 'service';
+      })
+    ) {
+      throw new Error('Nao e possivel excluir o servico porque ele ja possui historico de fornecedores.');
+    }
+    return;
+  }
+
+  if (entity === 'materials') {
+    const [serviceSnap, vendorMaterialSnap, vendorScopeSnap] = await Promise.all([
+      db.collection('serviceCatalog').where('suggestedMaterialIds', 'array-contains', id).limit(1).get(),
+      db.collection('vendorPreferenceEvents').where('materialId', '==', id).limit(1).get(),
+      db.collection('vendorPreferenceEvents').where('scopeId', '==', id).limit(25).get(),
+    ]);
+
+    if (!serviceSnap.empty) throw new Error('Nao e possivel excluir o material enquanto ele estiver sugerido em servicos.');
+    if (!vendorMaterialSnap.empty) throw new Error('Nao e possivel excluir o material porque ele ja possui historico de fornecedores.');
+    if (
+      vendorScopeSnap.docs.some(doc => {
+        const scopeType = String(doc.data()?.scopeType || '').trim();
+        return scopeType === 'material';
+      })
+    ) {
+      throw new Error('Nao e possivel excluir o material porque ele ja possui historico de fornecedores.');
+    }
   }
 }
-
 async function deleteCatalogEntry(db, entity, id) {
   const collection = ENTITY_COLLECTION_MAP[entity];
   if (!collection) {
@@ -386,8 +445,9 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Allow', 'GET, POST, DELETE');
-    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
   } catch (error) {
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no catalogo.' });
   }
 }
+
