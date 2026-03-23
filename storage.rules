@@ -23,22 +23,32 @@ service firebase.storage {
 
     // O upload/download público não é permitido. Tudo passa por usuário logado.
 
-    match /attachments/tickets/images/{ticketId}/{fileName} {
+    match /attachments/tickets/images/{ticketId}/{fileName=**} {
       allow read: if isManager();
       allow write: if isManager() && isValidImage();
     }
 
-    match /attachments/tickets/pdfs/{ticketId}/{fileName} {
+    match /attachments/tickets/pdfs/{ticketId}/{fileName=**} {
       allow read: if isManager();
       allow write: if isManager() && isValidPdf();
     }
 
-    match /attachments/contracts/{ticketId}/{fileName} {
+    match /attachments/tickets/contracts/{ticketId}/{fileName=**} {
       allow read: if isManager();
       allow write: if isManager() && isValidPdf();
     }
 
-    match /attachments/quotes/{ticketId}/{fileName} {
+    match /attachments/tickets/quotes/{ticketId}/{fileName=**} {
+      allow read: if isManager();
+      allow write: if isManager() && (isValidPdf() || isValidImage());
+    }
+
+    match /attachments/tickets/payments/{ticketId}/{fileName=**} {
+      allow read: if isManager();
+      allow write: if isManager() && (isValidPdf() || isValidImage());
+    }
+
+    match /attachments/tickets/inbound/{ticketId}/{fileName=**} {
       allow read: if isManager();
       allow write: if isManager() && (isValidPdf() || isValidImage());
     }
