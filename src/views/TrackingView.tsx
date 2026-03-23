@@ -293,10 +293,18 @@ function getStageForStatus(status: TicketStatus): StatusStage {
 
 function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
   const history = [...(ticket.history || [])].sort((a, b) => a.time.getTime() - b.time.getTime());
-  const baseMs = parseDate(ticket.time)?.getTime() || Date.now();
+  const earliestHistoryTime = history.reduce<Date | null>((earliest, item) => {
+    const parsed = parseDate(item.time);
+    if (!parsed) return earliest;
+    if (!earliest) return parsed;
+    return parsed.getTime() < earliest.getTime() ? parsed : earliest;
+  }, null);
+
+  const openedAt = earliestHistoryTime || parseDate(ticket.time) || new Date();
+  const baseMs = openedAt.getTime();
 
   const explicitStatusTimes = new Map<TicketStatus, Date>();
-  explicitStatusTimes.set(TICKET_STATUS.NEW, parseDate(ticket.time) || new Date(baseMs));
+  explicitStatusTimes.set(TICKET_STATUS.NEW, openedAt);
 
   history.forEach(item => {
     const status = extractStatusFromHistoryItem(item);
