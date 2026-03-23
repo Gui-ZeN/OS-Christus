@@ -17,7 +17,7 @@ interface TrackingViewProps {
 interface TimelineEntry {
   id: string;
   kind: 'status' | 'message';
-  time: Date | null;
+  time: Date;
   sortMs: number;
   isCustomerMessage: boolean;
   sender: string;
@@ -26,22 +26,6 @@ interface TimelineEntry {
   status?: TicketStatus;
 }
 
-const STATUS_FLOW: TicketStatus[] = [
-  TICKET_STATUS.NEW,
-  TICKET_STATUS.WAITING_TECH_OPINION,
-  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-  TICKET_STATUS.WAITING_BUDGET,
-  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-  TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
-  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-  TICKET_STATUS.IN_PROGRESS,
-  TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-  TICKET_STATUS.WAITING_PAYMENT,
-  TICKET_STATUS.CLOSED,
-];
-
-const STATUS_FLOW_INDEX = new Map<TicketStatus, number>(STATUS_FLOW.map((status, index) => [status, index]));
 const NORMALIZED_STATUS_TO_VALUE = new Map<string, TicketStatus>(
   Object.values(TICKET_STATUS).map(status => [normalizeText(status), status as TicketStatus]),
 );
@@ -213,76 +197,66 @@ function shouldShowMessageInPublicTimeline(item: HistoryItem) {
   return false;
 }
 
-function buildStatusPath(currentStatus: TicketStatus, foundStatuses: TicketStatus[]) {
-  if (currentStatus === TICKET_STATUS.CANCELED) {
-    const sortedKnown = [...new Set(foundStatuses)]
-      .filter(status => status !== TICKET_STATUS.CLOSED && status !== TICKET_STATUS.CANCELED)
-      .sort((a, b) => (STATUS_FLOW_INDEX.get(a) ?? 999) - (STATUS_FLOW_INDEX.get(b) ?? 999));
-
-    if (sortedKnown.length > 0) {
-      return [...sortedKnown, TICKET_STATUS.CANCELED];
-    }
-
-    return [TICKET_STATUS.NEW, TICKET_STATUS.CANCELED];
-  }
-
-  const currentIndex = STATUS_FLOW_INDEX.get(currentStatus);
-  if (typeof currentIndex === 'number') {
-    return STATUS_FLOW.slice(0, currentIndex + 1);
-  }
-
-  return [TICKET_STATUS.NEW, currentStatus];
-}
-
 function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
   const history = [...(ticket.history || [])].sort((a, b) => a.time.getTime() - b.time.getTime());
+  const baseMs = parseDate(ticket.time)?.getTime() || Date.now();
+  const makeFallbackTime = (offset: number) => new Date(baseMs + offset * 1000);
 
-  const statusTimes = new Map<TicketStatus, Date | null>();
-  statusTimes.set(TICKET_STATUS.NEW, parseDate(ticket.time));
+  const rawStatusEvents: Array<{ id: string; status: TicketStatus; time: Date | null }> = [
+    { id: 'status-opened', status: TICKET_STATUS.NEW, time: parseDate(ticket.time) },
+  ];
 
-  history.forEach(item => {
+  history.forEach((item, index) => {
     const status = extractStatusFromHistoryItem(item);
     if (!status) return;
-    if (!statusTimes.has(status)) {
-      statusTimes.set(status, parseDate(item.time));
-    }
+    rawStatusEvents.push({
+      id: item.id || `status-history-${index}`,
+      status,
+      time: parseDate(item.time),
+    });
   });
 
   const currentStatus = ticket.status as TicketStatus;
-  if (!statusTimes.has(currentStatus)) {
-    statusTimes.set(currentStatus, resolveStatusTimestamp(ticket, currentStatus));
+  if (rawStatusEvents[rawStatusEvents.length - 1]?.status !== currentStatus) {
+    rawStatusEvents.push({
+      id: 'status-current',
+      status: currentStatus,
+      time: resolveStatusTimestamp(ticket, currentStatus),
+    });
   }
 
-  const statusPath = buildStatusPath(currentStatus, [...statusTimes.keys()]);
+  const dedupedStatusEvents = rawStatusEvents.filter((event, index, list) => {
+    if (index === 0) return true;
+    return event.status !== list[index - 1]?.status;
+  });
 
-  const baseMs = parseDate(ticket.time)?.getTime() || Date.now();
-
-  const statusEntries: TimelineEntry[] = statusPath.map((status, index) => {
-    const explicitTime = statusTimes.get(status) ?? resolveStatusTimestamp(ticket, status);
-    const fallbackMs = baseMs + (index + 1) * 1000;
-
+  const statusEntries: TimelineEntry[] = dedupedStatusEvents.map((event, index, list) => {
+    const previousTime = index > 0 ? list[index - 1]?.time : null;
+    const resolvedTime =
+      event.time
+      || (previousTime ? new Date(previousTime.getTime() + 1000) : makeFallbackTime(index + 1));
     return {
-      id: `status-${status}-${index}`,
+      id: `${event.id}-${index}`,
       kind: 'status',
-      time: explicitTime,
-      sortMs: explicitTime?.getTime() ?? fallbackMs,
+      time: resolvedTime,
+      sortMs: resolvedTime.getTime(),
       isCustomerMessage: false,
       sender: 'Sistema',
-      title: repairMojibake(status),
-      description: getStatusTimelineDescription(status),
-      status,
+      title: repairMojibake(event.status),
+      description: getStatusTimelineDescription(event.status),
+      status: event.status,
     };
   });
 
   const messageEntries: TimelineEntry[] = history
     .filter(shouldShowMessageInPublicTimeline)
     .map((item, index) => {
-      const parsedTime = parseDate(item.time);
+      const parsedTime = parseDate(item.time) || makeFallbackTime(statusEntries.length + index + 1);
       return {
         id: item.id || `msg-${index}`,
         kind: 'message',
         time: parsedTime,
-        sortMs: parsedTime?.getTime() ?? baseMs + (statusPath.length + index + 1) * 1000,
+        sortMs: parsedTime.getTime(),
         isCustomerMessage: item.type === 'customer',
         sender: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
         title: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
@@ -534,9 +508,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                         <div className="font-serif font-medium text-roman-text-main">
                           {isStatusEntry ? 'Status da OS' : entry.sender}
                         </div>
-                        {entry.time && (
-                          <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(entry.time)}</div>
-                        )}
+                        <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(entry.time)}</div>
                       </div>
 
                       {isStatusEntry ? (
