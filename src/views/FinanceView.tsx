@@ -118,6 +118,25 @@ function addMonths(date: Date, months: number) {
   return next;
 }
 
+function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function getGuaranteeDaysRemaining(guarantee?: GuaranteeInfo | null) {
+  if (!guarantee?.endAt || Number.isNaN(guarantee.endAt.getTime())) return null;
+  const today = startOfToday();
+  const end = startOfToday();
+  end.setFullYear(guarantee.endAt.getFullYear(), guarantee.endAt.getMonth(), guarantee.endAt.getDate());
+  const diffMs = end.getTime() - today.getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function isTicketInGuarantee(guarantee?: GuaranteeInfo | null) {
+  const remainingDays = getGuaranteeDaysRemaining(guarantee);
+  return remainingDays != null && remainingDays >= 0;
+}
+
 function getFinanceNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
@@ -359,6 +378,7 @@ export function FinanceView() {
   const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
   const [uploadingPaymentKey, setUploadingPaymentKey] = useState<string | null>(null);
   const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
+  const [historyGuaranteeFilter, setHistoryGuaranteeFilter] = useState<'all' | 'in_guarantee' | 'expiring_30'>('all');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
 
@@ -503,7 +523,32 @@ export function FinanceView() {
     [financeTickets]
   );
 
-  const visibleFinanceTickets = financeSection === 'open' ? openFinanceTickets : historicalFinanceTickets;
+  const historicalGuaranteeCounts = useMemo(() => {
+    const inGuarantee = historicalFinanceTickets.filter(entry => isTicketInGuarantee(entry.ticket.guarantee)).length;
+    const expiring30 = historicalFinanceTickets.filter(entry => {
+      const days = getGuaranteeDaysRemaining(entry.ticket.guarantee);
+      return days != null && days >= 0 && days <= 30;
+    }).length;
+    return {
+      all: historicalFinanceTickets.length,
+      inGuarantee,
+      expiring30,
+    };
+  }, [historicalFinanceTickets]);
+
+  const visibleFinanceTickets = useMemo(() => {
+    if (financeSection === 'open') return openFinanceTickets;
+    if (historyGuaranteeFilter === 'in_guarantee') {
+      return historicalFinanceTickets.filter(entry => isTicketInGuarantee(entry.ticket.guarantee));
+    }
+    if (historyGuaranteeFilter === 'expiring_30') {
+      return historicalFinanceTickets.filter(entry => {
+        const days = getGuaranteeDaysRemaining(entry.ticket.guarantee);
+        return days != null && days >= 0 && days <= 30;
+      });
+    }
+    return historicalFinanceTickets;
+  }, [financeSection, historyGuaranteeFilter, historicalFinanceTickets, openFinanceTickets]);
 
   useEffect(() => {
     if (currentView !== 'finance' || !activeTicketId) return;
@@ -1235,7 +1280,10 @@ export function FinanceView() {
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => setFinanceSection('open')}
+                onClick={() => {
+                  setFinanceSection('open');
+                  setHistoryGuaranteeFilter('all');
+                }}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${financeSection === 'open' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
               >
                 Em aberto ({openFinanceTickets.length})
@@ -1252,6 +1300,43 @@ export function FinanceView() {
                 ? 'OS com parcelas pendentes, liberações em andamento ou checklist final aberto.'
                 : 'OS quitadas para consulta histórica.'}
             </div>
+            {financeSection === 'history' && (
+              <div className="w-full flex flex-wrap gap-2 pt-2 border-t border-roman-border/60">
+                <button
+                  type="button"
+                  onClick={() => setHistoryGuaranteeFilter('all')}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    historyGuaranteeFilter === 'all'
+                      ? 'bg-roman-sidebar text-white'
+                      : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'
+                  }`}
+                >
+                  Todas ({historicalGuaranteeCounts.all})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryGuaranteeFilter('in_guarantee')}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    historyGuaranteeFilter === 'in_guarantee'
+                      ? 'bg-roman-sidebar text-white'
+                      : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'
+                  }`}
+                >
+                  Em garantia ({historicalGuaranteeCounts.inGuarantee})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryGuaranteeFilter('expiring_30')}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    historyGuaranteeFilter === 'expiring_30'
+                      ? 'bg-roman-sidebar text-white'
+                      : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'
+                  }`}
+                >
+                  Vencendo em 30 dias ({historicalGuaranteeCounts.expiring30})
+                </button>
+              </div>
+            )}
           </div>
 
           {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, expectedBaselineValue, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
@@ -1268,6 +1353,13 @@ export function FinanceView() {
             const projectedAccumulatedGross = currentAccumulatedGross + parseCurrency(measurementDraft.grossAmount || '');
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
+            const guaranteeDaysRemaining = getGuaranteeDaysRemaining(ticket.guarantee);
+            const guaranteeBadgeLabel =
+              guaranteeDaysRemaining == null
+                ? 'Garantia não informada'
+                : guaranteeDaysRemaining < 0
+                  ? `Garantia expirada há ${Math.abs(guaranteeDaysRemaining)} dia(s)`
+                  : `Garantia: ${guaranteeDaysRemaining} dia(s) restantes`;
             return (
               <div
                 key={ticket.id}
@@ -1293,6 +1385,19 @@ export function FinanceView() {
                       <span className="rounded-full border border-roman-border bg-roman-bg px-2 py-0.5 text-xs text-roman-text-sub">
                         {ticket.status}
                       </span>
+                      {financeSection === 'history' && (
+                        <span className={`rounded-full border px-2 py-0.5 text-xs ${
+                          guaranteeDaysRemaining == null
+                            ? 'border-roman-border bg-roman-bg text-roman-text-sub'
+                            : guaranteeDaysRemaining < 0
+                              ? 'border-red-200 bg-red-50 text-red-700'
+                              : guaranteeDaysRemaining <= 30
+                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        }`}>
+                          {guaranteeBadgeLabel}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 text-sm font-medium text-roman-text-main">{ticket.subject}</div>
                     <p className="mt-1 text-xs text-roman-text-sub">
@@ -1984,7 +2089,13 @@ export function FinanceView() {
             <div className="text-center py-12 border border-dashed border-roman-border rounded-2xl bg-roman-surface/70">
               <CheckCircle size={32} className="mx-auto text-roman-border mb-4" />
               <p className="text-roman-text-sub font-serif italic">
-                {financeSection === 'open' ? 'Nenhum fluxo financeiro pendente no momento.' : 'Nenhuma OS quitada no histórico financeiro.'}
+                {financeSection === 'open'
+                  ? 'Nenhum fluxo financeiro pendente no momento.'
+                  : historyGuaranteeFilter === 'all'
+                    ? 'Nenhuma OS quitada no histórico financeiro.'
+                    : historyGuaranteeFilter === 'in_guarantee'
+                      ? 'Nenhuma OS quitada com garantia ativa no momento.'
+                      : 'Nenhuma OS quitada com garantia vencendo em 30 dias.'}
               </p>
             </div>
           )}
