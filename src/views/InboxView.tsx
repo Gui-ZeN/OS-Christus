@@ -2866,35 +2866,147 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
               </div>
 
-              <section className="rounded-xl border border-roman-border bg-white px-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => setSidebarSections(prev => ({ ...prev, summary: !prev.summary }))}
-                  className="flex w-full items-start justify-between gap-3 text-left"
-                >
-                  <div>
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
-                    <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
-                  </div>
-                  <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.summary ? 'rotate-180' : ''}`} />
-                </button>
-                {sidebarSections.summary && (
-                  <>
-                    <div className="mt-3 rounded-xl border border-roman-border bg-roman-bg px-3 py-3">
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</div>
-                      <div className="mt-1 text-[15px] font-serif text-roman-text-main leading-snug">{activeTicket.subject || 'Sem assunto definido'}</div>
+              {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
+              {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
+                activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
+                activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
+                activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
+                activeTicket.status === TICKET_STATUS.CLOSED) && (
+                <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarSections(prev => ({ ...prev, execution: !prev.execution }))}
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                  >
+                    <div>
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Execução</div>
+                      <div className="mt-1 text-[11px] text-roman-text-sub">Preliminares, andamento físico e próximos passos da obra.</div>
                     </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
-                      <PropertyField label="Solicitante" value={activeTicket.requester} />
-                      <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
-                      <PropertyField label="Setor" value={activeTicket.sector} />
-                      <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
-                      <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
-                      <PropertyField label="Status atual" value={activeTicket.status} />
+                    <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.execution ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {sidebarSections.execution ? (
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-xl border border-roman-primary/20 bg-roman-primary/5 px-3 py-3">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Próxima ação</div>
+                        <div className="mt-1 text-[12px] font-medium text-roman-text-main">{executionNextActionLabel}</div>
+                      </div>
+
+                      {activeTicket.preliminaryActions && (
+                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                          <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
+                          <div>{buildPreliminarySummary(activeTicket.preliminaryActions)}</div>
+                          <div>Início previsto: {formatShortDate(activeTicket.preliminaryActions.plannedStartAt)}</div>
+                          <div>Material previsto: {formatShortDate(activeTicket.preliminaryActions.materialEta)}</div>
+                        </div>
+                      )}
+
+                      {activeTicket.executionProgress && (
+                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
+                          <div className="flex items-center justify-between text-xs text-roman-text-sub mb-2">
+                            <span className="font-medium text-roman-text-main">Andamento da obra</span>
+                            <span>{activeProgressPercent}%</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
+                            <div className="h-full rounded-full bg-roman-sidebar transition-all" style={{ width: `${activeProgressBarPercent}%` }} />
+                          </div>
+                          <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
+                            <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
+                            <div>Parcelas liberadas: {activeReleasedPercent}%</div>
+                            <div>Próximo marco: {activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'todos os marcos liberados'}</div>
+                            {activeTicket.executionProgress.measurementSheetUrl && (
+                              <div>
+                                Planilha de medição:{' '}
+                                <a
+                                  href={activeTicket.executionProgress.measurementSheetUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-roman-primary hover:underline"
+                                >
+                                  abrir link
+                                </a>
+                              </div>
+                            )}
+                            <div>Última atualização: {formatDateTimeSafe(activeTicket.executionProgress.lastUpdatedAt || activeTicket.time)}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
+                          <button onClick={() => setShowPrelimModal(true)} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
+                            <List size={14} /> Ações Preliminares (Compras)
+                          </button>
+                        )}
+
+                        {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS) && (
+                          <button
+                            onClick={handleStartExecution}
+                            className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                          >
+                            <Play size={14} /> {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ? 'Revisar Checklist para Início' : 'Revisar Fluxo da Execução'}
+                          </button>
+                        )}
+
+                        {canManageStatus &&
+                          activeTicket.executionProgress &&
+                          activeTicket.status !== TICKET_STATUS.CLOSED &&
+                          activeTicket.status !== TICKET_STATUS.CANCELED && (
+                            <button
+                              onClick={handleOpenProgressModal}
+                              className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                            >
+                              <RefreshCw size={14} /> Atualizar Andamento da Obra
+                            </button>
+                          )}
+
+                        {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
+                          <button
+                            onClick={handleSendForValidation}
+                            className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                          >
+                            <CheckSquare size={14} /> Concluir execução e enviar ao solicitante
+                          </button>
+                        )}
+
+                        {(activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
+                          activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
+                          activeTicket.status === TICKET_STATUS.CLOSED) &&
+                          activeTicket.closureChecklist && (
+                            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                              <div className="font-medium text-roman-text-main">Checklist de encerramento</div>
+                              <div>Infraestrutura 1: {activeTicket.closureChecklist.infrastructureApprovalPrimary ? 'confirmado' : 'pendente'}</div>
+                              <div>Infraestrutura 2: {activeTicket.closureChecklist.infrastructureApprovalSecondary ? 'confirmado' : 'pendente'}</div>
+                              <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
+                              <div>Término do serviço: {formatShortDate(activeTicket.closureChecklist.serviceCompletedAt)}</div>
+                              <div>Laudos anexados: {activeTicket.closureChecklist.documents?.length || 0}</div>
+                            </div>
+                          )}
+
+                        {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
+                          <div className="rounded-sm border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
+                            Pagamento e encerramento final agora são concluídos no painel Financeiro, com checklist e garantia.
+                          </div>
+                        )}
+                        {activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
+                          <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                            Aguardando confirmação do solicitante no link de acompanhamento para seguir para o financeiro.
+                          </div>
+                        )}
+
+                        {activeTicket.status === TICKET_STATUS.CLOSED && activeTicket.guarantee && (
+                          <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
+                            <div className="font-medium text-roman-text-main">Garantia</div>
+                            <div>Status: {activeTicket.guarantee.status === 'active' ? 'Ativa' : activeTicket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
+                            <div>Início: {formatShortDate(activeTicket.guarantee.startAt)}</div>
+                            <div>Fim: {formatShortDate(activeTicket.guarantee.endAt)}</div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </>
-                )}
-              </section>
+                  ) : null}
+                </section>
+              )}
 
               {canManageBudgetRounds && (
                 <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
@@ -3238,6 +3350,36 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               </section>
               )}
 
+              <section className="rounded-xl border border-roman-border bg-white px-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => setSidebarSections(prev => ({ ...prev, summary: !prev.summary }))}
+                  className="flex w-full items-start justify-between gap-3 text-left"
+                >
+                  <div>
+                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
+                    <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
+                  </div>
+                  <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.summary ? 'rotate-180' : ''}`} />
+                </button>
+                {sidebarSections.summary && (
+                  <>
+                    <div className="mt-3 rounded-xl border border-roman-border bg-roman-bg px-3 py-3">
+                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</div>
+                      <div className="mt-1 text-[15px] font-serif text-roman-text-main leading-snug">{activeTicket.subject || 'Sem assunto definido'}</div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
+                      <PropertyField label="Solicitante" value={activeTicket.requester} />
+                      <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
+                      <PropertyField label="Setor" value={activeTicket.sector} />
+                      <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
+                      <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
+                      <PropertyField label="Status atual" value={activeTicket.status} />
+                    </div>
+                  </>
+                )}
+              </section>
+
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
                 <button
                   type="button"
@@ -3309,148 +3451,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 )}
               </section>
-
-              {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
-              {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
-                activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
-                activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
-                activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
-                activeTicket.status === TICKET_STATUS.CLOSED) && (
-                <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setSidebarSections(prev => ({ ...prev, execution: !prev.execution }))}
-                    className="flex w-full items-start justify-between gap-3 text-left"
-                  >
-                    <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Execução</div>
-                      <div className="mt-1 text-[11px] text-roman-text-sub">Preliminares, andamento físico e próximos passos da obra.</div>
-                    </div>
-                    <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.execution ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {sidebarSections.execution ? (
-                    <div className="mt-3 space-y-2">
-                      <div className="rounded-xl border border-roman-primary/20 bg-roman-primary/5 px-3 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Próxima ação</div>
-                        <div className="mt-1 text-[12px] font-medium text-roman-text-main">{executionNextActionLabel}</div>
-                      </div>
-
-                      {activeTicket.preliminaryActions && (
-                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                          <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
-                          <div>{buildPreliminarySummary(activeTicket.preliminaryActions)}</div>
-                          <div>Início previsto: {formatShortDate(activeTicket.preliminaryActions.plannedStartAt)}</div>
-                          <div>Material previsto: {formatShortDate(activeTicket.preliminaryActions.materialEta)}</div>
-                        </div>
-                      )}
-
-                      {activeTicket.executionProgress && (
-                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
-                          <div className="flex items-center justify-between text-xs text-roman-text-sub mb-2">
-                            <span className="font-medium text-roman-text-main">Andamento da obra</span>
-                            <span>{activeProgressPercent}%</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
-                            <div className="h-full rounded-full bg-roman-sidebar transition-all" style={{ width: `${activeProgressBarPercent}%` }} />
-                          </div>
-                          <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
-                            <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
-                            <div>Parcelas liberadas: {activeReleasedPercent}%</div>
-                            <div>Próximo marco: {activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'todos os marcos liberados'}</div>
-                            {activeTicket.executionProgress.measurementSheetUrl && (
-                              <div>
-                                Planilha de medição:{' '}
-                                <a
-                                  href={activeTicket.executionProgress.measurementSheetUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-roman-primary hover:underline"
-                                >
-                                  abrir link
-                                </a>
-                              </div>
-                            )}
-                            <div>Última atualização: {formatDateTimeSafe(activeTicket.executionProgress.lastUpdatedAt || activeTicket.time)}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
-                          <button onClick={() => setShowPrelimModal(true)} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
-                            <List size={14} /> Ações Preliminares (Compras)
-                          </button>
-                        )}
-
-                        {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS) && (
-                          <button
-                            onClick={handleStartExecution}
-                            className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
-                          >
-                            <Play size={14} /> {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ? 'Revisar Checklist para Início' : 'Revisar Fluxo da Execução'}
-                          </button>
-                        )}
-
-                        {canManageStatus &&
-                          activeTicket.executionProgress &&
-                          activeTicket.status !== TICKET_STATUS.CLOSED &&
-                          activeTicket.status !== TICKET_STATUS.CANCELED && (
-                            <button
-                              onClick={handleOpenProgressModal}
-                              className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
-                            >
-                              <RefreshCw size={14} /> Atualizar Andamento da Obra
-                            </button>
-                          )}
-
-                        {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
-                          <button
-                            onClick={handleSendForValidation}
-                            className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
-                          >
-                            <CheckSquare size={14} /> Concluir execução e enviar ao solicitante
-                          </button>
-                        )}
-
-                        {(activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
-                          activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
-                          activeTicket.status === TICKET_STATUS.CLOSED) &&
-                          activeTicket.closureChecklist && (
-                            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                              <div className="font-medium text-roman-text-main">Checklist de encerramento</div>
-                              <div>Infraestrutura 1: {activeTicket.closureChecklist.infrastructureApprovalPrimary ? 'confirmado' : 'pendente'}</div>
-                              <div>Infraestrutura 2: {activeTicket.closureChecklist.infrastructureApprovalSecondary ? 'confirmado' : 'pendente'}</div>
-                              <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
-                              <div>Término do serviço: {formatShortDate(activeTicket.closureChecklist.serviceCompletedAt)}</div>
-                              <div>Laudos anexados: {activeTicket.closureChecklist.documents?.length || 0}</div>
-                            </div>
-                          )}
-
-                        {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
-                          <div className="rounded-sm border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
-                            Pagamento e encerramento final agora são concluídos no painel Financeiro, com checklist e garantia.
-                          </div>
-                        )}
-                        {activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
-                          <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
-                            Aguardando confirmação do solicitante no link de acompanhamento para seguir para o financeiro.
-                          </div>
-                        )}
-
-                        {activeTicket.status === TICKET_STATUS.CLOSED && activeTicket.guarantee && (
-                          <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                            <div className="font-medium text-roman-text-main">Garantia</div>
-                            <div>Status: {activeTicket.guarantee.status === 'active' ? 'Ativa' : activeTicket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
-                            <div>Início: {formatShortDate(activeTicket.guarantee.startAt)}</div>
-                            <div>Fim: {formatShortDate(activeTicket.guarantee.endAt)}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
-              )}
 
             </div>
           </aside>
