@@ -21,52 +21,20 @@ function buildGreetingName(name: string | null | undefined, email: string) {
   );
 }
 
-function normalizeText(value: string | null | undefined) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function formatActivityTime(date: Date): string {
-  const diffMs = Date.now() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-  if (diffMins < 1) return 'agora';
-  if (diffMins < 60) return `${diffMins}min`;
-  if (diffHours < 24) {
-    const h = date.getHours().toString().padStart(2, '0');
-    const m = date.getMinutes().toString().padStart(2, '0');
-    return `${h}:${m}`;
-  }
-  if (diffDays === 1) return 'Ontem';
-  return `${diffDays}d`;
-}
-
 export function HomeView() {
-  const { navigateTo, setActiveTicketId, setInboxFilter, tickets, currentUser, currentUserEmail } = useApp();
+  const { navigateTo, setInboxFilter, tickets, currentUser, currentUserEmail } = useApp();
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
+  const [requesterTab, setRequesterTab] = useState<'open' | 'history'>('open');
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const isRequester = currentUser?.role === 'Usuario';
 
-  const clearInboxFilters = () =>
-    setInboxFilter({ status: [], priority: [], region: [], site: [], type: [] });
-
   const openInboxWithStatus = (statuses: string[]) => {
     setInboxFilter({ status: statuses, priority: [], region: [], site: [], type: [] });
     navigateTo('inbox');
-  };
-
-  const openTicketWorkspace = (ticketId: string, destination: 'inbox' | 'approvals' | 'finance' = 'inbox') => {
-    setActiveTicketId(ticketId);
-    if (destination === 'inbox') clearInboxFilters();
-    navigateTo(destination);
   };
 
   useEffect(() => {
@@ -183,41 +151,15 @@ export function HomeView() {
       .slice(0, 4);
   }, [isExecutive, navigateTo, openInboxWithStatus, scopedTickets]);
 
-  const requesterTickets = useMemo(() => {
-    if (!isRequester) return [];
-    const requesterEmailKey = normalizeText(currentUserEmail);
-    const requesterNameKey = normalizeText(currentUser?.name);
-    const emailPrefixKey = normalizeText(currentUserEmail.split('@')[0]);
+  const requesterOpenTickets = useMemo(
+    () => (isRequester ? scopedTickets.filter(ticket => isOpenStatus(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
+    [isRequester, scopedTickets]
+  );
 
-    return scopedTickets
-      .filter(ticket => {
-        const ticketRequesterEmail = normalizeText(ticket.requesterEmail);
-        const ticketRequesterName = normalizeText(ticket.requester);
-        if (requesterEmailKey && ticketRequesterEmail === requesterEmailKey) return true;
-        if (requesterNameKey && ticketRequesterName === requesterNameKey) return true;
-        if (emailPrefixKey && ticketRequesterName.includes(emailPrefixKey)) return true;
-        return false;
-      })
-      .sort((a, b) => b.time.getTime() - a.time.getTime());
-  }, [currentUser?.name, currentUserEmail, isRequester, scopedTickets]);
-
-  const pendingRequesterValidations = useMemo(() => {
-    return scopedTickets
-      .filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL)
-      .sort((a, b) => b.time.getTime() - a.time.getTime())
-      .slice(0, 5);
-  }, [scopedTickets]);
-
-  const upcomingPreliminaries = useMemo(() => {
-    return scopedTickets
-      .filter(ticket => ticket.preliminaryActions?.plannedStartAt || ticket.preliminaryActions?.materialEta)
-      .sort((a, b) => {
-        const aDate = (a.preliminaryActions?.plannedStartAt || a.preliminaryActions?.materialEta || a.time).getTime();
-        const bDate = (b.preliminaryActions?.plannedStartAt || b.preliminaryActions?.materialEta || b.time).getTime();
-        return aDate - bDate;
-      })
-      .slice(0, 5);
-  }, [scopedTickets]);
+  const requesterHistoryTickets = useMemo(
+    () => (isRequester ? scopedTickets.filter(ticket => !isOpenStatus(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
+    [isRequester, scopedTickets]
+  );
 
   const regionalExecutiveBoard = useMemo(() => {
     const grouped = new Map<string, { label: string; region: string; open: number; approvals: number; waitingValidation: number; closed: number }>();
@@ -280,67 +222,104 @@ export function HomeView() {
         )}
 
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-          <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={() => openInboxWithStatus([TICKET_STATUS.NEW])} />
-          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={() => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET])} />
+          <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.NEW]) : undefined} />
+          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]) : undefined} />
           <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente" onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
-          <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={() => openInboxWithStatus([TICKET_STATUS.CLOSED])} />
+          <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.CLOSED]) : undefined} />
         </div>
 
-        {!isExecutive && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-            {isRequester && (
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
-                <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Minhas Solicitações</h2>
-                  <Users size={16} className="text-roman-text-sub" />
-                </div>
-                {requesterTickets.length === 0 ? (
-                  <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma solicitação vinculada ao seu usuário apareceu neste recorte.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {requesterTickets.slice(0, 6).map(ticket => (
-                      <button key={ticket.id} onClick={() => openTicketWorkspace(ticket.id)} className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-roman-text-main">{ticket.id}</div>
-                          <div className="text-xs text-roman-text-sub">{ticket.status}</div>
-                        </div>
-                        <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub mt-2">{getTicketSiteLabel(ticket, sites)} • {formatActivityTime(ticket.time)}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+        {isRequester && (
+          <div className="mb-6 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-roman-border pb-3">
+              <div>
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">Painel de Tickets da Minha Estrutura</h2>
+                <p className="mt-1 text-sm text-roman-text-sub">Lista de tickets por sede/região com status atual e histórico.</p>
               </div>
-            )}
-
-            <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main">Acompanhamento operacional</h2>
-                <AlertTriangle size={16} className="text-roman-text-sub" />
-              </div>
-              <div className="space-y-3">
-                {pendingRequesterValidations.length === 0 && upcomingPreliminaries.length === 0 ? (
-                  <p className="text-sm text-roman-text-sub font-serif italic">Nenhum destaque operacional neste momento.</p>
-                ) : (
-                  <>
-                    {pendingRequesterValidations.map(ticket => (
-                      <button key={`validation-${ticket.id}`} onClick={() => openTicketWorkspace(ticket.id)} className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors">
-                        <div className="font-medium text-roman-text-main">{ticket.id} • aguardando validação do solicitante</div>
-                        <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub mt-2">{getTicketSiteLabel(ticket, sites)} • {ticket.requester}</div>
-                      </button>
-                    ))}
-                    {upcomingPreliminaries.slice(0, 3).map(ticket => (
-                      <button key={`prelim-${ticket.id}`} onClick={() => openTicketWorkspace(ticket.id)} className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors">
-                        <div className="font-medium text-roman-text-main">{ticket.id} • ação preliminar</div>
-                        <div className="text-sm text-roman-text-main mt-1">{ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub mt-2">{ticket.preliminaryActions?.plannedStartAt ? `Início previsto ${formatActivityTime(ticket.preliminaryActions.plannedStartAt)}` : ticket.preliminaryActions?.materialEta ? `Material previsto ${formatActivityTime(ticket.preliminaryActions.materialEta)}` : getTicketSiteLabel(ticket, sites)}</div>
-                      </button>
-                    ))}
-                  </>
-                )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRequesterTab('open')}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${requesterTab === 'open' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
+                >
+                  Abertos ({requesterOpenTickets.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequesterTab('history')}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${requesterTab === 'history' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
+                >
+                  Histórico ({requesterHistoryTickets.length})
+                </button>
               </div>
             </div>
+
+            {requesterTab === 'open' ? (
+              requesterOpenTickets.length === 0 ? (
+                <p className="py-6 text-sm text-roman-text-sub font-serif italic">Nenhum ticket aberto para sua sede/região no momento.</p>
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[880px] border-collapse text-left">
+                    <thead>
+                      <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
+                        <th className="px-3 py-2">Ticket</th>
+                        <th className="px-3 py-2">Assunto</th>
+                        <th className="px-3 py-2">Sede</th>
+                        <th className="px-3 py-2">Região</th>
+                        <th className="px-3 py-2">Solicitante</th>
+                        <th className="px-3 py-2">Prioridade</th>
+                        <th className="px-3 py-2">Status atual</th>
+                        <th className="px-3 py-2">Atualizado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requesterOpenTickets.map(ticket => (
+                        <tr key={`open-${ticket.id}`} className="border-b border-roman-border/70 hover:bg-roman-bg/50">
+                          <td className="px-3 py-2 font-semibold text-roman-text-main">{ticket.id}</td>
+                          <td className="px-3 py-2 text-roman-text-main">{ticket.subject || '-'}</td>
+                          <td className="px-3 py-2 text-roman-text-sub">{getTicketSiteLabel(ticket, sites)}</td>
+                          <td className="px-3 py-2 text-roman-text-sub">{getTicketRegionLabel(ticket, regions, sites)}</td>
+                          <td className="px-3 py-2 text-roman-text-sub">{ticket.requester || '-'}</td>
+                          <td className="px-3 py-2 text-roman-text-sub">{ticket.priority || '-'}</td>
+                          <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
+                          <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : requesterHistoryTickets.length === 0 ? (
+              <p className="py-6 text-sm text-roman-text-sub font-serif italic">Nenhum ticket encerrado/cancelado no histórico da sua estrutura.</p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[880px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
+                      <th className="px-3 py-2">Ticket</th>
+                      <th className="px-3 py-2">Assunto</th>
+                      <th className="px-3 py-2">Sede</th>
+                      <th className="px-3 py-2">Região</th>
+                      <th className="px-3 py-2">Solicitante</th>
+                      <th className="px-3 py-2">Status final</th>
+                      <th className="px-3 py-2">Último registro</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requesterHistoryTickets.map(ticket => (
+                      <tr key={`history-${ticket.id}`} className="border-b border-roman-border/70 hover:bg-roman-bg/50">
+                        <td className="px-3 py-2 font-semibold text-roman-text-main">{ticket.id}</td>
+                        <td className="px-3 py-2 text-roman-text-main">{ticket.subject || '-'}</td>
+                        <td className="px-3 py-2 text-roman-text-sub">{getTicketSiteLabel(ticket, sites)}</td>
+                        <td className="px-3 py-2 text-roman-text-sub">{getTicketRegionLabel(ticket, regions, sites)}</td>
+                        <td className="px-3 py-2 text-roman-text-sub">{ticket.requester || '-'}</td>
+                        <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
+                        <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
         {isExecutive && (
@@ -384,6 +363,7 @@ export function HomeView() {
           </div>
         )}
 
+        {isExecutive && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-5">
           <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
@@ -432,6 +412,7 @@ export function HomeView() {
             </div>
           </div>
         </div>
+        )}
 
       </div>
     </div>

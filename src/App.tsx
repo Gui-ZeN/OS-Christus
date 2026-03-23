@@ -100,6 +100,8 @@ export default function App() {
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const currentRole = currentUser?.role || '';
+  const isRequesterRole = currentRole === 'Usuario';
+  const canAccessInbox = !isRequesterRole;
   const canAccessApprovals = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
@@ -110,6 +112,7 @@ export default function App() {
     () =>
       new Set<ViewState>(
         [
+          !canAccessInbox ? VIEWS.INBOX : null,
           !canAccessApprovals ? VIEWS.APPROVALS : null,
           !canAccessFinance ? VIEWS.FINANCE : null,
           !canAccessEmailHealth ? VIEWS.EMAIL_HEALTH : null,
@@ -118,7 +121,7 @@ export default function App() {
           !canAccessSettings ? VIEWS.SETTINGS : null,
         ].filter(Boolean) as ViewState[]
       ),
-    [canAccessApprovals, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessKpi, canAccessSettings]
+    [canAccessInbox, canAccessApprovals, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessKpi, canAccessSettings]
   );
   const initials =
     (currentUser?.name || currentUserEmail || 'RG')
@@ -127,6 +130,17 @@ export default function App() {
       .slice(0, 2)
       .map(part => part[0]?.toUpperCase() || '')
       .join('') || 'RG';
+
+  const canOpenView = (view: ViewState) => {
+    if (view === VIEWS.INBOX) return canAccessInbox;
+    if (view === VIEWS.APPROVALS) return canAccessApprovals;
+    if (view === VIEWS.FINANCE) return canAccessFinance;
+    if (view === VIEWS.EMAIL_HEALTH) return canAccessEmailHealth;
+    if (view === VIEWS.AUDIT_LOGS) return canAccessAudit;
+    if (view === VIEWS.KPI) return canAccessKpi;
+    if (view === VIEWS.SETTINGS) return canAccessSettings;
+    return true;
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -266,7 +280,7 @@ export default function App() {
   if (currentView === VIEWS.TRACKING) {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
-        <TrackingView ticketToken={trackingTicketToken} onBack={() => navigateTo(VIEWS.INBOX)} />
+        <TrackingView ticketToken={trackingTicketToken} onBack={() => navigateTo(canAccessInbox ? VIEWS.INBOX : VIEWS.HOME)} />
       </Suspense>
     );
   }
@@ -283,7 +297,9 @@ export default function App() {
         </div>
         <nav className="flex flex-col gap-1.5 w-full px-1.5">
           <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Início" />
-          <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
+          {canAccessInbox && (
+            <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
+          )}
           {canAccessApprovals && <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />}
           {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
           {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
@@ -416,7 +432,7 @@ export default function App() {
                         event.stopPropagation();
                         markNotificationRead(notification.id);
                         if (notification.action?.ticketId) setActiveTicketId(notification.action.ticketId);
-                        navigateTo(notification.action.view);
+                        navigateTo(canOpenView(notification.action.view) ? notification.action.view : VIEWS.HOME);
                         setShowNotifications(false);
                       }}
                       className={`w-full py-1.5 text-xs font-medium rounded-sm transition-colors border ${
@@ -448,7 +464,7 @@ export default function App() {
       <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
         <Suspense fallback={<ViewLoader />}>
           {currentView === VIEWS.HOME && <HomeView />}
-          {currentView === VIEWS.INBOX && <InboxView />}
+          {currentView === VIEWS.INBOX && canAccessInbox && <InboxView />}
           {currentView === VIEWS.APPROVALS && canAccessApprovals && <ApprovalsView />}
           {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
           {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
