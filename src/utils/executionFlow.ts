@@ -10,24 +10,25 @@ function normalizeProgressPercent(value: number) {
   return Math.max(0, Number(value));
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(value);
+function parseCurrencyValue(raw?: string | null) {
+  if (!raw) return 0;
+  const normalized = Number(
+    String(raw)
+      .replace(/[^\d,.-]/g, '')
+      .replace(/\./g, '')
+      .replace(',', '.')
+  );
+  return Number.isFinite(normalized) ? normalized : 0;
 }
 
-export function createExecutionPaymentPlan(totalValue: number, vendor: string, parts: number) {
+export function createExecutionPaymentPlan(_totalValue: number, vendor: string, parts: number) {
   const safeParts = Math.min(5, Math.max(1, Math.round(Number(parts) || 1)));
-  const normalizedTotal = Math.max(0, Number(totalValue) || 0);
-  const baseValue = Math.floor((normalizedTotal / safeParts) * 100) / 100;
   let cumulativeMilestone = 0;
 
   return Array.from({ length: safeParts }, (_, index) => {
     const installmentNumber = index + 1;
     const isLast = installmentNumber === safeParts;
-    const rawValue = isLast ? normalizedTotal - baseValue * (safeParts - 1) : baseValue;
+    const isSingleInstallment = safeParts === 1;
     const chunkPercent = isLast
       ? Number((100 - cumulativeMilestone).toFixed(2))
       : Number((100 / safeParts).toFixed(2));
@@ -36,8 +37,9 @@ export function createExecutionPaymentPlan(totalValue: number, vendor: string, p
     return {
       id: `payment-${installmentNumber}`,
       vendor,
-      value: formatCurrency(rawValue),
-      label: safeParts === 1 ? 'Pagamento Ã  vista' : `Parcela ${installmentNumber}/${safeParts}`,
+      // O valor é definido no lançamento do bruto pelo gestor, não no plano.
+      value: '',
+      label: isSingleInstallment ? 'Parcela única' : `Parcela ${installmentNumber}/${safeParts}`,
       status: 'pending',
       installmentNumber,
       totalInstallments: safeParts,
@@ -74,13 +76,19 @@ export function getApprovedPaymentValue(payments: PaymentRecord[]) {
   return payments
     .filter(payment => payment.status === 'approved' || payment.status === 'paid')
     .reduce((total, payment) => {
-      const normalized = Number(
-        String(payment.value || '')
-          .replace(/[^\d,.-]/g, '')
-          .replace(/\./g, '')
-          .replace(',', '.')
-      );
-      return total + (Number.isFinite(normalized) ? normalized : 0);
+      const grossValue = parseCurrencyValue(payment.grossValue);
+      if (grossValue > 0) return total + grossValue;
+
+      const registeredValue = parseCurrencyValue(payment.value);
+      if (registeredValue > 0) return total + registeredValue;
+
+      const baseline = parseCurrencyValue(payment.expectedBaselineValue);
+      if (baseline > 0) {
+        const releasedPercent = Number(payment.releasedPercent || 0);
+        return total + (baseline * releasedPercent) / 100;
+      }
+
+      return total;
     }, 0);
 }
 

@@ -597,7 +597,7 @@ export function FinanceView() {
     if (current) return current;
 
     return {
-      grossValue: payment.grossValue || payment.value || '',
+      grossValue: payment.grossValue || '',
       taxValue: payment.taxValue || '',
     };
   };
@@ -606,7 +606,7 @@ export function FinanceView() {
     const key = getPaymentDraftKey(ticketId, payment.id);
     setPaymentDraftByKey(prev => {
       const base = prev[key] || {
-        grossValue: payment.grossValue || payment.value || '',
+        grossValue: payment.grossValue || '',
         taxValue: payment.taxValue || '',
       };
       return {
@@ -1082,7 +1082,7 @@ export function FinanceView() {
     }
 
     const settlementDraft = getPaymentDraft(ticketId, payment);
-    const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || payment.value || '');
+    const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || '');
     const taxAmount = parseCurrency(settlementDraft.taxValue || payment.taxValue || '0');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
       setToast('Erro: informe o valor bruto da parcela antes de confirmar o pagamento.');
@@ -1695,7 +1695,7 @@ export function FinanceView() {
                                 payment.status === 'approved' &&
                                 (!isFinalInstallment || finalInstallmentBlockingReasons.length === 0);
                               const paymentDraft = getPaymentDraft(ticket.id, payment);
-                              const grossPreview = parseCurrency(paymentDraft.grossValue || payment.grossValue || payment.value || '0');
+                              const grossPreview = parseCurrency(paymentDraft.grossValue || payment.grossValue || '0');
                               const taxPreview = parseCurrency(paymentDraft.taxValue || payment.taxValue || '0');
                               const netPreview = Math.max(0, grossPreview - taxPreview);
                               const paymentKey = getPaymentDraftKey(ticket.id, payment.id);
@@ -1706,7 +1706,7 @@ export function FinanceView() {
                               <div className="flex-1">
                                 <div className="text-sm font-medium text-roman-text-main">{payment.label || `Parcela ${payment.installmentNumber || 1}`}</div>
                                 <div className="text-xs text-roman-text-sub">
-                                  Previsto: {payment.value} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | libera em {payment.milestonePercent || payment.releasedPercent || 0}% | vencimento {formatDateLabel(payment.dueAt)}
+                                  Marco: libera em {payment.milestonePercent || payment.releasedPercent || 0}% | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
                                 {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
