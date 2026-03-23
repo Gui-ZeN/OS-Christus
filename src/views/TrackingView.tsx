@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Landmark, CheckSquare, Loader2, CheckCircle, Users, Activity, FileText, ShieldCheck, ClipboardList, DollarSign, Hammer } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowRight, Landmark, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
-import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, TrackingProcurementSummary } from '../services/ticketsApi';
+import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi } from '../services/ticketsApi';
 import type { Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
 import { repairMojibake } from '../utils/text';
@@ -12,47 +12,6 @@ import { getTicketSiteLabel } from '../utils/ticketTerritory';
 interface TrackingViewProps {
   ticketToken: string | null;
   onBack: () => void;
-}
-
-interface PublicTimelineItem {
-  id: string;
-  title: string;
-  description: string;
-  date?: Date | null;
-  status: 'done' | 'current' | 'pending';
-  icon: 'opened' | 'preliminary' | 'execution' | 'measurement' | 'payment' | 'closure' | 'guarantee';
-}
-
-function formatDateLabel(date?: Date | null) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Não informado';
-  return date.toLocaleDateString('pt-BR');
-}
-
-function normalizeGuaranteeStatus(status?: string | null) {
-  if (status === 'active') return 'Ativa';
-  if (status === 'expired') return 'Expirada';
-  return 'Pendente';
-}
-
-function getTimelineIcon(icon: PublicTimelineItem['icon']) {
-  switch (icon) {
-    case 'opened':
-      return <Landmark size={16} />;
-    case 'preliminary':
-      return <ClipboardList size={16} />;
-    case 'execution':
-      return <Hammer size={16} />;
-    case 'measurement':
-      return <Activity size={16} />;
-    case 'payment':
-      return <DollarSign size={16} />;
-    case 'closure':
-      return <CheckSquare size={16} />;
-    case 'guarantee':
-      return <ShieldCheck size={16} />;
-    default:
-      return <CheckCircle size={16} />;
-  }
 }
 
 function getPublicStatusLabel(status: string) {
@@ -171,109 +130,10 @@ function getPublicHistoryText(item: Ticket['history'][number]) {
   return rawText;
 }
 
-function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary, sites: CatalogSite[]): PublicTimelineItem[] {
-  const measurements = procurement.measurements || [];
-  const payments = procurement.payments || [];
-  const hasPayments = payments.length > 0;
-  const siteLabel = getTicketSiteLabel(ticket, sites);
-
-  return [
-    {
-      id: 'opened',
-      title: 'Solicitação registrada',
-      description: `OS aberta para ${siteLabel}.`,
-      date: ticket.time,
-      status: 'done',
-      icon: 'opened',
-    },
-    {
-      id: 'preliminary',
-      title: 'Preparação da execução',
-      description: ticket.preliminaryActions
-        ? `Checklist operacional ${ticket.preliminaryActions.updatedAt ? 'atualizado' : 'iniciado'} com material, cronograma e alinhamentos.`
-        : 'Planejamento pré-execução ainda não informado no sistema.',
-      date:
-        ticket.preliminaryActions?.updatedAt ||
-        ticket.preliminaryActions?.plannedStartAt ||
-        ticket.preliminaryActions?.materialEta ||
-        null,
-      status: ticket.preliminaryActions ? 'done' : ticket.status === TICKET_STATUS.NEW ? 'pending' : 'current',
-      icon: 'preliminary',
-    },
-    {
-      id: 'execution',
-      title: 'Execução do serviço',
-      description: ticket.closureChecklist?.serviceStartedAt || ticket.preliminaryActions?.actualStartAt
-        ? 'A equipe técnica iniciou a execução da manutenção.'
-        : 'Serviço ainda não marcado como iniciado.',
-      date: ticket.closureChecklist?.serviceStartedAt || ticket.preliminaryActions?.actualStartAt || null,
-      status:
-        ticket.closureChecklist?.serviceStartedAt || ticket.preliminaryActions?.actualStartAt
-          ? 'done'
-          : ticket.status === TICKET_STATUS.IN_PROGRESS
-            ? 'current'
-            : 'pending',
-      icon: 'execution',
-    },
-    {
-      id: 'measurement',
-      title: 'Medições registradas',
-      description:
-        measurements.length > 0
-          ? `${measurements.length} medição(ões) lançadas para acompanhamento da obra.`
-          : 'Nenhuma medição formal registrada até o momento.',
-      date: measurements[0]?.requestedAt || measurements[0]?.approvedAt || null,
-      status: measurements.length > 0 ? 'done' : ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'current' : 'pending',
-      icon: 'measurement',
-    },
-    {
-      id: 'payment',
-      title: 'Pagamento',
-      description:
-        hasPayments
-          ? 'Etapa financeira em andamento no time interno.'
-          : 'Plano financeiro ainda não iniciado.',
-      date: payments.find(payment => payment.status === 'paid')?.paidAt || payments[0]?.dueAt || null,
-      status:
-        !hasPayments ? 'pending' : ticket.status === TICKET_STATUS.CLOSED ? 'done' : ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'current' : 'pending',
-      icon: 'payment',
-    },
-    {
-      id: 'closure',
-      title: 'Encerramento',
-      description:
-        ticket.status === TICKET_STATUS.CLOSED
-          ? 'OS encerrada com sucesso.'
-          : ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
-            ? 'Aguardando confirmação do solicitante sobre a conclusão da obra.'
-          : 'Aguardando conclusão financeira para encerramento definitivo.',
-      date: ticket.closureChecklist?.closedAt || null,
-      status:
-        ticket.status === TICKET_STATUS.CLOSED
-          ? 'done'
-          : ticket.status === TICKET_STATUS.WAITING_PAYMENT || ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
-            ? 'current'
-            : 'pending',
-      icon: 'closure',
-    },
-    {
-      id: 'guarantee',
-      title: 'Garantia',
-      description: ticket.guarantee?.startAt
-        ? `Garantia ${normalizeGuaranteeStatus(ticket.guarantee.status).toLowerCase()} até ${formatDateLabel(ticket.guarantee.endAt)}.`
-        : 'Garantia ainda não iniciada.',
-      date: ticket.guarantee?.startAt || ticket.guarantee?.endAt || null,
-      status: ticket.guarantee?.startAt ? 'done' : ticket.status === TICKET_STATUS.CLOSED ? 'current' : 'pending',
-      icon: 'guarantee',
-    },
-  ];
-}
-
 export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const { tickets } = useApp();
   const latestTicketsRef = useRef(tickets);
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [procurement, setProcurement] = useState<TrackingProcurementSummary>({ contract: null, measurements: [], payments: [] });
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmittingValidation, setIsSubmittingValidation] = useState(false);
@@ -309,7 +169,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
 
     if (!ticketToken) {
       setTicket(null);
-      setProcurement({ contract: null, measurements: [], payments: [] });
       setLoading(false);
       return undefined;
     }
@@ -320,12 +179,10 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
         const remote = await fetchTrackingDetailsFromApi(ticketToken);
         if (!cancelled) {
           setTicket(remote.ticket);
-          setProcurement(remote.procurement);
         }
       } catch {
         if (!cancelled) {
           setTicket(latestTicketsRef.current.find(item => item.trackingToken === ticketToken) || null);
-          setProcurement({ contract: null, measurements: [], payments: [] });
         }
       } finally {
         if (!cancelled) {
@@ -338,11 +195,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
       cancelled = true;
     };
   }, [ticketToken]);
-
-  const timeline = useMemo(() => {
-    if (!ticket) return [];
-    return buildPublicTimeline(ticket, procurement, sites);
-  }, [ticket, procurement, sites]);
 
   const canRequesterApprove =
     Boolean(ticket) &&
@@ -369,7 +221,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
       });
       const refreshed = await fetchTrackingDetailsFromApi(ticket.trackingToken);
       setTicket(refreshed.ticket);
-      setProcurement(refreshed.procurement);
       setFeedback('Entrega validada com sucesso. A equipe interna dará sequência ao fluxo financeiro.');
       window.setTimeout(() => setFeedback(null), 4000);
     } catch {
@@ -408,7 +259,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     );
   }
 
-  const closureDocuments = ticket.closureChecklist?.documents || [];
   const siteLabel = getTicketSiteLabel(ticket, sites);
 
   return (
@@ -470,46 +320,6 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               )}
             </div>
           )}
-
-          <div className="mb-6">
-            <h3 className="font-serif text-lg font-medium text-roman-text-main mb-3">Etapas da OS</h3>
-            <div className="grid gap-2 md:grid-cols-2">
-              {timeline.map(step => (
-                <div
-                  key={step.id}
-                  className={`rounded-xl border px-3 py-3 ${
-                    step.status === 'done'
-                      ? 'border-emerald-200 bg-emerald-50/60'
-                      : step.status === 'current'
-                        ? 'border-roman-primary/40 bg-roman-primary/10'
-                        : 'border-roman-border bg-roman-surface'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
-                        step.status === 'done'
-                          ? 'bg-emerald-600 text-white'
-                          : step.status === 'current'
-                            ? 'bg-roman-primary text-white'
-                            : 'bg-roman-bg text-roman-text-sub'
-                      }`}
-                    >
-                      {getTimelineIcon(step.icon)}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-roman-text-main">{step.title}</div>
-                      <div className="text-xs text-roman-text-sub">
-                        {step.date ? formatDateTimeSafe(step.date) : 'Sem data'}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-roman-text-sub">{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div>
             <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
             <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
