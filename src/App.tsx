@@ -219,7 +219,10 @@ export default function App() {
       params.set('redirectView', currentView);
       const query = params.toString();
       window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
-      navigateTo(VIEWS.LOGIN);
+      const timer = window.setTimeout(() => {
+        navigateTo(VIEWS.LOGIN);
+      }, 900);
+      return () => window.clearTimeout(timer);
     }
     if (currentUser && currentView === VIEWS.LOGIN) {
       const params = new URLSearchParams(window.location.search);

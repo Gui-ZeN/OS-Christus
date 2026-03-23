@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -467,6 +467,7 @@ export function FinanceView() {
   const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
   const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
   const [uploadingPaymentKey, setUploadingPaymentKey] = useState<string | null>(null);
+  const autoScrollKeyRef = useRef<string>('');
   const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
   const [historyGuaranteeFilter, setHistoryGuaranteeFilter] = useState<'all' | 'in_guarantee' | 'expiring_30'>('all');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
@@ -651,10 +652,17 @@ export function FinanceView() {
   useEffect(() => {
     if (currentView !== 'finance' || !activeTicketId) return;
     if (!visibleFinanceTickets.some(entry => entry.ticket.id === activeTicketId)) return;
-    window.setTimeout(() => {
+
+    const autoScrollKey = `${currentView}:${financeSection}:${activeTicketId}`;
+    if (autoScrollKeyRef.current === autoScrollKey) return;
+    autoScrollKeyRef.current = autoScrollKey;
+
+    const timer = window.setTimeout(() => {
       document.getElementById(`finance-ticket-${activeTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
-  }, [activeTicketId, currentView, visibleFinanceTickets]);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTicketId, currentView, financeSection, visibleFinanceTickets]);
 
   useEffect(() => {
     setCollapsedTickets(prev => {
@@ -2119,6 +2127,8 @@ export function FinanceView() {
     </div>
   );
 }
+
+
 
 
 
