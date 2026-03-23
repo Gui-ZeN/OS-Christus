@@ -113,6 +113,10 @@ function isPublicTrackingHistoryEntry(item) {
   const hasPublicMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
   if (!hasPublicMarker) return false;
 
+  if (normalizedText.includes('status atualizado de')) {
+    return true;
+  }
+
   const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
   return !hasSensitiveMarker;
 }

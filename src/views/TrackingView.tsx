@@ -90,6 +90,10 @@ function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
   const hasPublicEvent = allowedPublicSystemEvents.some(value => normalizedText.includes(value));
   if (!hasPublicEvent) return false;
 
+  if (normalizedText.includes('status atualizado de')) {
+    return true;
+  }
+
   const hasSensitiveTerm =
     normalizedText.includes('orcamento') ||
     normalizedText.includes('contrato') ||
