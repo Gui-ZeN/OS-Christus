@@ -23,7 +23,7 @@ interface PublicTimelineItem {
 }
 
 function formatDateLabel(date?: Date | null) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Não informado';
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'NÃ£o informado';
   return date.toLocaleDateString('pt-BR');
 }
 
@@ -57,30 +57,30 @@ function getTimelineIcon(icon: PublicTimelineItem['icon']) {
 function getPublicStatusLabel(status: string) {
   switch (status) {
     case TICKET_STATUS.NEW:
-      return 'Solicitação registrada';
+      return 'SolicitaÃ§Ã£o registrada';
     case TICKET_STATUS.WAITING_TECH_OPINION:
-      return 'Solicitação aceita para atendimento';
+      return 'SolicitaÃ§Ã£o aceita para atendimento';
     case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
-      return 'Plano técnico em avaliação';
+      return 'Plano tÃ©cnico em avaliaÃ§Ã£o';
     case TICKET_STATUS.WAITING_BUDGET:
     case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
     case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
     case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
       return 'Planejamento administrativo';
     case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
-      return 'Obra em preparação';
+      return 'Obra em preparaÃ§Ã£o';
     case TICKET_STATUS.IN_PROGRESS:
-      return 'Execução iniciada';
+      return 'ExecuÃ§Ã£o iniciada';
     case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
-      return 'Execução concluída';
+      return 'ExecuÃ§Ã£o concluÃ­da';
     case TICKET_STATUS.WAITING_PAYMENT:
       return 'Entrega validada';
     case TICKET_STATUS.CLOSED:
-      return 'Obra concluída';
+      return 'Obra concluÃ­da';
     case TICKET_STATUS.CANCELED:
-      return 'Solicitação encerrada';
+      return 'SolicitaÃ§Ã£o encerrada';
     default:
-      return status || 'Atualização';
+      return status || 'AtualizaÃ§Ã£o';
   }
 }
 
@@ -152,11 +152,11 @@ function getPublicHistoryText(item: Ticket['history'][number]) {
     normalizedText.includes('execucao iniciada') ||
     normalizedText.includes('inicio da execucao')
   ) {
-    return 'Execução iniciada.';
+    return 'ExecuÃ§Ã£o iniciada.';
   }
 
   if (normalizedText.includes('execucao concluida')) {
-    return 'Execução concluída.';
+    return 'ExecuÃ§Ã£o concluÃ­da.';
   }
 
   return rawText;
@@ -171,7 +171,7 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
   return [
     {
       id: 'opened',
-      title: 'Solicitação registrada',
+      title: 'SolicitaÃ§Ã£o registrada',
       description: `OS aberta para ${siteLabel}.`,
       date: ticket.time,
       status: 'done',
@@ -179,10 +179,10 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
     },
     {
       id: 'preliminary',
-      title: 'Preparação da execução',
+      title: 'PreparaÃ§Ã£o da execuÃ§Ã£o',
       description: ticket.preliminaryActions
         ? `Checklist operacional ${ticket.preliminaryActions.updatedAt ? 'atualizado' : 'iniciado'} com material, cronograma e alinhamentos.`
-        : 'Planejamento pré-execução ainda não informado no sistema.',
+        : 'Planejamento prÃ©-execuÃ§Ã£o ainda nÃ£o informado no sistema.',
       date:
         ticket.preliminaryActions?.updatedAt ||
         ticket.preliminaryActions?.plannedStartAt ||
@@ -193,10 +193,10 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
     },
     {
       id: 'execution',
-      title: 'Execução do serviço',
+      title: 'ExecuÃ§Ã£o do serviÃ§o',
       description: ticket.closureChecklist?.serviceStartedAt || ticket.preliminaryActions?.actualStartAt
-        ? 'A equipe técnica iniciou a execução da manutenção.'
-        : 'Serviço ainda não marcado como iniciado.',
+        ? 'A equipe tÃ©cnica iniciou a execuÃ§Ã£o da manutenÃ§Ã£o.'
+        : 'ServiÃ§o ainda nÃ£o marcado como iniciado.',
       date: ticket.closureChecklist?.serviceStartedAt || ticket.preliminaryActions?.actualStartAt || null,
       status:
         ticket.closureChecklist?.serviceStartedAt || ticket.preliminaryActions?.actualStartAt
@@ -208,11 +208,11 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
     },
     {
       id: 'measurement',
-      title: 'Medições registradas',
+      title: 'MediÃ§Ãµes registradas',
       description:
         measurements.length > 0
-          ? `${measurements.length} medição(ões) lançadas para acompanhamento da obra.`
-          : 'Nenhuma medição formal registrada até o momento.',
+          ? `${measurements.length} mediÃ§Ã£o(Ãµes) lanÃ§adas para acompanhamento da obra.`
+          : 'Nenhuma mediÃ§Ã£o formal registrada atÃ© o momento.',
       date: measurements[0]?.requestedAt || measurements[0]?.approvedAt || null,
       status: measurements.length > 0 ? 'done' : ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'current' : 'pending',
       icon: 'measurement',
@@ -223,7 +223,7 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
       description:
         hasPayments
           ? 'Etapa financeira em andamento no time interno.'
-          : 'Plano financeiro ainda não iniciado.',
+          : 'Plano financeiro ainda nÃ£o iniciado.',
       date: payments.find(payment => payment.status === 'paid')?.paidAt || payments[0]?.dueAt || null,
       status:
         !hasPayments ? 'pending' : ticket.status === TICKET_STATUS.CLOSED ? 'done' : ticket.status === TICKET_STATUS.WAITING_PAYMENT ? 'current' : 'pending',
@@ -236,8 +236,8 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
         ticket.status === TICKET_STATUS.CLOSED
           ? 'OS encerrada com sucesso.'
           : ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
-            ? 'Aguardando confirmação do solicitante sobre a conclusão da obra.'
-          : 'Aguardando conclusão financeira para encerramento definitivo.',
+            ? 'Aguardando confirmaÃ§Ã£o do solicitante sobre a conclusÃ£o da obra.'
+          : 'Aguardando conclusÃ£o financeira para encerramento definitivo.',
       date: ticket.closureChecklist?.closedAt || null,
       status:
         ticket.status === TICKET_STATUS.CLOSED
@@ -251,8 +251,8 @@ function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSum
       id: 'guarantee',
       title: 'Garantia',
       description: ticket.guarantee?.startAt
-        ? `Garantia ${normalizeGuaranteeStatus(ticket.guarantee.status).toLowerCase()} até ${formatDateLabel(ticket.guarantee.endAt)}.`
-        : 'Garantia ainda não iniciada.',
+        ? `Garantia ${normalizeGuaranteeStatus(ticket.guarantee.status).toLowerCase()} atÃ© ${formatDateLabel(ticket.guarantee.endAt)}.`
+        : 'Garantia ainda nÃ£o iniciada.',
       date: ticket.guarantee?.startAt || ticket.guarantee?.endAt || null,
       status: ticket.guarantee?.startAt ? 'done' : ticket.status === TICKET_STATUS.CLOSED ? 'current' : 'pending',
       icon: 'guarantee',
@@ -361,10 +361,10 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
       const refreshed = await fetchTrackingDetailsFromApi(ticket.trackingToken);
       setTicket(refreshed.ticket);
       setProcurement(refreshed.procurement);
-      setFeedback('Entrega validada com sucesso. A equipe interna dará sequência ao fluxo financeiro.');
+      setFeedback('Entrega validada com sucesso. A equipe interna darÃ¡ sequÃªncia ao fluxo financeiro.');
       window.setTimeout(() => setFeedback(null), 4000);
     } catch {
-      setFeedback('Não foi possível confirmar a entrega agora. Tente novamente em instantes.');
+      setFeedback('NÃ£o foi possÃ­vel confirmar a entrega agora. Tente novamente em instantes.');
       window.setTimeout(() => setFeedback(null), 5000);
     } finally {
       setIsSubmittingValidation(false);
@@ -391,8 +391,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
         </button>
         <div className="max-w-3xl w-full">
           <div className="bg-roman-surface border border-roman-border p-6 rounded-2xl shadow-sm mb-6 text-center">
-            <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-2">OS não encontrada</h1>
-            <p className="text-roman-text-sub">O link de acompanhamento é inválido ou expirou.</p>
+            <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-2">OS nÃ£o encontrada</h1>
+            <p className="text-roman-text-sub">O link de acompanhamento Ã© invÃ¡lido ou expirou.</p>
           </div>
         </div>
       </div>
@@ -429,13 +429,13 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           <div className="mb-6">
             <h2 className="text-xl font-serif text-roman-text-main mb-2">{ticket.subject}</h2>
             <p className="text-roman-text-sub">
-              Solicitado por: {ticket.requester} • Setor: {ticket.sector} ({siteLabel})
+              Solicitado por: {ticket.requester} â€¢ Setor: {ticket.sector} ({siteLabel})
             </p>
           </div>
 
           {(canRequesterApprove || ticket.closureChecklist?.requesterApproved || feedback) && (
             <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
-              <div className="text-sm font-medium text-roman-text-main">Validação da entrega</div>
+              <div className="text-sm font-medium text-roman-text-main">ValidaÃ§Ã£o da entrega</div>
               {ticket.closureChecklist?.requesterApproved ? (
                 <p className="mt-1 text-sm text-emerald-700">
                   Entrega validada em {formatDateTimeSafe(ticket.closureChecklist.requesterApprovedAt || ticket.time)}.
@@ -462,8 +462,47 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             </div>
           )}
 
+          <div className="mb-6">
+            <h3 className="font-serif text-lg font-medium text-roman-text-main mb-3">Etapas da OS</h3>
+            <div className="grid gap-2 md:grid-cols-2">
+              {timeline.map(step => (
+                <div
+                  key={step.id}
+                  className={`rounded-xl border px-3 py-3 ${
+                    step.status === 'done'
+                      ? 'border-emerald-200 bg-emerald-50/60'
+                      : step.status === 'current'
+                        ? 'border-roman-primary/40 bg-roman-primary/10'
+                        : 'border-roman-border bg-roman-surface'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
+                        step.status === 'done'
+                          ? 'bg-emerald-600 text-white'
+                          : step.status === 'current'
+                            ? 'bg-roman-primary text-white'
+                            : 'bg-roman-bg text-roman-text-sub'
+                      }`}
+                    >
+                      {getTimelineIcon(step.icon)}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-roman-text-main">{step.title}</div>
+                      <div className="text-xs text-roman-text-sub">
+                        {step.date ? formatDateTimeSafe(step.date) : 'Sem data'}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-roman-text-sub">{step.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div>
-            <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
+            <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">HistÃ³rico</h3>
             <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
               {ticket.history
                 .filter(isPublicSafeHistoryItem)
@@ -504,7 +543,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                 })}
               {ticket.history.filter(isPublicSafeHistoryItem).length === 0 && (
                 <div className="rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
-                  Ainda não há atualizações públicas disponíveis no histórico.
+                  Ainda nÃ£o hÃ¡ atualizaÃ§Ãµes pÃºblicas disponÃ­veis no histÃ³rico.
                 </div>
               )}
             </div>
