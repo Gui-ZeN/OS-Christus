@@ -317,8 +317,9 @@ function normalizeDirectorGreeting(body) {
   }
 
   const compacted = normalized.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  if (greetingFound) return compacted;
-  return `Olá,\n\n${compacted}`;
+  const withoutRepeatedGreeting = compacted.replace(/^(?:Ol[áa],?\s*){2,}/i, 'Olá,\n\n');
+  if (greetingFound) return withoutRepeatedGreeting;
+  return `Olá,\n\n${withoutRepeatedGreeting}`;
 }
 
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {

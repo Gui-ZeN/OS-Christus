@@ -11,7 +11,7 @@ export interface EmailTemplateSettings {
 export interface SettingsPayload {
   emailTemplate: EmailTemplateSettings;
   emailTemplates: EmailTemplateSettings[];
-  dailyDigest: DailyDigestSettings;
+  dailyDigest?: DailyDigestSettings | null;
   sla: SlaSettings;
   thirdPartyTags?: { tags: string[] } | null;
 }
@@ -88,7 +88,7 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   return {
     emailTemplate,
     emailTemplates,
-    dailyDigest: json.dailyDigest as DailyDigestSettings,
+    dailyDigest: (json.dailyDigest || null) as DailyDigestSettings | null,
     sla: normalizeSlaSettings(json.sla),
     thirdPartyTags: json.thirdPartyTags && typeof json.thirdPartyTags === 'object'
       ? {

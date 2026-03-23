@@ -11,6 +11,17 @@ function sanitizeFileName(value: string) {
     .replace(/^-|-$/g, '');
 }
 
+function resolveContentType(file: File, fallback: 'application/pdf' | 'image/png' = 'application/pdf') {
+  const explicit = String(file.type || '').trim().toLowerCase();
+  if (explicit) return explicit;
+  const lowerName = String(file.name || '').trim().toLowerCase();
+  if (lowerName.endsWith('.pdf')) return 'application/pdf';
+  if (lowerName.endsWith('.png')) return 'image/png';
+  if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) return 'image/jpeg';
+  if (lowerName.endsWith('.webp')) return 'image/webp';
+  return fallback;
+}
+
 export async function uploadClosureDocument(ticketId: string, file: File): Promise<TicketAttachment> {
   const app = getFirebaseClientApp();
   if (!app) {
@@ -18,12 +29,14 @@ export async function uploadClosureDocument(ticketId: string, file: File): Promi
   }
 
   const storage = getStorage(app);
+  const contentType = resolveContentType(file, 'application/pdf');
   const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
-  const baseFolder = file.type === 'application/pdf' ? 'attachments/tickets/pdfs' : 'attachments/tickets/images';
+  const isPdf = contentType === 'application/pdf';
+  const baseFolder = isPdf ? 'attachments/tickets/pdfs' : 'attachments/tickets/images';
   const path = `${baseFolder}/${ticketId}/closure-${Date.now()}-${safeName}`;
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file, {
-    contentType: file.type || undefined,
+    contentType,
   });
   const url = await getDownloadURL(storageRef);
 
@@ -32,10 +45,10 @@ export async function uploadClosureDocument(ticketId: string, file: File): Promi
     name: file.name,
     path,
     url,
-    contentType: file.type || null,
+    contentType,
     size: file.size,
     uploadedAt: new Date(),
-    category: file.type === 'application/pdf' ? 'closure_report' : 'closure_evidence',
+    category: isPdf ? 'closure_report' : 'closure_evidence',
   };
 }
 
@@ -46,11 +59,12 @@ export async function uploadPaymentAttachment(ticketId: string, paymentId: strin
   }
 
   const storage = getStorage(app);
+  const contentType = resolveContentType(file, 'application/pdf');
   const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
   const path = `attachments/tickets/payments/${ticketId}/${paymentId}/${Date.now()}-${safeName}`;
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file, {
-    contentType: file.type || undefined,
+    contentType,
   });
   const url = await getDownloadURL(storageRef);
 
@@ -59,7 +73,7 @@ export async function uploadPaymentAttachment(ticketId: string, paymentId: strin
     name: file.name,
     path,
     url,
-    contentType: file.type || null,
+    contentType,
     size: file.size,
     uploadedAt: new Date(),
     category: 'attachment',
@@ -78,11 +92,12 @@ export async function uploadQuoteAttachment(
   }
 
   const storage = getStorage(app);
+  const contentType = resolveContentType(file, 'application/pdf');
   const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
   const path = `attachments/tickets/quotes/${ticketId}/${roundKey}/${quoteId}/${Date.now()}-${safeName}`;
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file, {
-    contentType: file.type || undefined,
+    contentType,
   });
   const url = await getDownloadURL(storageRef);
 
@@ -91,7 +106,7 @@ export async function uploadQuoteAttachment(
     name: file.name,
     path,
     url,
-    contentType: file.type || null,
+    contentType,
     size: file.size,
     uploadedAt: new Date(),
     category: 'attachment',
@@ -105,11 +120,12 @@ export async function uploadContractAttachment(ticketId: string, file: File): Pr
   }
 
   const storage = getStorage(app);
+  const contentType = resolveContentType(file, 'application/pdf');
   const safeName = sanitizeFileName(file.name) || `contrato-${Date.now()}`;
   const path = `attachments/tickets/contracts/${ticketId}/${Date.now()}-${safeName}`;
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file, {
-    contentType: file.type || undefined,
+    contentType,
   });
   const url = await getDownloadURL(storageRef);
 
@@ -118,7 +134,7 @@ export async function uploadContractAttachment(ticketId: string, file: File): Pr
     name: file.name,
     path,
     url,
-    contentType: file.type || null,
+    contentType,
     size: file.size,
     uploadedAt: new Date(),
     category: 'attachment',

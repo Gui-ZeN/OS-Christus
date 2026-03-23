@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
@@ -116,7 +117,7 @@ const PRELIMINARY_ITEMS = [
   { id: 'accessReleased', label: 'Acesso ao local liberado pela unidade' },
 ] as const;
 
-const INBOX_STATUS_OPTIONS = [
+const ALL_INBOX_STATUS_OPTIONS = [
   TICKET_STATUS.NEW,
   TICKET_STATUS.WAITING_TECH_OPINION,
   TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
@@ -131,6 +132,11 @@ const INBOX_STATUS_OPTIONS = [
   TICKET_STATUS.CLOSED,
   TICKET_STATUS.CANCELED,
 ] as const;
+
+function resolveActorRole(role?: string | null): AppActorRole {
+  if (role === 'Admin' || role === 'Diretor') return role;
+  return 'Usuario';
+}
 
 type PreliminaryChecklistKey = (typeof PRELIMINARY_ITEMS)[number]['id'];
 
@@ -526,6 +532,21 @@ export function InboxView() {
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
   const canEditCoreFields = canManageStatus;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
+  const actorRole = resolveActorRole(currentUser?.role);
+  const statusOptions = useMemo(() => {
+    const current = activeTicket.status;
+    if (!current) return [...ALL_INBOX_STATUS_OPTIONS];
+    const allowed = getAllowedNextStatuses(actorRole, 'inbox', current);
+    const next = new Set<Ticket['status']>([current, ...allowed]);
+    if (current === TICKET_STATUS.CLOSED) {
+      next.add(TICKET_STATUS.IN_PROGRESS);
+    }
+    if (current === TICKET_STATUS.CANCELED) {
+      next.add(TICKET_STATUS.NEW);
+    }
+    const ordered = [...ALL_INBOX_STATUS_OPTIONS].filter(status => next.has(status));
+    return ordered.length > 0 ? ordered : [...ALL_INBOX_STATUS_OPTIONS];
+  }, [activeTicket.status, actorRole]);
 
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
@@ -960,6 +981,11 @@ export function InboxView() {
       changes.push('e-mail do terceiro');
     }
     if (nextStatus !== activeTicket.status) {
+      if (!canTransitionStatus(actorRole, 'inbox', activeTicket.status, nextStatus)) {
+        setToast(`Transição inválida de status: ${activeTicket.status} -> ${nextStatus}.`);
+        setTimeout(() => setToast(null), 3500);
+        return;
+      }
       Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
       updates.status = nextStatus;
       changes.push(`status: ${activeTicket.status} -> ${nextStatus}`);
@@ -1050,7 +1076,14 @@ export function InboxView() {
       if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
         newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
         if (replyText.trim()) {
-          items.push({ id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() });
+          items.push({
+            id: crypto.randomUUID(),
+            type: 'tech',
+            sender,
+            time: now,
+            text: replyText.trim(),
+            visibility: 'internal',
+          });
         }
         items.push({
           id: crypto.randomUUID(),
@@ -1058,9 +1091,17 @@ export function InboxView() {
           sender,
           time: new Date(now.getTime() + 1),
           text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
+          visibility: 'internal',
         });
       } else if (replyText.trim()) {
-        items.push({ id: crypto.randomUUID(), type: 'internal', sender, time: now, text: replyText.trim() });
+        items.push({
+          id: crypto.randomUUID(),
+          type: 'internal',
+          sender,
+          time: now,
+          text: replyText.trim(),
+          visibility: 'internal',
+        });
       }
 
       if (items.length > 0 || newStatus !== activeTicket.status) {
@@ -1077,7 +1118,14 @@ export function InboxView() {
         setIsSending(false);
         return;
       }
-      const item: HistoryItem = { id: crypto.randomUUID(), type: 'tech', sender, time: now, text: replyText.trim() };
+      const item: HistoryItem = {
+        id: crypto.randomUUID(),
+        type: 'tech',
+        sender,
+        time: now,
+        text: replyText.trim(),
+        visibility: 'public',
+      };
       updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
       void notifyTicketPublicReply(activeTicket, sender, replyText.trim());
     }
@@ -2389,7 +2437,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todos</option>
-                {INBOX_STATUS_OPTIONS.map(status => (
+                {ALL_INBOX_STATUS_OPTIONS.map(status => (
                   <option key={status} value={status}>
                     {status} ({tickets.filter(ticket => ticket.status === status).length})
                   </option>
@@ -3038,7 +3086,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     {(panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD || (panelStatus.includes('Anexo') && panelStatus.includes('Contrato'))) && (
                       <button
                         onClick={() => setShowContractDispatchModal(true)}
-                        className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-xl font-medium transition-colors text-xs"
+                        className="w-full min-h-[52px] bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2 rounded-xl font-medium transition-colors text-sm leading-tight text-center flex items-center justify-center"
                       >
                         <span className="leading-tight text-center block">Anexar Contrato e Enviar para Diretoria</span>
                       </button>
@@ -3084,7 +3132,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                         disabled={isSending}
                       >
-                        {INBOX_STATUS_OPTIONS.map(status => (
+                        {statusOptions.map(status => (
                           <option key={status} value={status}>{status}</option>
                         ))}
                       </select>

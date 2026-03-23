@@ -225,11 +225,12 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const redirectView = params.get('redirectView') || params.get('view');
       if (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
-        if (redirectView === VIEWS.APPROVALS) {
-          const requestedTicketId = params.get('ticketId');
-          if (requestedTicketId) {
-            setActiveTicketId(requestedTicketId);
-          }
+        const requestedTicketId = params.get('ticketId');
+        if (
+          requestedTicketId &&
+          (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX)
+        ) {
+          setActiveTicketId(requestedTicketId);
         }
         navigateTo(redirectView as ViewState);
       } else {
@@ -291,7 +292,7 @@ export default function App() {
 
   return (
     <div className="theme-bridge relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
-      <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-50 border-r border-stone-900">
+      <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-[90] border-r border-stone-900">
         <div className="flex items-center gap-3 px-4 mb-6 text-roman-primary justify-center">
           <Landmark size={22} />
         </div>
@@ -321,7 +322,7 @@ export default function App() {
               <Palette size={18} />
             </button>
             {showThemeMenu && (
-              <div className="fixed left-[4.25rem] bottom-24 z-[120] w-64 rounded-xl border border-roman-border bg-roman-surface p-2.5 shadow-2xl">
+              <div className="fixed left-[4.25rem] bottom-24 z-[220] w-64 rounded-xl border border-roman-border bg-roman-surface p-2.5 shadow-2xl">
                 <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-roman-text-sub">Temas</p>
                 <div className="space-y-1">
                   {availableThemes.map(option => {
@@ -490,13 +491,13 @@ export default function App() {
             aria-modal="true"
             aria-label="Visualizador de anexo"
           >
-            <div className="bg-roman-surface w-full max-w-5xl h-[88vh] md:h-[82vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-stone-700">
-              <div className="flex justify-between items-center p-4 border-b border-roman-border bg-stone-900 text-white">
+            <div className="bg-roman-surface w-full max-w-5xl h-[88vh] md:h-[82vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-roman-border">
+              <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-sidebar text-white">
                 <div className="flex items-center gap-3">
                   {attachmentPreview.type === 'pdf' ? <FileText size={20} className="text-roman-primary" /> : <ImageIcon size={20} className="text-roman-primary" />}
                   <h3 className="font-serif text-lg font-medium">{attachmentPreview.title}</h3>
                 </div>
-                <button onClick={closeAttachment} className="text-stone-400 hover:text-white transition-colors">
+                <button onClick={closeAttachment} className="text-white/70 hover:text-white transition-colors">
                   <X size={24} />
                 </button>
               </div>
@@ -509,20 +510,20 @@ export default function App() {
                   ))}
                 </div>
               )}
-              <div className="flex-1 bg-stone-100 flex items-center justify-center p-8 overflow-auto">
+              <div className="flex-1 bg-roman-bg flex items-center justify-center p-8 overflow-auto">
                 {attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     {attachmentItems.map((item, index) => (
-                      <div key={`${item.title}-${index}`} className="bg-white border border-stone-300 shadow-lg rounded-sm overflow-hidden">
-                        <div className="px-4 py-2 border-b border-stone-200 text-sm font-medium text-stone-700">{item.title}</div>
+                      <div key={`${item.title}-${index}`} className="bg-roman-surface border border-roman-border shadow-lg rounded-sm overflow-hidden">
+                        <div className="px-4 py-2 border-b border-roman-border text-sm font-medium text-roman-text-main">{item.title}</div>
                         {item.url ? (
                           <img
                             src={item.url}
                             alt={item.title}
-                            className="w-full max-h-[60vh] object-contain bg-stone-50"
+                            className="w-full max-h-[60vh] object-contain bg-roman-bg"
                           />
                         ) : (
-                          <div className="h-80 flex items-center justify-center text-stone-400 font-serif italic">Pré-visualização indisponível</div>
+                          <div className="h-80 flex items-center justify-center text-roman-text-sub font-serif italic">Pré-visualização indisponível</div>
                         )}
                       </div>
                     ))}
@@ -531,21 +532,21 @@ export default function App() {
                   <iframe
                     title={attachmentPreview.title}
                     src={previewUrl}
-                    className="w-full h-full bg-white border border-stone-300 shadow-lg"
+                    className="w-full h-full bg-roman-surface border border-roman-border shadow-lg"
                   />
                 ) : attachmentPreview.type === 'image' ? (
-                  <div className="flex flex-col items-center justify-center gap-4 text-stone-400">
+                  <div className="flex flex-col items-center justify-center gap-4 text-roman-text-sub">
                     <ImageIcon size={64} strokeWidth={1} />
                     <p className="font-serif italic text-sm">Pré-visualização indisponível</p>
                     <p className="text-xs opacity-60">{attachmentPreview.title}</p>
                   </div>
                 ) : (
-                  <div className="w-full max-w-2xl h-full bg-white shadow-lg border border-stone-300 p-12 flex flex-col">
-                    <div className="border-b-2 border-stone-800 pb-4 mb-8 flex justify-between items-end">
-                      <h1 className="text-3xl font-serif font-bold text-stone-800">Documento</h1>
-                      <span className="text-stone-500 font-mono">Prévia indisponível</span>
+                  <div className="w-full max-w-2xl h-full bg-roman-surface shadow-lg border border-roman-border p-12 flex flex-col">
+                    <div className="border-b-2 border-roman-border pb-4 mb-8 flex justify-between items-end">
+                      <h1 className="text-3xl font-serif font-bold text-roman-text-main">Documento</h1>
+                      <span className="text-roman-text-sub font-mono">Prévia indisponível</span>
                     </div>
-                    <div className="space-y-4 flex-1 text-stone-600">
+                    <div className="space-y-4 flex-1 text-roman-text-sub">
                       <p>O arquivo não pôde ser renderizado no navegador.</p>
                       {previewUrl && (
                         <a href={previewUrl} target="_blank" rel="noreferrer" className="text-roman-primary underline">Abrir arquivo em nova aba</a>

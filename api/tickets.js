@@ -32,6 +32,7 @@ function buildAutomaticStatusHistoryEntry(sender, previousStatus, nextStatus) {
     sender,
     time: new Date(),
     text: `Status atualizado de "${previousStatus}" para "${nextStatus}".`,
+    visibility: 'internal',
   };
 }
 
@@ -44,17 +45,84 @@ function buildPublicTrackingHistoryEntry(sender, approved) {
     text: approved
       ? 'Solicitante validou a execução do serviço.'
       : 'Solicitante reprovou a entrega e devolveu a OS para execução.',
+    visibility: 'public',
   };
+}
+
+function normalizeHistoryText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+const PUBLIC_HISTORY_SYSTEM_MARKERS = [
+  'solicitacao registrada via formulario publico',
+  'execucao iniciada',
+  'inicio da execucao',
+  'execucao concluida',
+  'os encerrada',
+  'os cancelada',
+];
+
+const PUBLIC_HISTORY_SENSITIVE_MARKERS = [
+  'orcamento',
+  'contrato',
+  'aditivo',
+  'pagamento',
+  'parcela',
+  'r$',
+];
+
+function isPublicTrackingHistoryEntry(item) {
+  if (!item || typeof item !== 'object') return false;
+  const text = String(item.text || '').trim();
+  if (!text) return false;
+
+  const type = String(item.type || '').trim().toLowerCase();
+  const visibility = String(item.visibility || '').trim().toLowerCase();
+  if (type === 'customer') return true;
+  if (type === 'tech') return visibility === 'public';
+  if (type !== 'system') return false;
+  if (visibility === 'public') return true;
+
+  const normalizedText = normalizeHistoryText(text);
+  const hasPublicMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
+  if (!hasPublicMarker) return false;
+
+  const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
+  return !hasSensitiveMarker;
 }
 
 function sanitizeTicketForPublicTracking(ticket) {
   if (!ticket || typeof ticket !== 'object') return ticket;
   const nextTicket = { ...ticket };
+  delete nextTicket.viewingBy;
+  delete nextTicket.sla;
+  delete nextTicket.attachments;
+
+  if (Array.isArray(nextTicket.history)) {
+    nextTicket.history = nextTicket.history.filter(isPublicTrackingHistoryEntry);
+  } else {
+    nextTicket.history = [];
+  }
+
   if (nextTicket.executionProgress && typeof nextTicket.executionProgress === 'object') {
     const nextExecution = { ...nextTicket.executionProgress };
     delete nextExecution.measurementSheetUrl;
     nextTicket.executionProgress = nextExecution;
   }
+
+  if (nextTicket.closureChecklist && typeof nextTicket.closureChecklist === 'object') {
+    const nextClosure = { ...nextTicket.closureChecklist };
+    delete nextClosure.infrastructureApprovalPrimary;
+    delete nextClosure.infrastructureApprovalSecondary;
+    delete nextClosure.infrastructureApprovedByRafael;
+    delete nextClosure.infrastructureApprovedByFernando;
+    delete nextClosure.documents;
+    nextTicket.closureChecklist = nextClosure;
+  }
+
   return nextTicket;
 }
 
@@ -299,9 +367,10 @@ async function readPublicTrackingProcurement(ticketRef) {
   const contract = contractRaw
     ? {
         id: contractRaw.id,
-        vendor: contractRaw.vendor || '',
+        vendor: '',
+        value: '',
         status: contractRaw.status || '',
-        signedFileName: contractRaw.signedFileName || null,
+        signedFileName: null,
       }
     : null;
 
@@ -310,10 +379,12 @@ async function readPublicTrackingProcurement(ticketRef) {
       const payment = serializeValue({ id: doc.id, ...doc.data() });
       return {
         id: payment.id,
+        vendor: '',
+        value: '',
         status: payment.status || '',
-        label: payment.label || null,
-        installmentNumber: payment.installmentNumber || null,
-        totalInstallments: payment.totalInstallments || null,
+        label: null,
+        installmentNumber: null,
+        totalInstallments: null,
         dueAt: payment.dueAt || null,
         paidAt: payment.paidAt || null,
       };

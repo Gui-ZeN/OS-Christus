@@ -288,12 +288,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!pageVisible) return false;
 
-    return ['home', 'inbox'].includes(currentView);
+    return ['home', 'inbox', 'approvals', 'finance'].includes(currentView);
   }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, pageVisible]);
 
   useEffect(() => {
     if (!shouldPollOperationalData) return undefined;
-    const timer = setInterval(() => void refreshTickets(), 120000);
+    const timer = setInterval(() => void refreshTickets({ silent: true }), 15000);
     return () => clearInterval(timer);
   }, [refreshTickets, shouldPollOperationalData]);
 

@@ -222,7 +222,6 @@ async function writeQuotes(db, ticketId, quotes) {
               unit: item.unit ? String(item.unit).trim() : null,
               quantity: item.quantity != null ? Number(item.quantity) : null,
               costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
-              unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
               totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
             }))
           : [],
@@ -261,7 +260,7 @@ async function writeContract(db, ticketId, contract, classification) {
             materialName: item.materialName ? String(item.materialName).trim() : null,
             unit: item.unit ? String(item.unit).trim() : null,
             quantity: item.quantity != null ? Number(item.quantity) : null,
-            unitPrice: item.unitPrice ? String(item.unitPrice).trim() : null,
+            costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
             totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
           }))
         : [],

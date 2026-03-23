@@ -148,7 +148,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       await requireAdminUser(req);
       let settings = await readSettings(db);
-      if (!settings.emailTemplates?.length || !settings.dailyDigest || !settings.sla) {
+      if (!settings.emailTemplates?.length || !settings.sla) {
         await ensureDefaults(db);
         settings = await readSettings(db);
       }

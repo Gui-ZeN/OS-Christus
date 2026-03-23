@@ -22,6 +22,14 @@ function buildDirectorReviewUrl(ticket: Ticket, approvalTab: 'solutions' | 'budg
   return `${window.location.origin}/?${params.toString()}`;
 }
 
+function buildFinanceReviewUrl(ticket: Ticket) {
+  const params = new URLSearchParams({
+    view: 'finance',
+    ticketId: ticket.id,
+  });
+  return `${window.location.origin}/?${params.toString()}`;
+}
+
 function guaranteeSummary(ticket: Ticket) {
   if (!ticket.guarantee?.startAt || !ticket.guarantee?.endAt) return 'Não informada';
   return `${ticket.guarantee.months} mês(es) - até ${ticket.guarantee.endAt.toLocaleDateString('pt-BR')}`;
@@ -404,8 +412,8 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
         intro: `${ticket.id} entrou em etapa financeira e precisa de tratativa de pagamento.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
-        ctaUrl: buildTrackingUrl(ticket),
-        ctaLabel: 'Acompanhar OS',
+        ctaUrl: buildFinanceReviewUrl(ticket),
+        ctaLabel: 'Abrir financeiro',
       },
     });
   }

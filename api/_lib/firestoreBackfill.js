@@ -2,9 +2,9 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { writeAuditLog } from './auditLogs.js';
 
 const LEGACY_ROLE_MAP = {
-  'Gestor de OS': 'Supervisor',
+  'Gestor de OS': 'Usuario',
   Financeiro: 'Admin',
-  'Aprovador Contratos': 'Supervisor',
+  'Aprovador Contratos': 'Usuario',
   'Técnico (Interno)': 'Usuario',
   Terceirizado: 'Usuario',
 };
@@ -205,3 +205,4 @@ export async function runFirestoreLegacyBackfill(db, actor = 'sistema') {
 
   return result;
 }
+

@@ -86,7 +86,8 @@ function getPublicStatusLabel(status: string) {
 
 function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
   if (!item?.text?.trim()) return false;
-  if (item.type === 'customer' || item.type === 'tech') return true;
+  if (item.type === 'customer') return true;
+  if (item.type === 'tech') return item.visibility === 'public';
   if (item.type !== 'system') return false;
 
   const normalizedText = item.text
@@ -94,17 +95,20 @@ function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-  const hasExecutionStart =
-    normalizedText.includes('execucao iniciada') ||
-    normalizedText.includes('inicio da execucao');
+  if (item.visibility === 'public') return true;
 
-  const isNoisyInternalUpdate =
-    normalizedText.includes('triagem concluida') ||
-    normalizedText.includes('painel da os atualizado');
+  const allowedPublicSystemEvents = [
+    'solicitacao registrada via formulario publico',
+    'execucao iniciada',
+    'inicio da execucao',
+    'execucao concluida',
+    'os encerrada',
+    'os cancelada',
+  ];
 
-  if (isNoisyInternalUpdate && !hasExecutionStart) return false;
+  const hasPublicEvent = allowedPublicSystemEvents.some(value => normalizedText.includes(value));
+  if (!hasPublicEvent) return false;
 
-  // Evita expor detalhes administrativos/financeiros no portal público.
   const hasSensitiveTerm =
     normalizedText.includes('orcamento') ||
     normalizedText.includes('contrato') ||
@@ -113,7 +117,6 @@ function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
     normalizedText.includes('parcela') ||
     normalizedText.includes('r$');
 
-  if (hasExecutionStart) return true;
   return !hasSensitiveTerm;
 }
 
@@ -132,6 +135,10 @@ function getPublicHistoryText(item: Ticket['history'][number]) {
     normalizedText.includes('inicio da execucao')
   ) {
     return 'Execução iniciada.';
+  }
+
+  if (normalizedText.includes('execucao concluida')) {
+    return 'Execução concluída.';
   }
 
   return rawText;

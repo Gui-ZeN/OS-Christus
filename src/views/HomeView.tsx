@@ -5,6 +5,7 @@ import { StatCard } from '../components/ui/StatCard';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
+import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionId, getTicketRegionLabel, getTicketSiteId, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function isOpenStatus(status: string) {

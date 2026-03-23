@@ -28,7 +28,7 @@ function normalizeUser(input) {
 function mapRoleToClaim(role) {
   const normalized = String(role || '').trim();
   if (normalized === 'Admin') return 'admin';
-  if (normalized === 'Diretor' || normalized === 'Supervisor') return 'gestor';
+  if (normalized === 'Diretor') return 'gestor';
   return 'user';
 }
 

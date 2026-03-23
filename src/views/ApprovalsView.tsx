@@ -11,6 +11,8 @@ import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/bu
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 
+const REVIEW_ACTIVE_WINDOW_MS = 20 * 60 * 1000;
+
 const QUOTE_SECTION_LABELS: Record<string, string> = {
   material: 'Material',
   'mao-de-obra': 'Mão de obra',
@@ -109,6 +111,28 @@ function getQuoteGrandTotals(quotes: Quote[]) {
   );
 }
 
+function isReviewStateActive(viewingBy?: { name: string; at: Date } | null) {
+  if (!viewingBy?.name || !viewingBy?.at) return false;
+  const reviewedAt = viewingBy.at instanceof Date ? viewingBy.at.getTime() : new Date(viewingBy.at).getTime();
+  if (!Number.isFinite(reviewedAt)) return false;
+  return reviewedAt + REVIEW_ACTIVE_WINDOW_MS > Date.now();
+}
+
+function resolveAttachmentLabel(fileName?: string | null, fileUrl?: string | null) {
+  const explicit = String(fileName || '').trim();
+  if (explicit) return explicit;
+  const rawUrl = String(fileUrl || '').trim();
+  if (!rawUrl) return 'Não informado';
+  try {
+    const parsed = new URL(rawUrl);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const last = segments[segments.length - 1] || '';
+    return decodeURIComponent(last) || 'Arquivo anexado';
+  } catch {
+    return 'Arquivo anexado';
+  }
+}
+
 const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
   solutions: TICKET_STATUS.WAITING_BUDGET,
   budgets: TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
@@ -201,6 +225,7 @@ export function ApprovalsView() {
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const reviewingTicketIdRef = useRef<string | null>(null);
   const approvalQueryAppliedRef = useRef(false);
+  const activeTicketSyncRef = useRef<string | null>(null);
 
   if (!canAccess) {
     return (
@@ -317,6 +342,10 @@ export function ApprovalsView() {
                 status: 'pending_upload',
                 viewingBy: null,
                 signedFileName: currentContract?.signedFileName || null,
+                signedFileUrl: currentContract?.signedFileUrl || null,
+                signedFilePath: currentContract?.signedFilePath || null,
+                signedFileContentType: currentContract?.signedFileContentType || null,
+                signedFileSize: currentContract?.signedFileSize ?? null,
                 items: approvedQuote.items || [],
               },
               targetTicket ? buildProcurementClassification(targetTicket) : undefined
@@ -338,6 +367,10 @@ export function ApprovalsView() {
               status: 'pending_upload',
               viewingBy: null,
               signedFileName: currentContract?.signedFileName || null,
+              signedFileUrl: currentContract?.signedFileUrl || null,
+              signedFilePath: currentContract?.signedFilePath || null,
+              signedFileContentType: currentContract?.signedFileContentType || null,
+              signedFileSize: currentContract?.signedFileSize ?? null,
               items: approvedQuote.items || [],
             },
           }));
@@ -415,7 +448,8 @@ export function ApprovalsView() {
     if (!canApprove) return;
     const currentContract = contractsByTicket[id];
     const targetTicket = tickets.find(ticket => ticket.id === id);
-    if (!currentContract?.signedFileName) {
+    const hasSignedAttachment = Boolean(currentContract?.signedFileName || currentContract?.signedFileUrl);
+    if (!hasSignedAttachment) {
       setToast('Gestor ainda não anexou o contrato. Aprovação indisponível.');
       setTimeout(() => setToast(null), 3000);
       return;
@@ -648,11 +682,17 @@ export function ApprovalsView() {
 
     const currentTicket = tickets.find(ticket => ticket.id === activeTicketId);
     if (!currentTicket) return;
-    if (currentTicket.viewingBy?.name === reviewerName) {
+    if (currentTicket.viewingBy?.name === reviewerName && isReviewStateActive(currentTicket.viewingBy)) {
       reviewingTicketIdRef.current = activeTicketId;
       return;
     }
-    if (currentTicket.viewingBy?.name && currentTicket.viewingBy.name !== reviewerName) return;
+    if (
+      currentTicket.viewingBy?.name &&
+      currentTicket.viewingBy.name !== reviewerName &&
+      isReviewStateActive(currentTicket.viewingBy)
+    ) {
+      return;
+    }
 
     const ticketVisibleInActiveTab =
       activeTab === 'solutions'
@@ -668,6 +708,34 @@ export function ApprovalsView() {
     });
     reviewingTicketIdRef.current = activeTicketId;
   }, [activeTab, activeTicketId, budgets, currentUser?.name, currentView, solutions, tickets, updateTicket]);
+
+  useEffect(() => {
+    const reviewerName = currentUser?.name?.trim();
+    if (!reviewerName) return undefined;
+    if (currentView !== 'approvals' || !activeTicketId || (activeTab !== 'solutions' && activeTab !== 'budgets')) {
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => {
+      const currentTicket = tickets.find(ticket => ticket.id === activeTicketId);
+      if (!currentTicket) return;
+      if (
+        currentTicket.viewingBy?.name &&
+        currentTicket.viewingBy.name !== reviewerName &&
+        isReviewStateActive(currentTicket.viewingBy)
+      ) {
+        return;
+      }
+      updateTicket(activeTicketId, {
+        viewingBy: {
+          name: reviewerName,
+          at: new Date(),
+        },
+      });
+    }, 45000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, activeTicketId, currentUser?.name, currentView, tickets, updateTicket]);
 
   const contracts = useMemo(
     () =>
@@ -752,6 +820,7 @@ export function ApprovalsView() {
 
   useEffect(() => {
     if (currentView !== 'approvals' || !activeTicketId || !activeTicketTab) return;
+    if (activeTicketSyncRef.current === activeTicketId) return;
     setActiveTab(activeTicketTab);
     const targetId =
       activeTicketTab === 'solutions'
@@ -762,6 +831,7 @@ export function ApprovalsView() {
     window.setTimeout(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
+    activeTicketSyncRef.current = activeTicketId;
   }, [activeTicketId, activeTicketTab, currentView]);
 
   return (
@@ -832,7 +902,9 @@ export function ApprovalsView() {
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-roman-primary font-serif italic text-sm">{solution.id}</span>
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">Aguardando Aprovação da Solução</span>
-                    {solution.viewingBy && solution.viewingBy.name !== (currentUser?.name || '').trim() && (
+                    {solution.viewingBy &&
+                      isReviewStateActive(solution.viewingBy) &&
+                      solution.viewingBy.name !== (currentUser?.name || '').trim() && (
                       <span className="text-xs text-roman-primary font-medium px-2 py-0.5 bg-roman-primary/10 border border-roman-primary/30 rounded-sm">
                         Sendo revisado por {solution.viewingBy.name}
                       </span>
@@ -884,7 +956,9 @@ export function ApprovalsView() {
                     <span className="text-xs text-roman-text-sub font-medium px-2 py-0.5 bg-roman-bg border border-roman-border rounded-sm">
                       {budget.roundCategory === 'additive' ? `Aditivo ${budget.roundAdditiveIndex}` : 'Orçamento inicial'}
                     </span>
-                    {budget.viewingBy && budget.viewingBy.name !== (currentUser?.name || '').trim() && (
+                    {budget.viewingBy &&
+                      isReviewStateActive(budget.viewingBy) &&
+                      budget.viewingBy.name !== (currentUser?.name || '').trim() && (
                       <span className="text-xs text-roman-primary font-medium px-2 py-0.5 bg-roman-primary/10 border border-roman-primary/30 rounded-sm">
                         Sendo revisado por {budget.viewingBy.name}
                       </span>
@@ -1243,9 +1317,12 @@ export function ApprovalsView() {
                 <h3 className="text-lg md:text-xl font-serif text-stone-900 mb-1">{contract.subject}</h3>
                 <p className="text-sm text-stone-600 mb-4">Solicitante: {contract.requester} • Contratada: {contract.vendor}</p>
                 <div className="mb-3 text-xs text-stone-600">
-                  Arquivo anexado pelo gestor: <span className="font-medium text-stone-800">{contract.signedFileName || 'Não informado'}</span>
+                  Arquivo anexado pelo gestor:{' '}
+                  <span className="font-medium text-stone-800">
+                    {resolveAttachmentLabel(contract.signedFileName, contract.signedFileUrl)}
+                  </span>
                 </div>
-                {!contract.signedFileName && (
+                {!(contract.signedFileName || contract.signedFileUrl) && (
                   <div className="mb-3 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     Contrato sem anexo válido. Peça ao gestor para reenviar pela Inbox em “Anexar Contrato e Enviar para Diretoria”.
                   </div>
@@ -1299,7 +1376,11 @@ export function ApprovalsView() {
                   >
                     Revisar
                   </button>
-                  <button onClick={() => handleApproveContract(contract.id)} disabled={processingId === contract.id || !contract.signedFileName} className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                  <button
+                    onClick={() => handleApproveContract(contract.id)}
+                    disabled={processingId === contract.id || !(contract.signedFileName || contract.signedFileUrl)}
+                    className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
                     {processingId === contract.id ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
                     {processingId === contract.id ? 'Processando...' : 'Aprovar Contrato'}
                   </button>

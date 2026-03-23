@@ -8,9 +8,9 @@ import { gmailGetProfile } from './_lib/gmail.js';
 import { sendJson } from './_lib/http.js';
 
 const LEGACY_ROLE_MAP = {
-  'Gestor de OS': 'Supervisor',
+  'Gestor de OS': 'Usuario',
   Financeiro: 'Admin',
-  'Aprovador Contratos': 'Supervisor',
+  'Aprovador Contratos': 'Usuario',
   'Técnico (Interno)': 'Usuario',
   Terceirizado: 'Usuario',
 };
@@ -331,3 +331,4 @@ export default async function handler(req, res) {
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota administrativa inválida.' });
 }
+

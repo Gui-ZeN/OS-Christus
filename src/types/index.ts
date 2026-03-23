@@ -17,6 +17,7 @@ export interface HistoryItem {
   sender?: string;
   time: Date;
   text?: string;
+  visibility?: 'public' | 'internal';
   field?: string;
   from?: string;
   to?: string;

@@ -63,13 +63,6 @@ function canUserAccessTicket(user, ticket, regions, sites) {
   const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
   const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
 
-  if (user.role === 'Supervisor') {
-    if (siteIds.length > 0) {
-      return siteIds.some(siteId => ticketSiteIds.includes(siteId));
-    }
-    return regionIds.some(regionId => ticketRegionIds.includes(regionId));
-  }
-
   if (siteIds.length > 0 && siteIds.some(siteId => ticketSiteIds.includes(siteId))) return true;
   if (regionIds.length > 0 && regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
   return false;
@@ -91,27 +84,17 @@ function buildAllowedScope(user, regions, sites) {
   const userSiteIds = Array.isArray(user?.siteIds) ? uniqueValues(user.siteIds) : [];
   const userRegionIds = Array.isArray(user?.regionIds) ? uniqueValues(user.regionIds) : [];
 
-  const allowedSiteIds =
-    user.role === 'Supervisor' && userSiteIds.length > 0
-      ? userSiteIds
-      : uniqueValues([
-          ...userSiteIds,
-          ...sites.filter(site => userRegionIds.includes(site.regionId)).map(site => site.id),
-        ]);
+  const allowedSiteIds = uniqueValues([
+    ...userSiteIds,
+    ...sites.filter(site => userRegionIds.includes(site.regionId)).map(site => site.id),
+  ]);
 
-  const allowedRegionIds =
-    user.role === 'Supervisor' && userSiteIds.length > 0
-      ? uniqueValues(
-          allowedSiteIds
-            .map(siteId => sites.find(site => site.id === siteId)?.regionId)
-            .filter(Boolean)
-        )
-      : uniqueValues([
-          ...userRegionIds,
-          ...allowedSiteIds
-            .map(siteId => sites.find(site => site.id === siteId)?.regionId)
-            .filter(Boolean),
-        ]);
+  const allowedRegionIds = uniqueValues([
+    ...userRegionIds,
+    ...allowedSiteIds
+      .map(siteId => sites.find(site => site.id === siteId)?.regionId)
+      .filter(Boolean),
+  ]);
 
   const siteMatchers = uniqueValues(
     allowedSiteIds.flatMap(siteId => {
