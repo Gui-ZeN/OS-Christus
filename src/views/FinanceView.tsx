@@ -112,6 +112,96 @@ function normalizeStatusLabel(status: string) {
   return 'Pendente';
 }
 
+function isLegacyMilestonePlaceholder(payment: PaymentRecord) {
+  const hasGross = parseCurrency(payment.grossValue || '') > 0;
+  const hasValue = parseCurrency(payment.value || '') > 0;
+  const hasTax = parseCurrency(payment.taxValue || '') > 0;
+  const hasNet = parseCurrency(payment.netValue || '') > 0;
+  const hasMeasurementLink = Boolean(payment.measurementId);
+  const hasAttachments = Array.isArray(payment.attachments) && payment.attachments.length > 0;
+  const hasReceipt = Boolean(payment.receiptFileName);
+  const isUnpaidStatus = payment.status === 'pending' || payment.status === 'approved';
+
+  return isUnpaidStatus && !hasGross && !hasValue && !hasTax && !hasNet && !hasMeasurementLink && !hasAttachments && !hasReceipt;
+}
+
+function sortPaymentsByInstallment(a: PaymentRecord, b: PaymentRecord) {
+  const installmentA = Number(a.installmentNumber || Number.MAX_SAFE_INTEGER);
+  const installmentB = Number(b.installmentNumber || Number.MAX_SAFE_INTEGER);
+  if (installmentA !== installmentB) return installmentA - installmentB;
+  const dueA = a.dueAt instanceof Date ? a.dueAt.getTime() : Number.MAX_SAFE_INTEGER;
+  const dueB = b.dueAt instanceof Date ? b.dueAt.getTime() : Number.MAX_SAFE_INTEGER;
+  if (dueA !== dueB) return dueA - dueB;
+  return String(a.id || '').localeCompare(String(b.id || ''));
+}
+
+function buildDynamicPaymentsFromMeasurements(
+  measurements: MeasurementRecord[],
+  vendor: string,
+  flowParts: number
+) {
+  const sortedMeasurements = [...measurements].sort((a, b) => {
+    const timeA = (a.requestedAt || a.approvedAt || new Date(0)).getTime();
+    const timeB = (b.requestedAt || b.approvedAt || new Date(0)).getTime();
+    return timeA - timeB;
+  });
+
+  return sortedMeasurements
+    .filter(measurement => parseCurrency(measurement.grossValue || '') > 0)
+    .map((measurement, index) => {
+      const installmentNumber = index + 1;
+      const label =
+        flowParts > 0 && installmentNumber <= flowParts
+          ? `Parcela ${installmentNumber}/${flowParts}`
+          : `Parcela ${installmentNumber}`;
+      const dueAt = measurement.requestedAt || measurement.approvedAt || new Date(Date.now() + index * 7 * 24 * 60 * 60 * 1000);
+      return {
+        id: `measurement-payment-${measurement.id}`,
+        vendor,
+        value: measurement.grossValue || '',
+        grossValue: measurement.grossValue || '',
+        taxValue: '',
+        netValue: measurement.grossValue || '',
+        progressPercent: measurement.progressPercent,
+        expectedBaselineValue: null,
+        status: measurement.status === 'paid' ? 'paid' : measurement.status === 'approved' ? 'approved' : 'pending',
+        label,
+        installmentNumber,
+        totalInstallments: flowParts > 0 ? flowParts : null,
+        dueAt,
+        measurementId: measurement.id,
+        releasedPercent: measurement.releasePercent,
+        milestonePercent: measurement.progressPercent,
+        attachments: [],
+        receiptFileName: null,
+      } as PaymentRecord;
+    });
+}
+
+function getEffectiveDynamicPayments(
+  rawPayments: PaymentRecord[],
+  measurements: MeasurementRecord[],
+  vendor: string,
+  flowParts: number
+) {
+  const nonLegacyPayments = rawPayments.filter(payment => !isLegacyMilestonePlaceholder(payment));
+  if (nonLegacyPayments.length > 0) {
+    return [...nonLegacyPayments].sort(sortPaymentsByInstallment);
+  }
+  return buildDynamicPaymentsFromMeasurements(measurements, vendor, flowParts);
+}
+
+function upsertDynamicPayment(rawPayments: PaymentRecord[], nextPayment: PaymentRecord) {
+  const nonLegacyPayments = rawPayments.filter(payment => !isLegacyMilestonePlaceholder(payment));
+  const existingIndex = nonLegacyPayments.findIndex(payment => payment.id === nextPayment.id);
+  if (existingIndex >= 0) {
+    const updated = [...nonLegacyPayments];
+    updated[existingIndex] = nextPayment;
+    return updated.sort(sortPaymentsByInstallment);
+  }
+  return [...nonLegacyPayments, nextPayment].sort(sortPaymentsByInstallment);
+}
+
 function addMonths(date: Date, months: number) {
   const next = new Date(date);
   next.setMonth(next.getMonth() + months);
@@ -460,9 +550,12 @@ export function FinanceView() {
           ].includes(ticket.status);
         })
         .map(ticket => {
-          const payments = paymentsByTicket[ticket.id] || [];
+          const rawPayments = paymentsByTicket[ticket.id] || [];
           const measurements = measurementsByTicket[ticket.id] || [];
           const contract = contractsByTicket[ticket.id];
+          const flowParts = Number(ticket.executionProgress?.paymentFlowParts || 0);
+          const vendor = contract?.vendor || rawPayments[0]?.vendor || ticket.assignedTeam || 'Fornecedor não definido';
+          const payments = getEffectiveDynamicPayments(rawPayments, measurements, vendor, flowParts);
           const expectedBaselineValue = resolveExpectedBaselineValue(contract, payments);
           const totalValue = parseCurrency(contract?.realizedValue || contract?.value || payments[0]?.value || '0');
           const totalReleased = sumReleasedPercent(payments);
@@ -829,8 +922,9 @@ export function FinanceView() {
       return;
     }
 
-    const existingPayments = paymentsByTicket[ticketId] || [];
-    const baselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], existingPayments);
+    const rawPayments = paymentsByTicket[ticketId] || [];
+    const existingMeasurements = measurementsByTicket[ticketId] || [];
+    const baselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], rawPayments);
     if (baselineValue <= 0) {
       setToast('Erro: valor previsto da obra não encontrado para calcular o andamento.');
       setTimeout(() => setToast(null), 3000);
@@ -850,9 +944,15 @@ export function FinanceView() {
 
     const vendor =
       contractsByTicket[ticketId]?.vendor ||
-      paymentsByTicket[ticketId]?.[0]?.vendor ||
+      rawPayments[0]?.vendor ||
       targetTicket.assignedTeam ||
       'Fornecedor não definido';
+    const effectiveExistingPayments = getEffectiveDynamicPayments(
+      rawPayments,
+      existingMeasurements,
+      vendor,
+      Number(targetTicket.executionProgress?.paymentFlowParts || 0)
+    );
     if (progressPercent < currentProgress) {
       setToast('Erro: o andamento informado é menor do que o percentual já registrado.');
       setTimeout(() => setToast(null), 3000);
@@ -864,7 +964,7 @@ export function FinanceView() {
     const expectedBaselineFormatted = formatCurrency(baselineValue);
     const normalizedProgress = progressPercent;
     const progressDelta = Math.max(0, roundProgressPercent(normalizedProgress - currentProgress));
-    const nextInstallmentNumber = existingPayments.length + 1;
+    const nextInstallmentNumber = effectiveExistingPayments.length + 1;
     const configuredFlowParts = Number(targetTicket.executionProgress.paymentFlowParts || 0);
     const formattedGrossAmount = formatCurrency(grossAmount);
     const paymentLabel =
@@ -925,13 +1025,10 @@ export function FinanceView() {
       }));
       setPaymentsByTicket(prev => ({
         ...prev,
-        [ticketId]: [
-          ...(prev[ticketId] || []),
-          {
-            ...nextPayment,
-            expectedBaselineValue: expectedBaselineFormatted,
-          },
-        ],
+        [ticketId]: upsertDynamicPayment(prev[ticketId] || [], {
+          ...nextPayment,
+          expectedBaselineValue: expectedBaselineFormatted,
+        }),
       }));
       updateTicket(ticketId, {
         status: nextStatus,
@@ -990,7 +1087,7 @@ export function FinanceView() {
       await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
       setPaymentsByTicket(prev => ({
         ...prev,
-        [ticketId]: (prev[ticketId] || []).map(item => (item.id === payment.id ? nextPayment : item)),
+        [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
       setToast(`${uploadedItems.length} anexo(s) vinculados à ${payment.label || 'parcela'}.`);
       setTimeout(() => setToast(null), 3000);
@@ -1023,7 +1120,7 @@ export function FinanceView() {
       await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
       setPaymentsByTicket(prev => ({
         ...prev,
-        [ticketId]: (prev[ticketId] || []).map(item => (item.id === payment.id ? nextPayment : item)),
+        [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
       setToast(`Anexo removido da ${payment.label || 'parcela'}.`);
       setTimeout(() => setToast(null), 3000);
@@ -1065,7 +1162,19 @@ export function FinanceView() {
     }
     const netAmount = Math.max(0, grossAmount - taxAmount);
 
-    const existingPayments = paymentsByTicket[ticketId] || [];
+    const rawPayments = paymentsByTicket[ticketId] || [];
+    const existingMeasurements = measurementsByTicket[ticketId] || [];
+    const vendorForFlow =
+      contractsByTicket[ticketId]?.vendor ||
+      payment.vendor ||
+      targetTicket.assignedTeam ||
+      'Fornecedor não definido';
+    const existingPayments = getEffectiveDynamicPayments(
+      rawPayments,
+      existingMeasurements,
+      vendorForFlow,
+      Number(targetTicket.executionProgress?.paymentFlowParts || 0)
+    );
     const pendingPayments = existingPayments.filter(item => item.status !== 'paid');
     const isFinalInstallment = pendingPayments.length === 1 && pendingPayments[0].id === payment.id;
     const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);

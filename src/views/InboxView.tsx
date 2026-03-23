@@ -314,6 +314,22 @@ function formatCurrencyInput(value: number) {
   }).format(value);
 }
 
+function isLegacyFlowPlaceholderPayment(payment: PaymentRecord) {
+  const hasGross = parseCurrencyInput(payment.grossValue || '') > 0;
+  const hasValue = parseCurrencyInput(payment.value || '') > 0;
+  const hasTax = parseCurrencyInput(payment.taxValue || '') > 0;
+  const hasNet = parseCurrencyInput(payment.netValue || '') > 0;
+  const hasMeasurementLink = Boolean(payment.measurementId);
+  const hasAttachments = Array.isArray(payment.attachments) && payment.attachments.length > 0;
+  const hasReceipt = Boolean(payment.receiptFileName);
+  const isUnpaidStatus = payment.status === 'pending' || payment.status === 'approved';
+  return isUnpaidStatus && !hasGross && !hasValue && !hasTax && !hasNet && !hasMeasurementLink && !hasAttachments && !hasReceipt;
+}
+
+function stripLegacyFlowPlaceholders(payments: PaymentRecord[]) {
+  return payments.filter(payment => !isLegacyFlowPlaceholderPayment(payment));
+}
+
 function normalizeCurrencyInput(value: string) {
   const parsed = parseCurrencyInput(value);
   return parsed > 0 ? formatCurrencyInput(parsed) : '';
@@ -1317,13 +1333,19 @@ export function InboxView() {
 
     setIsSending(true);
 
-    const vendor = activeContract?.vendor || activePayments[0]?.vendor || activeTicket.assignedTeam || 'Fornecedor não definido';
+    const existingDynamicPayments = stripLegacyFlowPlaceholders(activePayments);
+    const vendor =
+      activeContract?.vendor ||
+      existingDynamicPayments[0]?.vendor ||
+      activePayments[0]?.vendor ||
+      activeTicket.assignedTeam ||
+      'Fornecedor não definido';
     const now = new Date();
     const classification = buildProcurementClassification(activeTicket);
     const expectedBaselineFormatted = formatCurrencyInput(baselineValue);
     const normalizedProgress = progressPercent;
     const progressDelta = Math.max(0, roundProgressPercent(normalizedProgress - activeProgressPercent));
-    const nextInstallmentNumber = activePayments.length + 1;
+    const nextInstallmentNumber = existingDynamicPayments.length + 1;
     const configuredFlowParts = Number(activeTicket.executionProgress.paymentFlowParts || 0);
     const formattedGrossAmount = formatCurrencyInput(grossAmount);
     const paymentLabel =
@@ -1378,14 +1400,16 @@ export function InboxView() {
       await savePayment(activeTicket.id, nextPayment, classification);
       await saveMeasurement(activeTicket.id, measurement, classification);
 
-      const nextPaymentsWithBaseline = [
-        ...activePayments,
-        {
-          ...nextPayment,
-          expectedBaselineValue: expectedBaselineFormatted,
-        },
-      ];
-      setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPaymentsWithBaseline }));
+      setPaymentsByTicket(prev => ({
+        ...prev,
+        [activeTicket.id]: [
+          ...stripLegacyFlowPlaceholders(prev[activeTicket.id] || []),
+          {
+            ...nextPayment,
+            expectedBaselineValue: expectedBaselineFormatted,
+          },
+        ],
+      }));
       updateTicket(activeTicket.id, {
         status: nextStatus,
         closureChecklist: nextClosureChecklist,
@@ -1465,10 +1489,11 @@ export function InboxView() {
   const [toast, setToast] = useState<string | null>(null);
   const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
+  const activeDynamicPayments = useMemo(() => stripLegacyFlowPlaceholders(activePayments), [activePayments]);
   const activeExpectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
   const activeProgressPercent = Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0));
   const activeProgressBarPercent = Math.min(100, activeProgressPercent);
-  const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activePayments);
+  const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activeDynamicPayments);
   const activeNextMilestonePercent = activeTicket.executionProgress?.paymentFlowParts
     ? getNextMilestonePercentByProgress(activeTicket.executionProgress.paymentFlowParts, activeProgressPercent)
     : null;
