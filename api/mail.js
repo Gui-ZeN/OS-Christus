@@ -340,6 +340,46 @@ function buildInboundHistoryId(messageId, fallbackKey) {
   return `mail-${base || Date.now()}`;
 }
 
+function normalizeMessageIdToken(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const wrapped = raw.startsWith('<') && raw.endsWith('>') ? raw : `<${raw.replace(/^<|>$/g, '')}>`;
+  return wrapped;
+}
+
+function parseMessageIdCandidates(inReplyTo, referencesRaw) {
+  const candidates = new Set();
+  const direct = normalizeMessageIdToken(inReplyTo);
+  if (direct) candidates.add(direct);
+  String(referencesRaw || '')
+    .split(/\s+/)
+    .map(token => normalizeMessageIdToken(token))
+    .filter(Boolean)
+    .forEach(token => candidates.add(token));
+  return [...candidates];
+}
+
+async function resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw) {
+  const candidates = parseMessageIdCandidates(inReplyTo, referencesRaw);
+  if (candidates.length === 0) return null;
+
+  for (const messageId of candidates) {
+    const byLastMessage = await db.collection('emailThreads').where('lastMessageId', '==', messageId).limit(1).get();
+    if (!byLastMessage.empty) {
+      const ticketId = String(byLastMessage.docs[0].data()?.ticketId || byLastMessage.docs[0].id || '').trim();
+      if (ticketId) return ticketId;
+    }
+
+    const byReferences = await db.collection('emailThreads').where('references', 'array-contains', messageId).limit(1).get();
+    if (!byReferences.empty) {
+      const ticketId = String(byReferences.docs[0].data()?.ticketId || byReferences.docs[0].id || '').trim();
+      if (ticketId) return ticketId;
+    }
+  }
+
+  return null;
+}
+
 function buildInboundHistoryEntry(message, options = {}) {
   const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
   const text =
@@ -1384,6 +1424,8 @@ async function handleInbound(req, res) {
       body.message_id ||
       headers['message-id'] ||
       null;
+    const inReplyTo = body.in_reply_to || headers['in-reply-to'] || null;
+    const referencesRaw = body.references || headers.references || '';
     const lock = await acquireInboundMessageLock(db, {
       messageId: rawMessageId,
       fallbackKey: `${subject}:${fromEmail || ''}:${toEmail || ''}`,
@@ -1403,8 +1445,9 @@ async function handleInbound(req, res) {
       });
     }
 
+    const referencedTicketId = await resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw);
     const createdTicket =
-      explicitTicketId || subjectTicketId
+      explicitTicketId || subjectTicketId || referencedTicketId
         ? null
         : await createTicketFromInbound(db, {
             from: body.from,
@@ -1415,7 +1458,10 @@ async function handleInbound(req, res) {
             attachments,
             internalDate: new Date(),
           });
-    const ticketId = (explicitTicketId || subjectTicketId || createdTicket?.id || '').toString().trim().toUpperCase();
+    const ticketId = (explicitTicketId || subjectTicketId || referencedTicketId || createdTicket?.id || '')
+      .toString()
+      .trim()
+      .toUpperCase();
 
     if (!ticketId) {
       await finalizeInboundMessageLock(lock.ref, { ignored: true, reason: 'ticket-not-identified' });
@@ -1423,8 +1469,6 @@ async function handleInbound(req, res) {
     }
 
     const messageId = rawMessageId || `<inbound-${ticketId}-${Date.now()}@sendgrid>`;
-    const inReplyTo = body.in_reply_to || headers['in-reply-to'] || null;
-    const referencesRaw = body.references || headers.references || '';
     const references = String(referencesRaw)
       .split(/\s+/)
       .map(value => value.trim())
