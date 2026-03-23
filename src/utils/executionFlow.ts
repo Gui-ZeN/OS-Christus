@@ -37,9 +37,9 @@ export function createExecutionPaymentPlan(_totalValue: number, vendor: string, 
     return {
       id: `payment-${installmentNumber}`,
       vendor,
-      // O valor é definido no lançamento do bruto pelo gestor, não no plano.
+      // Value is set when manager records gross amount.
       value: '',
-      label: isSingleInstallment ? 'Parcela única' : `Parcela ${installmentNumber}/${safeParts}`,
+      label: isSingleInstallment ? 'Parcela unica' : `Parcela ${installmentNumber}/${safeParts}`,
       status: 'pending',
       installmentNumber,
       totalInstallments: safeParts,
@@ -64,6 +64,15 @@ export function getPaymentFlowMilestones(parts: number) {
     cumulativeMilestone = Number((cumulativeMilestone + chunkPercent).toFixed(2));
     return clampMilestonePercent(cumulativeMilestone);
   });
+}
+
+export function getNextMilestonePercentByProgress(parts: number, currentProgressPercent: number) {
+  const milestones = getPaymentFlowMilestones(parts);
+  const normalizedCurrent = normalizeProgressPercent(currentProgressPercent);
+  for (const milestone of milestones) {
+    if (milestone > normalizedCurrent) return milestone;
+  }
+  return null;
 }
 
 export function getApprovedReleasePercent(payments: PaymentRecord[]) {

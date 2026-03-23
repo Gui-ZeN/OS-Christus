@@ -19,7 +19,7 @@ import { deleteTicketInApi } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
-import { applyProgressToPayments, createExecutionPaymentPlan, getApprovedReleasePercent, getNextMilestonePercent, getPaymentFlowMilestones } from '../utils/executionFlow';
+import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -1245,43 +1245,14 @@ export function InboxView() {
     const preliminaryActions = activeTicket.preliminaryActions
       ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || now, updatedAt: now }
       : undefined;
-    const contractValue = parseCurrencyInput(activeContract?.realizedValue || activeContract?.value || activePayments[0]?.value || '');
-    const expectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
-    const vendor = activeContract?.vendor || activePayments[0]?.vendor || activeTicket.assignedTeam || 'Fornecedor não definido';
-    const shouldGeneratePlan = activePayments.length === 0 && Number.isFinite(contractValue) && contractValue > 0;
-
     try {
-      let nextPayments = activePayments;
-      if (shouldGeneratePlan) {
-        nextPayments = createExecutionPaymentPlan(contractValue, vendor, paymentFlowParts);
-        const classification = buildProcurementClassification(activeTicket);
-        const expectedBaselineFormatted = expectedBaselineValue > 0 ? formatCurrencyInput(expectedBaselineValue) : null;
-        for (const payment of nextPayments) {
-          await savePayment(
-            activeTicket.id,
-            {
-              ...payment,
-              expectedBaselineValue: expectedBaselineFormatted,
-            },
-            classification
-          );
-        }
-        setPaymentsByTicket(prev => ({
-          ...prev,
-          [activeTicket.id]: nextPayments.map(payment => ({
-            ...payment,
-            expectedBaselineValue: expectedBaselineFormatted,
-          })),
-        }));
-      }
-
       updateTicket(activeTicket.id, {
         status: TICKET_STATUS.IN_PROGRESS,
         preliminaryActions,
         executionProgress: {
           paymentFlowParts,
           currentPercent: Number(activeTicket.executionProgress?.currentPercent || 0),
-          releasedPercent: getApprovedReleasePercent(nextPayments),
+          releasedPercent: Number(activeTicket.executionProgress?.releasedPercent || 0),
           measurementSheetUrl: measurementSheetUrl || null,
           startedAt: activeTicket.executionProgress?.startedAt || preliminaryActions?.actualStartAt || now,
           lastUpdatedAt: now,
@@ -1301,11 +1272,7 @@ export function InboxView() {
       });
 
       setShowExecutionSetupModal(false);
-      setToast(
-        shouldGeneratePlan
-          ? `Execução iniciada e fluxo ${paymentFlowParts}x configurado.`
-          : `Execução iniciada. O fluxo ${paymentFlowParts}x foi salvo para o financeiro.`
-      );
+      setToast(`Execução iniciada. Fluxo ${paymentFlowParts}x registrado.`);
       setTimeout(() => setToast(null), 3000);
     } finally {
       window.setTimeout(() => setIsSending(false), 500);
@@ -1348,91 +1315,76 @@ export function InboxView() {
       return;
     }
 
-    const contractValue = parseCurrencyInput(activeContract?.realizedValue || activeContract?.value || activePayments[0]?.value || '');
-    if (!Number.isFinite(contractValue) || contractValue <= 0) {
-      setToast('Erro: contrato não encontrado para calcular as liberações.');
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
     setIsSending(true);
 
     const vendor = activeContract?.vendor || activePayments[0]?.vendor || activeTicket.assignedTeam || 'Fornecedor não definido';
-    const baselinePayments =
-      activePayments.length > 0
-        ? activePayments
-        : createExecutionPaymentPlan(contractValue, vendor, activeTicket.executionProgress.paymentFlowParts);
-    const createdPlan = activePayments.length === 0;
-    const { nextPayments, newlyApproved, releasedPercent, normalizedProgress } = applyProgressToPayments(
-      baselinePayments,
-      progressPercent
-    );
-    const releasedValue = newlyApproved.reduce((total, payment) => {
-      const normalized = Number(
-        String(payment.value || '')
-          .replace(/[^\d,.-]/g, '')
-          .replace(/\./g, '')
-          .replace(',', '.')
-      );
-      return total + (Number.isFinite(normalized) ? normalized : 0);
-    }, 0);
+    const now = new Date();
+    const classification = buildProcurementClassification(activeTicket);
+    const expectedBaselineFormatted = formatCurrencyInput(baselineValue);
+    const normalizedProgress = progressPercent;
+    const progressDelta = Math.max(0, roundProgressPercent(normalizedProgress - activeProgressPercent));
+    const nextInstallmentNumber = activePayments.length + 1;
+    const configuredFlowParts = Number(activeTicket.executionProgress.paymentFlowParts || 0);
+    const formattedGrossAmount = formatCurrencyInput(grossAmount);
+    const paymentLabel =
+      configuredFlowParts > 0 && nextInstallmentNumber <= configuredFlowParts
+        ? `Parcela ${nextInstallmentNumber}/${configuredFlowParts}`
+        : `Parcela ${nextInstallmentNumber}`;
+    const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
+    const measurementId = `measurement-${Date.now()}`;
+    const nextPayment: PaymentRecord = {
+      id: `payment-${Date.now()}-${nextInstallmentNumber}`,
+      vendor,
+      value: formattedGrossAmount,
+      grossValue: formattedGrossAmount,
+      taxValue: '',
+      netValue: formattedGrossAmount,
+      progressPercent: normalizedProgress,
+      expectedBaselineValue: expectedBaselineFormatted,
+      status: 'approved',
+      label: paymentLabel,
+      installmentNumber: nextInstallmentNumber,
+      totalInstallments: configuredFlowParts > 0 ? configuredFlowParts : null,
+      dueAt,
+      measurementId,
+      releasedPercent: progressDelta,
+      milestonePercent: normalizedProgress,
+      attachments: [],
+      receiptFileName: null,
+    };
+
+    const measurement: MeasurementRecord = {
+      id: measurementId,
+      label: `Andamento atualizado para ${normalizedProgress}% (parcela ${formattedGrossAmount} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
+      progressPercent: normalizedProgress,
+      releasePercent: progressDelta,
+      status: 'approved',
+      grossValue: formattedGrossAmount,
+      notes: progressUpdateForm.notes.trim(),
+      requestedAt: now,
+      approvedAt: now,
+    };
+    const shouldMoveToValidation =
+      normalizedProgress >= 100 &&
+      activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
+      activeTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
+      activeTicket.status !== TICKET_STATUS.CLOSED &&
+      activeTicket.status !== TICKET_STATUS.CANCELED;
+    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
+    const nextClosureChecklist =
+      normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
 
     try {
-      const now = new Date();
-      const classification = buildProcurementClassification(activeTicket);
-      const expectedBaselineFormatted = formatCurrencyInput(baselineValue);
-      const measurement: MeasurementRecord = {
-        id: `measurement-${Date.now()}`,
-        label: `Andamento atualizado para ${normalizedProgress}% (parcela ${formatCurrencyInput(grossAmount)} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
-        progressPercent: normalizedProgress,
-        releasePercent: newlyApproved.reduce((total, payment) => total + Number(payment.releasedPercent || 0), 0),
-        status: newlyApproved.length > 0 ? 'approved' : 'pending',
-        grossValue: formatCurrencyInput(grossAmount),
-        notes: progressUpdateForm.notes.trim(),
-        requestedAt: now,
-        approvedAt: newlyApproved.length > 0 ? now : null,
-      };
-      const shouldMoveToValidation =
-        normalizedProgress >= 100 &&
-        activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
-        activeTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
-        activeTicket.status !== TICKET_STATUS.CLOSED &&
-        activeTicket.status !== TICKET_STATUS.CANCELED;
-      const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
-      const nextClosureChecklist =
-        normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
-      if (createdPlan) {
-        for (const payment of nextPayments) {
-          const paymentWithBaseline: PaymentRecord = {
-            ...payment,
-            expectedBaselineValue: expectedBaselineFormatted,
-            progressPercent: payment.status === 'approved' ? normalizedProgress : payment.progressPercent ?? null,
-          };
-          await savePayment(activeTicket.id, paymentWithBaseline, classification);
-        }
-      } else {
-        for (const payment of newlyApproved) {
-          await savePayment(
-            activeTicket.id,
-            {
-              ...payment,
-              expectedBaselineValue: expectedBaselineFormatted,
-              progressPercent: normalizedProgress,
-            },
-            classification
-          );
-        }
-      }
+      await savePayment(activeTicket.id, nextPayment, classification);
       await saveMeasurement(activeTicket.id, measurement, classification);
 
-      const nextPaymentsWithBaseline = nextPayments.map(payment => ({
-        ...payment,
-        expectedBaselineValue: payment.expectedBaselineValue || expectedBaselineFormatted,
-        progressPercent:
-          payment.status === 'approved' || payment.status === 'paid'
-            ? payment.progressPercent ?? normalizedProgress
-            : payment.progressPercent ?? null,
-      }));
+      const nextPaymentsWithBaseline = [
+        ...activePayments,
+        {
+          ...nextPayment,
+          expectedBaselineValue: expectedBaselineFormatted,
+        },
+      ];
       setPaymentsByTicket(prev => ({ ...prev, [activeTicket.id]: nextPaymentsWithBaseline }));
       updateTicket(activeTicket.id, {
         status: nextStatus,
@@ -1440,7 +1392,7 @@ export function InboxView() {
         executionProgress: {
           paymentFlowParts: activeTicket.executionProgress.paymentFlowParts,
           currentPercent: normalizedProgress,
-          releasedPercent,
+          releasedPercent: roundProgressPercent(Math.max(activeReleasedPercent, normalizedProgress)),
           measurementSheetUrl: activeTicket.executionProgress.measurementSheetUrl || null,
           startedAt: activeTicket.executionProgress.startedAt || activeTicket.preliminaryActions?.actualStartAt || now,
           lastUpdatedAt: now,
@@ -1452,12 +1404,9 @@ export function InboxView() {
             type: 'system',
             sender: displayActorLabel,
             time: now,
-            text:
-              shouldMoveToValidation
-                ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante.${newlyApproved.length > 0 ? ` ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.` : ''}${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-                : newlyApproved.length > 0
-                  ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${newlyApproved.length} parcela(s) liberada(s), totalizando ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(releasedValue)}.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-                  : `Andamento atualizado para ${normalizedProgress}% com parcela de ${formatCurrencyInput(grossAmount)} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Nenhuma nova parcela foi liberada.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+            text: shouldMoveToValidation
+              ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberada para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+              : `Andamento atualizado para ${normalizedProgress}% com parcela de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberada para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
           },
         ],
       });
@@ -1466,9 +1415,7 @@ export function InboxView() {
       setToast(
         shouldMoveToValidation
           ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
-          : newlyApproved.length > 0
-            ? `Andamento salvo. ${newlyApproved.length} parcela(s) liberada(s) para o financeiro.`
-            : 'Andamento salvo sem nova liberação financeira.'
+          : `${paymentLabel} registrada e liberada para o financeiro.`
       );
       setTimeout(() => setToast(null), 3000);
     } finally {
@@ -1522,7 +1469,9 @@ export function InboxView() {
   const activeProgressPercent = Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0));
   const activeProgressBarPercent = Math.min(100, activeProgressPercent);
   const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activePayments);
-  const activeNextMilestonePercent = getNextMilestonePercent(activePayments);
+  const activeNextMilestonePercent = activeTicket.executionProgress?.paymentFlowParts
+    ? getNextMilestonePercentByProgress(activeTicket.executionProgress.paymentFlowParts, activeProgressPercent)
+    : null;
   const activeMilestones = useMemo(
     () => (activeTicket.executionProgress?.paymentFlowParts ? getPaymentFlowMilestones(activeTicket.executionProgress.paymentFlowParts) : []),
     [activeTicket.executionProgress?.paymentFlowParts]
@@ -4491,8 +4440,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                 <div className="font-medium text-roman-text-main">Regra do fluxo</div>
-                <div>O sistema libera o pagamento conforme o percentual acumulado da obra.</div>
-                <div>Exemplo: no fluxo 5x, ao atingir 20%, 40%, 60%, 80% e 100%, cada parcela é liberada.</div>
+                <div>Cada atualização de andamento com valor bruto cria uma nova parcela no financeiro.</div>
+                <div>Os marcos (1x a 5x) ficam como referência de progresso da execução.</div>
               </div>
 
               <div>
@@ -4623,6 +4572,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     </div>
   );
 }
+
 
 
 
