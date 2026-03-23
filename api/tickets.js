@@ -68,6 +68,7 @@ function normalizeHistoryText(value) {
 
 const PUBLIC_HISTORY_SYSTEM_MARKERS = [
   'solicitacao registrada via formulario publico',
+  'status atualizado de',
   'execucao iniciada',
   'inicio da execucao',
   'execucao concluida',
