@@ -2963,9 +2963,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
                           <button
                             onClick={handleSendForValidation}
-                            className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                            className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2.5 rounded-sm font-medium transition-colors text-xs text-center leading-tight"
                           >
-                            <CheckSquare size={14} /> Concluir execução e enviar ao solicitante
+                            <span className="block">Concluir execução e enviar ao solicitante</span>
                           </button>
                         )}
 
