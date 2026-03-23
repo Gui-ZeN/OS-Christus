@@ -117,6 +117,26 @@ function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
   return !hasSensitiveTerm;
 }
 
+function getPublicHistoryText(item: Ticket['history'][number]) {
+  const rawText = (item.text || '').trim();
+  if (!rawText) return rawText;
+  if (item.type !== 'system') return rawText;
+
+  const normalizedText = rawText
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (
+    normalizedText.includes('execucao iniciada') ||
+    normalizedText.includes('inicio da execucao')
+  ) {
+    return 'Execução iniciada.';
+  }
+
+  return rawText;
+}
+
 function buildPublicTimeline(ticket: Ticket, procurement: TrackingProcurementSummary, sites: CatalogSite[]): PublicTimelineItem[] {
   const measurements = procurement.measurements || [];
   const payments = procurement.payments || [];
@@ -452,7 +472,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                           <div className="font-serif font-medium text-roman-text-main">{item.sender || 'Sistema'}</div>
                           {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(item.time)}</div>}
                         </div>
-                        <div className="text-sm text-roman-text-main leading-relaxed">{item.text}</div>
+                        <div className="text-sm text-roman-text-main leading-relaxed">{getPublicHistoryText(item)}</div>
                       </div>
                     </div>
                   );
