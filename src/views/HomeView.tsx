@@ -1,6 +1,6 @@
 ﻿
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart2, Building2, MapPinned, Plus, Users } from 'lucide-react';
+import { AlertTriangle, BarChart2, MapPinned, Plus, Users } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
@@ -53,7 +53,6 @@ export function HomeView() {
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
-  const isSupervisor = currentUser?.role === 'Supervisor';
   const isRequester = currentUser?.role === 'Usuario';
 
   const clearInboxFilters = () =>
@@ -202,37 +201,6 @@ export function HomeView() {
       .sort((a, b) => b.time.getTime() - a.time.getTime());
   }, [currentUser?.name, currentUserEmail, isRequester, scopedTickets]);
 
-  const supervisorBoard = useMemo(() => {
-    if (!isSupervisor) return [];
-    const grouped = new Map<string, { site: string; open: number; waitingValidation: number; inProgress: number; closed: number }>();
-    for (const ticket of scopedTickets) {
-      const siteLabel = getTicketSiteLabel(ticket, sites);
-      const key = getTicketSiteId(ticket, sites) || siteLabel;
-      if (!grouped.has(key)) {
-        grouped.set(key, { site: siteLabel, open: 0, waitingValidation: 0, inProgress: 0, closed: 0 });
-      }
-      const current = grouped.get(key)!;
-      if (isOpenStatus(ticket.status)) current.open += 1;
-      if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) current.waitingValidation += 1;
-      if (ticket.status === TICKET_STATUS.IN_PROGRESS) current.inProgress += 1;
-      if (ticket.status === TICKET_STATUS.CLOSED) current.closed += 1;
-    }
-    return [...grouped.values()].sort((a, b) => b.open - a.open);
-  }, [isSupervisor, scopedTickets, sites]);
-
-  const supervisorScopeSummary = useMemo(() => {
-    if (!isSupervisor) return null;
-    return {
-      sites: sites.filter(site => (currentUser?.siteIds || []).includes(site.id)),
-      regions: regions.filter(region => (currentUser?.regionIds || []).includes(region.id)),
-    };
-  }, [currentUser?.regionIds, currentUser?.siteIds, isSupervisor, regions, sites]);
-
-  const supervisorTickets = useMemo(() => {
-    if (!isSupervisor) return [];
-    return scopedTickets.slice().sort((a, b) => b.time.getTime() - a.time.getTime());
-  }, [isSupervisor, scopedTickets]);
-
   const pendingRequesterValidations = useMemo(() => {
     return scopedTickets
       .filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL)
@@ -283,9 +251,7 @@ export function HomeView() {
           <p className="mt-2 text-sm text-roman-text-sub font-serif italic">
             {isExecutive
               ? 'Visão operacional consolidada por região e sede, com foco em fluxo, decisão e acompanhamento das OS.'
-              : isSupervisor
-                ? 'Painel da supervisão com foco em andamento por sede, validações pendentes e próximos movimentos.'
-                : isRequester
+              : isRequester
                   ? 'Painel do solicitante com acompanhamento resumido das suas solicitações e do retorno da infraestrutura.'
                   : 'Aqui está o resumo das suas responsabilidades operacionais de hoje.'}
           </p>
@@ -307,16 +273,7 @@ export function HomeView() {
           </div>
         ) : (
           <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub shadow-sm">
-            {isSupervisor ? (
-              <>
-                <span className="font-medium text-roman-text-main">Escopo visível:</span>{' '}
-                {supervisorScopeSummary?.sites.length
-                  ? supervisorScopeSummary.sites.map(site => site.code || site.name).join(', ')
-                  : supervisorScopeSummary?.regions.length
-                    ? supervisorScopeSummary.regions.map(region => region.name).join(', ')
-                    : 'nenhuma sede ou região vinculada'}
-              </>
-            ) : (
+            {(
               <><span className="font-medium text-roman-text-main">Recorte atual:</span> suas solicitações visíveis no sistema</>
             )}
           </div>
@@ -331,37 +288,6 @@ export function HomeView() {
 
         {!isExecutive && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-            {isSupervisor && (
-              <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Resumo da Supervisão</h2>
-                  <Building2 size={16} className="text-roman-text-sub" />
-                </div>
-                {supervisorScopeSummary && (
-                  <div className="mb-4 rounded-sm border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
-                    <div className="text-[10px] uppercase tracking-widest text-roman-text-sub mb-2">Escopo da supervisão</div>
-                    <div><span className="font-medium text-roman-text-main">Sedes:</span>{' '}{supervisorScopeSummary.sites.length > 0 ? supervisorScopeSummary.sites.map(site => site.code || site.name).join(', ') : 'nenhuma sede vinculada'}</div>
-                    <div className="mt-1"><span className="font-medium text-roman-text-main">Regiões:</span>{' '}{supervisorScopeSummary.regions.length > 0 ? supervisorScopeSummary.regions.map(region => region.name).join(', ') : 'nenhuma região vinculada'}</div>
-                  </div>
-                )}
-                {supervisorBoard.length === 0 ? (
-                  <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS visível para a sua supervisão.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {supervisorBoard.map(item => (
-                      <div key={item.site} className="grid grid-cols-1 md:grid-cols-[1.2fr_repeat(4,0.75fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="font-medium text-roman-text-main">{item.site}</div>
-                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Abertas</div><div>{item.open}</div></div>
-                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Validação</div><div>{item.waitingValidation}</div></div>
-                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Execução</div><div>{item.inProgress}</div></div>
-                        <div className="text-sm"><div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Concluídas</div><div>{item.closed}</div></div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {isRequester && (
               <div className="bg-roman-surface border border-roman-border rounded-sm p-5">
                 <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
@@ -389,7 +315,7 @@ export function HomeView() {
 
             <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main">{isSupervisor ? 'Validações e próximos passos' : 'Acompanhamento operacional'}</h2>
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">Acompanhamento operacional</h2>
                 <AlertTriangle size={16} className="text-roman-text-sub" />
               </div>
               <div className="space-y-3">
@@ -417,35 +343,6 @@ export function HomeView() {
             </div>
           </div>
         )}
-        {isSupervisor && (
-          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 mb-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-              <h2 className="font-serif text-lg font-medium text-roman-text-main">OS da Supervisão</h2>
-              <Users size={16} className="text-roman-text-sub" />
-            </div>
-            {supervisorTickets.length === 0 ? (
-              <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS encontrada para a sede ou região sob sua supervisão.</p>
-            ) : (
-              <div className="space-y-3">
-                {supervisorTickets.map(ticket => (
-                  <button key={ticket.id} onClick={() => openTicketWorkspace(ticket.id)} className="w-full text-left border border-roman-border rounded-sm bg-roman-bg px-4 py-3 hover:border-roman-primary transition-colors">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="font-medium text-roman-text-main">{ticket.id} • {ticket.subject}</div>
-                        <div className="text-xs text-roman-text-sub mt-1">{getTicketSiteLabel(ticket, sites)} • {getTicketRegionLabel(ticket, regions, sites)} • {ticket.requester}</div>
-                      </div>
-                      <div className="text-right text-xs text-roman-text-sub">
-                        <div className="font-medium text-roman-text-main">{ticket.status}</div>
-                        <div>{formatActivityTime(ticket.time)}</div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {isExecutive && (
           <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-roman-border pb-3">

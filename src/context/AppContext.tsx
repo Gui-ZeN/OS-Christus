@@ -161,12 +161,6 @@ function canUserAccessTicket(
   if (regionIds.length === 0 && siteIds.length === 0) return false;
   const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
   const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
-  if (user.role === 'Supervisor') {
-    if (siteIds.length > 0) {
-      return siteIds.some(siteId => ticketSiteIds.includes(siteId));
-    }
-    return regionIds.some(regionId => ticketRegionIds.includes(regionId));
-  }
   if (siteIds.length > 0 && siteIds.some(siteId => ticketSiteIds.includes(siteId))) return true;
   if (regionIds.length > 0 && regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
   return false;

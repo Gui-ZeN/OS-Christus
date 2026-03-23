@@ -1,7 +1,6 @@
 ﻿import React from 'react';
-import { AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { TICKET_STATUS } from '../../constants/ticketStatus';
-import { SLAStatus } from '../../types';
 import { formatDateTimeSafe } from '../../utils/date';
 import { StatusBadge } from './StatusBadge';
 
@@ -12,7 +11,6 @@ interface TicketListItemProps {
   time: Date;
   status: string;
   priority?: string;
-  sla?: SLAStatus;
   active?: boolean;
   onClick: () => void;
 }
@@ -24,7 +22,6 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   time,
   status,
   priority,
-  sla,
   active,
   onClick,
 }) => {
@@ -77,23 +74,6 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
             </span>
           </>
         )}
-        {sla && (
-          <>
-            <span className="opacity-50">•</span>
-            <span
-              className={`flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-medium ${
-                sla.status === 'overdue'
-                  ? 'border-red-200 bg-red-50 text-red-700'
-                  : sla.status === 'at_risk'
-                    ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-primary'
-                    : 'border-roman-primary/35 bg-roman-primary/12 text-roman-primary'
-              }`}
-            >
-              <Clock size={10} />
-              {sla.status === 'overdue' ? 'Vencido' : sla.status === 'at_risk' ? 'Em risco' : 'No prazo'}
-            </span>
-          </>
-        )}
       </div>
 
       {isWaitingValidation && (
@@ -104,4 +84,5 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
     </button>
   );
 };
+
 

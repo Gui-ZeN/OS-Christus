@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Boxes, CheckCircle, Clock, Database, Loader2, Mail, MapPinned, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
+import { AlertCircle, Boxes, CheckCircle, Database, Loader2, Mail, MapPinned, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
 import { runFirestoreLegacyBackfill, type FirestoreBackfillResult } from '../services/adminActionsApi';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApp } from '../context/AppContext';
@@ -16,14 +16,14 @@ import {
 } from '../services/catalogApi';
 import { fetchFirestoreLegacyHealth, type FirestoreLegacyHealth } from '../services/firestoreLegacyHealthApi';
 import { fetchIntegrationsHealth, type IntegrationCheck, type IntegrationsHealthResponse } from '../services/integrationsHealthApi';
-import { fetchSettings, saveSettings, type DailyDigestSettings, type EmailTemplateSettings, type SlaSettings } from '../services/settingsApi';
+import { fetchSettings, saveSettings, type EmailTemplateSettings } from '../services/settingsApi';
 import { buildEmailPreviewHtml, getTemplateTriggerLabel, SAMPLE_EMAIL_VARIABLES } from '../utils/emailTemplatePreview';
 import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
 import { ModalShell } from '../components/ui/ModalShell';
 import { DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 
-type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'daily-digest' | 'sla' | 'integrations';
+type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'priorities' | 'integrations';
 
 const DEFAULT_TEMPLATE: EmailTemplateSettings = {
   trigger: 'EMAIL-NOVA-OS',
@@ -164,51 +164,7 @@ Motivo:
     recipients: '',
   },
 ];
-const DEFAULT_DIGEST: DailyDigestSettings = {
-  enabled: true,
-  time: '08:00',
-  recipients: '',
-  subject: '[Resumo Diário] Manutenção - {{data}} | {{novas_os_ontem}} novas OS · {{slas_vencendo_hoje}} SLAs hoje',
-};
-
-const DEFAULT_SLA: SlaSettings = {
-  rules: [
-    { priority: 'Urgente', prazo: 'Sem medição de tempo' },
-    { priority: 'Alta', prazo: 'Sem medição de tempo' },
-    { priority: 'Trivial', prazo: 'Sem medição de tempo' },
-  ],
-};
-
-function normalizeDigestRecipients(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value
-      .map(item => String(item || '').trim())
-      .filter(Boolean)
-      .join(', ');
-  }
-  if (value && typeof value === 'object' && 'recipients' in value) {
-    return normalizeDigestRecipients((value as { recipients?: unknown }).recipients);
-  }
-  return '';
-}
-
-function countDigestRecipients(value: unknown): number {
-  return normalizeDigestRecipients(value)
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean).length;
-}
-
-function normalizeDigestSettings(value: unknown): DailyDigestSettings {
-  const digest = (value || {}) as Partial<DailyDigestSettings> & { recipients?: unknown };
-  return {
-    enabled: typeof digest.enabled === 'boolean' ? digest.enabled : DEFAULT_DIGEST.enabled,
-    time: typeof digest.time === 'string' && digest.time.trim() ? digest.time : DEFAULT_DIGEST.time,
-    recipients: normalizeDigestRecipients(digest.recipients),
-    subject: typeof digest.subject === 'string' && digest.subject.trim() ? digest.subject : DEFAULT_DIGEST.subject,
-  };
-}
+const PRIORITY_MARKERS = ['Urgente', 'Alta', 'Trivial'] as const;
 
 const SECTION_META: Record<
   SettingsSection,
@@ -253,18 +209,10 @@ const SECTION_META: Record<
     accent: 'from-rose-100 via-white to-orange-50',
     icon: Mail,
   },
-  'daily-digest': {
-    eyebrow: 'Rotina',
-    title: 'Resumo diário',
-    description: 'Defina a cadência do consolidado operacional enviado automaticamente para acompanhamento.',
-    navLabel: 'Resumo Diário',
-    accent: 'from-lime-100 via-white to-emerald-50',
-    icon: Clock,
-  },
-  sla: {
+  priorities: {
     eyebrow: 'Regras',
-    title: 'Prioridades de atendimento',
-    description: 'Defina apenas o peso operacional das prioridades, sem medições artificiais de tempo.',
+    title: 'Marcadores de prioridade',
+    description: 'As prioridades funcionam somente como marcação operacional, sem prazo fixo.',
     navLabel: 'Prioridades',
     accent: 'from-violet-100 via-white to-fuchsia-50',
     icon: ShieldCheck,
@@ -343,11 +291,7 @@ export function SettingsView() {
   const [section, setSection] = useState<SettingsSection>('access');
   const [loading, setLoading] = useState(true);
   const [templateSaved, setTemplateSaved] = useState(false);
-  const [digestSaved, setDigestSaved] = useState(false);
-  const [slaSaved, setSlaSaved] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
-  const [digestSaving, setDigestSaving] = useState(false);
-  const [slaSaving, setSlaSaving] = useState(false);
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [backfillLoading, setBackfillLoading] = useState(false);
@@ -357,8 +301,6 @@ export function SettingsView() {
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationsHealthResponse | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
   const [emailTemplatesCatalog, setEmailTemplatesCatalog] = useState<EmailTemplateSettings[]>(DEFAULT_EMAIL_TEMPLATES);
-  const [digest, setDigest] = useState<DailyDigestSettings>(DEFAULT_DIGEST);
-  const [sla, setSla] = useState<SlaSettings>(DEFAULT_SLA);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogSaved, setCatalogSaved] = useState<string | null>(null);
@@ -393,8 +335,6 @@ export function SettingsView() {
         const remoteTemplates = remote.emailTemplates?.length ? remote.emailTemplates : DEFAULT_EMAIL_TEMPLATES;
         setEmailTemplatesCatalog(remoteTemplates);
         setTemplate(remote.emailTemplate || remoteTemplates[0] || DEFAULT_TEMPLATE);
-        setDigest(normalizeDigestSettings(remote.dailyDigest));
-        setSla(remote.sla || DEFAULT_SLA);
         setThirdPartyTags(
           Array.isArray(remote.thirdPartyTags?.tags)
             ? remote.thirdPartyTags!.tags.map(tag => String(tag || '').trim()).filter(Boolean)
@@ -404,8 +344,6 @@ export function SettingsView() {
         if (cancelled) return;
         setEmailTemplatesCatalog(DEFAULT_EMAIL_TEMPLATES);
         setTemplate(DEFAULT_EMAIL_TEMPLATES[0] || DEFAULT_TEMPLATE);
-        setDigest(DEFAULT_DIGEST);
-        setSla(DEFAULT_SLA);
         setThirdPartyTags([]);
       } finally {
         if (!cancelled) {
@@ -498,34 +436,6 @@ export function SettingsView() {
     }
     setTemplateSaved(true);
     setTimeout(() => setTemplateSaved(false), 3000);
-  };
-
-  const handleSaveDigest = async () => {
-    if (!canEditSettings) return;
-    setDigestSaving(true);
-    try {
-      await saveSettings('dailyDigest', digest);
-    } catch {
-      // Mantém feedback local mesmo se a API não estiver disponível.
-    } finally {
-      setDigestSaving(false);
-    }
-    setDigestSaved(true);
-    setTimeout(() => setDigestSaved(false), 3000);
-  };
-
-  const handleSaveSla = async () => {
-    if (!canEditSettings) return;
-    setSlaSaving(true);
-    try {
-      await saveSettings('sla', sla);
-    } catch {
-      // Mantém feedback local mesmo se a API não estiver disponível.
-    } finally {
-      setSlaSaving(false);
-    }
-    setSlaSaved(true);
-    setTimeout(() => setSlaSaved(false), 3000);
   };
 
   const handleRunBackfill = async () => {
@@ -773,7 +683,6 @@ export function SettingsView() {
         { label: 'Usuários com papel legado', value: legacyHealth.summary.legacyUsers },
         { label: 'Tickets sem regionId/siteId', value: legacyHealth.summary.ticketsMissingCatalog },
         { label: 'Notificações com time legado', value: legacyHealth.summary.notificationsLegacy },
-        { label: 'SLA com compatibilidade legada', value: legacyHealth.summary.slaLegacy },
       ]
     : [];
   const sectionMeta = SECTION_META[section];
@@ -1097,131 +1006,21 @@ export function SettingsView() {
                   </>
                 )}
 
-                {section === 'daily-digest' && (
-                  <>
-                    <div className="mb-6 flex items-center justify-between">
-                      <div>
-                        <h2 className="font-serif text-xl font-medium text-roman-text-main">Resumo diário</h2>
-                        <p className="mt-1 text-sm text-roman-text-sub">Consolidado enviado automaticamente com o panorama operacional do dia.</p>
-                      </div>
-
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <div
-                          onClick={() => setDigest(current => ({ ...current, enabled: !current.enabled }))}
-                          className={`w-10 h-5 rounded-full transition-colors relative ${digest.enabled ? 'bg-roman-primary' : 'bg-roman-border'}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                              digest.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                            }`}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-roman-text-sub">{digest.enabled ? 'Ativo' : 'Pausado'}</span>
-                      </label>
-                    </div>
-
-                    <div className="space-y-5">
-                      <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-3 flex items-center gap-2">
-                          <Clock size={12} /> Horário de Envio (Cron)
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="time"
-                            value={digest.time}
-                            onChange={event => setDigest(current => ({ ...current, time: event.target.value }))}
-                            className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
-                          <span className="text-xs text-roman-text-sub">Fuso: America/Fortaleza (BRT -3)</span>
-                        </div>
-                      </div>
-
-                      <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5 flex items-center gap-2">
-                          <Mail size={12} /> Destinatários (separados por vírgula)
-                        </label>
-                        <input
-                          type="text"
-                          value={digest.recipients}
-                          onChange={event => setDigest(current => ({ ...current, recipients: event.target.value }))}
-                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                        />
-                      </div>
-
-                      <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto do E-mail</label>
-                        <input
-                          type="text"
-                          value={digest.subject}
-                          onChange={event => setDigest(current => ({ ...current, subject: event.target.value }))}
-                          className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 font-mono text-[13px] text-roman-text-sub outline-none focus:border-roman-primary"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2">
-                        <p className="text-xs text-roman-text-sub font-serif italic">Configuração do resumo diário persistida no Firestore.</p>
-                        <button
-                          onClick={() => void handleSaveDigest()}
-                          disabled={digestSaving}
-                          className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
-                            digestSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
-                          }`}
-                        >
-                          {digestSaving ? (
-                            <>
-                              <Loader2 size={15} className="animate-spin" /> Salvando...
-                            </>
-                          ) : digestSaved ? (
-                            <>
-                              <CheckCircle size={15} /> Resumo salvo
-                            </>
-                          ) : (
-                              'Salvar resumo'
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {section === 'sla' && (
+                {section === 'priorities' && (
                   <>
                     <div className="mb-6">
-                      <h2 className="font-serif text-xl font-medium text-roman-text-main">Regras de SLA</h2>
-                      <p className="mt-1 text-sm text-roman-text-sub">Ajuste os prazos por prioridade para manter alertas, filas e dashboards coerentes.</p>
+                      <h2 className="font-serif text-xl font-medium text-roman-text-main">Marcadores de prioridade</h2>
+                      <p className="mt-1 text-sm text-roman-text-sub">As prioridades não têm prazo fixo. Elas servem apenas para classificar a urgência operacional.</p>
                     </div>
                     <div className="space-y-5">
-                      {(sla.rules || []).map(rule => (
-                        <div key={rule.priority} className="flex items-center justify-between rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
-                          <span className="font-medium text-sm text-roman-text-main">{rule.priority}</span>
-                          <span className="rounded-full border border-stone-200 bg-white px-3 py-1 font-mono text-sm text-roman-text-main">{rule.prazo}</span>
+                      {PRIORITY_MARKERS.map(priority => (
+                        <div key={priority} className="flex items-center justify-between rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
+                          <span className="font-medium text-sm text-roman-text-main">{priority}</span>
+                          <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-sm text-roman-text-main">Marcação</span>
                         </div>
                       ))}
 
-                      <div className="flex items-center justify-between pt-2">
-                        <p className="text-xs text-roman-text-sub font-serif italic">
-                          O cron de monitoramento pode usar essas regras como base para alertas e relatórios.
-                        </p>
-                        <button
-                          onClick={() => void handleSaveSla()}
-                          disabled={slaSaving}
-                          className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
-                            slaSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
-                          }`}
-                        >
-                          {slaSaving ? (
-                            <>
-                              <Loader2 size={15} className="animate-spin" /> Salvando...
-                            </>
-                          ) : slaSaved ? (
-                            <>
-                              <CheckCircle size={15} /> Regras salvas
-                            </>
-                          ) : (
-                            'Salvar regras'
-                          )}
-                        </button>
-                      </div>
+                      <p className="text-xs text-roman-text-sub font-serif italic">Não há cronômetro ou prazo automático por prioridade.</p>
                     </div>
                   </>
                 )}
@@ -1676,7 +1475,7 @@ export function SettingsView() {
                               <div>Usuários: {backfillResult.updatedUsers}</div>
                               <div>Tickets: {backfillResult.updatedTickets}</div>
                               <div>Notificações: {backfillResult.updatedNotifications}</div>
-                              <div>SLA: {backfillResult.updatedSla}</div>
+                              <div>Prioridades legadas: {backfillResult.updatedSla}</div>
                             </div>
                           </div>
                         </FeedbackBanner>
@@ -1747,16 +1546,6 @@ export function SettingsView() {
                                   </div>
                                 </div>
 
-                                <div>
-                                  <div className="font-medium text-roman-text-main">SLA</div>
-                                  <div>
-                                    {legacyHealth.samples.sla
-                                      ? `rules=${legacyHealth.samples.sla.hasRules ? 'ok' : 'faltando'} · legacyHours=${
-                                          legacyHealth.samples.sla.hasLegacyHours ? 'sim' : 'não'
-                                        }`
-                                      : 'Documento ausente.'}
-                                  </div>
-                                </div>
                               </div>
                             </div>
                           </>
