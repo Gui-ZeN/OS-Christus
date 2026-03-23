@@ -17,7 +17,7 @@ interface TrackingViewProps {
 interface TimelineEntry {
   id: string;
   kind: 'status' | 'message';
-  time: Date;
+  time: Date | null;
   sortMs: number;
   isCustomerMessage: boolean;
   sender: string;
@@ -25,6 +25,87 @@ interface TimelineEntry {
   description: string;
   status?: TicketStatus;
 }
+
+interface StatusStage {
+  id: string;
+  title: string;
+  description: string;
+  statuses: TicketStatus[];
+}
+
+const STATUS_STAGES: StatusStage[] = [
+  {
+    id: 'new',
+    title: 'Nova OS',
+    description: 'Solicitação aberta no sistema.',
+    statuses: [TICKET_STATUS.NEW],
+  },
+  {
+    id: 'tech-opinion',
+    title: 'Aguardando Parecer Técnico',
+    description: 'A OS foi aceita e está aguardando parecer técnico.',
+    statuses: [TICKET_STATUS.WAITING_TECH_OPINION],
+  },
+  {
+    id: 'solution-approval',
+    title: 'Aguardando Aprovação da Solução',
+    description: 'A solução técnica está em aprovação da diretoria.',
+    statuses: [TICKET_STATUS.WAITING_SOLUTION_APPROVAL],
+  },
+  {
+    id: 'administrative-planning',
+    title: 'Planejamento Administrativo',
+    description: 'Orçamento e contrato em gestão/aprovação.',
+    statuses: [
+      TICKET_STATUS.WAITING_BUDGET,
+      TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+      TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
+      TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+    ],
+  },
+  {
+    id: 'prelim-actions',
+    title: 'Aguardando Ações Preliminares',
+    description: 'Ações preliminares em andamento para início da obra.',
+    statuses: [TICKET_STATUS.WAITING_PRELIM_ACTIONS],
+  },
+  {
+    id: 'in-progress',
+    title: 'Em andamento',
+    description: 'Execução da obra iniciada.',
+    statuses: [TICKET_STATUS.IN_PROGRESS],
+  },
+  {
+    id: 'maintenance-approval',
+    title: 'Aguardando aprovação da manutenção',
+    description: 'Execução concluída, aguardando validação do solicitante.',
+    statuses: [TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL],
+  },
+  {
+    id: 'payment',
+    title: 'Aguardando pagamento',
+    description: 'Validação concluída. Fluxo financeiro em andamento.',
+    statuses: [TICKET_STATUS.WAITING_PAYMENT],
+  },
+  {
+    id: 'closed',
+    title: 'Encerrada',
+    description: 'OS encerrada.',
+    statuses: [TICKET_STATUS.CLOSED],
+  },
+];
+
+const CANCELED_STAGE: StatusStage = {
+  id: 'canceled',
+  title: 'Cancelada',
+  description: 'OS cancelada.',
+  statuses: [TICKET_STATUS.CANCELED],
+};
+
+const STATUS_TO_STAGE_INDEX = new Map<TicketStatus, number>();
+STATUS_STAGES.forEach((stage, index) => {
+  stage.statuses.forEach(status => STATUS_TO_STAGE_INDEX.set(status, index));
+});
 
 const NORMALIZED_STATUS_TO_VALUE = new Map<string, TicketStatus>(
   Object.values(TICKET_STATUS).map(status => [normalizeText(status), status as TicketStatus]),
@@ -88,39 +169,6 @@ function getPublicStatusLabel(status: string) {
   }
 }
 
-function getStatusTimelineDescription(status: TicketStatus) {
-  switch (status) {
-    case TICKET_STATUS.NEW:
-      return 'Solicitação aberta no sistema.';
-    case TICKET_STATUS.WAITING_TECH_OPINION:
-      return 'A OS foi aceita e está aguardando parecer técnico.';
-    case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
-      return 'A solução técnica está em aprovação da diretoria.';
-    case TICKET_STATUS.WAITING_BUDGET:
-      return 'Orçamento em elaboração.';
-    case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
-      return 'Orçamento enviado para aprovação da diretoria.';
-    case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
-      return 'Aguardando anexo do contrato pelo gestor.';
-    case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
-      return 'Contrato enviado para aprovação da diretoria.';
-    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
-      return 'Ações preliminares em andamento para início da obra.';
-    case TICKET_STATUS.IN_PROGRESS:
-      return 'Execução da obra iniciada.';
-    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
-      return 'Execução concluída, aguardando validação do solicitante.';
-    case TICKET_STATUS.WAITING_PAYMENT:
-      return 'Validação concluída. Fluxo financeiro em andamento.';
-    case TICKET_STATUS.CLOSED:
-      return 'OS encerrada.';
-    case TICKET_STATUS.CANCELED:
-      return 'OS cancelada.';
-    default:
-      return 'Status atualizado.';
-  }
-}
-
 function resolveStatusTimestamp(ticket: Ticket, status: TicketStatus): Date | null {
   switch (status) {
     case TICKET_STATUS.NEW:
@@ -145,8 +193,8 @@ function resolveStatusTimestamp(ticket: Ticket, status: TicketStatus): Date | nu
 function extractStatusFromHistoryItem(item: HistoryItem): TicketStatus | null {
   const field = normalizeText(item.field || '');
   if (field === 'status' && item.to) {
-    const fromField = NORMALIZED_STATUS_TO_VALUE.get(normalizeText(item.to));
-    if (fromField) return fromField;
+    const parsedFromField = NORMALIZED_STATUS_TO_VALUE.get(normalizeText(item.to));
+    if (parsedFromField) return parsedFromField;
   }
 
   const text = repairMojibake(item.text || '').trim();
@@ -159,9 +207,8 @@ function extractStatusFromHistoryItem(item: HistoryItem): TicketStatus | null {
   }
 
   const normalized = normalizeText(text);
-
-  if (normalized.includes('solicitacao registrada via formulario publico')) return TICKET_STATUS.NEW;
   if (normalized.includes('solicitacao aceita e encaminhada para atendimento')) return TICKET_STATUS.WAITING_TECH_OPINION;
+  if (normalized.includes('acoes preliminares em andamento')) return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
   if (normalized.includes('execucao iniciada') || normalized.includes('inicio da execucao')) return TICKET_STATUS.IN_PROGRESS;
   if (normalized.includes('execucao concluida')) return TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL;
   if (normalized.includes('solicitante validou a execucao do servico')) return TICKET_STATUS.WAITING_PAYMENT;
@@ -197,66 +244,89 @@ function shouldShowMessageInPublicTimeline(item: HistoryItem) {
   return false;
 }
 
+function resolveStageTimestamp(
+  ticket: Ticket,
+  stage: StatusStage,
+  explicitStatusTimes: Map<TicketStatus, Date>,
+) {
+  const candidates = stage.statuses
+    .map(status => explicitStatusTimes.get(status) || resolveStatusTimestamp(ticket, status))
+    .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  return candidates[0] || null;
+}
+
+function buildStagePath(currentStatus: TicketStatus, explicitStatuses: TicketStatus[]) {
+  if (currentStatus === TICKET_STATUS.CANCELED) {
+    const knownIndexes = explicitStatuses
+      .map(status => STATUS_TO_STAGE_INDEX.get(status))
+      .filter((value): value is number => typeof value === 'number');
+    const maxKnown = knownIndexes.length > 0 ? Math.max(...knownIndexes) : 0;
+    return [...STATUS_STAGES.slice(0, maxKnown + 1), CANCELED_STAGE];
+  }
+
+  const currentIndex = STATUS_TO_STAGE_INDEX.get(currentStatus) ?? 0;
+  const knownIndexes = explicitStatuses
+    .map(status => STATUS_TO_STAGE_INDEX.get(status))
+    .filter((value): value is number => typeof value === 'number');
+  const maxKnown = knownIndexes.length > 0 ? Math.max(...knownIndexes) : 0;
+  const targetIndex = Math.max(currentIndex, maxKnown);
+
+  return STATUS_STAGES.slice(0, targetIndex + 1);
+}
+
 function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
   const history = [...(ticket.history || [])].sort((a, b) => a.time.getTime() - b.time.getTime());
   const baseMs = parseDate(ticket.time)?.getTime() || Date.now();
-  const makeFallbackTime = (offset: number) => new Date(baseMs + offset * 1000);
 
-  const rawStatusEvents: Array<{ id: string; status: TicketStatus; time: Date | null }> = [
-    { id: 'status-opened', status: TICKET_STATUS.NEW, time: parseDate(ticket.time) },
-  ];
+  const explicitStatusTimes = new Map<TicketStatus, Date>();
+  explicitStatusTimes.set(TICKET_STATUS.NEW, parseDate(ticket.time) || new Date(baseMs));
 
-  history.forEach((item, index) => {
+  history.forEach(item => {
     const status = extractStatusFromHistoryItem(item);
-    if (!status) return;
-    rawStatusEvents.push({
-      id: item.id || `status-history-${index}`,
-      status,
-      time: parseDate(item.time),
-    });
+    if (!status || explicitStatusTimes.has(status)) return;
+    const parsed = parseDate(item.time);
+    if (parsed) explicitStatusTimes.set(status, parsed);
   });
 
   const currentStatus = ticket.status as TicketStatus;
-  if (rawStatusEvents[rawStatusEvents.length - 1]?.status !== currentStatus) {
-    rawStatusEvents.push({
-      id: 'status-current',
-      status: currentStatus,
-      time: resolveStatusTimestamp(ticket, currentStatus),
-    });
+  if (!explicitStatusTimes.has(currentStatus)) {
+    const resolved = resolveStatusTimestamp(ticket, currentStatus);
+    if (resolved) explicitStatusTimes.set(currentStatus, resolved);
   }
 
-  const dedupedStatusEvents = rawStatusEvents.filter((event, index, list) => {
-    if (index === 0) return true;
-    return event.status !== list[index - 1]?.status;
-  });
+  const stagesPath = buildStagePath(currentStatus, [...explicitStatusTimes.keys()]);
 
-  const statusEntries: TimelineEntry[] = dedupedStatusEvents.map((event, index, list) => {
-    const previousTime = index > 0 ? list[index - 1]?.time : null;
-    const resolvedTime =
-      event.time
-      || (previousTime ? new Date(previousTime.getTime() + 1000) : makeFallbackTime(index + 1));
+  let lastSortMs = baseMs;
+  const statusEntries: TimelineEntry[] = stagesPath.map((stage, index) => {
+    const resolvedTime = resolveStageTimestamp(ticket, stage, explicitStatusTimes);
+    let sortMs = resolvedTime?.getTime() ?? (lastSortMs + 1);
+    if (sortMs <= lastSortMs) sortMs = lastSortMs + 1;
+    lastSortMs = sortMs;
+
     return {
-      id: `${event.id}-${index}`,
+      id: `stage-${stage.id}-${index}`,
       kind: 'status',
       time: resolvedTime,
-      sortMs: resolvedTime.getTime(),
+      sortMs,
       isCustomerMessage: false,
       sender: 'Sistema',
-      title: repairMojibake(event.status),
-      description: getStatusTimelineDescription(event.status),
-      status: event.status,
+      title: stage.title,
+      description: stage.description,
+      status: stage.statuses[stage.statuses.length - 1],
     };
   });
 
   const messageEntries: TimelineEntry[] = history
     .filter(shouldShowMessageInPublicTimeline)
     .map((item, index) => {
-      const parsedTime = parseDate(item.time) || makeFallbackTime(statusEntries.length + index + 1);
+      const parsedTime = parseDate(item.time);
       return {
         id: item.id || `msg-${index}`,
         kind: 'message',
         time: parsedTime,
-        sortMs: parsedTime.getTime(),
+        sortMs: parsedTime?.getTime() ?? (baseMs + stagesPath.length + index + 1000),
         isCustomerMessage: item.type === 'customer',
         sender: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
         title: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
@@ -508,7 +578,9 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                         <div className="font-serif font-medium text-roman-text-main">
                           {isStatusEntry ? 'Status da OS' : entry.sender}
                         </div>
-                        <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(entry.time)}</div>
+                        <div className="text-xs text-roman-text-sub font-serif italic">
+                          {entry.time ? formatDateTimeSafe(entry.time) : 'Data não registrada'}
+                        </div>
                       </div>
 
                       {isStatusEntry ? (
