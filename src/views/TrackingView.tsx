@@ -238,6 +238,7 @@ function extractStatusFromHistoryItem(item: HistoryItem): TicketStatus | null {
     return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
   }
   if (normalized.includes('solicitacao aceita e encaminhada para atendimento')) return TICKET_STATUS.WAITING_TECH_OPINION;
+  if (normalized.includes('registrada automaticamente por e-mail')) return TICKET_STATUS.NEW;
   if (normalized.includes('acoes preliminares em andamento')) return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
   if (normalized.includes('execucao iniciada') || normalized.includes('inicio da execucao')) return TICKET_STATUS.IN_PROGRESS;
   if (normalized.includes('execucao concluida')) return TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL;
@@ -274,36 +275,20 @@ function shouldShowMessageInPublicTimeline(item: HistoryItem) {
   return false;
 }
 
-function resolveStageTimestamp(
-  ticket: Ticket,
-  stage: StatusStage,
-  explicitStatusTimes: Map<TicketStatus, Date>,
-) {
-  const candidates = stage.statuses
-    .map(status => explicitStatusTimes.get(status) || resolveStatusTimestamp(ticket, status))
-    .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime());
+function getStageForStatus(status: TicketStatus): StatusStage {
+  if (status === TICKET_STATUS.CANCELED) return CANCELED_STAGE;
 
-  return candidates[0] || null;
-}
-
-function buildStagePath(currentStatus: TicketStatus, explicitStatuses: TicketStatus[]) {
-  if (currentStatus === TICKET_STATUS.CANCELED) {
-    const knownIndexes = explicitStatuses
-      .map(status => STATUS_TO_STAGE_INDEX.get(status))
-      .filter((value): value is number => typeof value === 'number');
-    const maxKnown = knownIndexes.length > 0 ? Math.max(...knownIndexes) : 0;
-    return [...STATUS_STAGES.slice(0, maxKnown + 1), CANCELED_STAGE];
+  const stageIndex = STATUS_TO_STAGE_INDEX.get(status);
+  if (typeof stageIndex === 'number') {
+    return STATUS_STAGES[stageIndex];
   }
 
-  const currentIndex = STATUS_TO_STAGE_INDEX.get(currentStatus) ?? 0;
-  const knownIndexes = explicitStatuses
-    .map(status => STATUS_TO_STAGE_INDEX.get(status))
-    .filter((value): value is number => typeof value === 'number');
-  const maxKnown = knownIndexes.length > 0 ? Math.max(...knownIndexes) : 0;
-  const targetIndex = Math.max(currentIndex, maxKnown);
-
-  return STATUS_STAGES.slice(0, targetIndex + 1);
+  return {
+    id: `fallback-${normalizeText(status)}`,
+    title: repairMojibake(status),
+    description: 'Status atualizado.',
+    statuses: [status],
+  };
 }
 
 function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
@@ -315,30 +300,44 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
 
   history.forEach(item => {
     const status = extractStatusFromHistoryItem(item);
-    if (!status || explicitStatusTimes.has(status)) return;
+    if (!status) return;
     const parsed = parseDate(item.time);
-    if (parsed) explicitStatusTimes.set(status, parsed);
+    if (!parsed) return;
+    const previous = explicitStatusTimes.get(status);
+    if (!previous || parsed.getTime() < previous.getTime()) {
+      explicitStatusTimes.set(status, parsed);
+    }
   });
 
   const currentStatus = ticket.status as TicketStatus;
-  if (!explicitStatusTimes.has(currentStatus)) {
-    const resolved = resolveStatusTimestamp(ticket, currentStatus);
-    if (resolved) explicitStatusTimes.set(currentStatus, resolved);
+  const resolvedCurrentStatusTime = resolveStatusTimestamp(ticket, currentStatus);
+  if (!explicitStatusTimes.has(currentStatus) && resolvedCurrentStatusTime) {
+    explicitStatusTimes.set(currentStatus, resolvedCurrentStatusTime);
   }
 
-  const stagesPath = buildStagePath(currentStatus, [...explicitStatusTimes.keys()]);
+  const stageTimelineMap = new Map<string, { stage: StatusStage; time: Date | null }>();
 
-  let lastSortMs = baseMs;
-  const statusEntries: TimelineEntry[] = stagesPath.map((stage, index) => {
-    const resolvedTime = resolveStageTimestamp(ticket, stage, explicitStatusTimes);
-    let sortMs = resolvedTime?.getTime() ?? (lastSortMs + 1);
-    if (sortMs <= lastSortMs) sortMs = lastSortMs + 1;
-    lastSortMs = sortMs;
+  explicitStatusTimes.forEach((statusTime, status) => {
+    const stage = getStageForStatus(status);
+    const existing = stageTimelineMap.get(stage.id);
+    if (!existing || !existing.time || statusTime.getTime() < existing.time.getTime()) {
+      stageTimelineMap.set(stage.id, { stage, time: statusTime });
+    }
+  });
+
+  const currentStage = getStageForStatus(currentStatus);
+  if (!stageTimelineMap.has(currentStage.id)) {
+    stageTimelineMap.set(currentStage.id, { stage: currentStage, time: resolvedCurrentStatusTime || null });
+  }
+
+  const statusEntries: TimelineEntry[] = [...stageTimelineMap.values()].map(({ stage, time }, index) => {
+    const fallbackSortBase = baseMs + 10_000_000;
+    const sortMs = time?.getTime() ?? (fallbackSortBase + index);
 
     return {
-      id: `stage-${stage.id}-${index}`,
+      id: `status-${stage.id}-${index}`,
       kind: 'status',
-      time: resolvedTime,
+      time,
       sortMs,
       isCustomerMessage: false,
       sender: 'Sistema',
@@ -352,11 +351,12 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
     .filter(shouldShowMessageInPublicTimeline)
     .map((item, index) => {
       const parsedTime = parseDate(item.time);
+      const fallbackSortBase = baseMs + 20_000_000;
       return {
         id: item.id || `msg-${index}`,
         kind: 'message',
         time: parsedTime,
-        sortMs: parsedTime?.getTime() ?? (baseMs + stagesPath.length + index + 1000),
+        sortMs: parsedTime?.getTime() ?? (fallbackSortBase + index),
         isCustomerMessage: item.type === 'customer',
         sender: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
         title: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
@@ -366,7 +366,14 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
 
   return [...statusEntries, ...messageEntries].sort((a, b) => {
     if (a.sortMs === b.sortMs) {
-      if (a.kind === b.kind) return 0;
+      if (a.kind === b.kind) {
+        if (a.kind === 'status' && b.kind === 'status') {
+          const aOrder = STATUS_TO_STAGE_INDEX.get(a.status || TICKET_STATUS.NEW) ?? 999;
+          const bOrder = STATUS_TO_STAGE_INDEX.get(b.status || TICKET_STATUS.NEW) ?? 999;
+          return aOrder - bOrder;
+        }
+        return 0;
+      }
       return a.kind === 'status' ? -1 : 1;
     }
     return a.sortMs - b.sortMs;
