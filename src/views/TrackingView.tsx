@@ -87,7 +87,25 @@ function getPublicStatusLabel(status: string) {
 function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
   if (!item?.text?.trim()) return false;
   if (item.type === 'customer') return true;
-  if (item.type === 'tech') return item.visibility === 'public';
+  if (item.type === 'tech') {
+    if (item.visibility === 'internal') return false;
+    if (item.visibility === 'public') return true;
+    const normalizedText = item.text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const hasSensitiveTerm =
+      normalizedText.includes('orcamento') ||
+      normalizedText.includes('contrato') ||
+      normalizedText.includes('aditivo') ||
+      normalizedText.includes('pagamento') ||
+      normalizedText.includes('parcela') ||
+      normalizedText.includes('r$');
+    const isInternalOnly =
+      normalizedText.includes('parecer consolidado e enviado para aprovacao da diretoria') ||
+      normalizedText.includes('painel da os atualizado');
+    return !hasSensitiveTerm && !isInternalOnly;
+  }
   if (item.type !== 'system') return false;
 
   const normalizedText = item.text

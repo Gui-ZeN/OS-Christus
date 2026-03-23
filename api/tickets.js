@@ -84,6 +84,11 @@ const PUBLIC_HISTORY_SENSITIVE_MARKERS = [
   'r$',
 ];
 
+const PUBLIC_HISTORY_INTERNAL_MARKERS = [
+  'parecer consolidado e enviado para aprovacao da diretoria',
+  'painel da os atualizado',
+];
+
 function isPublicTrackingHistoryEntry(item) {
   if (!item || typeof item !== 'object') return false;
   const text = String(item.text || '').trim();
@@ -92,7 +97,14 @@ function isPublicTrackingHistoryEntry(item) {
   const type = String(item.type || '').trim().toLowerCase();
   const visibility = String(item.visibility || '').trim().toLowerCase();
   if (type === 'customer') return true;
-  if (type === 'tech') return visibility === 'public';
+  if (type === 'tech') {
+    if (visibility === 'internal') return false;
+    if (visibility === 'public') return true;
+    const normalizedText = normalizeHistoryText(text);
+    const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
+    const hasInternalMarker = PUBLIC_HISTORY_INTERNAL_MARKERS.some(marker => normalizedText.includes(marker));
+    return !hasSensitiveMarker && !hasInternalMarker;
+  }
   if (type !== 'system') return false;
   if (visibility === 'public') return true;
 
