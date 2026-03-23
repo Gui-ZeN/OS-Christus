@@ -279,6 +279,12 @@ const FINANCE_FLOW_STATUSES = new Set<string>([
   TICKET_STATUS.WAITING_PAYMENT,
 ]);
 
+function resolveDirectorApprovalTab(status: string): 'solutions' | 'budgets' | 'contracts' {
+  if (status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL) return 'contracts';
+  if (status === TICKET_STATUS.WAITING_BUDGET_APPROVAL) return 'budgets';
+  return 'solutions';
+}
+
 async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) {
   const sentToConfiguredRecipients = await postEmail({
     ...payload,
@@ -374,12 +380,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   }
 
   if (DIRECTOR_FLOW_STATUSES.has(ticket.status)) {
-    const directorTab =
-      ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL
-        ? 'contracts'
-        : ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL
-          ? 'budgets'
-          : 'solutions';
+    const directorTab = resolveDirectorApprovalTab(ticket.status);
     const isApprovalStatus = directorTab !== 'solutions';
     const directorBody = buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary);
     await sendToConfiguredFlowRecipients({
@@ -442,6 +443,36 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
       bodyText: message.trim(),
       ctaUrl: buildTrackingUrl(ticket),
       ctaLabel: 'Ver mensagem',
+    },
+  });
+}
+
+export async function notifyTicketDirectorReply(ticket: Ticket, sender: string, message: string) {
+  const trimmedMessage = message.trim();
+  if (!trimmedMessage) return;
+
+  const directorTab = resolveDirectorApprovalTab(ticket.status);
+  const trigger = directorTab === 'solutions' ? 'EMAIL-DIRETORIA-SOLUCAO' : 'EMAIL-DIRETORIA-APROVACAO';
+  const variables = await buildVariables(ticket, {
+    message: {
+      sender,
+      body: trimmedMessage,
+    },
+  });
+
+  await sendToConfiguredFlowRecipients({
+    ticketId: ticket.id,
+    trackingToken: ticket.trackingToken,
+    trigger,
+    variables,
+    templateData: {
+      title: 'Nova mensagem para a Diretoria',
+      intro: `${sender} enviou uma atualização interna para a Diretoria.`,
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      bodyText: trimmedMessage,
+      ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
+      ctaLabel: 'Abrir painel da Diretoria',
     },
   });
 }

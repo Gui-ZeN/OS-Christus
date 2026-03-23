@@ -340,18 +340,19 @@ function buildInboundHistoryId(messageId, fallbackKey) {
   return `mail-${base || Date.now()}`;
 }
 
-function buildInboundHistoryEntry(message, fallbackSender) {
-  const sender = displayNameFromEmail(message.from) || fallbackSender || 'Solicitante';
+function buildInboundHistoryEntry(message, options = {}) {
+  const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
   const text =
     stripSignature(stripQuotedReply(message.text)) ||
     stripSignature(stripQuotedReply(stripHtml(message.html))) ||
     'Resposta recebida por e-mail.';
   return {
     id: buildInboundHistoryId(message.messageId || message.id, sender),
-    type: 'customer',
+    type: options.type || 'customer',
     sender,
     time: message.internalDate || new Date(),
     text,
+    visibility: options.visibility || 'public',
   };
 }
 
@@ -377,7 +378,36 @@ async function appendInboundMessageToTicketHistory(db, ticketId, message) {
 
   const ticket = ticketSnap.data() || {};
   const history = Array.isArray(ticket.history) ? ticket.history : [];
-  const nextEntry = buildInboundHistoryEntry(message, ticket.requester || 'Solicitante');
+  const fromEmail = firstEmail(message.from);
+  const requesterEmail = firstEmail(ticket.requesterEmail);
+
+  let type = 'customer';
+  let visibility = 'public';
+  let sender = ticket.requester || 'Solicitante';
+
+  if (!fromEmail || !requesterEmail || normalizeKey(fromEmail) !== normalizeKey(requesterEmail)) {
+    type = 'internal';
+    visibility = 'internal';
+    sender = displayNameFromEmail(message.from) || 'Colaborador';
+
+    if (fromEmail) {
+      const userSnap = await db.collection('users').where('email', '==', fromEmail).limit(1).get();
+      if (!userSnap.empty) {
+        const user = userSnap.docs[0].data() || {};
+        sender = String(user.name || sender);
+        const role = String(user.role || '').trim();
+        if (role !== 'Admin' && role !== 'Diretor') {
+          sender = String(user.name || displayNameFromEmail(message.from) || 'Colaborador');
+        }
+      }
+    }
+  }
+
+  const nextEntry = buildInboundHistoryEntry(message, {
+    sender,
+    type,
+    visibility,
+  });
   if (history.some(item => item?.id === nextEntry.id)) return;
 
   await ticketRef.set(

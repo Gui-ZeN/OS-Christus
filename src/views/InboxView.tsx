@@ -9,7 +9,7 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
-import { notifyTicketPublicReply } from '../services/ticketEmail';
+import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
@@ -445,7 +445,7 @@ export function InboxView() {
     currentUser,
   } = useApp();
 
-  const [replyMode, setReplyMode] = useState<'public' | 'internal'>('internal');
+  const [replyMode, setReplyMode] = useState<'public' | 'internal' | 'director'>('internal');
   const [replyText, setReplyText] = useState('');
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
@@ -479,6 +479,7 @@ export function InboxView() {
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
   const canManageStatus = currentUser?.role === 'Admin';
   const canDeleteTicket = currentUser?.role === 'Admin';
+  const canMessageDirector = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
@@ -1113,7 +1114,7 @@ export function InboxView() {
           history: [...activeTicket.history, ...items],
         });
       }
-    } else {
+    } else if (replyMode === 'public') {
       if (!replyText.trim()) {
         setIsSending(false);
         return;
@@ -1128,6 +1129,21 @@ export function InboxView() {
       };
       updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
       void notifyTicketPublicReply(activeTicket, sender, replyText.trim());
+    } else {
+      if (!replyText.trim()) {
+        setIsSending(false);
+        return;
+      }
+      const item: HistoryItem = {
+        id: crypto.randomUUID(),
+        type: 'internal',
+        sender,
+        time: now,
+        text: replyText.trim(),
+        visibility: 'internal',
+      };
+      updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
+      void notifyTicketDirectorReply(activeTicket, sender, replyText.trim());
     }
 
     setReplyText('');
@@ -2779,7 +2795,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
             {/* Reply Box */}
             <div className="border-t border-roman-border bg-roman-bg/95 px-4 pb-4 pt-3 backdrop-blur md:px-5">
-              <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode === 'internal' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
+              <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode !== 'public' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex border-b border-roman-border bg-roman-bg/50">
                   <button
@@ -2794,6 +2810,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   >
                     Mensagem ao Solicitante
                   </button>
+                  {canMessageDirector && (
+                    <button
+                      onClick={() => setReplyMode('director')}
+                      className={`px-4 py-2 font-serif text-base tracking-wide ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    >
+                      Mensagem à Diretoria
+                    </button>
+                  )}
                 </div>
 
                 {/* Formatting Toolbar */}
@@ -2827,7 +2851,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <textarea
                   ref={replyTextRef}
                   className="w-full h-24 p-4 outline-none resize-none bg-transparent font-sans disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder={isClosed ? 'Esta OS está encerrada e não aceita novos comentários.' : (replyMode === 'internal' ? internalPlaceholder : 'Mensagem para o solicitante...')}
+                  placeholder={
+                    isClosed
+                      ? 'Esta OS está encerrada e não aceita novos comentários.'
+                      : replyMode === 'internal'
+                        ? internalPlaceholder
+                        : replyMode === 'director'
+                          ? 'Mensagem interna para Diretoria...'
+                          : 'Mensagem para o solicitante...'
+                  }
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
                   disabled={isClosed}
@@ -2849,7 +2881,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 {/* Footer */}
                 <div className="p-3 border-t border-roman-border/50 flex justify-between items-center bg-roman-bg/60">
                   <div className="text-xs text-roman-text-sub font-serif italic">
-                    {replyMode === 'internal' ? internalActionText : 'Ação: Notificar solicitante por e-mail'}
+                    {replyMode === 'internal'
+                      ? internalActionText
+                      : replyMode === 'director'
+                        ? 'Ação: Notificar Diretoria por e-mail (conversa interna)'
+                        : 'Ação: Notificar solicitante por e-mail'}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -2870,7 +2906,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         disabled={isClosed || isSending}
                       >
                         {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                        {isSending ? 'Enviando...' : replyMode === 'internal' ? internalButtonText : 'Enviar Mensagem'}
+                        {isSending
+                          ? 'Enviando...'
+                          : replyMode === 'internal'
+                            ? internalButtonText
+                            : replyMode === 'director'
+                              ? 'Enviar à Diretoria'
+                              : 'Enviar Mensagem'}
                       </button>
                     </div>
                   </div>
