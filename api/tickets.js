@@ -26,13 +26,23 @@ function buildActorLabel(user, fallbackActor) {
 }
 
 function buildAutomaticStatusHistoryEntry(sender, previousStatus, nextStatus) {
+  const publicStatusMessages = {
+    [STATUS_WAITING_MAINTENANCE_APPROVAL]: 'Execução concluída.',
+    [STATUS_IN_PROGRESS]: 'Execução iniciada.',
+    [STATUS_CLOSED]: 'OS encerrada.',
+    [STATUS_CANCELED]: 'OS cancelada.',
+    'Aguardando Parecer Técnico': 'Solicitação aceita e encaminhada para atendimento.',
+    'Aguardando Ações Preliminares': 'Ações preliminares em andamento.',
+  };
+
+  const publicText = publicStatusMessages[nextStatus] || null;
   return {
     id: `status-${Date.now()}`,
     type: 'system',
     sender,
     time: new Date(),
-    text: `Status atualizado de "${previousStatus}" para "${nextStatus}".`,
-    visibility: 'internal',
+    text: publicText || `Status atualizado de "${previousStatus}" para "${nextStatus}".`,
+    visibility: publicText ? 'public' : 'internal',
   };
 }
 
