@@ -206,7 +206,37 @@ function extractStatusFromHistoryItem(item: HistoryItem): TicketStatus | null {
     if (parsed) return parsed;
   }
 
+  const panelStatusMatch = text.match(/status:\s*(.+?)\s*->\s*(.+?)(?:\.|$)/i);
+  if (panelStatusMatch?.[2]) {
+    const parsed = NORMALIZED_STATUS_TO_VALUE.get(normalizeText(panelStatusMatch[2]));
+    if (parsed) return parsed;
+  }
+
   const normalized = normalizeText(text);
+  if (normalized.includes('triagem concluida') && normalized.includes('encaminhada para')) {
+    return TICKET_STATUS.WAITING_TECH_OPINION;
+  }
+  if (normalized.includes('parecer consolidado e enviado para aprovacao da diretoria')) {
+    return TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
+  }
+  if (normalized.includes('solucao tecnica aprovada') && normalized.includes('orcamentacao')) {
+    return TICKET_STATUS.WAITING_BUDGET;
+  }
+  if (normalized.includes('orcamentos consolidados e enviados para aprovacao da diretoria')) {
+    return TICKET_STATUS.WAITING_BUDGET_APPROVAL;
+  }
+  if (normalized.includes('orcamento aprovado') && normalized.includes('seguir com o contrato')) {
+    return TICKET_STATUS.WAITING_CONTRACT_UPLOAD;
+  }
+  if (normalized.includes('contrato anexado pelo gestor') && normalized.includes('enviado para aprovacao da diretoria')) {
+    return TICKET_STATUS.WAITING_CONTRACT_APPROVAL;
+  }
+  if (normalized.includes('contrato aprovado pela diretoria')) {
+    return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
+  }
+  if (normalized.includes('acoes preliminares concluidas')) {
+    return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
+  }
   if (normalized.includes('solicitacao aceita e encaminhada para atendimento')) return TICKET_STATUS.WAITING_TECH_OPINION;
   if (normalized.includes('acoes preliminares em andamento')) return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
   if (normalized.includes('execucao iniciada') || normalized.includes('inicio da execucao')) return TICKET_STATUS.IN_PROGRESS;

@@ -69,6 +69,14 @@ function normalizeHistoryText(value) {
 const PUBLIC_HISTORY_SYSTEM_MARKERS = [
   'solicitacao registrada via formulario publico',
   'status atualizado de',
+  'triagem concluida',
+  'parecer consolidado e enviado para aprovacao da diretoria',
+  'solucao tecnica aprovada',
+  'orcamentos consolidados e enviados para aprovacao da diretoria',
+  'orcamento aprovado',
+  'contrato anexado pelo gestor',
+  'contrato aprovado pela diretoria',
+  'acoes preliminares concluidas',
   'execucao iniciada',
   'inicio da execucao',
   'execucao concluida',
@@ -99,9 +107,12 @@ function isPublicTrackingHistoryEntry(item) {
   const visibility = String(item.visibility || '').trim().toLowerCase();
   if (type === 'customer') return true;
   if (type === 'tech') {
+    const normalizedText = normalizeHistoryText(text);
+    const hasStatusMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
+    if (hasStatusMarker) return true;
+
     if (visibility === 'internal') return false;
     if (visibility === 'public') return true;
-    const normalizedText = normalizeHistoryText(text);
     const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
     const hasInternalMarker = PUBLIC_HISTORY_INTERNAL_MARKERS.some(marker => normalizedText.includes(marker));
     return !hasSensitiveMarker && !hasInternalMarker;
@@ -112,13 +123,7 @@ function isPublicTrackingHistoryEntry(item) {
   const normalizedText = normalizeHistoryText(text);
   const hasPublicMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
   if (!hasPublicMarker) return false;
-
-  if (normalizedText.includes('status atualizado de')) {
-    return true;
-  }
-
-  const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
-  return !hasSensitiveMarker;
+  if (hasPublicMarker) return true;
 }
 
 function sanitizeTicketForPublicTracking(ticket) {
