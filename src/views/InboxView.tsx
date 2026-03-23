@@ -2145,10 +2145,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
     try {
       await saveContract(activeTicket.id, nextContract, buildProcurementClassification(activeTicket));
-    } catch {
+    } catch (error) {
+      console.error('[contract-dispatch] failed to save contract', error);
+      const details = error instanceof Error ? error.message : 'Erro desconhecido ao salvar contrato.';
       setIsSending(false);
-      setToast('Falha ao registrar contrato no servidor. Não foi enviado para aprovação.');
-      setTimeout(() => setToast(null), 3500);
+      setToast(`Falha ao registrar contrato no servidor: ${details}`);
+      setTimeout(() => setToast(null), 6000);
       return;
     }
 
