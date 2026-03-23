@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Landmark, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
-import { TICKET_STATUS } from '../constants/ticketStatus';
+import { TICKET_STATUS, type TicketStatus } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi } from '../services/ticketsApi';
-import type { Ticket } from '../types';
+import type { HistoryItem, Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
 import { repairMojibake } from '../utils/text';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -12,6 +12,65 @@ import { getTicketSiteLabel } from '../utils/ticketTerritory';
 interface TrackingViewProps {
   ticketToken: string | null;
   onBack: () => void;
+}
+
+interface TimelineEntry {
+  id: string;
+  kind: 'status' | 'message';
+  time: Date | null;
+  sortMs: number;
+  isCustomerMessage: boolean;
+  sender: string;
+  title: string;
+  description: string;
+  status?: TicketStatus;
+}
+
+const STATUS_FLOW: TicketStatus[] = [
+  TICKET_STATUS.NEW,
+  TICKET_STATUS.WAITING_TECH_OPINION,
+  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+  TICKET_STATUS.WAITING_BUDGET,
+  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
+  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+  TICKET_STATUS.IN_PROGRESS,
+  TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+  TICKET_STATUS.WAITING_PAYMENT,
+  TICKET_STATUS.CLOSED,
+];
+
+const STATUS_FLOW_INDEX = new Map<TicketStatus, number>(STATUS_FLOW.map((status, index) => [status, index]));
+const NORMALIZED_STATUS_TO_VALUE = new Map<string, TicketStatus>(
+  Object.values(TICKET_STATUS).map(status => [normalizeText(status), status as TicketStatus]),
+);
+
+function normalizeText(value: unknown) {
+  return repairMojibake(String(value ?? ''))
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function parseDate(value: unknown): Date | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (!value) return null;
+  const parsed = new Date(value as string);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isSensitiveText(normalizedText: string) {
+  return (
+    normalizedText.includes('orcamento') ||
+    normalizedText.includes('contrato') ||
+    normalizedText.includes('aditivo') ||
+    normalizedText.includes('pagamento') ||
+    normalizedText.includes('parcela') ||
+    normalizedText.includes('r$')
+  );
 }
 
 function getPublicStatusLabel(status: string) {
@@ -29,7 +88,7 @@ function getPublicStatusLabel(status: string) {
     case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
       return 'Planejamento administrativo';
     case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
-      return 'Obra em preparação';
+      return 'Ações preliminares';
     case TICKET_STATUS.IN_PROGRESS:
       return 'Execução iniciada';
     case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
@@ -45,93 +104,199 @@ function getPublicStatusLabel(status: string) {
   }
 }
 
-function isPublicSafeHistoryItem(item: Ticket['history'][number]) {
-  const text = repairMojibake(item?.text || '').trim();
-  if (!text) return false;
-  if (item.type === 'customer') return true;
-  if (item.type === 'tech') {
-    if (item.visibility === 'internal') return false;
-    if (item.visibility === 'public') return true;
-    const normalizedText = text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-    const hasSensitiveTerm =
-      normalizedText.includes('orcamento') ||
-      normalizedText.includes('contrato') ||
-      normalizedText.includes('aditivo') ||
-      normalizedText.includes('pagamento') ||
-      normalizedText.includes('parcela') ||
-      normalizedText.includes('r$');
-    const isInternalOnly =
-      normalizedText.includes('parecer consolidado e enviado para aprovacao da diretoria') ||
-      normalizedText.includes('painel da os atualizado');
-    return !hasSensitiveTerm && !isInternalOnly;
+function getStatusTimelineDescription(status: TicketStatus) {
+  switch (status) {
+    case TICKET_STATUS.NEW:
+      return 'Solicitação aberta no sistema.';
+    case TICKET_STATUS.WAITING_TECH_OPINION:
+      return 'A OS foi aceita e está aguardando parecer técnico.';
+    case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
+      return 'A solução técnica está em aprovação da diretoria.';
+    case TICKET_STATUS.WAITING_BUDGET:
+      return 'Orçamento em elaboração.';
+    case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
+      return 'Orçamento enviado para aprovação da diretoria.';
+    case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
+      return 'Aguardando anexo do contrato pelo gestor.';
+    case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
+      return 'Contrato enviado para aprovação da diretoria.';
+    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
+      return 'Ações preliminares em andamento para início da obra.';
+    case TICKET_STATUS.IN_PROGRESS:
+      return 'Execução da obra iniciada.';
+    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
+      return 'Execução concluída, aguardando validação do solicitante.';
+    case TICKET_STATUS.WAITING_PAYMENT:
+      return 'Validação concluída. Fluxo financeiro em andamento.';
+    case TICKET_STATUS.CLOSED:
+      return 'OS encerrada.';
+    case TICKET_STATUS.CANCELED:
+      return 'OS cancelada.';
+    default:
+      return 'Status atualizado.';
   }
-  if (item.type !== 'system') return false;
-
-  const normalizedText = text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  if (item.visibility === 'public') return true;
-
-  const allowedPublicSystemEvents = [
-    'solicitacao registrada via formulario publico',
-    'status atualizado de',
-    'execucao iniciada',
-    'inicio da execucao',
-    'execucao concluida',
-    'os encerrada',
-    'os cancelada',
-  ];
-
-  const hasPublicEvent = allowedPublicSystemEvents.some(value => normalizedText.includes(value));
-  if (!hasPublicEvent) return false;
-
-  if (normalizedText.includes('status atualizado de')) {
-    return true;
-  }
-
-  const hasSensitiveTerm =
-    normalizedText.includes('orcamento') ||
-    normalizedText.includes('contrato') ||
-    normalizedText.includes('aditivo') ||
-    normalizedText.includes('pagamento') ||
-    normalizedText.includes('parcela') ||
-    normalizedText.includes('r$');
-
-  return !hasSensitiveTerm;
 }
 
-function getPublicHistoryText(item: Ticket['history'][number]) {
-  const rawText = repairMojibake(item.text || '').trim();
-  if (!rawText) return rawText;
-  if (item.type !== 'system') return rawText;
+function resolveStatusTimestamp(ticket: Ticket, status: TicketStatus): Date | null {
+  switch (status) {
+    case TICKET_STATUS.NEW:
+      return parseDate(ticket.time);
+    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
+      return parseDate(ticket.preliminaryActions?.updatedAt) || parseDate(ticket.preliminaryActions?.plannedStartAt);
+    case TICKET_STATUS.IN_PROGRESS:
+      return parseDate(ticket.closureChecklist?.serviceStartedAt)
+        || parseDate(ticket.preliminaryActions?.actualStartAt)
+        || parseDate(ticket.executionProgress?.startedAt);
+    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
+      return parseDate(ticket.closureChecklist?.serviceCompletedAt);
+    case TICKET_STATUS.WAITING_PAYMENT:
+      return parseDate(ticket.closureChecklist?.requesterApprovedAt);
+    case TICKET_STATUS.CLOSED:
+      return parseDate(ticket.closureChecklist?.closedAt);
+    default:
+      return null;
+  }
+}
 
-  const statusMatch = rawText.match(/Status atualizado de\s+"([^"]+)"\s+para\s+"([^"]+)"/i);
+function extractStatusFromHistoryItem(item: HistoryItem): TicketStatus | null {
+  const field = normalizeText(item.field || '');
+  if (field === 'status' && item.to) {
+    const fromField = NORMALIZED_STATUS_TO_VALUE.get(normalizeText(item.to));
+    if (fromField) return fromField;
+  }
+
+  const text = repairMojibake(item.text || '').trim();
+  if (!text) return null;
+
+  const statusMatch = text.match(/Status atualizado de\s+"([^"]+)"\s+para\s+"([^"]+)"/i);
   if (statusMatch?.[2]) {
-    return `Status atualizado: ${getPublicStatusLabel(statusMatch[2].trim())}.`;
+    const parsed = NORMALIZED_STATUS_TO_VALUE.get(normalizeText(statusMatch[2]));
+    if (parsed) return parsed;
   }
 
-  const normalizedText = rawText
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+  const normalized = normalizeText(text);
 
-  if (
-    normalizedText.includes('execucao iniciada') ||
-    normalizedText.includes('inicio da execucao')
-  ) {
-    return 'Execução iniciada.';
+  if (normalized.includes('solicitacao registrada via formulario publico')) return TICKET_STATUS.NEW;
+  if (normalized.includes('solicitacao aceita e encaminhada para atendimento')) return TICKET_STATUS.WAITING_TECH_OPINION;
+  if (normalized.includes('execucao iniciada') || normalized.includes('inicio da execucao')) return TICKET_STATUS.IN_PROGRESS;
+  if (normalized.includes('execucao concluida')) return TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL;
+  if (normalized.includes('solicitante validou a execucao do servico')) return TICKET_STATUS.WAITING_PAYMENT;
+  if (normalized.includes('os encerrada')) return TICKET_STATUS.CLOSED;
+  if (normalized.includes('os cancelada')) return TICKET_STATUS.CANCELED;
+
+  return null;
+}
+
+function shouldShowMessageInPublicTimeline(item: HistoryItem) {
+  const text = repairMojibake(item?.text || '').trim();
+  if (!text) return false;
+
+  if (extractStatusFromHistoryItem(item)) {
+    return false;
   }
 
-  if (normalizedText.includes('execucao concluida')) {
-    return 'Execução concluída.';
+  if (item.type === 'customer') return true;
+
+  const normalized = normalizeText(text);
+  if (isSensitiveText(normalized)) return false;
+
+  if (item.type === 'tech') {
+    if (item.visibility === 'internal') return false;
+    return !normalized.includes('painel da os atualizado');
   }
 
-  return rawText;
+  if (item.type === 'system') {
+    if (item.visibility === 'internal') return false;
+    return !normalized.includes('painel da os atualizado');
+  }
+
+  return false;
+}
+
+function buildStatusPath(currentStatus: TicketStatus, foundStatuses: TicketStatus[]) {
+  if (currentStatus === TICKET_STATUS.CANCELED) {
+    const sortedKnown = [...new Set(foundStatuses)]
+      .filter(status => status !== TICKET_STATUS.CLOSED && status !== TICKET_STATUS.CANCELED)
+      .sort((a, b) => (STATUS_FLOW_INDEX.get(a) ?? 999) - (STATUS_FLOW_INDEX.get(b) ?? 999));
+
+    if (sortedKnown.length > 0) {
+      return [...sortedKnown, TICKET_STATUS.CANCELED];
+    }
+
+    return [TICKET_STATUS.NEW, TICKET_STATUS.CANCELED];
+  }
+
+  const currentIndex = STATUS_FLOW_INDEX.get(currentStatus);
+  if (typeof currentIndex === 'number') {
+    return STATUS_FLOW.slice(0, currentIndex + 1);
+  }
+
+  return [TICKET_STATUS.NEW, currentStatus];
+}
+
+function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
+  const history = [...(ticket.history || [])].sort((a, b) => a.time.getTime() - b.time.getTime());
+
+  const statusTimes = new Map<TicketStatus, Date | null>();
+  statusTimes.set(TICKET_STATUS.NEW, parseDate(ticket.time));
+
+  history.forEach(item => {
+    const status = extractStatusFromHistoryItem(item);
+    if (!status) return;
+    if (!statusTimes.has(status)) {
+      statusTimes.set(status, parseDate(item.time));
+    }
+  });
+
+  const currentStatus = ticket.status as TicketStatus;
+  if (!statusTimes.has(currentStatus)) {
+    statusTimes.set(currentStatus, resolveStatusTimestamp(ticket, currentStatus));
+  }
+
+  const statusPath = buildStatusPath(currentStatus, [...statusTimes.keys()]);
+
+  const baseMs = parseDate(ticket.time)?.getTime() || Date.now();
+
+  const statusEntries: TimelineEntry[] = statusPath.map((status, index) => {
+    const explicitTime = statusTimes.get(status) ?? resolveStatusTimestamp(ticket, status);
+    const fallbackMs = baseMs + (index + 1) * 1000;
+
+    return {
+      id: `status-${status}-${index}`,
+      kind: 'status',
+      time: explicitTime,
+      sortMs: explicitTime?.getTime() ?? fallbackMs,
+      isCustomerMessage: false,
+      sender: 'Sistema',
+      title: repairMojibake(status),
+      description: getStatusTimelineDescription(status),
+      status,
+    };
+  });
+
+  const messageEntries: TimelineEntry[] = history
+    .filter(shouldShowMessageInPublicTimeline)
+    .map((item, index) => {
+      const parsedTime = parseDate(item.time);
+      return {
+        id: item.id || `msg-${index}`,
+        kind: 'message',
+        time: parsedTime,
+        sortMs: parsedTime?.getTime() ?? baseMs + (statusPath.length + index + 1) * 1000,
+        isCustomerMessage: item.type === 'customer',
+        sender: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
+        title: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
+        description: repairMojibake(item.text || ''),
+      };
+    });
+
+  return [...statusEntries, ...messageEntries].sort((a, b) => {
+    if (a.sortMs === b.sortMs) {
+      if (a.kind === b.kind) return 0;
+      return a.kind === 'status' ? -1 : 1;
+    }
+    return a.sortMs - b.sortMs;
+  });
 }
 
 export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
@@ -204,6 +369,11 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     Boolean(ticket) &&
     (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL || ticket.status === TICKET_STATUS.WAITING_PAYMENT) &&
     !ticket.closureChecklist?.requesterApproved;
+
+  const timelineEntries = useMemo(() => {
+    if (!ticket) return [];
+    return buildTimelineEntries(ticket);
+  }, [ticket]);
 
   const handleRequesterApproval = async () => {
     if (!ticket || isSubmittingValidation) return;
@@ -283,8 +453,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             </div>
             <div className="text-right">
               <div className="text-2xl font-serif text-roman-text-main font-medium">#{ticket.id}</div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-roman-primary/10 text-roman-primary border border-roman-primary/20 rounded-xl text-sm font-medium mt-2">
-                <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse"></span> {getPublicStatusLabel(ticket.status)}
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-roman-primary/10 text-roman-primary border border-roman-primary/20 rounded-xl text-sm font-medium mt-2">
+                <span className="w-2 h-2 rounded-full bg-roman-primary animate-pulse" /> {getPublicStatusLabel(ticket.status)}
               </div>
             </div>
           </div>
@@ -324,51 +494,69 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               )}
             </div>
           )}
-          <div>
-            <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Histórico</h3>
-            <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:translate-x-0 md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
-              {ticket.history
-                .filter(isPublicSafeHistoryItem)
-                .map((item, index) => {
-                  const isExternalMessage = item.type === 'customer';
 
-                  return (
+          <div>
+            <h3 className="font-serif text-lg font-medium text-roman-text-main mb-6">Linha do tempo</h3>
+            <div className="space-y-4 relative md:before:absolute md:before:inset-0 md:before:mx-auto md:before:h-full md:before:w-0.5 md:before:bg-gradient-to-b md:before:from-transparent md:before:via-roman-border md:before:to-transparent">
+              {timelineEntries.map((entry, index) => {
+                const isCustomerMessage = entry.kind === 'message' && entry.isCustomerMessage;
+                const isStatusEntry = entry.kind === 'status';
+
+                return (
+                  <div
+                    key={`${entry.id}-${index}`}
+                    className={`relative flex flex-col md:flex-row items-start md:items-center justify-between md:justify-normal gap-4 md:gap-0 ${
+                      isCustomerMessage ? 'md:flex-row-reverse' : ''
+                    }`}
+                  >
                     <div
-                      key={index}
-                      className={`relative flex flex-col md:flex-row items-start md:items-center justify-between md:justify-normal gap-4 md:gap-0 ${
-                        isExternalMessage ? 'md:flex-row-reverse' : ''
+                      className={`flex items-center justify-center w-10 h-10 rounded-full border border-white shadow shrink-0 md:order-1 z-10 self-start md:self-center ${
+                        isCustomerMessage
+                          ? 'bg-roman-primary text-white md:-translate-x-1/2'
+                          : isStatusEntry
+                            ? 'bg-roman-primary/15 text-roman-primary md:translate-x-1/2'
+                            : 'bg-roman-surface text-roman-primary md:translate-x-1/2'
                       }`}
                     >
-                      <div
-                        className={`flex items-center justify-center w-10 h-10 rounded-full border border-white shadow shrink-0 md:order-1 z-10 self-start md:self-center ${
-                          isExternalMessage
-                            ? 'bg-roman-primary text-white md:-translate-x-1/2'
-                            : 'bg-roman-surface text-roman-primary md:translate-x-1/2'
-                        }`}
-                      >
-                        {item.type === 'customer' ? <Users size={16} /> : item.type === 'tech' ? <Activity size={16} /> : <CheckCircle size={16} />}
-                      </div>
-                      <div
-                        className={`w-full md:w-[calc(50%-2.5rem)] border px-4 py-3.5 rounded-2xl shadow-sm ${
-                          isExternalMessage
+                      {isStatusEntry ? <CheckCircle size={16} /> : isCustomerMessage ? <Users size={16} /> : <Activity size={16} />}
+                    </div>
+
+                    <div
+                      className={`w-full md:w-[calc(50%-2.5rem)] border px-4 py-3.5 rounded-2xl shadow-sm ${
+                        isStatusEntry
+                          ? 'bg-roman-primary/5 border-roman-primary/25 text-left'
+                          : isCustomerMessage
                             ? 'bg-roman-primary/5 border-roman-primary/20 text-right'
                             : 'bg-roman-surface border-roman-border text-left'
-                        }`}
-                      >
-                        <div className={`flex items-center gap-3 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-between'}`}>
-                          <div className="font-serif font-medium text-roman-text-main">
-                            {repairMojibake(item.sender || 'Sistema')}
-                          </div>
-                          {item.time && <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(item.time)}</div>}
+                      }`}
+                    >
+                      <div className={`flex items-center gap-3 mb-1 ${isCustomerMessage ? 'justify-end' : 'justify-between'}`}>
+                        <div className="font-serif font-medium text-roman-text-main">
+                          {isStatusEntry ? 'Status da OS' : entry.sender}
                         </div>
-                        <div className="text-sm text-roman-text-main leading-relaxed">{getPublicHistoryText(item)}</div>
+                        {entry.time && (
+                          <div className="text-xs text-roman-text-sub font-serif italic">{formatDateTimeSafe(entry.time)}</div>
+                        )}
                       </div>
+
+                      {isStatusEntry ? (
+                        <>
+                          <div className="inline-flex items-center rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2 py-0.5 text-xs font-medium text-roman-primary">
+                            {entry.title}
+                          </div>
+                          <div className="mt-2 text-sm text-roman-text-sub leading-relaxed">{entry.description}</div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-roman-text-main leading-relaxed">{entry.description}</div>
+                      )}
                     </div>
-                  );
-                })}
-              {ticket.history.filter(isPublicSafeHistoryItem).length === 0 && (
+                  </div>
+                );
+              })}
+
+              {timelineEntries.length === 0 && (
                 <div className="rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
-                  Ainda não há atualizações públicas disponíveis no histórico.
+                  Ainda não há atualizações públicas disponíveis na linha do tempo.
                 </div>
               )}
             </div>
@@ -378,4 +566,3 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     </div>
   );
 }
-
