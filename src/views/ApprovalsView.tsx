@@ -814,12 +814,13 @@ export function ApprovalsView() {
         requestedTab === 'solutions'
           ? `approval-solution-${requestedTicketId}`
           : requestedTab === 'budgets'
-            ? `approval-budget-${requestedTicketId}`
-            : `approval-contract-${requestedTicketId}`;
-      const target = document.getElementById(targetId);
-      if (!target) return;
+          ? `approval-budget-${requestedTicketId}`
+          : `approval-contract-${requestedTicketId}`;
       window.setTimeout(() => {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       }, 120);
     }
     params.delete('approvalTab');
