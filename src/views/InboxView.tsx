@@ -484,6 +484,7 @@ export function InboxView() {
   const [newThirdPartyTags, setNewThirdPartyTags] = useState<string[]>([]);
   const [newSharedTagDraft, setNewSharedTagDraft] = useState('');
   const [newSharedTagSaving, setNewSharedTagSaving] = useState(false);
+  const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
   const [quickPanelExpanded, setQuickPanelExpanded] = useState(true);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
@@ -735,6 +736,7 @@ export function InboxView() {
     const newValue = e.target.value;
     setTechTeam(newValue);
     if (newValue !== techTeam) {
+      setShowThirdPartyModal(false);
       setCustomEmail('');
       setSelectedThirdPartyIds([]);
       setThirdPartySelectDraftId('');
@@ -851,6 +853,12 @@ export function InboxView() {
       resolveVendorSharedTags(vendor).some(tag => normalizeTagValue(tag) === normalizedTag)
     );
   }, [thirdPartyTag, vendors, sharedThirdPartyTagSet]);
+
+  useEffect(() => {
+    if (!isExternalTeam && showThirdPartyModal) {
+      setShowThirdPartyModal(false);
+    }
+  }, [isExternalTeam, showThirdPartyModal]);
   const panelStatus = (statusDraft || activeTicket.status || '').trim();
   const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(panelStatus as (typeof TRIAGE_VISIBLE_STATUSES)[number]);
   const canManageBudgetRounds =
@@ -3186,175 +3194,57 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
 
                   {isExternalTeam && (
-                    <div className="space-y-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                    <div className="space-y-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                       <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Terceiro</div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Filtro por tag</label>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Selecionados</div>
+                        <div className="mt-1 text-sm font-medium text-roman-text-main">
+                          {selectedThirdParties.length > 0
+                            ? `${selectedThirdParties.length} terceiro(s)`
+                            : 'Nenhum terceiro selecionado'}
+                        </div>
+                        {selectedThirdParties.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedThirdParties.map(vendor => (
+                              <span key={`selected-vendor-inline-${vendor.id}`} className="inline-flex items-center rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
+                                {vendor.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-2 text-[11px] text-roman-text-sub">
+                          E-mails usados: {resolveAssignedEmails() || 'Não informado'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowThirdPartyModal(true)}
+                          className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isSending || !canEditQuickPanel}
+                        >
+                          {selectedThirdParties.length > 0 ? 'Gerenciar terceiros' : 'Selecionar terceiros'}
+                        </button>
+                        {selectedThirdParties.length > 0 && (
                           <button
                             type="button"
                             onClick={() => {
-                              setThirdPartyTag('');
+                              setSelectedThirdPartyIds([]);
+                              setCustomEmail('');
                               setThirdPartySelectDraftId('');
                             }}
-                            className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
-                              !thirdPartyTag
-                                ? 'border-roman-primary bg-roman-primary text-white'
-                                : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
-                            }`}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={isSending || !canEditQuickPanel}
                           >
-                            Todas
+                            Limpar seleção
                           </button>
-                          {thirdPartyTagOptions.map(tag => (
-                            <button
-                              key={`tag-${tag}`}
-                              type="button"
-                              onClick={() => {
-                                setThirdPartyTag(tag);
-                                setThirdPartySelectDraftId('');
-                              }}
-                              className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
-                                thirdPartyTag === tag
-                                  ? 'border-roman-primary bg-roman-primary text-white'
-                                  : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
-                              }`}
-                              disabled={isSending || !canEditQuickPanel}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
-                        <select
-                          value={thirdPartySelectDraftId}
-                          onChange={event => {
-                            const nextId = event.target.value;
-                            setThirdPartySelectDraftId(nextId);
-                            if (!nextId) return;
-                            setSelectedThirdPartyIds(current => (current.includes(nextId) ? current : [...current, nextId]));
-                          }}
-                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={isSending || !canEditQuickPanel}
-                        >
-                          <option value="">Selecione o terceiro...</option>
-                          {filteredThirdParties.map(vendor => (
-                            <option key={vendor.id} value={vendor.id}>
-                              {vendor.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {selectedThirdParties.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedThirdParties.map(vendor => (
-                            <span key={`selected-vendor-${vendor.id}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
-                              {vendor.name}
-                              <button
-                                type="button"
-                                onClick={() => setSelectedThirdPartyIds(current => current.filter(id => id !== vendor.id))}
-                                className="text-roman-primary hover:opacity-70"
-                                aria-label={`Remover ${vendor.name}`}
-                                title={`Remover ${vendor.name}`}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div>
-                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail do terceiro</label>
-                        <input
-                          type="email"
-                          value={customEmail}
-                          onChange={e => setCustomEmail(e.target.value)}
-                          placeholder="terceiro@email.com"
-                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={isSending || !canEditQuickPanel}
-                        />
-                      </div>
-                      {canEditQuickPanel && (
-                        <div className="space-y-2 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cadastrar novo terceiro</div>
-                          <input
-                            type="text"
-                            value={newThirdPartyName}
-                            onChange={event => setNewThirdPartyName(event.target.value)}
-                            placeholder="Nome do terceiro"
-                            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
-                          <input
-                            type="email"
-                            value={newThirdPartyEmail}
-                            onChange={event => setNewThirdPartyEmail(event.target.value)}
-                            placeholder="Email (opcional)"
-                            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
-                          <div>
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
-                              <button
-                                type="button"
-                                onClick={() => void handleCreateSharedTagInline()}
-                                disabled={newSharedTagSaving || !newSharedTagDraft.trim()}
-                                className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-roman-border bg-white text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                aria-label="Cadastrar tag compartilhada"
-                                title="Cadastrar tag compartilhada"
-                              >
-                                <Plus size={12} />
-                              </button>
-                            </div>
-                            <input
-                              type="text"
-                              value={newSharedTagDraft}
-                              onChange={event => setNewSharedTagDraft(event.target.value)}
-                              placeholder="Nova tag (ex.: Gesso)"
-                              className="mb-2 w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            />
-                            {thirdPartyTagOptions.length === 0 ? (
-                              <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] text-roman-text-sub">
-                                Cadastre tags em Configurações para selecionar aqui.
-                              </div>
-                            ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {thirdPartyTagOptions.map(tag => {
-                                  const selected = newThirdPartyTags.some(item => item.toLowerCase() === tag.toLowerCase());
-                                  return (
-                                    <button
-                                      key={`new-third-party-tag-${tag}`}
-                                      type="button"
-                                      onClick={() =>
-                                        setNewThirdPartyTags(prev =>
-                                          selected
-                                            ? prev.filter(item => item.toLowerCase() !== tag.toLowerCase())
-                                            : [...prev, tag]
-                                        )
-                                      }
-                                      className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
-                                        selected
-                                          ? 'border-roman-primary bg-roman-primary text-white'
-                                          : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
-                                      }`}
-                                    >
-                                      {tag}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
+                        )}
+                        {!canEditQuickPanel && (
+                          <div className="text-[11px] text-roman-text-sub">
+                            Apenas leitura neste status.
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => void handleCreateThirdParty()}
-                            className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                          >
-                            Cadastrar terceiro
-                          </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -3522,6 +3412,203 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </>
         )}
       </div>
+
+      {showThirdPartyModal && isExternalTeam && (
+        <ModalShell
+          isOpen={showThirdPartyModal}
+          onClose={() => setShowThirdPartyModal(false)}
+          title="Selecionar terceiros"
+          description="Selecione os terceiros responsáveis, filtre por tag e cadastre novos parceiros sem sair da triagem."
+          maxWidthClass="max-w-3xl"
+          footer={(
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowThirdPartyModal(false)}
+                className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm"
+              >
+                Fechar
+              </button>
+            </div>
+          )}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Filtro por tag</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setThirdPartyTag('');
+                    setThirdPartySelectDraftId('');
+                  }}
+                  className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                    !thirdPartyTag
+                      ? 'border-roman-primary bg-roman-primary text-white'
+                      : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                  }`}
+                  disabled={isSending || !canEditQuickPanel}
+                >
+                  Todas
+                </button>
+                {thirdPartyTagOptions.map(tag => (
+                  <button
+                    key={`tag-modal-${tag}`}
+                    type="button"
+                    onClick={() => {
+                      setThirdPartyTag(tag);
+                      setThirdPartySelectDraftId('');
+                    }}
+                    className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                      thirdPartyTag === tag
+                        ? 'border-roman-primary bg-roman-primary text-white'
+                        : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
+                    }`}
+                    disabled={isSending || !canEditQuickPanel}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
+              <select
+                value={thirdPartySelectDraftId}
+                onChange={event => {
+                  const nextId = event.target.value;
+                  setThirdPartySelectDraftId(nextId);
+                  if (!nextId) return;
+                  setSelectedThirdPartyIds(current => (current.includes(nextId) ? current : [...current, nextId]));
+                }}
+                className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSending || !canEditQuickPanel}
+              >
+                <option value="">Selecione o terceiro...</option>
+                {filteredThirdParties.map(vendor => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedThirdParties.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedThirdParties.map(vendor => (
+                  <span key={`selected-vendor-modal-${vendor.id}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
+                    {vendor.name}
+                    {canEditQuickPanel && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedThirdPartyIds(current => current.filter(id => id !== vendor.id))}
+                        className="text-roman-primary hover:opacity-70"
+                        aria-label={`Remover ${vendor.name}`}
+                        title={`Remover ${vendor.name}`}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail manual adicional (opcional)</label>
+              <input
+                type="email"
+                value={customEmail}
+                onChange={e => setCustomEmail(e.target.value)}
+                placeholder="terceiro@email.com"
+                className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSending || !canEditQuickPanel}
+              />
+            </div>
+
+            {canEditQuickPanel && (
+              <div className="space-y-2 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-3">
+                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cadastrar novo terceiro</div>
+                <input
+                  type="text"
+                  value={newThirdPartyName}
+                  onChange={event => setNewThirdPartyName(event.target.value)}
+                  placeholder="Nome do terceiro"
+                  className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                />
+                <input
+                  type="email"
+                  value={newThirdPartyEmail}
+                  onChange={event => setNewThirdPartyEmail(event.target.value)}
+                  placeholder="Email (opcional)"
+                  className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                />
+                <div>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateSharedTagInline()}
+                      disabled={newSharedTagSaving || !newSharedTagDraft.trim()}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-roman-border bg-white text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Cadastrar tag compartilhada"
+                      title="Cadastrar tag compartilhada"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={newSharedTagDraft}
+                    onChange={event => setNewSharedTagDraft(event.target.value)}
+                    placeholder="Nova tag (ex.: Gesso)"
+                    className="mb-2 w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                  />
+                  {thirdPartyTagOptions.length === 0 ? (
+                    <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] text-roman-text-sub">
+                      Cadastre tags em Configurações para selecionar aqui.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {thirdPartyTagOptions.map(tag => {
+                        const selected = newThirdPartyTags.some(item => item.toLowerCase() === tag.toLowerCase());
+                        return (
+                          <button
+                            key={`new-third-party-tag-modal-${tag}`}
+                            type="button"
+                            onClick={() =>
+                              setNewThirdPartyTags(prev =>
+                                selected
+                                  ? prev.filter(item => item.toLowerCase() !== tag.toLowerCase())
+                                  : [...prev, tag]
+                              )
+                            }
+                            className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                              selected
+                                ? 'border-roman-primary bg-roman-primary text-white'
+                                : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateThirdParty()}
+                  className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                >
+                  Cadastrar terceiro
+                </button>
+              </div>
+            )}
+          </div>
+        </ModalShell>
+      )}
 
       {/* Quotes Modal */}
       {showDeleteTicketModal && (
