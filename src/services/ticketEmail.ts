@@ -282,6 +282,13 @@ const FINANCE_FLOW_STATUSES = new Set<string>([
 function resolveDirectorApprovalTab(status: string): 'solutions' | 'budgets' | 'contracts' {
   if (status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL) return 'contracts';
   if (status === TICKET_STATUS.WAITING_BUDGET_APPROVAL) return 'budgets';
+  const normalized = String(status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+  if (normalized.includes('contrato')) return 'contracts';
+  if (normalized.includes('orcamento') || normalized.includes('aditivo')) return 'budgets';
   return 'solutions';
 }
 

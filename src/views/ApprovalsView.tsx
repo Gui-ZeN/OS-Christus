@@ -225,7 +225,6 @@ export function ApprovalsView() {
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const reviewingTicketIdRef = useRef<string | null>(null);
   const approvalQueryAppliedRef = useRef(false);
-  const activeTicketSyncRef = useRef<string | null>(null);
 
   if (!canAccess) {
     return (
@@ -791,22 +790,18 @@ export function ApprovalsView() {
     [activeTab, budgets.length, contracts.length, solutions.length]
   );
 
-  const activeTicketTab = useMemo(() => {
-    if (!activeTicketId) return null;
-    if (contracts.some(item => item.id === activeTicketId)) return 'contracts' as const;
-    if (solutions.some(item => item.id === activeTicketId)) return 'solutions' as const;
-    if (budgets.some(item => item.id === activeTicketId)) return 'budgets' as const;
-    return null;
-  }, [activeTicketId, budgets, contracts, solutions]);
-
   useEffect(() => {
     if (typeof window === 'undefined' || currentView !== 'approvals') return;
     if (approvalQueryAppliedRef.current) return;
     const params = new URLSearchParams(window.location.search);
-    const requestedTab = params.get('approvalTab');
+    const requestedTabRaw = params.get('approvalTab');
+    const requestedTab =
+      requestedTabRaw === 'solutions' || requestedTabRaw === 'budgets' || requestedTabRaw === 'contracts'
+        ? requestedTabRaw
+        : null;
     const requestedTicketId = params.get('ticketId');
 
-    if (requestedTab === 'solutions' || requestedTab === 'budgets' || requestedTab === 'contracts') {
+    if (requestedTab) {
       setActiveTab(requestedTab);
     }
 
@@ -814,11 +809,17 @@ export function ApprovalsView() {
       setActiveTicketId(requestedTicketId);
     }
 
-    if (requestedTab === 'budgets' && requestedTicketId) {
-      const targetBudget = budgets.find(item => item.id === requestedTicketId);
-      if (!targetBudget) return;
+    if (requestedTab && requestedTicketId) {
+      const targetId =
+        requestedTab === 'solutions'
+          ? `approval-solution-${requestedTicketId}`
+          : requestedTab === 'budgets'
+            ? `approval-budget-${requestedTicketId}`
+            : `approval-contract-${requestedTicketId}`;
+      const target = document.getElementById(targetId);
+      if (!target) return;
       window.setTimeout(() => {
-        document.getElementById(`approval-budget-${requestedTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 120);
     }
     params.delete('approvalTab');
@@ -826,23 +827,7 @@ export function ApprovalsView() {
     const query = params.toString();
     window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
     approvalQueryAppliedRef.current = true;
-  }, [activeTicketId, budgets, currentView, setActiveTicketId]);
-
-  useEffect(() => {
-    if (currentView !== 'approvals' || !activeTicketId || !activeTicketTab) return;
-    if (activeTicketSyncRef.current === activeTicketId) return;
-    setActiveTab(activeTicketTab);
-    const targetId =
-      activeTicketTab === 'solutions'
-        ? `approval-solution-${activeTicketId}`
-        : activeTicketTab === 'budgets'
-          ? `approval-budget-${activeTicketId}`
-          : `approval-contract-${activeTicketId}`;
-    window.setTimeout(() => {
-      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 120);
-    activeTicketSyncRef.current = activeTicketId;
-  }, [activeTicketId, activeTicketTab, currentView]);
+  }, [activeTicketId, budgets, contracts, currentView, setActiveTicketId, solutions]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
