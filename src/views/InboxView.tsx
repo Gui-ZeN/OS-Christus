@@ -167,7 +167,6 @@ interface TicketDetailsFormState {
   subject: string;
   requester: string;
   requesterEmail: string;
-  type: string;
   sector: string;
   macroServiceId: string;
   serviceCatalogId: string;
@@ -217,7 +216,6 @@ function createTicketDetailsFormState(ticket?: Ticket): TicketDetailsFormState {
     subject: ticket?.subject || '',
     requester: ticket?.requester || '',
     requesterEmail: ticket?.requesterEmail || '',
-    type: ticket?.type || '',
     sector: ticket?.sector || '',
     macroServiceId: ticket?.macroServiceId || '',
     serviceCatalogId: ticket?.serviceCatalogId || '',
@@ -548,7 +546,6 @@ export function InboxView() {
   const hasTickets = tickets.length > 0;
   const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET;
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
-  const canEditCoreFields = canManageStatus;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
   const actorRole = resolveActorRole(currentUser?.role);
   const statusOptions = useMemo(() => {
@@ -606,7 +603,6 @@ export function InboxView() {
     activeTicket.subject,
     activeTicket.requester,
     activeTicket.requesterEmail,
-    activeTicket.type,
     activeTicket.sector,
     activeTicket.macroServiceId,
     activeTicket.serviceCatalogId,
@@ -892,6 +888,21 @@ export function InboxView() {
     setTicketDetailsForm(prev => ({ ...prev, serviceCatalogId: nextServiceId }));
   };
 
+  const resolveClassificationSelection = () => {
+    const nextMacroService = catalogMacroServices.find(item => item.id === ticketDetailsForm.macroServiceId) || null;
+    const nextService =
+      serviceCatalog.find(
+        item => item.id === ticketDetailsForm.serviceCatalogId && item.macroServiceId === (nextMacroService?.id || '')
+      ) || null;
+
+    return {
+      macroServiceId: nextMacroService?.id || '',
+      macroServiceName: nextMacroService?.name || '',
+      serviceCatalogId: nextService?.id || '',
+      serviceCatalogName: nextService?.name || '',
+    };
+  };
+
   const buildStatusSideEffects = (nextStatus: string, when: Date) => {
     const nextPreliminaryActions =
       nextStatus === TICKET_STATUS.IN_PROGRESS
@@ -931,54 +942,6 @@ export function InboxView() {
     return TICKET_STATUS.NEW;
   };
 
-  const handleSaveTicketDetails = () => {
-    if (!canManageStatus || isSending) return;
-
-    const nextMacroService = catalogMacroServices.find(item => item.id === ticketDetailsForm.macroServiceId) || null;
-    const nextService = serviceCatalog.find(item => item.id === ticketDetailsForm.serviceCatalogId) || null;
-    const updates: Partial<Ticket> = {};
-    const changes: string[] = [];
-
-    if (ticketDetailsForm.type.trim() !== activeTicket.type) {
-      updates.type = ticketDetailsForm.type.trim();
-      changes.push('tipo de manutenção');
-    }
-    if ((ticketDetailsForm.macroServiceId || '') !== (activeTicket.macroServiceId || '')) {
-      updates.macroServiceId = nextMacroService?.id || '';
-      updates.macroServiceName = nextMacroService?.name || '';
-      updates.serviceCatalogId = '';
-      updates.serviceCatalogName = '';
-      changes.push('macroserviço');
-    } else if ((ticketDetailsForm.serviceCatalogId || '') !== (activeTicket.serviceCatalogId || '')) {
-      updates.serviceCatalogId = nextService?.id || '';
-      updates.serviceCatalogName = nextService?.name || '';
-      changes.push('serviço');
-    }
-
-    if (changes.length === 0) {
-      setToast('Nenhuma alteração encontrada nos dados da OS.');
-      setTimeout(() => setToast(null), 2500);
-      return;
-    }
-
-    updateTicket(activeTicket.id, {
-      ...updates,
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: new Date(),
-          text: `Dados da OS atualizados: ${changes.join(', ')}.`,
-        },
-      ],
-    });
-
-    setToast('Dados da OS atualizados.');
-    setTimeout(() => setToast(null), 2500);
-  };
-
   const handleSaveQuickPanel = () => {
     if (!canManageStatus || isSending) return;
 
@@ -990,6 +953,7 @@ export function InboxView() {
 
     const nextStatus = statusDraft || activeTicket.status;
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
+    const nextClassification = resolveClassificationSelection();
     const changes: string[] = [];
     const updates: Partial<Ticket> = {};
 
@@ -1004,6 +968,16 @@ export function InboxView() {
     if (nextAssignedEmail !== (activeTicket.assignedEmail || '')) {
       updates.assignedEmail = nextAssignedEmail;
       changes.push('e-mail do terceiro');
+    }
+    if ((nextClassification.macroServiceId || '') !== (activeTicket.macroServiceId || '')) {
+      updates.macroServiceId = nextClassification.macroServiceId;
+      updates.macroServiceName = nextClassification.macroServiceName;
+      changes.push('macroserviço');
+    }
+    if ((nextClassification.serviceCatalogId || '') !== (activeTicket.serviceCatalogId || '')) {
+      updates.serviceCatalogId = nextClassification.serviceCatalogId;
+      updates.serviceCatalogName = nextClassification.serviceCatalogName;
+      changes.push('serviço');
     }
     if (nextStatus !== activeTicket.status) {
       if (!canTransitionStatus(actorRole, 'inbox', activeTicket.status, nextStatus)) {
@@ -1065,11 +1039,16 @@ export function InboxView() {
       ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || 'Terceiro selecionado')
       : techTeam;
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
+    const nextClassification = resolveClassificationSelection();
     updateTicket(activeTicket.id, {
       status: TICKET_STATUS.WAITING_TECH_OPINION,
       priority: ticketPriority,
       assignedTeam: techTeam,
       assignedEmail: nextAssignedEmail,
+      macroServiceId: nextClassification.macroServiceId,
+      macroServiceName: nextClassification.macroServiceName,
+      serviceCatalogId: nextClassification.serviceCatalogId,
+      serviceCatalogName: nextClassification.serviceCatalogName,
       history: [
         ...activeTicket.history,
         {
@@ -3191,6 +3170,36 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <option value="Trivial">Trivial</option>
                       </select>
                     </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
+                      <select
+                        value={ticketDetailsForm.macroServiceId}
+                        onChange={handleMacroServiceChange}
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSending || !canEditQuickPanel}
+                      >
+                        <option value="">Definir na triagem</option>
+                        {catalogMacroServices.map(item => (
+                          <option key={`triage-macro-${item.id}`} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
+                      <select
+                        value={ticketDetailsForm.serviceCatalogId}
+                        onChange={handleServiceCatalogChange}
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSending || !canEditQuickPanel || !ticketDetailsForm.macroServiceId}
+                      >
+                        <option value="">{ticketDetailsForm.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
+                        {availableAdminServiceItems.map(item => (
+                          <option key={`triage-service-${item.id}`} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {isExternalTeam && (
@@ -3348,60 +3357,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
                   {sidebarSections.classification && (
                   <div className="mt-3 space-y-2.5">
-                    {canEditCoreFields ? (
-                      <>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tipo de manutenção</label>
-                          <input
-                            value={ticketDetailsForm.type}
-                            onChange={event => setTicketDetailsForm(prev => ({ ...prev, type: event.target.value }))}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
-                          <select
-                            value={ticketDetailsForm.macroServiceId}
-                            onChange={handleMacroServiceChange}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isSending}
-                          >
-                            <option value="">Definir na triagem</option>
-                            {catalogMacroServices.map(item => (
-                              <option key={item.id} value={item.id}>{item.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
-                          <select
-                            value={ticketDetailsForm.serviceCatalogId}
-                            onChange={handleServiceCatalogChange}
-                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
-                            disabled={isSending || !ticketDetailsForm.macroServiceId}
-                          >
-                            <option value="">{ticketDetailsForm.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
-                            {availableAdminServiceItems.map(item => (
-                              <option key={item.id} value={item.id}>{item.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <button
-                          onClick={handleSaveTicketDetails}
-                          disabled={isSending}
-                          className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
-                        >
-                          Salvar classificação
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <PropertyField label="Tipo de Manutenção" value={activeTicket.type} />
-                        {activeTicket.macroServiceName && <PropertyField label="Macroserviço" value={activeTicket.macroServiceName} />}
-                        {activeTicket.serviceCatalogName && <PropertyField label="Serviço" value={activeTicket.serviceCatalogName} />}
-                      </>
-                    )}
+                    <PropertyField label="Macroserviço" value={activeTicket.macroServiceName || 'Não definido'} />
+                    <PropertyField label="Serviço" value={activeTicket.serviceCatalogName || 'Não definido'} />
                   </div>
                 )}
               </section>
