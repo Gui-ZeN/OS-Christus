@@ -150,10 +150,7 @@ function buildDynamicPaymentsFromMeasurements(
     .filter(measurement => parseCurrency(measurement.grossValue || '') > 0)
     .map((measurement, index) => {
       const installmentNumber = index + 1;
-      const label =
-        flowParts > 0 && installmentNumber <= flowParts
-          ? `Parcela ${installmentNumber}/${flowParts}`
-          : `Parcela ${installmentNumber}`;
+      const label = `Lançamento ${installmentNumber}`;
       const dueAt = measurement.requestedAt || measurement.approvedAt || new Date(Date.now() + index * 7 * 24 * 60 * 60 * 1000);
       return {
         id: `measurement-payment-${measurement.id}`,
@@ -309,7 +306,7 @@ function buildClosureExportHtml(
         .map(
           payment => `
             <tr>
-              <td>${escapeHtml(payment.label || `Parcela ${payment.installmentNumber || '-'}`)}</td>
+              <td>${escapeHtml(payment.label || `Lançamento ${payment.installmentNumber || '-'}`)}</td>
               <td>${escapeHtml(payment.value)}</td>
               <td>${payment.releasedPercent || 0}%</td>
               <td>${payment.status === 'paid' ? 'Pago' : payment.status === 'approved' ? 'Liberada' : 'Pendente'}</td>
@@ -975,10 +972,7 @@ export function FinanceView() {
     const nextInstallmentNumber = effectiveExistingPayments.length + 1;
     const configuredFlowParts = Number(targetTicket.executionProgress.paymentFlowParts || 0);
     const formattedGrossAmount = formatCurrency(grossAmount);
-    const paymentLabel =
-      configuredFlowParts > 0 && nextInstallmentNumber <= configuredFlowParts
-        ? `Parcela ${nextInstallmentNumber}/${configuredFlowParts}`
-        : `Parcela ${nextInstallmentNumber}`;
+    const paymentLabel = `Lançamento ${nextInstallmentNumber}`;
     const measurementId = `measurement-${Date.now()}`;
     const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
     const nextPayment: PaymentRecord = {
@@ -1003,7 +997,9 @@ export function FinanceView() {
     };
     const measurement: MeasurementRecord = {
       id: measurementId,
-      label: draft.label.trim() || `Andamento atualizado para ${normalizedProgress}% (parcela ${formattedGrossAmount} | acumulado ${formatCurrency(accumulatedGross)})`,
+      label:
+        draft.label.trim() ||
+        `Andamento atualizado para ${normalizedProgress}% (bruto ${formattedGrossAmount} | acumulado ${formatCurrency(accumulatedGross)})`,
       progressPercent: normalizedProgress,
       releasePercent: progressDelta,
       status: 'approved',
@@ -1058,8 +1054,8 @@ export function FinanceView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberada para o financeiro.${historyNotesSuffix}`
-                : `Andamento atualizado para ${measurement.progressPercent}% com parcela de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberada para o financeiro.${historyNotesSuffix}`,
+                ? `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}`
+                : `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}`,
           },
         ],
       });
@@ -1832,7 +1828,7 @@ export function FinanceView() {
                               return (
                             <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 space-y-3">
                               <div className="flex-1">
-                                <div className="text-sm font-medium text-roman-text-main">{payment.label || `Parcela ${payment.installmentNumber || 1}`}</div>
+                                <div className="text-sm font-medium text-roman-text-main">{payment.label || `Lançamento ${payment.installmentNumber || 1}`}</div>
                                 <div className="text-xs text-roman-text-sub">
                                   Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>

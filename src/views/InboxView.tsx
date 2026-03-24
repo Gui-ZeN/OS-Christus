@@ -1335,10 +1335,7 @@ export function InboxView() {
     const nextInstallmentNumber = existingDynamicPayments.length + 1;
     const configuredFlowParts = Number(activeTicket.executionProgress.paymentFlowParts || 0);
     const formattedGrossAmount = formatCurrencyInput(grossAmount);
-    const paymentLabel =
-      configuredFlowParts > 0 && nextInstallmentNumber <= configuredFlowParts
-        ? `Parcela ${nextInstallmentNumber}/${configuredFlowParts}`
-        : `Parcela ${nextInstallmentNumber}`;
+    const paymentLabel = `Lançamento ${nextInstallmentNumber}`;
     const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
     const measurementId = `measurement-${Date.now()}`;
     const nextPayment: PaymentRecord = {
@@ -1364,7 +1361,7 @@ export function InboxView() {
 
     const measurement: MeasurementRecord = {
       id: measurementId,
-      label: `Andamento atualizado para ${normalizedProgress}% (parcela ${formattedGrossAmount} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
+      label: `Andamento atualizado para ${normalizedProgress}% (bruto ${formattedGrossAmount} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
       progressPercent: normalizedProgress,
       releasePercent: progressDelta,
       status: 'approved',
@@ -1416,8 +1413,8 @@ export function InboxView() {
             sender: displayActorLabel,
             time: now,
             text: shouldMoveToValidation
-              ? `Andamento atualizado para ${normalizedProgress}% com parcela de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberada para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-              : `Andamento atualizado para ${normalizedProgress}% com parcela de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberada para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+              ? `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
+              : `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
           },
         ],
       });
