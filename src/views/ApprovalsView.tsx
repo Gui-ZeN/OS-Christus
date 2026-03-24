@@ -268,6 +268,13 @@ export function ApprovalsView() {
     const runSilentRefresh = async () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       await refreshTickets({ silent: true });
+      try {
+        const data = await fetchProcurementData();
+        setQuotesByTicket(data.quotesByTicket);
+        setContractsByTicket(data.contractsByTicket);
+      } catch {
+        // Mantém os dados atuais quando a sincronização silenciosa falhar.
+      }
     };
 
     void runSilentRefresh();
@@ -600,7 +607,10 @@ export function ApprovalsView() {
     () =>
       tickets
         .map(ticket => {
-          if (ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL) return null;
+          const isBudgetStage =
+            ticket.status === TICKET_STATUS.WAITING_BUDGET ||
+            ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL;
+          if (!isBudgetStage) return null;
           const allQuotes = quotesByTicket[ticket.id] ?? [];
           const pendingRound = resolvePendingRound(allQuotes);
           const shouldInclude =
