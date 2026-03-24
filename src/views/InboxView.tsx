@@ -1658,8 +1658,8 @@ export function InboxView() {
   }, [catalogSites, tickets]);
 
   const budgetHistory = useMemo(
-    () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket),
-    [activeTicket, tickets, storedQuotesByTicket]
+    () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket, vendors),
+    [activeTicket, tickets, storedQuotesByTicket, vendors]
   );
 
   const budgetBaselineAndRealized = useMemo(() => {

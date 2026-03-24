@@ -3,6 +3,11 @@ import type { Quote, QuoteItem, Ticket } from '../types';
 import { coerceDate } from './date';
 
 type QuoteMap = Record<string, Quote[]>;
+type BudgetHistoryVendor = {
+  name?: string;
+  email?: string;
+  tags?: string[];
+};
 
 const STOP_WORDS = new Set([
   'com',
@@ -145,6 +150,15 @@ function dedupeTerms(terms: string[]) {
   return output;
 }
 
+function parseDelimitedValues(source: string) {
+  return dedupeTerms(
+    String(source || '')
+      .split(/[,;|/]+/)
+      .map(part => part.trim())
+      .filter(Boolean)
+  );
+}
+
 function extractQuotedVendors(ticketId: string, quotesByTicket: QuoteMap) {
   const quotes = selectInitialRoundQuotes(quotesByTicket[ticketId] ?? []);
   return dedupeTerms(
@@ -156,21 +170,63 @@ function extractQuotedVendors(ticketId: string, quotesByTicket: QuoteMap) {
 }
 
 function extractThirdPartyNames(ticket: Ticket) {
+  return parseDelimitedValues(ticket.assignedTeam || '').filter(part => part.length >= 2).slice(0, 3);
+}
+
+function extractThirdPartyEmails(ticket: Ticket) {
+  return parseDelimitedValues(ticket.assignedEmail || '').filter(email => email.includes('@')).slice(0, 5);
+}
+
+function resolveTicketThirdPartyTags(ticket: Ticket, vendors: BudgetHistoryVendor[]) {
+  if (!Array.isArray(vendors) || vendors.length === 0) return [];
+
+  const vendorByEmail = new Map<string, BudgetHistoryVendor>();
+  const vendorByName = new Map<string, BudgetHistoryVendor>();
+
+  vendors.forEach(vendor => {
+    const normalizedEmail = normalizeText(String(vendor.email || '').trim());
+    const normalizedName = normalizeText(String(vendor.name || '').trim());
+    if (normalizedEmail) vendorByEmail.set(normalizedEmail, vendor);
+    if (normalizedName) vendorByName.set(normalizedName, vendor);
+  });
+
+  const matchedVendors = new Set<BudgetHistoryVendor>();
+  extractThirdPartyEmails(ticket).forEach(email => {
+    const matched = vendorByEmail.get(normalizeText(email));
+    if (matched) matchedVendors.add(matched);
+  });
+  extractThirdPartyNames(ticket).forEach(name => {
+    const matched = vendorByName.get(normalizeText(name));
+    if (matched) matchedVendors.add(matched);
+  });
+
   return dedupeTerms(
-    String(ticket.assignedTeam || '')
-      .split(/[,;|/]+/)
-      .map(part => part.trim())
-      .filter(part => part.length >= 2)
-      .slice(0, 3)
+    [...matchedVendors]
+      .flatMap(vendor => vendor.tags || [])
+      .map(tag => String(tag || '').trim())
+      .filter(Boolean)
+      .slice(0, 8)
   );
 }
 
-function buildBasisTerms(ticket: Ticket, quotesByTicket: QuoteMap, keywordTerms: string[]) {
+function countSharedTerms(left: string[], right: string[]) {
+  if (left.length === 0 || right.length === 0) return 0;
+  const rightSet = new Set(right.map(item => normalizeText(item)));
+  return left.reduce((acc, item) => (rightSet.has(normalizeText(item)) ? acc + 1 : acc), 0);
+}
+
+function buildBasisTerms(
+  ticket: Ticket,
+  quotesByTicket: QuoteMap,
+  keywordTerms: string[],
+  thirdPartyTags: string[]
+) {
   const structuredTerms = [
     ticket.macroServiceName ? `macroserviço: ${ticket.macroServiceName}` : '',
     ticket.serviceCatalogName ? `serviço: ${ticket.serviceCatalogName}` : '',
     ...extractQuotedVendors(ticket.id, quotesByTicket).map(vendor => `fornecedor: ${vendor}`),
     ...extractThirdPartyNames(ticket).map(name => `terceiro: ${name}`),
+    ...thirdPartyTags.map(tag => `tag: ${tag}`),
   ].filter(Boolean);
 
   const keywordLabels = keywordTerms.slice(0, 4);
@@ -232,7 +288,8 @@ function selectInitialRoundQuotes(quotes: Quote[]) {
 export function buildBudgetHistorySummary(
   currentTicket: Ticket | null | undefined,
   tickets: Ticket[],
-  quotesByTicket: QuoteMap
+  quotesByTicket: QuoteMap,
+  directoryVendors: BudgetHistoryVendor[] = []
 ): BudgetHistorySummary {
   if (!currentTicket) {
     return {
@@ -255,6 +312,8 @@ export function buildBudgetHistorySummary(
   const cutoffDate = subMonths(new Date(), 24);
   const currentKeywords = extractKeywords(currentTicket);
   const currentKeywordSet = new Set(currentKeywords);
+  const currentThirdParties = extractThirdPartyNames(currentTicket);
+  const currentThirdPartyTags = resolveTicketThirdPartyTags(currentTicket, directoryVendors);
 
   const comparableEntries = tickets
     .filter(ticket => ticket.id !== currentTicket.id)
@@ -282,6 +341,11 @@ export function buildBudgetHistorySummary(
       const sameSite =
         (ticket.siteId && currentTicket.siteId && ticket.siteId === currentTicket.siteId) ||
         normalizeText(ticket.sede) === normalizeText(currentTicket.sede);
+      const sharedThirdPartyCount = countSharedTerms(currentThirdParties, extractThirdPartyNames(ticket));
+      const sharedTagCount = countSharedTerms(
+        currentThirdPartyTags,
+        resolveTicketThirdPartyTags(ticket, directoryVendors)
+      );
       const score =
         sharedTerms.length +
         (sameType ? 3 : 0) +
@@ -289,7 +353,9 @@ export function buildBudgetHistorySummary(
         (sameService ? 5 : 0) +
         (sameSector ? 2 : 0) +
         (sameRegion ? 1 : 0) +
-        (sameSite ? 1 : 0);
+        (sameSite ? 1 : 0) +
+        Math.min(sharedThirdPartyCount * 4, 8) +
+        Math.min(sharedTagCount * 2, 4);
 
       if (score < 3 && sharedTerms.length === 0) return null;
 
@@ -490,7 +556,7 @@ export function buildBudgetHistorySummary(
     .slice(0, 6);
 
   return {
-    basisTerms: buildBasisTerms(currentTicket, quotesByTicket, currentKeywords),
+    basisTerms: buildBasisTerms(currentTicket, quotesByTicket, currentKeywords, currentThirdPartyTags),
     similarCases,
     comparableTicketCount: similarCases.length,
     comparableQuoteCount: quoteValues.length,
