@@ -2713,7 +2713,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   }
 
                   const isExternalMessage = item.type === 'customer';
-                  const isInternalNote = item.type === 'internal';
+                  const isInternalNote = item.visibility === 'internal' || item.type === 'internal';
                   const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
 
                   return (
