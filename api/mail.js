@@ -34,7 +34,7 @@ function parseTicketId(text) {
 
 function parseNewTicketSubject(text) {
   if (!text) return null;
-  const match = String(text).match(/^\s*\[([^\]]+)\]\s*-\s*(.+?)\s*$/);
+  const match = String(text).match(/^\s*(?:(?:re|fw|fwd)\s*:\s*)*\[([^\]]+)\]\s*[-–—:]\s*(.+?)\s*$/i);
   if (!match) return null;
   return {
     siteCode: String(match[1] || '').trim(),

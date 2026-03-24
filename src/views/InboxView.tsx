@@ -503,7 +503,7 @@ export function InboxView() {
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
   useEffect(() => {
-    if (currentView !== 'inbox' || !activeTicketId) return undefined;
+    if (currentView !== 'inbox') return undefined;
 
     const runSilentRefresh = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -541,7 +541,7 @@ export function InboxView() {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [activeTicketId, currentUser?.role, currentView, refreshTickets]);
+  }, [currentUser?.role, currentView, refreshTickets]);
 
   // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
