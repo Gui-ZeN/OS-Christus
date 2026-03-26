@@ -926,20 +926,8 @@ export function InboxView() {
   };
 
   const resolveReopenStatus = () => {
-    if (activeTicket.executionProgress?.currentPercent) {
-      return activeTicket.executionProgress.currentPercent >= 100
-        ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
-        : TICKET_STATUS.IN_PROGRESS;
-    }
-
-    if (activeTicket.preliminaryActions) {
-      return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
-    }
-
-    if (activeTicket.assignedTeam || activeTicket.priority) {
-      return TICKET_STATUS.WAITING_TECH_OPINION;
-    }
-
+    if (activeTicket.status === TICKET_STATUS.CLOSED) return TICKET_STATUS.IN_PROGRESS;
+    if (activeTicket.status === TICKET_STATUS.CANCELED) return TICKET_STATUS.NEW;
     return TICKET_STATUS.NEW;
   };
 
@@ -2291,6 +2279,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleReopenTicket = () => {
+    if (![TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED].includes(activeTicket.status)) {
+      setToast('Erro: apenas OS encerrada ou cancelada pode ser reaberta.');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     const nextStatus = resolveReopenStatus();
     updateTicket(activeTicket.id, {
       status: nextStatus,
