@@ -447,6 +447,10 @@ function getFinalInstallmentBlockingReasons(closureDraft: ClosureFormState) {
   return reasons;
 }
 
+function shouldEnforceClosingChecklist(ticket: Ticket) {
+  return ticket.status === TICKET_STATUS.WAITING_PAYMENT || ticket.status === TICKET_STATUS.CLOSED;
+}
+
 export function FinanceView() {
   const { activeTicketId, currentView, openAttachment, updateTicket, tickets, currentUser, refreshTickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
@@ -1221,9 +1225,10 @@ export function FinanceView() {
     );
     const pendingPayments = existingPayments.filter(item => item.status !== 'paid');
     const isFinalInstallment = pendingPayments.length === 1 && pendingPayments[0].id === payment.id;
+    const mustValidateClosingChecklist = isFinalInstallment && shouldEnforceClosingChecklist(targetTicket);
     const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
 
-    if (isFinalInstallment) {
+    if (mustValidateClosingChecklist) {
       const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
       if (
         !closureDraft.infrastructureApprovalPrimary ||
@@ -1848,11 +1853,12 @@ export function FinanceView() {
                             (() => {
                               const pendingPaymentsForTicket = payments.filter(item => item.status !== 'paid');
                               const isFinalInstallment = pendingPaymentsForTicket.length === 1 && pendingPaymentsForTicket[0].id === payment.id;
-                              const finalInstallmentBlockingReasons = isFinalInstallment ? getFinalInstallmentBlockingReasons(closureDraft) : [];
+                              const mustValidateClosingChecklist = isFinalInstallment && shouldEnforceClosingChecklist(ticket);
+                              const finalInstallmentBlockingReasons = mustValidateClosingChecklist ? getFinalInstallmentBlockingReasons(closureDraft) : [];
                               const canConfirmPayment =
                                 canPay &&
                                 payment.status === 'approved' &&
-                                (!isFinalInstallment || finalInstallmentBlockingReasons.length === 0);
+                                (!mustValidateClosingChecklist || finalInstallmentBlockingReasons.length === 0);
                               const paymentDraft = getPaymentDraft(ticket.id, payment);
                               const grossPreview = parseCurrency(paymentDraft.grossValue || payment.grossValue || '0');
                               const taxPreview = parseCurrency(paymentDraft.taxValue || payment.taxValue || '0');
@@ -1868,7 +1874,7 @@ export function FinanceView() {
                                   Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
-                                {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
+                                {payment.status === 'approved' && mustValidateClosingChecklist && finalInstallmentBlockingReasons.length > 0 && (
                                   <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
                                     <div className="font-medium">Último lançamento bloqueado até concluir o encerramento:</div>
                                     {finalInstallmentBlockingReasons.map(reason => (
