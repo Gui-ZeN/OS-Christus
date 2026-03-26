@@ -2,7 +2,6 @@
 import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { createUser, deleteUser, type DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
-import { requestPasswordResetEmail } from '../services/authClient';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ModalShell } from '../components/ui/ModalShell';
@@ -166,22 +165,16 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
         const result = await createUser(payload, form.password.trim() || undefined);
         if (result?.authUid) payload.authUid = result.authUid as string;
         setUsers(prev => [...prev, payload].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
-        if (payload.status === 'Ativo') {
-          try {
-            await requestPasswordResetEmail(payload.email);
-            setFeedback({
-              type: 'success',
-              text: 'Usuário criado. E-mail para criação/redefinição de senha enviado.',
-            });
-          } catch (error) {
-            setFeedback({
-              type: 'warning',
-              text:
-                `Usuário criado, mas não foi possível enviar o e-mail de senha: ${
-                  error instanceof Error ? error.message : 'falha desconhecida'
-                }`,
-            });
-          }
+        if (result?.passwordEmailSent) {
+          setFeedback({
+            type: 'success',
+            text: 'Usuário criado. E-mail para criação/redefinição de senha enviado.',
+          });
+        } else if (payload.status === 'Ativo') {
+          setFeedback({
+            type: 'warning',
+            text: `Usuário criado, mas o e-mail de senha não foi enviado: ${result?.passwordEmailError || 'falha desconhecida'}`,
+          });
         } else {
           setFeedback({
             type: 'warning',

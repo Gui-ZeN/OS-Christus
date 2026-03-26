@@ -5,6 +5,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readDirectory } from './_lib/directory.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
+import { generatePasswordResetUrl, sendPasswordAccessEmail } from './_lib/passwordAccess.js';
 
 function normalizeUser(input) {
   const regionIds = Array.isArray(input?.regionIds)
@@ -172,8 +173,24 @@ export default async function handler(req, res) {
         before,
         after: { id, ...user, authUid },
       });
+      let passwordEmailSent = false;
+      let passwordEmailError = null;
+      if (user.role === 'Usuario' && user.status === 'Ativo' && user.active !== false) {
+        try {
+          const resetUrl = await generatePasswordResetUrl(user.email, req);
+          await sendPasswordAccessEmail({
+            email: user.email,
+            name: user.name,
+            mode: 'invite',
+            resetUrl,
+          });
+          passwordEmailSent = true;
+        } catch (error) {
+          passwordEmailError = error instanceof Error ? error.message : 'Falha ao enviar e-mail de acesso.';
+        }
+      }
 
-      return sendJson(res, 200, { ok: true, id, authUid });
+      return sendJson(res, 200, { ok: true, id, authUid, passwordEmailSent, passwordEmailError });
     }
 
     if (req.method === 'PATCH') {

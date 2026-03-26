@@ -211,3 +211,79 @@ export function buildTicketEmailTemplate({
 
   return { html, text };
 }
+
+export function buildAccessEmailTemplate({
+  title,
+  intro,
+  recipientName,
+  ctaUrl,
+  ctaLabel = 'Criar senha',
+}) {
+  const safeTitle = esc(title || 'Defina sua senha de acesso');
+  const safeIntro = esc(intro || 'Use o botão abaixo para definir sua senha de acesso ao sistema.');
+  const greeting = recipientName ? `Olá ${esc(recipientName)},` : 'Olá,';
+  const safeUrl = esc(ctaUrl || '');
+  const safeLabel = esc(ctaLabel);
+
+  const html = `
+<!doctype html>
+<html lang="pt-BR">
+  <body style="margin:0;padding:24px 0;background:#efe8de;color:#2d241d;font-family:Georgia,'Times New Roman',serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#efe8de;">
+      <tr>
+        <td align="center">
+          <table width="680" cellpadding="0" cellspacing="0" style="max-width:680px;background:#fffdf9;border:1px solid #d7cbb7;box-shadow:0 18px 42px rgba(34,27,21,0.08);">
+            <tr>
+              <td style="padding:24px 28px;background:#1f1a15;color:#f8f2e9;">
+                <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">OS Christus</div>
+                <div style="margin-top:14px;font-size:28px;line-height:1.22;letter-spacing:-0.2px;">${safeTitle}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <div style="padding:20px;border:1px solid #e5dac8;border-radius:18px;background:#ffffff;">
+                  <p style="margin:0 0 14px;color:#544b41;font-size:14px;line-height:1.8;">${greeting}</p>
+                  <p style="margin:0 0 14px;color:#544b41;font-size:14px;line-height:1.8;">${safeIntro}</p>
+                  <p style="margin:0;color:#544b41;font-size:13px;line-height:1.8;">
+                    Por segurança, este link expira automaticamente após um período.
+                  </p>
+                </div>
+                ${
+                  safeUrl
+                    ? `<div style="margin-top:26px;text-align:left;">
+                        <a href="${safeUrl}" style="display:inline-block;background:#241c15;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:999px;font-size:14px;font-weight:bold;letter-spacing:0.2px;">
+                          ${safeLabel}
+                        </a>
+                        <div style="margin-top:12px;color:#6f6256;font-size:12px;line-height:1.7;">
+                          Link completo: <a href="${safeUrl}" style="color:#855922;">${safeUrl}</a>
+                        </div>
+                      </div>`
+                    : ''
+                }
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 28px;border-top:1px solid #e9dfd0;background:#faf6ef;color:#7d6b56;font-size:12px;line-height:1.7;">
+                Este é um comunicado automático do sistema OS Christus.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  const text = [
+    title || 'Defina sua senha de acesso',
+    '',
+    recipientName ? `Olá ${recipientName},` : 'Olá,',
+    intro || 'Use o botão abaixo para definir sua senha de acesso ao sistema.',
+    '',
+    ctaUrl ? `Link para criar senha: ${ctaUrl}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return { html, text };
+}

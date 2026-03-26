@@ -5,10 +5,11 @@ import {
   DirectoryUser,
   fetchUsers,
 } from '../services/directoryApi';
-import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, requestPasswordResetEmail, subscribeToAuthState } from '../services/authClient';
+import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
 import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
 import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
+import { requestPasswordResetInApi } from '../services/passwordResetApi';
 import { InboxFilter, Ticket, ViewState } from '../types';
 
 interface AppContextType {
@@ -576,7 +577,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const requestPasswordReset = async (email: string) => {
     const normalized = email.trim().toLowerCase();
-    await requestPasswordResetEmail(normalized);
+    await requestPasswordResetInApi(normalized);
   };
 
   useEffect(() => {

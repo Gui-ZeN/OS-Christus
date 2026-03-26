@@ -31,6 +31,8 @@ export interface DirectoryVendor {
 interface UserMutationResponse {
   ok: boolean;
   authUid?: string | null;
+  passwordEmailSent?: boolean;
+  passwordEmailError?: string | null;
 }
 
 export async function fetchDirectory() {
