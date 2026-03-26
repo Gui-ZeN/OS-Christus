@@ -573,9 +573,9 @@ export function KpiView() {
   }, [contractValues, contractsByTicket, paymentsByTicket, sites]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-8 border-b border-roman-border pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <header className="mb-8 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">
               {perspective === 'managerial' ? 'Painel Executivo' : 'Painel Financeiro'}
@@ -588,36 +588,36 @@ export function KpiView() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1">
+            <div className="flex bg-roman-bg border border-roman-border rounded-xl p-1">
               <button
                 onClick={() => setPerspective('managerial')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
               >
                 Visão Gerencial
               </button>
               <button
                 onClick={() => setPerspective('financial')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
               >
                 Visão Financeira
               </button>
             </div>
-            <div className="flex bg-roman-surface border border-roman-border rounded-sm p-1 self-end">
+            <div className="flex bg-roman-bg border border-roman-border rounded-xl p-1 self-start md:self-end">
               <button
                 onClick={() => setPeriod('month')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'month' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'month' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
               >
                 Este Mês
               </button>
               <button
                 onClick={() => setPeriod('semester')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'semester' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'semester' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
               >
                 Este Semestre
               </button>
               <button
                 onClick={() => setPeriod('custom')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${period === 'custom' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-bg'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'custom' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
               >
                 Últimos 12 Meses
               </button>
@@ -632,7 +632,7 @@ export function KpiView() {
               setSelectedRegion(event.target.value);
               setSelectedSite('all');
             }}
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
           >
             <option value="all">Todas as regiões</option>
             {regionOptions.map(option => (
@@ -643,7 +643,7 @@ export function KpiView() {
           <select
             value={selectedSite}
             onChange={event => setSelectedSite(event.target.value)}
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
           >
             <option value="all">Todas as sedes</option>
             {siteOptions.map(option => (
@@ -654,7 +654,7 @@ export function KpiView() {
           <select
             value={selectedVendor}
             onChange={event => setSelectedVendor(event.target.value)}
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
           >
             <option value="all">Todos os fornecedores</option>
             {vendorOptions.map(option => (
@@ -669,7 +669,7 @@ export function KpiView() {
               setSelectedSite('all');
               setSelectedVendor('all');
             }}
-            className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary hover:bg-roman-surface"
+            className="px-4 py-2.5 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary hover:bg-roman-surface"
           >
             Limpar filtros
           </button>

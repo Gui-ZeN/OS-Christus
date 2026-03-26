@@ -201,15 +201,15 @@ export function HomeView() {
         </header>
         {isExecutive ? (
           <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_220px_220px] lg:items-center">
-            <div className="text-sm text-roman-text-sub">
+            <div className="text-sm text-roman-text-sub rounded-xl border border-roman-border bg-roman-surface px-3 py-2.5">
               Recorte atual: <span className="font-medium text-roman-text-main">{selectedRegion === 'all' ? 'todas as regiões visíveis' : selectedRegion}</span>
               {selectedSite !== 'all' && <span className="font-medium text-roman-text-main"> • {selectedSite}</span>}
             </div>
-            <select value={selectedRegion} onChange={event => { setSelectedRegion(event.target.value); setSelectedSite('all'); }} className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+            <select value={selectedRegion} onChange={event => { setSelectedRegion(event.target.value); setSelectedSite('all'); }} className="border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
               <option value="all">Todas as regiões</option>
               {availableRegions.map(region => <option key={region} value={region}>{region}</option>)}
             </select>
-            <select value={selectedSite} onChange={event => setSelectedSite(event.target.value)} className="border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+            <select value={selectedSite} onChange={event => setSelectedSite(event.target.value)} className="border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
               <option value="all">Todas as sedes</option>
               {availableSites.map(site => <option key={site} value={site}>{site}</option>)}
             </select>
@@ -222,7 +222,7 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
           <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.NEW]) : undefined} />
           <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]) : undefined} />
           <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente" onClick={isExecutive ? () => navigateTo('approvals') : undefined} />

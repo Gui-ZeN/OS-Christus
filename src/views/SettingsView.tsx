@@ -709,7 +709,7 @@ export function SettingsView() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto bg-stone-50 p-5 md:p-8">
+      <div className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-5 xl:p-8">
       <div className="mx-auto max-w-[1500px] space-y-5">
         <section className="rounded-[1.5rem] border border-stone-200 bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:px-8">
           <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>
@@ -806,7 +806,7 @@ export function SettingsView() {
 
                       <button
                         onClick={() => void loadCatalog()}
-                        className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
+                        className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
                         disabled={catalogLoading}
                       >
                         <RefreshCw size={14} className={catalogLoading ? 'animate-spin' : ''} />
@@ -1055,7 +1055,7 @@ export function SettingsView() {
 
                       <button
                         onClick={() => void loadCatalog()}
-                        className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
+                        className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
                         disabled={catalogLoading}
                       >
                         <RefreshCw size={14} className={catalogLoading ? 'animate-spin' : ''} />
@@ -1585,7 +1585,7 @@ export function SettingsView() {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => void handleRunBackfill()}
-                          className="px-4 py-2 bg-roman-sidebar text-white rounded-sm text-sm font-medium hover:bg-stone-900 flex items-center gap-2 disabled:opacity-60"
+                          className="px-4 py-2 bg-roman-sidebar text-white rounded-xl text-sm font-medium hover:bg-stone-900 flex items-center gap-2 disabled:opacity-60"
                           disabled={backfillLoading || integrationsLoading}
                         >
                           {backfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
@@ -1593,7 +1593,7 @@ export function SettingsView() {
                         </button>
                         <button
                           onClick={() => void loadIntegrations()}
-                          className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
+                          className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
                           disabled={integrationsLoading || backfillLoading}
                         >
                           <RefreshCw size={14} className={integrationsLoading ? 'animate-spin' : ''} />
