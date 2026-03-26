@@ -1261,12 +1261,15 @@ export function FinanceView() {
       clearPaymentDraft(ticketId, payment.id);
 
       const allPaid = nextPayments.every(item => item.status === 'paid');
+      const remainingPendingPayments = nextPayments.filter(item => item.status !== 'paid').length;
+      const inFinalFinancialStage = shouldEnforceClosingChecklist(targetTicket);
+      const canCloseTicket = allPaid && inFinalFinancialStage;
       if (targetTicket) {
         const guaranteeMonths = Number(closureDraft.guaranteeMonths || 12);
         const serviceStartedAt = closureDraft.serviceStartedAt ? new Date(`${closureDraft.serviceStartedAt}T12:00:00`) : null;
         const serviceCompletedAt = closureDraft.serviceCompletedAt ? new Date(`${closureDraft.serviceCompletedAt}T12:00:00`) : null;
-        const closedAt = allPaid ? new Date() : targetTicket.closureChecklist?.closedAt || null;
-        const closureChecklist: ClosureChecklist | undefined = allPaid
+        const closedAt = canCloseTicket ? new Date() : targetTicket.closureChecklist?.closedAt || null;
+        const closureChecklist: ClosureChecklist | undefined = canCloseTicket
           ? {
               requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
               requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
@@ -1280,7 +1283,7 @@ export function FinanceView() {
               documents: targetTicket.closureChecklist?.documents || [],
             }
           : targetTicket.closureChecklist;
-        const guarantee: GuaranteeInfo | undefined = allPaid && serviceCompletedAt
+        const guarantee: GuaranteeInfo | undefined = canCloseTicket && serviceCompletedAt
           ? {
               startAt: serviceCompletedAt,
               endAt: addMonths(serviceCompletedAt, guaranteeMonths),
@@ -1290,7 +1293,11 @@ export function FinanceView() {
           : targetTicket.guarantee;
 
         updateTicket(ticketId, {
-          status: allPaid ? TICKET_STATUS.CLOSED : TICKET_STATUS.WAITING_PAYMENT,
+          status: canCloseTicket
+            ? TICKET_STATUS.CLOSED
+            : inFinalFinancialStage
+              ? TICKET_STATUS.WAITING_PAYMENT
+              : targetTicket.status,
           closureChecklist,
           guarantee,
           history: [
@@ -1300,15 +1307,17 @@ export function FinanceView() {
               type: 'system',
               sender: 'Financeiro',
               time: new Date(),
-              text: allPaid
+              text: canCloseTicket
                 ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Todos os lançamentos foram quitados, checklist concluído e garantia iniciada.`
-                : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${nextPayments.filter(item => item.status !== 'paid').length} lançamento(s) pendente(s).`,
+                : remainingPendingPayments > 0
+                  ? `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${remainingPendingPayments} lançamento(s) pendente(s).`
+                  : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Todos os lançamentos atuais foram quitados e a obra segue em execução até novos registros de andamento.`,
             },
           ],
         });
       }
       setToast(
-        allPaid
+        canCloseTicket
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
           : `${payment.label || 'Lançamento'} confirmado.`
       );
