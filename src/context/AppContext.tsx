@@ -7,15 +7,9 @@ import {
 } from '../services/directoryApi';
 import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
 import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
-import {
-  dismissNotificationRemote,
-  fetchNotifications,
-  markAllNotificationsReadRemote,
-  markNotificationReadRemote,
-} from '../services/notificationsApi';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
 import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
-import { AppNotification, InboxFilter, Ticket, ViewState } from '../types';
+import { InboxFilter, Ticket, ViewState } from '../types';
 
 interface AppContextType {
   currentView: ViewState;
@@ -24,8 +18,6 @@ interface AppContextType {
   setActiveTicketId: (id: string) => void;
   trackingTicketToken: string | null;
   setTrackingTicketToken: (token: string | null) => void;
-  showNotifications: boolean;
-  setShowNotifications: (show: boolean) => void;
   attachmentPreview: {
     title: string;
     type: 'image' | 'pdf';
@@ -43,11 +35,6 @@ interface AppContextType {
   closeAttachment: () => void;
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
-  notifications: AppNotification[];
-  unreadCount: number;
-  markNotificationRead: (id: string) => void;
-  dismissNotification: (id: string) => void;
-  markAllNotificationsRead: () => void;
   tickets: Ticket[];
   ticketsLoading: boolean;
   refreshTickets: (options?: { silent?: boolean }) => Promise<void>;
@@ -198,7 +185,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{
     title: string;
     type: 'image' | 'pdf';
@@ -208,7 +194,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
@@ -336,40 +321,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!currentUserEmail || !currentUser) {
-      setNotifications([]);
-      return undefined;
-    }
-    if (!authEnabled) {
-      setNotifications([]);
-      return undefined;
-    }
-    (async () => {
-      try {
-        const remote = await fetchNotifications();
-        if (!cancelled) {
-          setNotifications(remote);
-        }
-      } catch {
-        if (!cancelled) {
-          setNotifications([]);
-        }
-      }
-    })();
-
-    if (!shouldPollOperationalData) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authEnabled, currentUser, currentUserEmail, shouldPollOperationalData]);
-
-  useEffect(() => {
-    let cancelled = false;
 
     if (authEnabled && !authResolved) {
       return undefined;
@@ -480,29 +431,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const createdTicket = files.length > 0 ? await createTicketWithFilesInApi(ticket, files) : await createTicketInApi(ticket);
     setAllTickets(prev => [createdTicket, ...prev.filter(item => item.id !== createdTicket.id)]);
     return createdTicket;
-  };
-
-  const unreadCount = notifications.filter(notification => !notification.read).length;
-
-  const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(notification => (notification.id === id ? { ...notification, read: true } : notification)));
-    void markNotificationReadRemote(id).catch(() => {
-      // Persistência remota falhou, mas não bloqueia o fluxo local.
-    });
-  };
-
-  const dismissNotification = (id: string) => {
-    setNotifications(prev => prev.filter(notification => notification.id !== id));
-    void dismissNotificationRemote(id).catch(() => {
-      // Persistência remota falhou, mas não bloqueia o fluxo local.
-    });
-  };
-
-  const markAllNotificationsRead = () => {
-    setNotifications(prev => prev.map(notification => ({ ...notification, read: true })));
-    void markAllNotificationsReadRemote().catch(() => {
-      // Persistência remota falhou, mas não bloqueia o fluxo local.
-    });
   };
 
   useEffect(() => {
@@ -674,18 +602,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveTicketId,
         trackingTicketToken,
         setTrackingTicketToken,
-        showNotifications,
-        setShowNotifications,
         attachmentPreview,
         openAttachment,
         closeAttachment,
         inboxFilter,
         setInboxFilter,
-        notifications,
-        unreadCount,
-        markNotificationRead,
-        dismissNotification,
-        markAllNotificationsRead,
         tickets,
         ticketsLoading,
         refreshTickets,

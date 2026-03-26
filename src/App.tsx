@@ -1,7 +1,6 @@
 ﻿import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart2,
-  Bell,
   DollarSign,
   FileText,
   Home,
@@ -19,7 +18,6 @@ import {
 import { SidebarIcon } from './components/ui/SidebarIcon';
 import { useApp } from './context/AppContext';
 import { ViewState } from './types';
-import { formatDateTimeSafe } from './utils/date';
 
 const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
 const SettingsView = lazy(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
@@ -71,15 +69,8 @@ export default function App() {
     currentView,
     navigateTo,
     trackingTicketToken,
-    showNotifications,
-    setShowNotifications,
     attachmentPreview,
     closeAttachment,
-    notifications,
-    unreadCount,
-    markNotificationRead,
-    dismissNotification,
-    markAllNotificationsRead,
     setActiveTicketId,
     tickets,
     updateTicket,
@@ -96,7 +87,6 @@ export default function App() {
     availableThemes,
   } = useApp();
 
-  const notificationRef = useRef<HTMLDivElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const currentRole = currentUser?.role || '';
@@ -144,32 +134,28 @@ export default function App() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node) && showNotifications) {
-        setShowNotifications(false);
-      }
       if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node) && showThemeMenu) {
         setShowThemeMenu(false);
       }
     }
 
-    if (showNotifications || showThemeMenu) {
+    if (showThemeMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showNotifications, setShowNotifications, showThemeMenu]);
+  }, [showThemeMenu]);
 
   useEffect(() => {
     function handleEsc(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
       if (attachmentPreview) closeAttachment();
-      if (showNotifications) setShowNotifications(false);
       if (showThemeMenu) setShowThemeMenu(false);
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [attachmentPreview, closeAttachment, showNotifications, setShowNotifications, showThemeMenu]);
+  }, [attachmentPreview, closeAttachment, showThemeMenu]);
 
   useEffect(() => {
     if (!attachmentPreview) return;
@@ -348,25 +334,6 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="relative">
-            <button
-              onClick={event => {
-                event.stopPropagation();
-                setShowNotifications(!showNotifications);
-              }}
-              className={`w-full flex items-center justify-center py-2 transition-colors ${showNotifications ? 'text-roman-primary' : 'text-white/70 hover:text-white'}`}
-              title="Notificações"
-              aria-label="Notificações"
-              aria-expanded={showNotifications}
-            >
-              <Bell size={18} />
-            </button>
-            {unreadCount > 0 && (
-              <span className="absolute top-0 left-2.5 min-w-[14px] h-[14px] bg-roman-primary rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </div>
           <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="flex items-center justify-center text-white/70 hover:text-white transition-colors py-2" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
@@ -377,93 +344,6 @@ export default function App() {
           </div>
         </div>
       </aside>
-
-
-      {showNotifications && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/10" />
-          <div ref={notificationRef} className="fixed left-14 right-0 lg:right-auto top-0 bottom-0 w-auto max-w-[calc(100vw-3.5rem)] lg:w-[22rem] bg-roman-surface border-r border-roman-border shadow-2xl z-[60] animate-in slide-in-from-left-4 flex flex-col">
-          <div className="p-4 border-b border-roman-border flex justify-between items-center bg-roman-bg">
-            <div className="flex items-center gap-2">
-              <h3 className="font-serif text-lg text-roman-text-main font-medium">Notificações</h3>
-              {unreadCount > 0 && <span className="bg-roman-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>}
-            </div>
-            <button onClick={() => setShowNotifications(false)} className="text-roman-text-sub hover:text-roman-text-main" aria-label="Fechar notificações">
-              <X size={18} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {notifications.length === 0 && <div className="py-12 text-center text-roman-text-sub font-serif italic">Nenhuma notificação.</div>}
-            {notifications.map(notification => {
-              const isAlert = notification.type === 'alert';
-              const isActionable = notification.type === 'actionable';
-              return (
-                <div
-                  key={notification.id}
-                  onClick={() => markNotificationRead(notification.id)}
-                  className={`p-4 rounded-sm relative overflow-hidden transition-opacity ${
-                    isAlert
-                      ? 'bg-red-50 border border-red-200'
-                      : isActionable
-                        ? 'bg-roman-surface border border-roman-primary/30 shadow-sm'
-                        : 'bg-roman-bg border border-roman-border'
-                  } ${notification.read ? 'opacity-60 hover:opacity-90' : ''}`}
-                >
-                  {isActionable && <div className="absolute top-0 left-0 w-1 h-full bg-roman-primary"></div>}
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      {!notification.read && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isAlert ? 'bg-red-500' : isActionable ? 'bg-roman-primary animate-pulse' : 'bg-roman-primary'}`}></span>}
-                      <span className={`text-xs font-serif italic ${isAlert ? 'text-red-700' : 'text-roman-text-sub'}`}>
-                        {formatDateTimeSafe(notification.time)}
-                      </span>
-                    </div>
-                    <button
-                      onClick={event => {
-                        event.stopPropagation();
-                        dismissNotification(notification.id);
-                      }}
-                      className={`transition-colors ${isAlert ? 'text-red-400 hover:text-red-700' : 'text-roman-text-sub hover:text-roman-text-main'}`}
-                      aria-label="Dispensar notificação"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <p className={`text-sm font-medium mb-1 ${isAlert ? 'text-red-900' : 'text-roman-text-main'}`}>{notification.title}</p>
-                  <p className={`text-xs ${isAlert ? 'text-red-700' : 'text-roman-text-sub'} ${notification.action ? 'mb-3' : ''}`}>{notification.body}</p>
-                  {notification.action && (
-                    <button
-                      onClick={event => {
-                        event.stopPropagation();
-                        markNotificationRead(notification.id);
-                        if (notification.action?.ticketId) setActiveTicketId(notification.action.ticketId);
-                        navigateTo(canOpenView(notification.action.view) ? notification.action.view : VIEWS.HOME);
-                        setShowNotifications(false);
-                      }}
-                      className={`w-full py-1.5 text-xs font-medium rounded-sm transition-colors border ${
-                        isAlert
-                          ? 'bg-white hover:bg-red-100 text-red-700 border-red-200'
-                          : 'bg-roman-primary/10 hover:bg-roman-primary/20 text-roman-primary border-roman-primary/20'
-                      }`}
-                    >
-                      {notification.action.label}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="p-3 border-t border-roman-border bg-roman-bg text-center">
-            <button
-              onClick={markAllNotificationsRead}
-              disabled={unreadCount === 0}
-              className="text-xs text-roman-primary hover:underline font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Marcar todas como lidas {unreadCount > 0 ? `(${unreadCount})` : ''}
-            </button>
-          </div>
-          </div>
-        </>
-      )}
 
       <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
         <Suspense fallback={<ViewLoader />}>
