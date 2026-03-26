@@ -11,16 +11,8 @@ export interface EmailTemplateSettings {
 export interface SettingsPayload {
   emailTemplate: EmailTemplateSettings;
   emailTemplates: EmailTemplateSettings[];
-  dailyDigest?: DailyDigestSettings | null;
   sla: SlaSettings;
   thirdPartyTags?: { tags: string[] } | null;
-}
-
-export interface DailyDigestSettings {
-  enabled: boolean;
-  time: string;
-  recipients: string;
-  subject: string;
 }
 
 export interface SlaSettings {
@@ -88,7 +80,6 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   return {
     emailTemplate,
     emailTemplates,
-    dailyDigest: (json.dailyDigest || null) as DailyDigestSettings | null,
     sla: normalizeSlaSettings(json.sla),
     thirdPartyTags: json.thirdPartyTags && typeof json.thirdPartyTags === 'object'
       ? {
@@ -100,7 +91,7 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   };
 }
 
-export async function saveSettings(section: 'emailTemplates' | 'dailyDigest' | 'sla' | 'thirdPartyTags', data: object) {
+export async function saveSettings(section: 'emailTemplates' | 'sla' | 'thirdPartyTags', data: object) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/settings', {
     method: 'POST',

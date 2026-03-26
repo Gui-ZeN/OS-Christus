@@ -44,7 +44,7 @@ async function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {
     regionLabel = getTicketRegionLabel(ticket, catalog.regions, catalog.sites);
     siteLabel = getTicketSiteLabel(ticket, catalog.sites);
   } catch {
-    // Mant?m fallback com os dados atuais do ticket.
+    // Mantém fallback com os dados atuais do ticket.
   }
 
   return {

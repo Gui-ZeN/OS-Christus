@@ -34,11 +34,6 @@ export interface TicketAttachment {
   category?: 'closure_report' | 'closure_evidence' | 'attachment';
 }
 
-export interface SLAStatus {
-  dueAt: Date;
-  status: 'on_time' | 'at_risk' | 'overdue';
-}
-
 export interface PreliminaryActions {
   materialRequested: boolean;
   materialEta?: Date | null;
@@ -116,7 +111,6 @@ export interface Ticket {
   priority: string;
   history: HistoryItem[];
   viewingBy?: { name: string; at: Date } | null;
-  sla?: SLAStatus;
   preliminaryActions?: PreliminaryActions;
   closureChecklist?: ClosureChecklist;
   attachments?: TicketAttachment[];

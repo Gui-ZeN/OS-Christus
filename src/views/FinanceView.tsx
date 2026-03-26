@@ -1257,7 +1257,7 @@ export function FinanceView() {
               time: new Date(),
               text: allPaid
                 ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Todas as parcelas foram quitadas, checklist concluído e garantia iniciada.`
-                : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${nextPayments.filter(item => item.status !== 'paid').length} parcela(s) pendente(s).`,
+                : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${nextPayments.filter(item => item.status !== 'paid').length} lançamento(s) pendente(s).`,
             },
           ],
         });

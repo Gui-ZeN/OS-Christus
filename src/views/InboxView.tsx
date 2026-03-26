@@ -1268,8 +1268,8 @@ export function InboxView() {
             sender: displayActorLabel,
             time: now,
             text: executionSetupForm.notes.trim()
-              ? `Execução iniciada com fluxo financeiro em ${paymentFlowParts} parcela(s). ${executionSetupForm.notes.trim()}`
-              : `Execução iniciada com fluxo financeiro em ${paymentFlowParts} parcela(s).`,
+              ? `Execução iniciada com fluxo financeiro por marcos de andamento. ${executionSetupForm.notes.trim()}`
+              : 'Execução iniciada com fluxo financeiro por marcos de andamento.',
           },
         ],
       });
@@ -3774,7 +3774,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <h4 className="text-sm font-serif text-roman-text-main">Base histórica (24 meses)</h4>
                     <p className="text-xs text-roman-text-sub">
                       {budgetHistory.comparableTicketCount > 0
-                        ? `${budgetHistory.comparableTicketCount} OS similares encontradas para comparacao.`
+                        ? `${budgetHistory.comparableTicketCount} OS similares encontradas para comparação.`
                         : 'Sem base histórica suficiente para comparar esta OS.'}
                     </p>
                   </div>

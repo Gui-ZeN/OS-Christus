@@ -4,10 +4,9 @@ import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, Mea
 import { coerceDate } from '../utils/date';
 import { repairMojibake } from '../utils/text';
 
-type ApiTicket = Omit<Ticket, 'time' | 'history' | 'sla' | 'viewingBy'> & {
+type ApiTicket = Omit<Ticket, 'time' | 'history' | 'viewingBy'> & {
   time: string;
   viewingBy?: { name: string; at: string } | null;
-  sla?: { dueAt: string; status: 'on_time' | 'at_risk' | 'overdue' } | null;
   history: Array<Omit<Ticket['history'][number], 'time'> & { time: string }>;
   preliminaryActions?: Omit<PreliminaryActions, 'materialEta' | 'plannedStartAt' | 'actualStartAt' | 'updatedAt'> & {
     materialEta?: string | null;
@@ -88,7 +87,6 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     priority: repairMojibake(ticket.priority),
     time: coerceDate(ticket.time),
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
-    sla: ticket.sla ? { ...ticket.sla, dueAt: coerceDate(ticket.sla.dueAt) } : undefined,
     history: ticket.history.map(item => ({
       ...item,
       sender: item.sender ? repairMojibake(item.sender) : item.sender,
