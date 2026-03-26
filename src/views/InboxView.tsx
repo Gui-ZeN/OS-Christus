@@ -438,7 +438,7 @@ function getExecutionNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
   if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar validação do solicitante para avançar para o financeiro.';
-  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento financeiro.';
+  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir lançamentos pendentes e finalizar o encerramento financeiro.';
   if (ticket.status === TICKET_STATUS.CLOSED) return 'Acompanhar garantia e documentos finais, se necessário.';
   return 'Sem ação operacional pendente nesta etapa.';
 }
@@ -2960,7 +2960,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           </div>
                           <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
                             <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
-                            <div>Parcelas liberadas: {activeReleasedPercent}%</div>
+                            <div>Marcos liberados: {activeReleasedPercent}%</div>
                             <div>Próximo marco: {activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'todos os marcos liberados'}</div>
                             {activeTicket.executionProgress.measurementSheetUrl && (
                               <div>
@@ -3594,7 +3594,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         >
           <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
             <div className="font-medium">Serão excluídos:</div>
-            <div className="mt-1">ticket, cotações, contrato, parcelas, medições, conversa por e-mail e anexos vinculados.</div>
+            <div className="mt-1">ticket, cotações, contrato, lançamentos, medições, conversa por e-mail e anexos vinculados.</div>
           </div>
         </ModalShell>
       )}

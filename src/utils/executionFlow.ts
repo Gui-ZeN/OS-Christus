@@ -39,7 +39,7 @@ export function createExecutionPaymentPlan(_totalValue: number, vendor: string, 
       vendor,
       // Value is set when manager records gross amount.
       value: '',
-      label: isSingleInstallment ? 'Parcela unica' : `Parcela ${installmentNumber}/${safeParts}`,
+      label: isSingleInstallment ? 'Lançamento único' : `Lançamento ${installmentNumber}/${safeParts}`,
       status: 'pending',
       installmentNumber,
       totalInstallments: safeParts,

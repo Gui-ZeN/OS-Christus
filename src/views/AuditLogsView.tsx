@@ -147,7 +147,7 @@ function extractSummary(log: AuditLogEntry) {
       return [label, progress ? `andamento em ${progress}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
     }
     case 'procurement.payment.save': {
-      const label = typeof source?.label === 'string' ? source.label : 'Parcela atualizada';
+      const label = typeof source?.label === 'string' ? source.label : 'Lançamento atualizado';
       const status = typeof source?.status === 'string' ? source.status : null;
       return [label, status ? `status: ${status}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
     }

@@ -127,7 +127,7 @@ export function HomeView() {
       {
         key: 'payment',
         title: 'Liberar pagamentos',
-        subtitle: 'Parcela ou quitação pendente.',
+        subtitle: 'Lançamento ou quitação pendente.',
         count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
         action: () => navigateTo('finance'),
       },

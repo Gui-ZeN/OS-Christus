@@ -781,7 +781,7 @@ export function KpiView() {
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
                 <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Desembolso realizado</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {financialOverview.paid.toLocaleString('pt-BR')}</div>
-                <div className="text-sm text-roman-text-sub">Somatório das parcelas efetivamente quitadas</div>
+                <div className="text-sm text-roman-text-sub">Somatório dos lançamentos efetivamente quitados</div>
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
@@ -843,7 +843,7 @@ export function KpiView() {
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Parcelas pendentes</h3>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Lançamentos pendentes</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">
                   {(Object.values(paymentsByTicket) as PaymentRecord[][]).flat().filter(payment => payment.status !== 'paid').length}
                 </div>

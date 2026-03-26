@@ -228,7 +228,7 @@ function getFinanceNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
   if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar validação do solicitante para seguir o fechamento financeiro.';
-  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir parcelas pendentes e finalizar o encerramento.';
+  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir lançamentos pendentes e finalizar o encerramento.';
   if (ticket.status === TICKET_STATUS.CLOSED) return 'Fluxo financeiro concluído.';
   if (ticket.status === TICKET_STATUS.CANCELED) return 'OS cancelada; manter apenas consulta histórica.';
   return 'Acompanhar evolução da OS e próximos marcos financeiros.';
@@ -411,7 +411,7 @@ function buildClosureExportHtml(
       <h2>Pagamentos</h2>
       <table>
         <thead>
-          <tr><th>Parcela</th><th>Valor</th><th>% liberado</th><th>Status</th><th>Data</th></tr>
+          <tr><th>Lançamento</th><th>Valor</th><th>% liberado</th><th>Status</th><th>Data</th></tr>
         </thead>
         <tbody>${paymentRows}</tbody>
       </table>
@@ -1256,7 +1256,7 @@ export function FinanceView() {
               sender: 'Financeiro',
               time: new Date(),
               text: allPaid
-                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Todas as parcelas foram quitadas, checklist concluído e garantia iniciada.`
+                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Todos os lançamentos foram quitados, checklist concluído e garantia iniciada.`
                 : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${nextPayments.filter(item => item.status !== 'paid').length} lançamento(s) pendente(s).`,
             },
           ],
@@ -1265,7 +1265,7 @@ export function FinanceView() {
       setToast(
         allPaid
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
-          : `${payment.label || 'Parcela'} confirmada.`
+          : `${payment.label || 'Lançamento'} confirmado.`
       );
       setTimeout(() => setToast(null), 3000);
     } finally {
@@ -1284,7 +1284,7 @@ export function FinanceView() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
-          <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de parcelas e confirmação de pagamentos das ordens de serviço em execução e fechamento.</p>
+          <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de lançamentos e confirmação de pagamentos das ordens de serviço em execução e fechamento.</p>
         </header>
 
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
@@ -1303,7 +1303,7 @@ export function FinanceView() {
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
               <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
               <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Pago: {formatCurrency(financeSummary.paid)}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Ação: liberar ou quitar parcelas</div>
+              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Ação: liberar ou quitar lançamentos</div>
             </div>
           </div>
         </div>
@@ -1329,7 +1329,7 @@ export function FinanceView() {
             </div>
             <div className="text-xs text-roman-text-sub">
               {financeSection === 'open'
-                ? 'OS com parcelas pendentes, liberações em andamento ou checklist final aberto.'
+                ? 'OS com lançamentos pendentes, liberações em andamento ou checklist final aberto.'
                 : 'OS quitadas para consulta histórica.'}
             </div>
             {financeSection === 'history' && (
@@ -1567,7 +1567,7 @@ export function FinanceView() {
                           />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-3 text-xs text-roman-text-sub">
-                          <span>Parcelas liberadas: {totalReleased}%</span>
+                          <span>Marcos liberados: {totalReleased}%</span>
                           <span>
                             Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'Todos liberados'}
                           </span>
@@ -1794,7 +1794,7 @@ export function FinanceView() {
                     </FinanceSection>
                     <FinanceSection
                       title="Fluxo de pagamento"
-                      description="As parcelas surgem conforme os lançamentos de valor bruto no andamento."
+                      description="Os lançamentos surgem conforme os registros de valor bruto no andamento."
                       icon={<DollarSign size={15} />}
                     >
                       <div className="mb-3 text-xs text-roman-text-sub">
@@ -1804,7 +1804,7 @@ export function FinanceView() {
                       {payments.length === 0 ? (
                         <div className="text-sm text-roman-text-sub font-serif italic">
                           {ticket.executionProgress?.paymentFlowParts
-                            ? `Fluxo definido em ${ticket.executionProgress.paymentFlowParts}x. Registre andamento para criar as parcelas dinamicamente.`
+                            ? `Fluxo definido em ${ticket.executionProgress.paymentFlowParts}x. Registre andamento para criar os lançamentos dinamicamente.`
                             : 'Nenhuma parcela registrada ainda. Atualize o andamento para criar a primeira parcela.'}
                         </div>
                       ) : (
