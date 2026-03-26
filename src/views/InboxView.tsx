@@ -7,7 +7,7 @@ import { ModalShell } from '../components/ui/ModalShell';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
+import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket, TicketAttachment } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
@@ -15,7 +15,7 @@ import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
-import { uploadContractAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
+import { uploadContractAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -1056,92 +1056,139 @@ export function InboxView() {
   };
 
   // Botão principal de ação: transição de status + registro no histórico
-  const handleSend = () => {
+  const handleSend = async () => {
     if (isSending) return;
     setIsSending(true);
     const now = new Date();
     const sender = displayActorLabel;
+    const trimmedReply = replyText.trim();
 
-    if (replyMode === 'internal') {
-      const items: HistoryItem[] = [];
-      let newStatus = activeTicket.status;
+    const buildAttachmentText = (attachments: TicketAttachment[]) => {
+      const links = attachments
+        .filter(item => String(item?.url || '').trim())
+        .map(item => `- ${item.name}: ${item.url}`);
+      if (links.length === 0) return '';
+      return `Anexos enviados:\n${links.join('\n')}`;
+    };
 
-      if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
-        newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
-        if (replyText.trim()) {
+    try {
+      let uploadedReplyAttachments: TicketAttachment[] = [];
+      if (replyFiles.length > 0) {
+        uploadedReplyAttachments = await Promise.all(
+          replyFiles.map(file => uploadMessageAttachment(activeTicket.id, replyMode, file))
+        );
+      }
+
+      const messageWithAttachments = [trimmedReply, buildAttachmentText(uploadedReplyAttachments)]
+        .filter(Boolean)
+        .join('\n\n')
+        .trim();
+
+      if (replyMode === 'internal') {
+        const items: HistoryItem[] = [];
+        let newStatus = activeTicket.status;
+
+        if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+          newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
+          if (trimmedReply || uploadedReplyAttachments.length > 0) {
+            items.push({
+              id: crypto.randomUUID(),
+              type: 'tech',
+              sender,
+              time: now,
+              text: messageWithAttachments || 'Parecer técnico encaminhado para aprovação.',
+              visibility: 'internal',
+              attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
+            });
+          }
           items.push({
             id: crypto.randomUUID(),
-            type: 'tech',
+            type: 'system',
             sender,
-            time: now,
-            text: replyText.trim(),
+            time: new Date(now.getTime() + 1),
+            text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
             visibility: 'internal',
           });
+        } else if (trimmedReply || uploadedReplyAttachments.length > 0) {
+          items.push({
+            id: crypto.randomUUID(),
+            type: 'internal',
+            sender,
+            time: now,
+            text: messageWithAttachments || 'Atualização interna com anexos.',
+            visibility: 'internal',
+            attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
+          });
         }
-        items.push({
+
+        if (items.length > 0 || newStatus !== activeTicket.status) {
+          updateTicket(activeTicket.id, {
+            status: newStatus,
+            priority: ticketPriority || activeTicket.priority,
+            assignedTeam: techTeam || activeTicket.assignedTeam || '',
+            assignedEmail: isExternalTeam ? resolveAssignedEmails() : '',
+            attachments:
+              uploadedReplyAttachments.length > 0
+                ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
+                : activeTicket.attachments,
+            history: [...activeTicket.history, ...items],
+          });
+        }
+      } else if (replyMode === 'public') {
+        if (!trimmedReply && uploadedReplyAttachments.length === 0) {
+          setIsSending(false);
+          return;
+        }
+        const item: HistoryItem = {
           id: crypto.randomUUID(),
-          type: 'system',
+          type: 'tech',
           sender,
-          time: new Date(now.getTime() + 1),
-          text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
-          visibility: 'internal',
+          time: now,
+          text: messageWithAttachments || 'Mensagem enviada com anexo.',
+          visibility: 'public',
+          attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
+        };
+        updateTicket(activeTicket.id, {
+          attachments:
+            uploadedReplyAttachments.length > 0
+              ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
+              : activeTicket.attachments,
+          history: [...activeTicket.history, item],
         });
-      } else if (replyText.trim()) {
-        items.push({
+        void notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments);
+      } else {
+        if (!trimmedReply && uploadedReplyAttachments.length === 0) {
+          setIsSending(false);
+          return;
+        }
+        const item: HistoryItem = {
           id: crypto.randomUUID(),
           type: 'internal',
           sender,
           time: now,
-          text: replyText.trim(),
+          text: messageWithAttachments || 'Mensagem interna enviada com anexo.',
           visibility: 'internal',
-        });
-      }
-
-      if (items.length > 0 || newStatus !== activeTicket.status) {
+          attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
+        };
         updateTicket(activeTicket.id, {
-          status: newStatus,
-          priority: ticketPriority || activeTicket.priority,
-          assignedTeam: techTeam || activeTicket.assignedTeam || '',
-          assignedEmail: isExternalTeam ? resolveAssignedEmails() : '',
-          history: [...activeTicket.history, ...items],
+          attachments:
+            uploadedReplyAttachments.length > 0
+              ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
+              : activeTicket.attachments,
+          history: [...activeTicket.history, item],
         });
+        void notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments);
       }
-    } else if (replyMode === 'public') {
-      if (!replyText.trim()) {
-        setIsSending(false);
-        return;
-      }
-      const item: HistoryItem = {
-        id: crypto.randomUUID(),
-        type: 'tech',
-        sender,
-        time: now,
-        text: replyText.trim(),
-        visibility: 'public',
-      };
-      updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
-      void notifyTicketPublicReply(activeTicket, sender, replyText.trim());
-    } else {
-      if (!replyText.trim()) {
-        setIsSending(false);
-        return;
-      }
-      const item: HistoryItem = {
-        id: crypto.randomUUID(),
-        type: 'internal',
-        sender,
-        time: now,
-        text: replyText.trim(),
-        visibility: 'internal',
-      };
-      updateTicket(activeTicket.id, { history: [...activeTicket.history, item] });
-      void notifyTicketDirectorReply(activeTicket, sender, replyText.trim());
-    }
 
-    setReplyText('');
-    setReplyFiles([]);
-    if (replyFileRef.current) replyFileRef.current.value = '';
-    window.setTimeout(() => setIsSending(false), 400);
+      setReplyText('');
+      setReplyFiles([]);
+      if (replyFileRef.current) replyFileRef.current.value = '';
+    } catch {
+      setToast('Falha ao anexar arquivos nesta mensagem. Tente novamente.');
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      window.setTimeout(() => setIsSending(false), 400);
+    }
   };
 
   const handlePrelimFieldToggle = (field: PreliminaryChecklistKey) => {
@@ -2700,6 +2747,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   const isExternalMessage = item.type === 'customer';
                   const isInternalNote = item.visibility === 'internal' || item.type === 'internal';
                   const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
+                  const messageAttachmentItems = (Array.isArray(item.attachments) ? item.attachments : [])
+                    .filter(attachment => attachment?.url)
+                    .map(attachment => ({
+                      title: attachment.name,
+                      type: attachment.contentType?.includes('pdf') ? ('pdf' as const) : ('image' as const),
+                      url: attachment.url,
+                    }));
 
                   return (
                     <div key={index} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
@@ -2730,6 +2784,26 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             }`}
                           >
                             {item.text}
+                            {messageAttachmentItems.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {messageAttachmentItems.map((attachment, attachmentIndex) => (
+                                  <button
+                                    key={`${item.id}-attachment-${attachmentIndex}`}
+                                    type="button"
+                                    onClick={() =>
+                                      openAttachment(attachment.title, attachment.type, {
+                                        url: attachment.url,
+                                        items: messageAttachmentItems,
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white/70 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
+                                  >
+                                    <FileText size={12} />
+                                    <span className="max-w-[180px] truncate">{attachment.title}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

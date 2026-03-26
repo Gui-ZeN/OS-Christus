@@ -1,5 +1,5 @@
 ﻿import { TICKET_STATUS } from '../constants/ticketStatus';
-import { Ticket } from '../types';
+import { Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -145,6 +145,26 @@ function buildDirectorEmailBody(ticket: Ticket, isApprovalStatus: boolean, summa
     '',
     summaryList,
   ].join('\n');
+}
+
+function buildAttachmentList(attachments: TicketAttachment[]) {
+  return attachments
+    .filter(item => String(item?.url || '').trim())
+    .map(item => `- ${item.name || 'Arquivo'}: ${item.url}`);
+}
+
+function resolveLatestInternalTechEntry(ticket: Ticket) {
+  return [...(Array.isArray(ticket.history) ? ticket.history : [])]
+    .reverse()
+    .find(item => item.type === 'tech' && item.visibility === 'internal');
+}
+
+function appendAttachmentsToBody(message: string, attachments: TicketAttachment[]) {
+  const links = buildAttachmentList(attachments);
+  if (links.length === 0) return message.trim();
+  const base = message.trim();
+  if (!base) return ['Anexos enviados:', ...links].join('\n');
+  return [base, '', 'Anexos enviados:', ...links].join('\n');
 }
 
 async function postEmail(payload: Record<string, unknown>) {
@@ -389,7 +409,15 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   if (DIRECTOR_FLOW_STATUSES.has(ticket.status)) {
     const directorTab = resolveDirectorApprovalTab(ticket.status);
     const isApprovalStatus = directorTab !== 'solutions';
-    const directorBody = buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary);
+    const latestInternalTechEntry = resolveLatestInternalTechEntry(ticket);
+    const latestAttachments = Array.isArray(latestInternalTechEntry?.attachments) ? latestInternalTechEntry.attachments : [];
+    const technicalBlock = latestInternalTechEntry?.text
+      ? `Parecer técnico:\n${latestInternalTechEntry.text}`
+      : '';
+    const directorBody = appendAttachmentsToBody(
+      [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), technicalBlock].filter(Boolean).join('\n\n'),
+      latestAttachments
+    );
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
@@ -427,9 +455,15 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   }
 }
 
-export async function notifyTicketPublicReply(ticket: Ticket, sender: string, message: string) {
+export async function notifyTicketPublicReply(
+  ticket: Ticket,
+  sender: string,
+  message: string,
+  attachments: TicketAttachment[] = []
+) {
   const toEmail = resolveTicketEmail(ticket);
-  if (!toEmail || !message.trim()) return;
+  const bodyText = appendAttachmentsToBody(message, attachments);
+  if (!toEmail || !bodyText.trim()) return;
 
   await postEmail({
     ticketId: ticket.id,
@@ -439,7 +473,7 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
     variables: await buildVariables(ticket, {
       message: {
         sender,
-        body: message.trim(),
+        body: bodyText,
       },
     }),
     templateData: {
@@ -447,23 +481,28 @@ export async function notifyTicketPublicReply(ticket: Ticket, sender: string, me
       intro: `${sender} enviou uma nova mensagem sobre o chamado ${ticket.subject}.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
-      bodyText: message.trim(),
+      bodyText,
       ctaUrl: buildTrackingUrl(ticket),
       ctaLabel: 'Ver mensagem',
     },
   });
 }
 
-export async function notifyTicketDirectorReply(ticket: Ticket, sender: string, message: string) {
-  const trimmedMessage = message.trim();
-  if (!trimmedMessage) return;
+export async function notifyTicketDirectorReply(
+  ticket: Ticket,
+  sender: string,
+  message: string,
+  attachments: TicketAttachment[] = []
+) {
+  const bodyText = appendAttachmentsToBody(message, attachments);
+  if (!bodyText.trim()) return;
 
   const directorTab = resolveDirectorApprovalTab(ticket.status);
   const trigger = directorTab === 'solutions' ? 'EMAIL-DIRETORIA-SOLUCAO' : 'EMAIL-DIRETORIA-APROVACAO';
   const variables = await buildVariables(ticket, {
     message: {
       sender,
-      body: trimmedMessage,
+      body: bodyText,
     },
   });
 
@@ -477,7 +516,7 @@ export async function notifyTicketDirectorReply(ticket: Ticket, sender: string, 
       intro: `${sender} enviou uma atualização interna para a Diretoria.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
-      bodyText: trimmedMessage,
+      bodyText,
       skipGreeting: true,
       ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
       ctaLabel: 'Abrir painel da Diretoria',

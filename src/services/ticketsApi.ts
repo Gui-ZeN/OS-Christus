@@ -94,6 +94,12 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
       field: item.field ? repairMojibake(item.field) : item.field,
       from: item.from ? repairMojibake(item.from) : item.from,
       to: item.to ? repairMojibake(item.to) : item.to,
+      attachments: Array.isArray(item.attachments)
+        ? item.attachments.map(attachment => ({
+            ...attachment,
+            uploadedAt: attachment.uploadedAt ? coerceDate(attachment.uploadedAt) : null,
+          }))
+        : undefined,
       time: coerceDate(item.time),
     })),
     preliminaryActions: ticket.preliminaryActions

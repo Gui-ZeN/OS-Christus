@@ -58,6 +58,12 @@ export function normalizeTicketForStorage(ticket) {
     next.history = next.history.map(item => ({
       ...item,
       time: toDate(item.time) || new Date(),
+      attachments: Array.isArray(item?.attachments)
+        ? item.attachments.map(attachment => ({
+            ...attachment,
+            uploadedAt: toDate(attachment?.uploadedAt) || null,
+          }))
+        : undefined,
     }));
   }
   if (next.preliminaryActions) {
@@ -143,6 +149,12 @@ export function serializeTicketForApi(ticket) {
     history: Array.isArray(ticket.history)
       ? ticket.history.map(item => ({
           ...item,
+          attachments: Array.isArray(item?.attachments)
+            ? item.attachments.map(attachment => ({
+                ...attachment,
+                uploadedAt: serializeDate(attachment?.uploadedAt),
+              }))
+            : undefined,
           time: serializeDate(item.time),
         }))
       : [],

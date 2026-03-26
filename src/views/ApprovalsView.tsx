@@ -590,14 +590,21 @@ export function ApprovalsView() {
     () =>
       tickets
         .filter(ticket => ticket.status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL)
-        .map(ticket => ({
-          id: ticket.id,
-          subject: ticket.subject,
-          requester: ticket.requester,
-          date: ticket.time,
-          viewingBy: ticket.viewingBy || null,
-          technicalOpinion: [...ticket.history].reverse().find(item => item.type === 'tech')?.text ?? 'Parecer não disponível.',
-        })),
+        .map(ticket => {
+          const latestTechnicalEntry = [...ticket.history]
+            .reverse()
+            .find(item => item.type === 'tech' && item.visibility === 'internal');
+          return {
+            id: ticket.id,
+            subject: ticket.subject,
+            requester: ticket.requester,
+            date: ticket.time,
+            viewingBy: ticket.viewingBy || null,
+            technicalOpinion: latestTechnicalEntry?.text ?? 'Parecer não disponível.',
+            technicalAttachments: (Array.isArray(latestTechnicalEntry?.attachments) ? latestTechnicalEntry?.attachments : [])
+              .filter(attachment => attachment?.url),
+          };
+        }),
     [tickets]
   );
 
@@ -930,6 +937,25 @@ export function ApprovalsView() {
               <div className="bg-roman-bg border border-roman-border rounded-xl p-3.5 mb-5">
                 <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Parecer Técnico</h4>
                 <p className="text-sm text-roman-text-main leading-relaxed">{solution.technicalOpinion}</p>
+                {solution.technicalAttachments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {solution.technicalAttachments.map((attachment, attachmentIndex) => (
+                      <button
+                        key={`${solution.id}-tech-attachment-${attachmentIndex}`}
+                        type="button"
+                        onClick={() =>
+                          openAttachment(`Parecer: ${attachment.name}`, attachment.contentType?.includes('pdf') ? 'pdf' : 'image', {
+                            url: attachment.url || null,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
+                      >
+                        <FileText size={12} />
+                        <span className="max-w-[220px] truncate">{attachment.name || 'Anexo do parecer'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-3">
                 <button onClick={() => openRejectModal(solution.id)} disabled={processingId === solution.id} className="px-5 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-xl font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">

@@ -18,6 +18,7 @@ export interface HistoryItem {
   time: Date;
   text?: string;
   visibility?: 'public' | 'internal';
+  attachments?: TicketAttachment[];
   field?: string;
   from?: string;
   to?: string;

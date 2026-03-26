@@ -141,6 +141,38 @@ export async function uploadContractAttachment(ticketId: string, file: File): Pr
   };
 }
 
+export async function uploadMessageAttachment(
+  ticketId: string,
+  channel: 'internal' | 'public' | 'director',
+  file: File
+): Promise<TicketAttachment> {
+  const app = getFirebaseClientApp();
+  if (!app) {
+    throw new Error('Firebase Storage não configurado no frontend.');
+  }
+
+  const storage = getStorage(app);
+  const contentType = resolveContentType(file, 'application/pdf');
+  const safeName = sanitizeFileName(file.name) || `mensagem-${Date.now()}`;
+  const path = `attachments/tickets/messages/${ticketId}/${channel}/${Date.now()}-${safeName}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, {
+    contentType,
+  });
+  const url = await getDownloadURL(storageRef);
+
+  return {
+    id: crypto.randomUUID(),
+    name: file.name,
+    path,
+    url,
+    contentType,
+    size: file.size,
+    uploadedAt: new Date(),
+    category: 'attachment',
+  };
+}
+
 export async function deleteTicketAttachment(path: string) {
   const app = getFirebaseClientApp();
   if (!app) {
