@@ -1304,7 +1304,7 @@ export function InboxView() {
 
     const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      setToast('Erro: informe o valor bruto da parcela/etapa.');
+      setToast('Erro: informe o valor bruto do lançamento/etapa.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -4506,7 +4506,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
                 <div className="font-medium text-roman-text-main">Regra do fluxo</div>
-                <div>Cada atualização de andamento com valor bruto cria uma nova parcela no financeiro.</div>
+                <div>Cada atualização de andamento com valor bruto cria um novo lançamento no financeiro.</div>
                 <div>Os marcos (1x a 5x) ficam como referência de progresso da execução.</div>
               </div>
 
@@ -4528,7 +4528,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           isOpen={showProgressModal}
           onClose={() => setShowProgressModal(false)}
           title="Atualizar Andamento da Obra"
-          description="Informe o valor bruto da parcela/etapa e o sistema somará ao acumulado para calcular o percentual executado."
+          description="Informe o valor bruto do lançamento/etapa e o sistema somará ao acumulado para calcular o percentual executado."
           maxWidthClass="max-w-xl"
           footer={(
             <div className="flex justify-end gap-3">
@@ -4548,7 +4548,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto desta parcela/etapa</label>
+                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
                   <input
                     type="text"
                     inputMode="decimal"

@@ -34,7 +34,7 @@ const ACTION_LABELS: Record<string, string> = {
   'settings.update': 'Atualização de configurações',
   'procurement.quotes.save': 'Atualização de cotações',
   'procurement.contract.save': 'Atualização de contrato',
-  'procurement.payment.save': 'Atualização de parcela',
+  'procurement.payment.save': 'Atualização de lançamento',
   'procurement.measurement.save': 'Registro de medição',
   'procurement.update': 'Atualização de orçamento/contrato',
   'notifications.dismiss': 'Notificação dispensada',

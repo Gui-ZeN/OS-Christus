@@ -301,7 +301,7 @@ function buildClosureExportHtml(
         .join('');
 
   const paymentRows = payments.length === 0
-    ? '<tr><td colspan="5">Nenhuma parcela registrada.</td></tr>'
+    ? '<tr><td colspan="5">Nenhum lançamento registrado.</td></tr>'
     : payments
         .map(
           payment => `
@@ -922,7 +922,7 @@ export function FinanceView() {
 
     const grossAmount = parseCurrency(draft.grossAmount || '');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      setToast('Erro: informe o valor bruto da parcela/etapa.');
+      setToast('Erro: informe o valor bruto do lançamento/etapa.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -1093,10 +1093,10 @@ export function FinanceView() {
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
-      setToast(`${uploadedItems.length} anexo(s) vinculados à ${payment.label || 'parcela'}.`);
+      setToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lançamento'}.`);
       setTimeout(() => setToast(null), 3000);
     } catch (error) {
-      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos da parcela.'}`);
+      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos do lançamento.'}`);
       setTimeout(() => setToast(null), 4000);
     } finally {
       setUploadingPaymentKey(null);
@@ -1126,10 +1126,10 @@ export function FinanceView() {
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
-      setToast(`Anexo removido da ${payment.label || 'parcela'}.`);
+      setToast(`Anexo removido de ${payment.label || 'lançamento'}.`);
       setTimeout(() => setToast(null), 3000);
     } catch (error) {
-      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo da parcela.'}`);
+      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lançamento.'}`);
       setTimeout(() => setToast(null), 4000);
     } finally {
       setUploadingPaymentKey(null);
@@ -1141,7 +1141,7 @@ export function FinanceView() {
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
     if (!targetTicket) return;
     if (payment.status !== 'approved') {
-      setToast('Erro: a parcela ainda não foi liberada pelo andamento da obra.');
+      setToast('Erro: o lançamento ainda não foi liberado pelo andamento da obra.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -1150,7 +1150,7 @@ export function FinanceView() {
     const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || '');
     const taxAmount = parseCurrency(settlementDraft.taxValue || payment.taxValue || '0');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      setToast('Erro: informe o valor bruto da parcela antes de confirmar o pagamento.');
+      setToast('Erro: informe o valor bruto do lançamento antes de confirmar o pagamento.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -1193,7 +1193,7 @@ export function FinanceView() {
         !Number.isFinite(guaranteeMonths) ||
         guaranteeMonths <= 0
       ) {
-        setToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar a última parcela.');
+        setToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar o último lançamento.');
         setTimeout(() => setToast(null), 3000);
         return;
       }
@@ -1593,7 +1593,7 @@ export function FinanceView() {
 
                     <FinanceSection
                       title="Atualizações de andamento"
-                      description="Cada avanço registra uma nova parcela para o financeiro."
+                      description="Cada avanço registra um novo lançamento para o financeiro."
                       icon={<PlusCircle size={15} />}
                     >
                       <div className="mb-3 flex items-center justify-end">
@@ -1618,7 +1618,7 @@ export function FinanceView() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto desta parcela/etapa</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
                             <input
                               type="text"
                               inputMode="decimal"
@@ -1798,14 +1798,14 @@ export function FinanceView() {
                       icon={<DollarSign size={15} />}
                     >
                       <div className="mb-3 text-xs text-roman-text-sub">
-                        O financeiro recebe uma nova parcela toda vez que o gestor registra valor bruto no andamento da obra.
+                        O financeiro recebe um novo lançamento toda vez que o gestor registra valor bruto no andamento da obra.
                       </div>
 
                       {payments.length === 0 ? (
                         <div className="text-sm text-roman-text-sub font-serif italic">
                           {ticket.executionProgress?.paymentFlowParts
                             ? `Fluxo definido em ${ticket.executionProgress.paymentFlowParts}x. Registre andamento para criar os lançamentos dinamicamente.`
-                            : 'Nenhuma parcela registrada ainda. Atualize o andamento para criar a primeira parcela.'}
+                            : 'Nenhum lançamento registrado ainda. Atualize o andamento para criar o primeiro lançamento.'}
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -1835,7 +1835,7 @@ export function FinanceView() {
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
                                 {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
                                   <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
-                                    <div className="font-medium">Última parcela bloqueada até concluir o encerramento:</div>
+                                    <div className="font-medium">Último lançamento bloqueado até concluir o encerramento:</div>
                                     {finalInstallmentBlockingReasons.map(reason => (
                                       <div key={reason}>- {reason}</div>
                                     ))}
@@ -1878,7 +1878,7 @@ export function FinanceView() {
 
                               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                  <div className="text-xs text-roman-text-sub">Anexos da parcela (PDF, PNG, JPG e similares).</div>
+                                  <div className="text-xs text-roman-text-sub">Anexos do lançamento (PDF, PNG, JPG e similares).</div>
                                   <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
                                     {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
                                     <input
