@@ -332,6 +332,16 @@ function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   return repairMojibake(`${ticketId} - ${cleanSubject}`);
 }
 
+function buildThreadRootMessageId(ticketId) {
+  const normalizedTicketId = String(ticketId || 'ticket')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `<os-thread-${normalizedTicketId || 'ticket'}@os-christus>`;
+}
+
 function buildInboundHistoryId(messageId, fallbackKey) {
   const base = String(messageId || fallbackKey || Date.now())
     .replace(/[^a-zA-Z0-9_-]+/g, '-')
@@ -963,10 +973,17 @@ async function handleSend(req, res) {
       throw new Error('Campo obrigatÃ³rio: toEmail (ou thread existente com destinatÃ¡rio).');
     }
 
+    const rootMessageId = normalizeMessageIdToken(thread?.rootMessageId) || buildThreadRootMessageId(ticketId);
     const reuseThread = !internalCopy && Boolean(thread?.lastMessageId);
-    const priorMessageId = reuseThread ? thread?.lastMessageId || null : null;
-    const references = reuseThread && Array.isArray(thread?.references) ? thread.references : [];
-    const nextReferences = priorMessageId ? [...new Set([...references, priorMessageId])].slice(-20) : references;
+    const priorMessageId = internalCopy
+      ? null
+      : reuseThread
+        ? thread?.lastMessageId || rootMessageId
+        : rootMessageId;
+    const references = !internalCopy && Array.isArray(thread?.references) ? thread.references : [];
+    const nextReferences = !internalCopy
+      ? [...new Set([...references, rootMessageId, priorMessageId].filter(Boolean))].slice(-20)
+      : [];
 
     const headers = {
       'X-OS-Ticket-ID': ticketId,
@@ -1030,7 +1047,7 @@ async function handleSend(req, res) {
 
     const now = new Date();
     const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
-    const mergedReferences = [...new Set([...nextReferences, messageId])].slice(-20);
+    const mergedReferences = [...new Set([rootMessageId, ...nextReferences, messageId].filter(Boolean))].slice(-20);
 
     if (!skipThread) {
       await threadRef.set(
@@ -1038,6 +1055,7 @@ async function handleSend(req, res) {
           ticketId,
           subject: canonicalSubject,
           toEmail,
+          rootMessageId,
           lastMessageId: messageId,
           gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
           references: mergedReferences,
@@ -1058,6 +1076,7 @@ async function handleSend(req, res) {
         templateId: templateId || null,
         trigger: trigger || null,
         messageId,
+        rootMessageId,
         inReplyTo: priorMessageId,
         references: mergedReferences,
         headers,
