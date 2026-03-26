@@ -296,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!shouldPollOperationalData) return undefined;
+    void refreshTickets({ silent: true });
     const timer = setInterval(() => void refreshTickets({ silent: true }), OPERATIONAL_POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [refreshTickets, shouldPollOperationalData]);

@@ -584,6 +584,7 @@ export function FinanceView() {
             TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
             TICKET_STATUS.WAITING_PAYMENT,
             TICKET_STATUS.CLOSED,
+            TICKET_STATUS.CANCELED,
           ].includes(ticket.status);
         })
         .map(ticket => {
