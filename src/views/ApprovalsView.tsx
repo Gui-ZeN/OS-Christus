@@ -294,10 +294,11 @@ export function ApprovalsView() {
     };
   }, [currentView, refreshTickets]);
 
-  const handleApprove = (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
+  const handleApprove = async (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
     if (!canApprove) return;
     setProcessingId(id);
-    setTimeout(async () => {
+    try {
+      const targetTicket = tickets.find(ticket => ticket.id === id);
       let budgetApprovalContext: {
         isAdditive: boolean;
         winner: string;
@@ -306,7 +307,6 @@ export function ApprovalsView() {
 
       if (tab === 'budgets') {
         const currentQuotes = quotesByTicket[id] || [];
-        const targetTicket = tickets.find(ticket => ticket.id === id);
         const selectedCategory = selectedQuote?.category === 'additive' ? 'additive' : 'initial';
         const selectedAdditiveIndex = selectedCategory === 'additive' ? Number(selectedQuote?.additiveIndex || 1) : null;
         const nextQuotes = currentQuotes.map(quote => {
@@ -392,8 +392,6 @@ export function ApprovalsView() {
         setTimeout(() => setToast(null), 4000);
       }
 
-      setProcessingId(null);
-      const targetTicket = tickets.find(ticket => ticket.id === id);
       const historyItem = {
         id: crypto.randomUUID(),
         type: 'system' as const,
@@ -416,7 +414,9 @@ export function ApprovalsView() {
         viewingBy: null,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
-    }, 1500);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const openRejectModal = (id: string) => {
@@ -430,28 +430,25 @@ export function ApprovalsView() {
     if (!rejectTargetId) return;
     setProcessingId(rejectTargetId);
     setRejectModalOpen(false);
-
-    setTimeout(() => {
-      setProcessingId(null);
-      const targetTicket = tickets.find(ticket => ticket.id === rejectTargetId);
-      const reasonText = reason.trim() || 'Motivo não informado.';
-      const historyItem = {
-        id: crypto.randomUUID(),
-        type: 'system' as const,
-        sender: 'Diretoria',
-        time: new Date(),
-        text: `OS cancelada pela Diretoria. Motivo: ${reasonText}`,
-      };
-      updateTicket(rejectTargetId, {
-        status: TICKET_STATUS.CANCELED,
-        viewingBy: null,
-        history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
-      });
-      setRejectTargetId(null);
-    }, 1500);
+    const targetTicket = tickets.find(ticket => ticket.id === rejectTargetId);
+    const reasonText = reason.trim() || 'Motivo não informado.';
+    const historyItem = {
+      id: crypto.randomUUID(),
+      type: 'system' as const,
+      sender: 'Diretoria',
+      time: new Date(),
+      text: `OS cancelada pela Diretoria. Motivo: ${reasonText}`,
+    };
+    updateTicket(rejectTargetId, {
+      status: TICKET_STATUS.CANCELED,
+      viewingBy: null,
+      history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+    });
+    setRejectTargetId(null);
+    setProcessingId(null);
   };
 
-  const handleApproveContract = (id: string) => {
+  const handleApproveContract = async (id: string) => {
     if (!canApprove) return;
     const currentContract = contractsByTicket[id];
     const targetTicket = tickets.find(ticket => ticket.id === id);
@@ -463,7 +460,7 @@ export function ApprovalsView() {
     }
 
     setProcessingId(id);
-    setTimeout(async () => {
+    try {
       const nextContract: ContractRecord = {
         ...currentContract,
         status: 'approved',
@@ -479,7 +476,6 @@ export function ApprovalsView() {
         // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
       }
       setContractsByTicket(prev => ({ ...prev, [id]: nextContract }));
-      setProcessingId(null);
       const historyItem = {
         id: crypto.randomUUID(),
         type: 'system' as const,
@@ -491,7 +487,9 @@ export function ApprovalsView() {
         status: APPROVAL_STATUS.contracts,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
-    }, 1200);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
