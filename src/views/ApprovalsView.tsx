@@ -11,7 +11,7 @@ import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/bu
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 
-const REVIEW_ACTIVE_WINDOW_MS = 20 * 60 * 1000;
+const REVIEW_ACTIVE_WINDOW_MS = 2 * 60 * 1000;
 
 const QUOTE_SECTION_LABELS: Record<string, string> = {
   material: 'Material',
@@ -745,6 +745,29 @@ export function ApprovalsView() {
 
     return () => window.clearInterval(interval);
   }, [activeTab, activeTicketId, currentUser?.name, currentView, tickets, updateTicket]);
+
+  useEffect(() => {
+    const reviewerName = currentUser?.name?.trim();
+    if (!reviewerName) return undefined;
+
+    const clearReviewingState = () => {
+      const reviewingTicketId = reviewingTicketIdRef.current;
+      if (!reviewingTicketId) return;
+      const reviewingTicket = tickets.find(ticket => ticket.id === reviewingTicketId);
+      if (reviewingTicket?.viewingBy?.name === reviewerName) {
+        updateTicket(reviewingTicketId, { viewingBy: null });
+      }
+      reviewingTicketIdRef.current = null;
+    };
+
+    window.addEventListener('pagehide', clearReviewingState);
+    window.addEventListener('beforeunload', clearReviewingState);
+
+    return () => {
+      window.removeEventListener('pagehide', clearReviewingState);
+      window.removeEventListener('beforeunload', clearReviewingState);
+    };
+  }, [currentUser?.name, tickets, updateTicket]);
 
   const contracts = useMemo(
     () =>

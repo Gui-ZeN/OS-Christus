@@ -78,6 +78,7 @@ const DEFAULT_FILTER: InboxFilter = {
 };
 
 const DIRECTORY_FETCH_FAILED = 'DIRECTORY_FETCH_FAILED';
+const OPERATIONAL_POLL_INTERVAL_MS = 10_000;
 
 function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
@@ -243,7 +244,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const remote = await fetchTicketsFromApi();
       setAllTickets(remote);
     } catch {
-      setAllTickets([]);
+      if (!silent) {
+        setAllTickets([]);
+      }
     } finally {
       if (!silent) {
         setTicketsLoading(false);
@@ -288,13 +291,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!pageVisible) return false;
 
-    return ['home', 'inbox', 'approvals', 'finance'].includes(currentView);
+    return ['home', 'inbox', 'approvals', 'finance', 'kpi'].includes(currentView);
   }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, pageVisible]);
 
   useEffect(() => {
     if (!shouldPollOperationalData) return undefined;
-    const timer = setInterval(() => void refreshTickets({ silent: true }), 15000);
+    const timer = setInterval(() => void refreshTickets({ silent: true }), OPERATIONAL_POLL_INTERVAL_MS);
     return () => clearInterval(timer);
+  }, [refreshTickets, shouldPollOperationalData]);
+
+  useEffect(() => {
+    if (!shouldPollOperationalData) return undefined;
+
+    const handleFocus = () => {
+      void refreshTickets({ silent: true });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [refreshTickets, shouldPollOperationalData]);
 
   useEffect(() => {

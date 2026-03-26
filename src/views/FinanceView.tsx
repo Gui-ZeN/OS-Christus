@@ -447,7 +447,7 @@ function getFinalInstallmentBlockingReasons(closureDraft: ClosureFormState) {
 }
 
 export function FinanceView() {
-  const { activeTicketId, currentView, openAttachment, updateTicket, tickets, currentUser } = useApp();
+  const { activeTicketId, currentView, openAttachment, updateTicket, tickets, currentUser, refreshTickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canPay = canAccess;
   const actorLabel = currentUser?.role ? `${currentUser.name} (${currentUser.role})` : currentUser?.name || 'Financeiro';
@@ -511,6 +511,45 @@ export function FinanceView() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (currentView !== 'finance') return undefined;
+
+    let cancelled = false;
+    const runSilentRefresh = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      await refreshTickets({ silent: true });
+      try {
+        const data = await fetchProcurementData();
+        if (!cancelled) {
+          setPaymentsByTicket(data.paymentsByTicket);
+          setMeasurementsByTicket(data.measurementsByTicket);
+          setContractsByTicket(data.contractsByTicket);
+        }
+      } catch {
+        // Mantém o estado atual quando a sincronização silenciosa falhar.
+      }
+    };
+
+    void runSilentRefresh();
+
+    const interval = window.setInterval(() => {
+      void runSilentRefresh();
+    }, 10_000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void runSilentRefresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentView, refreshTickets]);
 
   useEffect(() => {
     setClosureDraftByTicket(prev => {
