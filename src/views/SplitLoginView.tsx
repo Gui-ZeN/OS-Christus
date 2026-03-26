@@ -4,16 +4,19 @@ import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 interface SplitLoginViewProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onGoogleLogin?: () => Promise<void>;
+  onForgotPassword: (email: string) => Promise<void>;
   onBack: () => void;
   authEnabled?: boolean;
 }
 
-export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = false }: SplitLoginViewProps) {
+export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBack, authEnabled = false }: SplitLoginViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isPasswordResetLoading, setIsPasswordResetLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [passwordResetFeedback, setPasswordResetFeedback] = useState<string | null>(null);
 
   const handleLogin = async () => {
     setIsLoading(true);
@@ -37,6 +40,25 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
       setError(err instanceof Error ? err.message : 'Falha no login com Google.');
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = loginEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError('Informe seu e-mail institucional para recuperar a senha.');
+      return;
+    }
+    setIsPasswordResetLoading(true);
+    setError(null);
+    setPasswordResetFeedback(null);
+    try {
+      await onForgotPassword(normalizedEmail);
+      setPasswordResetFeedback('Enviamos o e-mail para criar/redefinir sua senha. Verifique sua caixa de entrada.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao solicitar recuperação de senha.');
+    } finally {
+      setIsPasswordResetLoading(false);
     }
   };
 
@@ -83,6 +105,12 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
                   <div className="mt-1">{error}</div>
                 </div>
               )}
+              {passwordResetFeedback && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                  <div className="font-semibold">Recuperação enviada</div>
+                  <div className="mt-1">{passwordResetFeedback}</div>
+                </div>
+              )}
 
               <div>
                 <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">E-mail institucional</label>
@@ -104,11 +132,21 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onBack, authEnabled = f
                   placeholder="••••••••"
                   className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-xl text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
                 />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void handleForgotPassword()}
+                    disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !authEnabled}
+                    className="text-sm font-medium text-roman-primary transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                  >
+                    {isPasswordResetLoading ? 'Enviando...' : 'Esqueci minha senha'}
+                  </button>
+                </div>
               </div>
 
               <button
                 onClick={() => void handleLogin()}
-                disabled={isLoading || isGoogleLoading || !loginEmail.trim() || !loginPassword.trim()}
+                disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !loginEmail.trim() || !loginPassword.trim()}
                 className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-roman-border bg-roman-sidebar px-6 py-4 text-xl font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Acessar o sistema <ArrowRight size={20} /></>}

@@ -2,6 +2,7 @@
 import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { createUser, deleteUser, type DirectoryUser, fetchUsers, updateUser } from '../services/directoryApi';
+import { requestPasswordResetEmail } from '../services/authClient';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ModalShell } from '../components/ui/ModalShell';
@@ -62,6 +63,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
   const [pendingDeleteUser, setPendingDeleteUser] = useState<DirectoryUser | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +142,6 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
   const handleSave = async () => {
     if (!canManageUsers) return;
     if (!form.name.trim() || !form.email.trim() || !form.role.trim()) return;
-    if (!editingId && form.password.trim().length < 6) return;
 
     const payload: DirectoryUser = {
       id: form.id || form.email.split('@')[0].toLowerCase(),
@@ -154,17 +155,48 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
     };
 
     setSaving(true);
+    setFeedback(null);
     try {
       if (editingId) {
         const result = await updateUser(editingId, payload, form.password.trim() || undefined);
         if (result?.authUid) payload.authUid = result.authUid as string;
         setUsers(prev => prev.map(user => (user.id === editingId ? { ...user, ...payload } : user)));
+        setFeedback({ type: 'success', text: 'Usuário atualizado com sucesso.' });
       } else {
-        const result = await createUser(payload, form.password.trim());
+        const result = await createUser(payload, form.password.trim() || undefined);
         if (result?.authUid) payload.authUid = result.authUid as string;
         setUsers(prev => [...prev, payload].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+        if (payload.status === 'Ativo') {
+          try {
+            await requestPasswordResetEmail(payload.email);
+            setFeedback({
+              type: 'success',
+              text: 'Usuário criado. E-mail para criação/redefinição de senha enviado.',
+            });
+          } catch (error) {
+            setFeedback({
+              type: 'warning',
+              text:
+                `Usuário criado, mas não foi possível enviar o e-mail de senha: ${
+                  error instanceof Error ? error.message : 'falha desconhecida'
+                }`,
+            });
+          }
+        } else {
+          setFeedback({
+            type: 'warning',
+            text: 'Usuário criado como inativo. O e-mail de criação de senha não foi enviado.',
+          });
+        }
       }
       setModalOpen(false);
+      setForm(EMPTY_FORM);
+      setEditingId(null);
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Não foi possível salvar o usuário.',
+      });
     } finally {
       setSaving(false);
     }
@@ -209,6 +241,19 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             <Plus size={16} /> Novo Usuário
           </button>
         </header>
+        {feedback && (
+          <div
+            className={`mb-5 rounded-xl border px-4 py-3 text-sm ${
+              feedback.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : feedback.type === 'warning'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-red-200 bg-red-50 text-red-900'
+            }`}
+          >
+            {feedback.text}
+          </div>
+        )}
 
         <div className={`bg-roman-surface border border-roman-border overflow-hidden ${embedded ? 'rounded-[1.5rem] shadow-[0_24px_80px_rgba(15,23,42,0.08)]' : 'rounded-sm shadow-sm'}`}>
           {loading ? (
@@ -355,14 +400,14 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
           title={editingId ? 'Editar usuário' : 'Novo usuário'}
-          description={editingId ? 'Atualize papel, escopo territorial e credenciais de acesso.' : 'Cadastre o usuário com papel, escopo territorial e credenciais iniciais.'}
+          description={editingId ? 'Atualize papel, escopo territorial e credenciais de acesso.' : 'Cadastre o usuário com papel e escopo territorial. O sistema enviará e-mail para criar/redefinir a senha.'}
           maxWidthClass="max-w-3xl"
           footer={(
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalOpen(false)} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-white">
                 Cancelar
               </button>
-              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim() || (!editingId && form.password.trim().length < 6)} className="flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
+              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim()} className="flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
                 {editingId ? 'Salvar alterações' : 'Criar usuário'}
               </button>
@@ -382,9 +427,9 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha inicial'}</label>
-                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Mínimo de 6 caracteres'} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
-                <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Necessária para criar o acesso no Firebase Auth.'}</p>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha manual (opcional)'}</label>
+                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Se vazio, usuário define por e-mail'} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Se não preencher, o sistema envia e-mail para o usuário criar a senha.'}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

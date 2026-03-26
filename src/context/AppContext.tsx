@@ -5,7 +5,7 @@ import {
   DirectoryUser,
   fetchUsers,
 } from '../services/directoryApi';
-import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
+import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, requestPasswordResetEmail, subscribeToAuthState } from '../services/authClient';
 import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
 import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
@@ -45,6 +45,7 @@ interface AppContextType {
   setCurrentUserEmail: (email: string) => void;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogleAccount: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   authEnabled: boolean;
   authResolved: boolean;
@@ -573,6 +574,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUserEmail('');
   };
 
+  const requestPasswordReset = async (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    await requestPasswordResetEmail(normalized);
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -617,6 +623,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentUserEmail,
         login,
         loginWithGoogleAccount,
+        requestPasswordReset,
         logout,
         authEnabled,
         authResolved,

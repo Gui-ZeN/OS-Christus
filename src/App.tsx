@@ -76,6 +76,7 @@ export default function App() {
     updateTicket,
     login,
     loginWithGoogleAccount,
+    requestPasswordReset,
     logout,
     currentUser,
     currentUserEmail,
@@ -259,6 +260,9 @@ export default function App() {
           }}
           onGoogleLogin={async () => {
             await loginWithGoogleAccount();
+          }}
+          onForgotPassword={async email => {
+            await requestPasswordReset(email);
           }}
           onBack={() => navigateTo(VIEWS.LANDING)}
           authEnabled={authEnabled}

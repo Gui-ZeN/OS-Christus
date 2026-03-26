@@ -32,6 +32,12 @@ function mapRoleToClaim(role) {
   return 'user';
 }
 
+function generateTemporaryPassword() {
+  const base = Math.random().toString(36).slice(2, 10);
+  const suffix = Date.now().toString(36).slice(-4);
+  return `Tmp#${base}${suffix}`;
+}
+
 async function upsertAuthUser(user, password) {
   const auth = getAuth();
   let record = null;
@@ -52,10 +58,8 @@ async function upsertAuthUser(user, password) {
     const updatePayload = password ? { ...payload, password } : payload;
     await auth.updateUser(record.uid, updatePayload);
   } else {
-    if (!password || String(password).length < 6) {
-      throw new Error('Senha inicial obrigatoria com ao menos 6 caracteres.');
-    }
-    record = await auth.createUser({ ...payload, password });
+    const initialPassword = password && String(password).length >= 6 ? password : generateTemporaryPassword();
+    record = await auth.createUser({ ...payload, password: initialPassword });
   }
 
   const finalRecord = record || (await auth.getUserByEmail(user.email));

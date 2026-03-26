@@ -1,4 +1,12 @@
-﻿import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  signOut,
+  type User,
+} from 'firebase/auth';
 import { getFirebaseClientAuth, isFirebaseAuthConfigured } from '../lib/firebaseClient';
 
 export function isAuthEnabled() {
@@ -26,6 +34,8 @@ function mapFirebaseAuthError(error: unknown) {
       return 'Já existe uma tentativa de login com Google em andamento.';
     case 'auth/network-request-failed':
       return 'Não foi possível conectar ao serviço de autenticação. Verifique sua conexão e tente novamente.';
+    case 'auth/missing-email':
+      return 'Informe um e-mail válido para continuar.';
     default:
       return null;
   }
@@ -54,6 +64,32 @@ export async function loginWithGoogle() {
     return await signInWithPopup(auth, provider);
   } catch (error) {
     throw new Error(mapFirebaseAuthError(error) || 'Não foi possível concluir o login com Google agora. Tente novamente em instantes.');
+  }
+}
+
+export async function requestPasswordResetEmail(email: string) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('Informe um e-mail para recuperar a senha.');
+  }
+
+  const auth = await getFirebaseClientAuth();
+  if (!auth) {
+    throw new Error('Recuperação de senha indisponível neste ambiente. A autenticação Firebase ainda não foi configurada.');
+  }
+
+  const actionCodeSettings = {
+    url: `${window.location.origin}/?view=login`,
+    handleCodeInApp: false,
+  };
+
+  try {
+    await sendPasswordResetEmail(auth, normalizedEmail, actionCodeSettings);
+  } catch (error) {
+    throw new Error(
+      mapFirebaseAuthError(error) ||
+        'Não foi possível enviar o e-mail de recuperação agora. Tente novamente em instantes.'
+    );
   }
 }
 
