@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -640,22 +640,22 @@ export function FinanceView() {
     );
   }, [financeTickets]);
 
+  const isFinanceEntryHistorical = useCallback((entry: (typeof financeTickets)[number]) => {
+    if (entry.ticket.status === TICKET_STATUS.CLOSED || entry.ticket.status === TICKET_STATUS.CANCELED) {
+      return true;
+    }
+    const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
+    return fullyPaid && entry.remainingValue <= 0;
+  }, []);
+
   const openFinanceTickets = useMemo(
-    () =>
-      financeTickets.filter(entry => {
-        const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
-        return !(fullyPaid && entry.remainingValue <= 0);
-      }),
-    [financeTickets]
+    () => financeTickets.filter(entry => !isFinanceEntryHistorical(entry)),
+    [financeTickets, isFinanceEntryHistorical]
   );
 
   const historicalFinanceTickets = useMemo(
-    () =>
-      financeTickets.filter(entry => {
-        const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
-        return fullyPaid && entry.remainingValue <= 0;
-      }),
-    [financeTickets]
+    () => financeTickets.filter(entry => isFinanceEntryHistorical(entry)),
+    [financeTickets, isFinanceEntryHistorical]
   );
 
   const historicalGuaranteeCounts = useMemo(() => {
@@ -2162,6 +2162,7 @@ export function FinanceView() {
     </div>
   );
 }
+
 
 
 
