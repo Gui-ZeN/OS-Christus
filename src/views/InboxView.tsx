@@ -1,9 +1,10 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, AlertCircle, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2 } from 'lucide-react';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ModalShell } from '../components/ui/ModalShell';
+import { FloatingToast } from '../components/ui/FloatingToast';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket } from '../types';
@@ -2341,13 +2342,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
   return (
     <div className="flex h-full flex-1 min-h-0 overflow-hidden relative">
-      {/* Toast */}
-      {toast && (
-        <div className={`absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in ${toast.includes('Erro') ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}`}>
-          {toast.includes('Erro') ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
-          <span className="font-medium text-sm">{toast}</span>
-        </div>
-      )}
+      <FloatingToast message={toast} />
 
       {isMobileOverlayOpen && (
         <button
@@ -3086,8 +3081,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     {(panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD || (panelStatus.includes('Anexo') && panelStatus.includes('Contrato'))) && (
                       <button
                         onClick={() => setShowContractDispatchModal(true)}
-                        className="w-full min-h-[52px] bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2 rounded-xl font-medium transition-colors text-sm leading-tight text-center flex items-center justify-center"
+                        className="w-full min-h-[52px] bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2 rounded-xl font-medium transition-colors text-sm leading-tight text-center flex items-center justify-center gap-2"
                       >
+                        <FileText size={15} className="shrink-0" />
                         <span className="leading-tight text-center block">Anexar Contrato e Enviar para Diretoria</span>
                       </button>
                     )}

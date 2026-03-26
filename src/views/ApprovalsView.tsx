@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
+import { FloatingToast } from '../components/ui/FloatingToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
@@ -456,7 +457,7 @@ export function ApprovalsView() {
     const targetTicket = tickets.find(ticket => ticket.id === id);
     const hasSignedAttachment = Boolean(currentContract?.signedFileName || currentContract?.signedFileUrl);
     if (!hasSignedAttachment) {
-      setToast('Gestor ainda não anexou o contrato. Aprovação indisponível.');
+      setToast('Erro: gestor ainda não anexou o contrato. Aprovação indisponível.');
       setTimeout(() => setToast(null), 3000);
       return;
     }
@@ -855,12 +856,7 @@ export function ApprovalsView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
-      {toast && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in bg-green-800 text-white">
-          <CheckCircle size={18} />
-          <span className="font-medium text-sm">{toast}</span>
-        </div>
-      )}
+      <FloatingToast message={toast} />
       <div className="max-w-6xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <div>

@@ -2,6 +2,7 @@
 import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
+import { FloatingToast } from '../components/ui/FloatingToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
@@ -688,7 +689,6 @@ export function FinanceView() {
 
   useEffect(() => {
     if (currentView !== 'finance' || !activeTicketId) return;
-    if (!visibleFinanceTickets.some(entry => entry.ticket.id === activeTicketId)) return;
 
     const autoScrollKey = `${currentView}:${financeSection}:${activeTicketId}`;
     if (autoScrollKeyRef.current === autoScrollKey) return;
@@ -699,7 +699,7 @@ export function FinanceView() {
     }, 120);
 
     return () => window.clearTimeout(timer);
-  }, [activeTicketId, currentView, financeSection, visibleFinanceTickets]);
+  }, [activeTicketId, currentView, financeSection]);
 
   useEffect(() => {
     setCollapsedTickets(prev => {
@@ -1315,12 +1315,7 @@ export function FinanceView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
-      {toast && (
-        <div className={`absolute top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-sm shadow-lg flex items-center gap-3 z-[100] animate-in slide-in-from-top-4 fade-in ${toast.includes('Erro') ? 'bg-red-800 text-white' : 'bg-green-800 text-white'}`}>
-          <CheckCircle size={18} />
-          <span className="font-medium text-sm">{toast}</span>
-        </div>
-      )}
+      <FloatingToast message={toast} />
       <div className="max-w-6xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
