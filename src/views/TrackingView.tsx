@@ -134,6 +134,11 @@ function clampPercent(value: number) {
   return value;
 }
 
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return '0%';
+  return `${value.toFixed(2).replace(/\.00$/, '').replace('.', ',')}%`;
+}
+
 function isSensitiveText(normalizedText: string) {
   return (
     normalizedText.includes('orcamento') ||
@@ -480,6 +485,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
 
     return {
       currentPercentVisual,
+      currentPercentLabel: formatPercent(Number(progress.currentPercent || 0)),
       lastUpdatedAt: parseDate(progress.lastUpdatedAt),
     };
   }, [ticket]);
@@ -577,7 +583,10 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
 
           {executionProgressCard && (
             <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
-              <div className="text-sm font-medium text-roman-text-main">Andamento da execução</div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-medium text-roman-text-main">Andamento da execução</div>
+                <div className="text-sm font-semibold text-roman-primary">{executionProgressCard.currentPercentLabel}</div>
+              </div>
 
               <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/80 border border-roman-border/70">
                 <div
