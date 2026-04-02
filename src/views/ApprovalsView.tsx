@@ -217,6 +217,7 @@ export function ApprovalsView() {
   const { activeTicketId, setActiveTicketId, currentView, openAttachment, updateTicket, tickets, currentUser, refreshTickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
+  const directorActorName = String(currentUser?.name || '').trim() || 'Diretoria';
   const [activeTab, setActiveTab] = useState<'solutions' | 'budgets' | 'contracts'>('solutions');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -395,14 +396,14 @@ export function ApprovalsView() {
       const historyItem = {
         id: crypto.randomUUID(),
         type: 'system' as const,
-        sender: 'Diretoria',
+        sender: directorActorName,
         time: new Date(),
         text:
           tab === 'budgets'
             ? budgetApprovalContext?.isAdditive
-              ? `Aditivo aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.`
-              : `Orçamento aprovado. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido; aguardando anexo do contrato pelo gestor.`
-            : 'Solução técnica aprovada. OS liberada para a etapa de orçamentação.',
+              ? `Aditivo aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.`
+              : `Orçamento aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido; aguardando anexo do contrato pelo gestor.`
+            : `Solução técnica aprovada por ${directorActorName}. OS liberada para a etapa de orçamentação.`,
       };
       updateTicket(id, {
         status:
@@ -435,9 +436,9 @@ export function ApprovalsView() {
     const historyItem = {
       id: crypto.randomUUID(),
       type: 'system' as const,
-      sender: 'Diretoria',
+      sender: directorActorName,
       time: new Date(),
-      text: `OS cancelada pela Diretoria. Motivo: ${reasonText}`,
+      text: `OS cancelada por ${directorActorName}. Motivo: ${reasonText}`,
     };
     updateTicket(rejectTargetId, {
       status: TICKET_STATUS.CANCELED,
@@ -479,9 +480,9 @@ export function ApprovalsView() {
       const historyItem = {
         id: crypto.randomUUID(),
         type: 'system' as const,
-        sender: 'Diretoria',
+        sender: directorActorName,
         time: new Date(),
-        text: `Contrato aprovado pela Diretoria${nextContract.signedFileName ? ` (${nextContract.signedFileName})` : '.'}`,
+        text: `Contrato aprovado por ${directorActorName}${nextContract.signedFileName ? ` (${nextContract.signedFileName})` : '.'}`,
       };
       updateTicket(id, {
         status: APPROVAL_STATUS.contracts,

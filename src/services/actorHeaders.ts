@@ -5,6 +5,11 @@ function readStoredEmail() {
   return (window.localStorage.getItem('os-christus-user-email') || '').trim().toLowerCase();
 }
 
+function readStoredName() {
+  if (typeof window === 'undefined') return '';
+  return (window.localStorage.getItem('os-christus-user-name') || '').trim();
+}
+
 function normalizeNameFromEmail(email: string) {
   const localPart = email.split('@')[0] || '';
   return localPart
@@ -16,9 +21,11 @@ function normalizeNameFromEmail(email: string) {
 export function getActorHeaders(): Record<string, string> {
   const email = readStoredEmail();
   if (!email) return {};
+  const storedName = readStoredName();
+  const actorName = storedName || normalizeNameFromEmail(email);
   return {
     'X-Actor-Email': email,
-    'X-Actor-Name': normalizeNameFromEmail(email),
+    'X-Actor-Name': actorName,
   };
 }
 

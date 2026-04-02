@@ -343,6 +343,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (
               previous &&
               previous.email?.trim().toLowerCase() === found.email?.trim().toLowerCase() &&
+              previous.name === found.name &&
               previous.role === found.role &&
               previous.status === found.status
             ) {
@@ -381,6 +382,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.localStorage.removeItem('os-christus-user-email');
     }
   }, [currentUserEmail]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userName = String(currentUser?.name || '').trim();
+    if (userName) {
+      window.localStorage.setItem('os-christus-user-name', userName);
+    } else if (!currentUserEmail) {
+      window.localStorage.removeItem('os-christus-user-name');
+    }
+  }, [currentUser?.name, currentUserEmail]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
