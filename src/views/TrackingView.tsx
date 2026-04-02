@@ -127,6 +127,18 @@ function parseDate(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 100) return 100;
+  return value;
+}
+
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return '0%';
+  return `${value.toFixed(2).replace(/\.00$/, '').replace('.', ',')}%`;
+}
+
 function isSensitiveText(normalizedText: string) {
   return (
     normalizedText.includes('orcamento') ||
@@ -464,6 +476,33 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     return buildTimelineEntries(ticket);
   }, [ticket]);
 
+  const executionProgressCard = useMemo(() => {
+    if (!ticket || ticket.status !== TICKET_STATUS.IN_PROGRESS) return null;
+    const progress = ticket.executionProgress;
+    if (!progress) return null;
+
+    const currentPercentRaw = Number(progress.currentPercent || 0);
+    const currentPercentVisual = clampPercent(currentPercentRaw);
+    const releasedPercent = Number(progress.releasedPercent || 0);
+    const flowParts = Number(progress.paymentFlowParts || 0);
+    const nextMilestone =
+      flowParts > 0
+        ? Math.min(
+            100,
+            (Math.floor((currentPercentVisual + Number.EPSILON) / (100 / flowParts)) + 1) * (100 / flowParts)
+          )
+        : null;
+
+    return {
+      currentPercentRaw,
+      currentPercentVisual,
+      releasedPercent,
+      flowParts,
+      nextMilestone,
+      lastUpdatedAt: parseDate(progress.lastUpdatedAt),
+    };
+  }, [ticket]);
+
   const handleRequesterApproval = async () => {
     if (!ticket || isSubmittingValidation) return;
     setIsSubmittingValidation(true);
@@ -554,6 +593,37 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               Solicitado por: {ticket.requester} - Setor: {ticket.sector} ({siteLabel})
             </p>
           </div>
+
+          {executionProgressCard && (
+            <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-medium text-roman-text-main">Andamento da execução</div>
+                <div className="text-sm font-semibold text-roman-primary">
+                  {formatPercent(executionProgressCard.currentPercentRaw)}
+                </div>
+              </div>
+
+              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/80 border border-roman-border/70">
+                <div
+                  className="h-full rounded-full bg-roman-primary transition-all duration-500"
+                  style={{ width: `${executionProgressCard.currentPercentVisual}%` }}
+                />
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-roman-text-sub">
+                <span>Parcela liberada: {formatPercent(executionProgressCard.releasedPercent)}</span>
+                {executionProgressCard.flowParts > 0 && (
+                  <span>Fluxo: {executionProgressCard.flowParts}x</span>
+                )}
+                {executionProgressCard.nextMilestone !== null && (
+                  <span>Próximo marco: {formatPercent(executionProgressCard.nextMilestone)}</span>
+                )}
+                {executionProgressCard.lastUpdatedAt && (
+                  <span>Última atualização: {formatDateTimeSafe(executionProgressCard.lastUpdatedAt)}</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {(canRequesterApprove || ticket.closureChecklist?.requesterApproved || feedback) && (
             <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
