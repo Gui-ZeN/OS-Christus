@@ -3,6 +3,7 @@ import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2,
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
+import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
@@ -457,7 +458,7 @@ export function FinanceView() {
   const canPay = canAccess;
   const actorLabel = currentUser?.role ? `${currentUser.name} (${currentUser.role})` : currentUser?.name || 'Financeiro';
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [measurementsByTicket, setMeasurementsByTicket] = useState<Record<string, MeasurementRecord[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
@@ -474,20 +475,6 @@ export function FinanceView() {
   const [historyGuaranteeFilter, setHistoryGuaranteeFilter] = useState<'all' | 'in_guarantee' | 'expiring_30'>('all');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
-
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={DollarSign}
-            title="Acesso restrito"
-            description="Apenas Diretor e Admin podem acessar o painel financeiro."
-          />
-        </div>
-      </div>
-    );
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -858,11 +845,9 @@ export function FinanceView() {
           },
         ],
       });
-      setToast(`Documento ${uploaded.name} anexado com sucesso.`);
-      setTimeout(() => setToast(null), 3000);
+      showToast(`Documento ${uploaded.name} anexado com sucesso.`, 3000);
     } catch (error) {
-      setToast(`Erro: ${error instanceof Error ? error.message : 'falha no upload do documento.'}`);
-      setTimeout(() => setToast(null), 4000);
+      showToast(`Erro: ${error instanceof Error ? error.message : 'falha no upload do documento.'}`, 4000);
     } finally {
       setUploadingTicketId(null);
     }
@@ -904,11 +889,9 @@ export function FinanceView() {
           },
         ],
       });
-      setToast(`Documento ${targetDocument.name} removido com sucesso.`);
-      setTimeout(() => setToast(null), 3000);
+      showToast(`Documento ${targetDocument.name} removido com sucesso.`, 3000);
     } catch (error) {
-      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover o documento.'}`);
-      setTimeout(() => setToast(null), 4000);
+      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover o documento.'}`, 4000);
     } finally {
       setUploadingTicketId(null);
     }
@@ -945,8 +928,7 @@ export function FinanceView() {
     const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue, regions, sites);
     const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
     if (!printWindow) {
-      setToast('Erro: não foi possível abrir a janela de impressão.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: não foi possível abrir a janela de impressão.', 3000);
       return;
     }
 
@@ -966,8 +948,7 @@ export function FinanceView() {
 
     const grossAmount = parseCurrency(draft.grossAmount || '');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      setToast('Erro: informe o valor bruto do lançamento/etapa.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
       return;
     }
 
@@ -975,8 +956,7 @@ export function FinanceView() {
     const existingMeasurements = measurementsByTicket[ticketId] || [];
     const baselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], rawPayments);
     if (baselineValue <= 0) {
-      setToast('Erro: valor previsto da obra não encontrado para calcular o andamento.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: valor previsto da obra não encontrado para calcular o andamento.', 3000);
       return;
     }
 
@@ -986,8 +966,7 @@ export function FinanceView() {
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
 
     if (!targetTicket.executionProgress?.paymentFlowParts) {
-      setToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.', 3000);
       return;
     }
 
@@ -1003,8 +982,7 @@ export function FinanceView() {
       Number(targetTicket.executionProgress?.paymentFlowParts || 0)
     );
     if (progressPercent < currentProgress) {
-      setToast('Erro: o andamento informado é menor do que o percentual já registrado.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: o andamento informado é menor do que o percentual já registrado.', 3000);
       return;
     }
 
@@ -1105,12 +1083,11 @@ export function FinanceView() {
       });
       clearMeasurementDraft(ticketId);
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
-      setToast(
+      showToast(
         shouldMoveToValidation
           ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
           : `${paymentLabel} registrada e liberada para pagamento.`
-      );
-      setTimeout(() => setToast(null), 3000);
+      , 3000);
     } finally {
       setProcessingId(null);
     }
@@ -1137,11 +1114,9 @@ export function FinanceView() {
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
-      setToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lançamento'}.`);
-      setTimeout(() => setToast(null), 3000);
+      showToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lançamento'}.`, 3000);
     } catch (error) {
-      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos do lançamento.'}`);
-      setTimeout(() => setToast(null), 4000);
+      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos do lançamento.'}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
     }
@@ -1170,11 +1145,9 @@ export function FinanceView() {
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
-      setToast(`Anexo removido de ${payment.label || 'lançamento'}.`);
-      setTimeout(() => setToast(null), 3000);
+      showToast(`Anexo removido de ${payment.label || 'lançamento'}.`, 3000);
     } catch (error) {
-      setToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lançamento.'}`);
-      setTimeout(() => setToast(null), 4000);
+      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lançamento.'}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
     }
@@ -1185,8 +1158,7 @@ export function FinanceView() {
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
     if (!targetTicket) return;
     if (payment.status !== 'approved') {
-      setToast('Erro: o lançamento ainda não foi liberado pelo andamento da obra.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: o lançamento ainda não foi liberado pelo andamento da obra.', 3000);
       return;
     }
 
@@ -1194,18 +1166,15 @@ export function FinanceView() {
     const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || '');
     const taxAmount = parseCurrency(settlementDraft.taxValue || payment.taxValue || '0');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      setToast('Erro: informe o valor bruto do lançamento antes de confirmar o pagamento.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: informe o valor bruto do lançamento antes de confirmar o pagamento.', 3000);
       return;
     }
     if (!Number.isFinite(taxAmount) || taxAmount < 0) {
-      setToast('Erro: informe um valor de imposto válido.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: informe um valor de imposto válido.', 3000);
       return;
     }
     if (taxAmount > grossAmount) {
-      setToast('Erro: o imposto não pode ser maior do que o valor bruto.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: o imposto não pode ser maior do que o valor bruto.', 3000);
       return;
     }
     const netAmount = Math.max(0, grossAmount - taxAmount);
@@ -1238,8 +1207,7 @@ export function FinanceView() {
         !Number.isFinite(guaranteeMonths) ||
         guaranteeMonths <= 0
       ) {
-        setToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar o último lançamento.');
-        setTimeout(() => setToast(null), 3000);
+        showToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar o último lançamento.', 3000);
         return;
       }
     }
@@ -1316,16 +1284,29 @@ export function FinanceView() {
           ],
         });
       }
-      setToast(
+      showToast(
         canCloseTicket
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
           : `${payment.label || 'Lançamento'} confirmado.`
-      );
-      setTimeout(() => setToast(null), 3000);
+      , 3000);
     } finally {
       setProcessingId(null);
     }
   };
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={DollarSign}
+            title="Acesso restrito"
+            description="Apenas Diretor e Admin podem acessar o painel financeiro."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">

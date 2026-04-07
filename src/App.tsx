@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Inbox,
   Landmark,
+  Loader2,
   LogOut,
   Palette,
   ScrollText,
@@ -51,15 +52,17 @@ export const VIEWS = {
 function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
   if (fullScreen) {
     return (
-      <div className="h-screen w-full bg-roman-bg flex items-center justify-center text-roman-text-sub font-serif italic">
-        Carregando...
+      <div className="h-screen w-full bg-roman-bg flex flex-col items-center justify-center gap-3 text-roman-text-sub">
+        <Loader2 size={28} className="animate-spin text-roman-primary" />
+        <span className="font-serif italic text-sm">Carregando...</span>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center text-roman-text-sub font-serif italic">
-      Carregando...
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-roman-text-sub">
+      <Loader2 size={24} className="animate-spin text-roman-primary" />
+      <span className="font-serif italic text-sm">Carregando...</span>
     </div>
   );
 }

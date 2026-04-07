@@ -112,45 +112,59 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                 </div>
               )}
 
-              <div>
-                <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">E-mail institucional</label>
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={event => setLoginEmail(event.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-xl text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
-                />
-              </div>
+              <form
+                onSubmit={event => {
+                  event.preventDefault();
+                  void handleLogin();
+                }}
+                noValidate
+              >
+                <div className="space-y-6">
+                  <div>
+                    <label htmlFor="login-email" className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">E-mail institucional</label>
+                    <input
+                      id="login-email"
+                      type="email"
+                      value={loginEmail}
+                      onChange={event => setLoginEmail(event.target.value)}
+                      placeholder="seu@email.com"
+                      autoComplete="email"
+                      className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-xl text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
+                    />
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">Senha</label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={event => setLoginPassword(event.target.value)}
-                  placeholder="••••••••"
-                  className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-xl text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
-                />
-                <div className="mt-2 flex justify-end">
+                  <div>
+                    <label htmlFor="login-password" className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">Senha</label>
+                    <input
+                      id="login-password"
+                      type="password"
+                      value={loginPassword}
+                      onChange={event => setLoginPassword(event.target.value)}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-xl text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void handleForgotPassword()}
+                        disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !authEnabled}
+                        className="text-sm font-medium text-roman-primary transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                      >
+                        {isPasswordResetLoading ? 'Enviando...' : 'Esqueci minha senha'}
+                      </button>
+                    </div>
+                  </div>
+
                   <button
-                    type="button"
-                    onClick={() => void handleForgotPassword()}
-                    disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !authEnabled}
-                    className="text-sm font-medium text-roman-primary transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                    type="submit"
+                    disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !loginEmail.trim() || !loginPassword.trim()}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-roman-border bg-roman-sidebar px-6 py-4 text-xl font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isPasswordResetLoading ? 'Enviando...' : 'Esqueci minha senha'}
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Acessar o sistema <ArrowRight size={20} /></>}
                   </button>
                 </div>
-              </div>
-
-              <button
-                onClick={() => void handleLogin()}
-                disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !loginEmail.trim() || !loginPassword.trim()}
-                className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-roman-border bg-roman-sidebar px-6 py-4 text-xl font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Acessar o sistema <ArrowRight size={20} /></>}
-              </button>
+              </form>
 
               {authEnabled && onGoogleLogin && (
                 <>

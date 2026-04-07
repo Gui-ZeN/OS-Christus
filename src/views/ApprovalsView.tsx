@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
+import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { ContractRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
@@ -222,25 +223,11 @@ export function ApprovalsView() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const reviewingTicketIdRef = useRef<string | null>(null);
   const approvalQueryAppliedRef = useRef(false);
-
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={Shield}
-            title="Acesso restrito"
-            description="Apenas Diretor e Admin podem acessar o painel de aprovações."
-          />
-        </div>
-      </div>
-    );
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -389,8 +376,7 @@ export function ApprovalsView() {
           winner,
           shouldMoveStatus: targetTicket?.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL,
         };
-        setToast(`Automação: aprovação enviada para ${winner}.`);
-        setTimeout(() => setToast(null), 4000);
+        showToast(`Automação: aprovação enviada para ${winner}.`, 4000);
       }
 
       const historyItem = {
@@ -455,8 +441,7 @@ export function ApprovalsView() {
     const targetTicket = tickets.find(ticket => ticket.id === id);
     const hasSignedAttachment = Boolean(currentContract?.signedFileName || currentContract?.signedFileUrl);
     if (!hasSignedAttachment) {
-      setToast('Erro: gestor ainda não anexou o contrato. Aprovação indisponível.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: gestor ainda não anexou o contrato. Aprovação indisponível.', 3000);
       return;
     }
 
@@ -583,8 +568,7 @@ export function ApprovalsView() {
     ];
 
     triggerCsvDownload(`comparativo-${String(budget.id).toLowerCase()}.csv`, rows);
-    setToast(`Comparativo ${budget.id} exportado em CSV.`);
-    window.setTimeout(() => setToast(null), 3000);
+    showToast(`Comparativo ${budget.id} exportado em CSV.`, 3000);
   };
 
   const solutions = useMemo(
@@ -859,6 +843,20 @@ export function ApprovalsView() {
     window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
     approvalQueryAppliedRef.current = true;
   }, [activeTicketId, budgets, contracts, currentView, setActiveTicketId, solutions]);
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={Shield}
+            title="Acesso restrito"
+            description="Apenas Diretor e Admin podem acessar o painel de aprovações."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
