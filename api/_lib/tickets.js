@@ -221,8 +221,7 @@ export async function reserveNextTicketId(db) {
     let current = Number(sequenceSnap.data()?.lastNumber || 0);
 
     if (!sequenceSnap.exists) {
-      const ticketsSnap = await transaction.get(db.collection('tickets'));
-      current = ticketsSnap.docs.reduce((max, doc) => Math.max(max, parseTicketSequence(doc.id)), 0);
+      current = 0;
     }
 
     const next = current + 1;

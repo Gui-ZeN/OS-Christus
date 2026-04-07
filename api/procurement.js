@@ -1,6 +1,7 @@
-﻿import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
+﻿import { randomUUID } from 'node:crypto';
+import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { HttpError, readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readProcurement, readProcurementForTicketIds, seedProcurementDefaults } from './_lib/procurement.js';
 import { readAccessibleTickets } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
@@ -214,7 +215,7 @@ async function writeQuotes(db, ticketId, quotes) {
           : null,
         items: Array.isArray(quote.items)
           ? quote.items.map(item => ({
-              id: String(item.id || '').trim() || `item-${Date.now()}`,
+              id: String(item.id || '').trim() || randomUUID(),
               section: item.section ? String(item.section).trim() : null,
               description: String(item.description || '').trim(),
               materialId: item.materialId ? String(item.materialId).trim() : null,
@@ -358,7 +359,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const user = await requireUserWithRoles(req, ['Admin', 'Diretor']);
-      const actor = readActorFromHeaders(req) || user.email || user.name || 'painel';
+      const actor = user.name || user.email || 'painel';
       const body = await readJsonBody(req);
       const ticketId = String(body?.ticketId || '').trim();
       const type = String(body?.type || '').trim();

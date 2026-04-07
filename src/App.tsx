@@ -1,4 +1,4 @@
-﻿import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { Component, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart2,
   DollarSign,
@@ -47,6 +47,34 @@ export const VIEWS = {
   EMAIL_HEALTH: 'email-health',
   AUDIT_LOGS: 'audit-logs',
 } as const;
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-roman-text-sub font-serif italic p-8">
+          <p className="text-base">Ocorreu um erro inesperado nesta tela.</p>
+          <button
+            className="text-roman-primary underline text-sm"
+            onClick={() => this.setState({ hasError: false })}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
   if (fullScreen) {
@@ -350,16 +378,18 @@ export default function App() {
       </aside>
 
       <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
-        <Suspense fallback={<ViewLoader />}>
-          {currentView === VIEWS.HOME && <HomeView />}
-          {currentView === VIEWS.INBOX && canAccessInbox && <InboxView />}
-          {currentView === VIEWS.APPROVALS && canAccessApprovals && <ApprovalsView />}
-          {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
-          {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
-          {currentView === VIEWS.AUDIT_LOGS && canAccessAudit && <AuditLogsView />}
-          {currentView === VIEWS.KPI && canAccessKpi && <KpiView />}
-          {currentView === VIEWS.SETTINGS && canAccessSettings && <SettingsView />}
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<ViewLoader />}>
+            {currentView === VIEWS.HOME && <HomeView />}
+            {currentView === VIEWS.INBOX && canAccessInbox && <InboxView />}
+            {currentView === VIEWS.APPROVALS && canAccessApprovals && <ApprovalsView />}
+            {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
+            {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
+            {currentView === VIEWS.AUDIT_LOGS && canAccessAudit && <AuditLogsView />}
+            {currentView === VIEWS.KPI && canAccessKpi && <KpiView />}
+            {currentView === VIEWS.SETTINGS && canAccessSettings && <SettingsView />}
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       {attachmentPreview && (() => {

@@ -206,9 +206,10 @@ export async function fetchTrackingTicketFromApi(trackingToken: string): Promise
 }
 
 export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket> {
+  const authHeaders = await getAuthenticatedActorHeaders().catch(() => ({}));
   const response = await fetch('/api/tickets', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
     body: JSON.stringify({ ticket }),
   });
   const json = await expectApiJson<{ ok: boolean; ticket?: ApiTicket }>(response, 'Falha ao criar ticket na API.');
@@ -220,12 +221,14 @@ export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket
 }
 
 export async function createTicketWithFilesInApi(ticket: Partial<Ticket>, files: File[]): Promise<Ticket> {
+  const authHeaders = await getAuthenticatedActorHeaders().catch(() => ({}));
   const formData = new FormData();
   formData.append('ticket', JSON.stringify(ticket));
   files.forEach(file => formData.append('attachment', file));
 
   const response = await fetch('/api/tickets', {
     method: 'POST',
+    headers: { ...authHeaders },
     body: formData,
   });
   const json = await expectApiJson<{ ok: boolean; ticket?: ApiTicket }>(response, 'Falha ao criar ticket na API.');

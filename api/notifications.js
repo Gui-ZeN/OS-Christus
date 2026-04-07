@@ -1,6 +1,6 @@
 import { requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
@@ -58,20 +58,20 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const user = await requireAuthenticatedUser(req);
-      const actor = readActorFromHeaders(req) || user.email || user.name || 'painel';
+      const actor = user.name || user.email || 'painel';
       const body = await readJsonBody(req);
       const action = String(body?.action || '').trim();
 
       if (action === 'markRead') {
         const id = String(body?.id || '').trim();
-        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
+        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatï¿½rio.' });
         await db.collection('notifications').doc(id).set({ read: true, updatedAt: new Date() }, { merge: true });
         return sendJson(res, 200, { ok: true });
       }
 
       if (action === 'dismiss') {
         const id = String(body?.id || '').trim();
-        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
+        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatï¿½rio.' });
         await db.collection('notifications').doc(id).delete();
         await writeAuditLog({
           actor,
@@ -92,13 +92,13 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { ok: true });
       }
 
-      return sendJson(res, 400, { ok: false, error: 'Ação inválida.' });
+      return sendJson(res, 400, { ok: false, error: 'Aï¿½ï¿½o invï¿½lida.' });
     }
 
     res.setHeader('Allow', 'GET, POST');
-    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Mï¿½todo nï¿½o permitido.' });
   } catch (error) {
-    return sendError(res, error, 'Falha nas notificações.');
+    return sendError(res, error, 'Falha nas notificaï¿½ï¿½es.');
   }
 }
 

@@ -22,7 +22,7 @@ import { sendWithSendGrid } from './_lib/sendgrid.js';
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 
 function required(input, name) {
-  if (!input || String(input).trim() === '') throw new Error(`Campo obrigatÃ³rio: ${name}`);
+  if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
   return String(input).trim();
 }
 
@@ -324,8 +324,8 @@ function normalizeDirectorGreeting(body) {
 
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
-  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'AtualizaÃ§Ã£o da OS');
-  if (!cleanSubject) return `${ticketId} - AtualizaÃ§Ã£o da OS`;
+  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
+  if (!cleanSubject) return `${ticketId} - Atualização da OS`;
   if (cleanSubject.toUpperCase().startsWith(`${ticketId.toUpperCase()} - `)) {
     return repairMojibake(cleanSubject);
   }
@@ -501,7 +501,7 @@ async function authorizeGmailAutomation(req) {
     await requireUserWithRoles(req, ['Admin']);
     return;
   } catch {
-    // Segue para validaÃ§Ã£o por segredo abaixo.
+    // Segue para validação por segredo abaixo.
   }
 
   if (validSecrets.length === 0) {
@@ -510,7 +510,7 @@ async function authorizeGmailAutomation(req) {
   }
 
   if (!provided || !validSecrets.includes(provided)) {
-    throw new Error('Segredo invÃ¡lido.');
+    throw new Error('Segredo inválido.');
   }
 }
 
@@ -549,7 +549,7 @@ async function processGmailInboundMessage(db, msg, source) {
       msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) ? null : await createTicketFromInbound(db, msg);
     const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
     if (!ticketId) {
-      await finalizeInboundMessageLock(lock.ref, { ignored: true, reason: 'ticket-not-identified' });
+      await finalizeInboundMessageLock(lock.ref);
       return false;
     }
 
@@ -595,12 +595,7 @@ async function processGmailInboundMessage(db, msg, source) {
         .limit(1)
         .get();
       if (!duplicateSnap.empty) {
-        await finalizeInboundMessageLock(lock.ref, {
-          ticketId,
-          gmailThreadId: msg.threadId || null,
-          threadPath: threadRef.path,
-          duplicate: true,
-        });
+        await finalizeInboundMessageLock(lock.ref);
         return false;
       }
     }
@@ -632,11 +627,7 @@ async function processGmailInboundMessage(db, msg, source) {
       source,
     });
 
-    await finalizeInboundMessageLock(lock.ref, {
-      ticketId,
-      gmailThreadId: msg.threadId || null,
-      threadPath: threadRef.path,
-    });
+    await finalizeInboundMessageLock(lock.ref);
 
     if (!createdTicket) {
       await appendInboundMessageToTicketHistory(db, ticketId, {
@@ -682,6 +673,16 @@ async function canSendPublicCreationEmail(db, ticketId, toEmail, internalCopy) {
   if (!ticketSnap.exists) return false;
 
   const ticket = ticketSnap.data() || {};
+
+  // Only allow within 10 minutes of ticket creation to prevent replay abuse.
+  const createdAt =
+    ticket.createdAt instanceof Date
+      ? ticket.createdAt
+      : typeof ticket.createdAt?.toDate === 'function'
+        ? ticket.createdAt.toDate()
+        : null;
+  if (!createdAt || Date.now() - createdAt.getTime() > 10 * 60 * 1000) return false;
+
   const requesterEmail = String(ticket.requesterEmail || '').trim().toLowerCase();
   const internalEmail = getInternalNotificationEmail();
   const normalizedRecipient = String(toEmail || '').trim().toLowerCase();
@@ -731,16 +732,9 @@ async function acquireInboundMessageLock(db, options) {
     return { acquired: false, ref, data: snap.exists ? snap.data() : null };
   }
 }
-async function finalizeInboundMessageLock(ref, data) {
+async function finalizeInboundMessageLock(ref) {
   if (!ref) return;
-  await ref.set(
-    {
-      ...data,
-      status: 'processed',
-      processedAt: new Date(),
-    },
-    { merge: true }
-  );
+  await ref.delete().catch(() => undefined);
 }
 async function releaseInboundMessageLock(ref) {
   if (!ref) return;
@@ -767,16 +761,24 @@ async function resolveSiteContext(db, siteCode) {
   return { site, region };
 }
 
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB per file
+
 async function uploadInboundAttachments(ticketId, attachments) {
   if (!Array.isArray(attachments) || attachments.length === 0) return [];
+
+  const filtered = attachments.slice(0, MAX_ATTACHMENTS);
 
   const bucket = getStorage().bucket();
   const uploadedAt = new Date();
   const results = [];
 
-  for (let index = 0; index < attachments.length; index += 1) {
-    const attachment = attachments[index];
+  for (let index = 0; index < filtered.length; index += 1) {
+    const attachment = filtered[index];
     if (!attachment?.buffer) continue;
+
+    const fileSize = Number(attachment.size || attachment.buffer.length || 0);
+    if (fileSize > MAX_ATTACHMENT_SIZE) continue;
 
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`);
     const path = `attachments/tickets/inbound/${ticketId}/${Date.now()}-${index + 1}-${filename}`;
@@ -881,7 +883,7 @@ async function handleSend(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     const body = await readJsonBody(req);
@@ -889,7 +891,7 @@ async function handleSend(req, res) {
     ticketIdForLog = ticketId;
 
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
-    const subject = body.subject ? String(body.subject) : `AtualizaÃ§Ã£o da OS ${ticketId}`;
+    const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
     const templateId = body.templateId ? String(body.templateId) : null;
@@ -940,7 +942,7 @@ async function handleSend(req, res) {
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
     const resolvedSubject = ticketId
-      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, 'AtualizaÃ§Ã£o da OS')
+      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, 'Atualização da OS')
       : templateSubject;
 
 
@@ -970,7 +972,7 @@ async function handleSend(req, res) {
     const toEmail = recipients.join(', ');
     toEmailForLog = toEmail;
     if (!toEmail || recipients.length === 0) {
-      throw new Error('Campo obrigatÃ³rio: toEmail (ou thread existente com destinatÃ¡rio).');
+      throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
     }
 
     const rootMessageId = normalizeMessageIdToken(thread?.rootMessageId) || buildThreadRootMessageId(ticketId);
@@ -1001,10 +1003,10 @@ async function handleSend(req, res) {
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
-      title: templateData.title || `AtualizaÃ§Ã£o da OS ${ticketId}`,
+      title: templateData.title || `Atualização da OS ${ticketId}`,
       intro:
         templateData.intro ||
-        'Sua solicitaÃ§Ã£o recebeu uma nova atualizaÃ§Ã£o. VocÃª pode responder este e-mail para continuar a conversa no sistema.',
+        'Sua solicitação recebeu uma nova atualização. Você pode responder este e-mail para continuar a conversa no sistema.',
       ticketId,
       subject: templateData.ticketSubject || resolvedSubject,
       status: templateData.status || 'Atualizada',
@@ -1119,7 +1121,7 @@ async function handleHealth(req, res) {
   try {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
-      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     await requireUserWithRoles(req, ['Admin', 'Diretor']);
@@ -1167,11 +1169,11 @@ async function handleHealth(req, res) {
           provider: event.provider || null,
           type: event.type || null,
           ticketId: event.ticketId || null,
-          error: event.error || 'Erro nÃ£o detalhado',
+          error: event.error || 'Erro não detalhado',
         })),
     });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao ler saÃºde de e-mail.' });
+    return sendJson(res, 500, { ok: false, error: error.message || 'Falha ao ler saúde de e-mail.' });
   }
 }
 
@@ -1179,7 +1181,7 @@ async function handleGmailSync(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1233,7 +1235,7 @@ async function handleGmailWatch(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1283,7 +1285,7 @@ async function handleGmailPush(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÃ©todo nÃ£o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1390,14 +1392,14 @@ async function handleInbound(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'M?todo n?o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
     const configuredSecret = process.env.SENDGRID_INBOUND_SECRET;
     if (configuredSecret) {
       const provided = req.query?.secret || req.headers['x-os-secret'] || req.headers['x-inbound-secret'] || null;
       if (provided !== configuredSecret) {
-        return sendJson(res, 401, { ok: false, error: 'Segredo inv?lido no inbound.' });
+        return sendJson(res, 401, { ok: false, error: 'Segredo inválido no inbound.' });
       }
     }
 
@@ -1483,8 +1485,8 @@ async function handleInbound(req, res) {
       .toUpperCase();
 
     if (!ticketId) {
-      await finalizeInboundMessageLock(lock.ref, { ignored: true, reason: 'ticket-not-identified' });
-      return sendJson(res, 422, { ok: false, error: 'N?o foi poss?vel identificar o ticket no inbound.' });
+      await finalizeInboundMessageLock(lock.ref);
+      return sendJson(res, 422, { ok: false, error: 'Não foi possível identificar o ticket no inbound.' });
     }
 
     const messageId = rawMessageId || `<inbound-${ticketId}-${Date.now()}@sendgrid>`;
@@ -1518,11 +1520,7 @@ async function handleInbound(req, res) {
         .limit(1)
         .get();
       if (!duplicateSnap.empty) {
-        await finalizeInboundMessageLock(lock.ref, {
-          ticketId,
-          threadPath: `emailThreads/${ticketId}`,
-          duplicate: true,
-        });
+        await finalizeInboundMessageLock(lock.ref);
         return sendJson(res, 200, { ok: true, duplicate: true, ticketId, messageId });
       }
     }
@@ -1554,10 +1552,7 @@ async function handleInbound(req, res) {
       source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
     });
 
-    await finalizeInboundMessageLock(lock.ref, {
-      ticketId,
-      threadPath: `emailThreads/${ticketId}`,
-    });
+    await finalizeInboundMessageLock(lock.ref);
 
     if (!createdTicket) {
       await appendInboundMessageToTicketHistory(db, ticketId, {
@@ -1603,7 +1598,7 @@ export default async function handler(req, res) {
   if (route === 'inbound') return handleInbound(req, res);
 
   res.setHeader('Allow', 'GET, POST');
-  return sendJson(res, 404, { ok: false, error: 'Rota de mail invÃ¡lida.' });
+  return sendJson(res, 404, { ok: false, error: 'Rota de mail inválida.' });
 }
 
 

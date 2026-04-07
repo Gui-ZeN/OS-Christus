@@ -1,6 +1,6 @@
 import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
+import { HttpError, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
@@ -157,7 +157,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const admin = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const actor = admin.name || admin.email || 'painel';
       const body = await readJsonBody(req);
       const section = String(body?.section || '').trim();
       const data = body?.data;
@@ -213,6 +213,7 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'GET, POST');
     return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha em settings.' });
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    return sendJson(res, statusCode, { ok: false, error: error.message || 'Falha em settings.' });
   }
 }

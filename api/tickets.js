@@ -3,7 +3,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { HttpError, parseInboundBody, readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
@@ -122,8 +122,7 @@ function isPublicTrackingHistoryEntry(item) {
 
   const normalizedText = normalizeHistoryText(text);
   const hasPublicMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
-  if (!hasPublicMarker) return false;
-  if (hasPublicMarker) return true;
+  return hasPublicMarker;
 }
 
 function sanitizeTicketForPublicTracking(ticket) {
@@ -284,8 +283,15 @@ function slugFilename(value) {
     .replace(/^-|-$/g, '');
 }
 
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB per file
+
 async function uploadTicketAttachments(ticketId, attachments) {
   if (!Array.isArray(attachments) || attachments.length === 0) return [];
+
+  if (attachments.length > MAX_ATTACHMENTS) {
+    throw new HttpError(400, `Máximo de ${MAX_ATTACHMENTS} anexos por ticket.`);
+  }
 
   const bucket = getStorage().bucket();
   const uploadedAt = new Date();
@@ -294,6 +300,11 @@ async function uploadTicketAttachments(ticketId, attachments) {
   for (let index = 0; index < attachments.length; index += 1) {
     const attachment = attachments[index];
     if (!attachment?.buffer) continue;
+
+    const fileSize = Number(attachment.size || attachment.buffer.length || 0);
+    if (fileSize > MAX_ATTACHMENT_SIZE) {
+      throw new HttpError(400, `Arquivo "${attachment.filename || `anexo-${index + 1}`}" excede o tamanho máximo de 10 MB.`);
+    }
 
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`) || `anexo-${Date.now()}-${index + 1}`;
     const isPdf = String(attachment.mimeType || '').toLowerCase() === 'application/pdf';
@@ -600,7 +611,7 @@ export default async function handler(req, res) {
       }
 
       const user = await requireAuthenticatedUser(req);
-      const actor = readActorFromHeaders(req) || user.email || user.name || 'painel';
+      const actor = user.name || user.email || 'painel';
 
       if (!body?.id) {
         return sendJson(res, 400, { ok: false, error: 'id e updates são obrigatórios.' });
@@ -661,7 +672,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const admin = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const actor = admin.name || admin.email || 'painel';
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       if (!id) {

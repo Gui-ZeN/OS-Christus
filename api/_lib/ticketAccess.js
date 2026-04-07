@@ -151,13 +151,13 @@ async function queryTicketsByScope(db, scope) {
 
 async function readAccessibleTickets(db, user) {
   if (!user) return [];
-  const snap = await db.collection('tickets').get();
-  const allTickets = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   if (user.role === 'Admin' || user.role === 'Diretor') {
-    return allTickets;
+    const snap = await db.collection('tickets').get();
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
   const territory = await readTerritoryCatalog(db);
-  return allTickets.filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites));
+  const scope = buildAllowedScope(user, territory.regions, territory.sites);
+  return queryTicketsByScope(db, scope);
 }
 
 export {
