@@ -187,20 +187,6 @@ export function AuditLogsView() {
   const [selectedCategory, setSelectedCategory] = useState<'all' | AuditCategory>('all');
   const [includeSystem, setIncludeSystem] = useState(false);
 
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={History}
-            title="Acesso restrito"
-            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
-          />
-        </div>
-      </div>
-    );
-  }
-
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -246,6 +232,20 @@ export function AuditLogsView() {
         .includes(term);
     });
   }, [logs, search, selectedTicket, selectedCategory]);
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={History}
+            title="Acesso restrito"
+            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">

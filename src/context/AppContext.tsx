@@ -73,7 +73,7 @@ function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
   const params = new URLSearchParams(window.location.search);
   const requestedView = params.get('view');
-  const queryAllowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs'];
+  const queryAllowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs', 'users', 'email-health'];
   if (queryAllowed.includes(requestedView as ViewState)) {
     return requestedView as ViewState;
   }
@@ -436,6 +436,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
+        console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.');
       }
     })();
   };

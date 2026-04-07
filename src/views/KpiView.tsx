@@ -58,20 +58,6 @@ export function KpiView() {
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
 
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={TrendingUp}
-            title="Acesso restrito"
-            description="Os indicadores gerenciais estão disponíveis apenas para Diretor e Admin."
-          />
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -571,6 +557,20 @@ export function KpiView() {
       .sort((a, b) => b.saldo - a.saldo)
       .slice(0, 6);
   }, [contractValues, contractsByTicket, paymentsByTicket, sites]);
+
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={TrendingUp}
+            title="Acesso restrito"
+            description="Os indicadores gerenciais estão disponíveis apenas para Diretor e Admin."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">

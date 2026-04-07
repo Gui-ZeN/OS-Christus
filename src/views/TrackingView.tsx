@@ -152,7 +152,7 @@ function isSensitiveText(normalizedText: string) {
 
 function getPublicStatusLabel(status: string) {
   const cleanStatus = repairMojibake(status);
-  switch (status) {
+  switch (cleanStatus) {
     case TICKET_STATUS.NEW:
       return 'Solicitação registrada';
     case TICKET_STATUS.WAITING_TECH_OPINION:
