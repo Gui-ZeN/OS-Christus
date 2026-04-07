@@ -58,7 +58,7 @@ const CATEGORY_STYLES: Record<AuditCategory, string> = {
   aprovacao: 'border-amber-200 bg-amber-50 text-amber-700',
   cadastro: 'border-violet-200 bg-violet-50 text-violet-700',
   exclusao: 'border-red-200 bg-red-50 text-red-700',
-  configuracao: 'border-stone-200 bg-stone-100 text-stone-700',
+  configuracao: 'border-roman-border bg-roman-bg text-roman-text-sub',
   outros: 'border-roman-border bg-roman-bg text-roman-text-sub',
 };
 
@@ -187,20 +187,6 @@ export function AuditLogsView() {
   const [selectedCategory, setSelectedCategory] = useState<'all' | AuditCategory>('all');
   const [includeSystem, setIncludeSystem] = useState(false);
 
-  if (!canAccess) {
-    return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={History}
-            title="Acesso restrito"
-            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
-          />
-        </div>
-      </div>
-    );
-  }
-
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -247,6 +233,20 @@ export function AuditLogsView() {
     });
   }, [logs, search, selectedTicket, selectedCategory]);
 
+  if (!canAccess) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+        <div className="max-w-4xl mx-auto min-h-[60vh]">
+          <EmptyState
+            icon={History}
+            title="Acesso restrito"
+            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
       <div className="max-w-5xl mx-auto">
@@ -269,7 +269,9 @@ export function AuditLogsView() {
           <div className="flex w-full flex-col gap-3 md:max-w-4xl md:flex-row">
             <div className="relative w-full md:max-w-md">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+              <label htmlFor="audit-search" className="sr-only">Buscar logs</label>
               <input
+                id="audit-search"
                 value={search}
                 onChange={event => setSearch(event.target.value)}
                 placeholder="Buscar por OS, ação, ator ou entidade..."
@@ -330,10 +332,11 @@ export function AuditLogsView() {
 
         <section className="space-y-3">
           {!loading && filteredLogs.length === 0 && (
-            <div className="bg-roman-surface border border-roman-border rounded-sm p-8 text-center text-roman-text-sub font-serif italic flex items-center justify-center gap-2">
-              <History size={18} />
-              Nenhum log encontrado.
-            </div>
+            <EmptyState
+              icon={History}
+              title="Nenhum log encontrado"
+              description="Não há registros correspondentes ao filtro aplicado."
+            />
           )}
 
           {filteredLogs.map(log => {

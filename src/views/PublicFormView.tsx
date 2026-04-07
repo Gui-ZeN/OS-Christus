@@ -236,7 +236,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   setCreatedId('');
                   setCreatedToken('');
                 }}
-                className="flex-1 bg-roman-sidebar hover:bg-stone-900 text-white py-3 rounded-sm font-medium transition-colors"
+                className="flex-1 bg-roman-sidebar hover:bg-roman-sidebar-light text-white py-3 rounded-sm font-medium transition-colors"
               >
                 Abrir Nova OS
               </button>
@@ -249,13 +249,21 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             </div>
           </div>
         ) : (
+          <form
+            onSubmit={event => {
+              event.preventDefault();
+              void handleSubmit();
+            }}
+            noValidate
+          >
           <div className="space-y-8">
             <div className="pb-6 border-b border-roman-border">
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Sua Identificação</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu Nome</label>
+                  <label htmlFor="pf-name" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu Nome</label>
                   <input
+                    id="pf-name"
                     type="text"
                     name="name"
                     value={formData.name}
@@ -266,8 +274,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.name && <span className="text-xs text-red-500 mt-1 block">{errors.name}</span>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu E-mail (Para receber o link)</label>
+                  <label htmlFor="pf-email" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu E-mail (Para receber o link)</label>
                   <input
+                    id="pf-email"
                     type="email"
                     name="email"
                     value={formData.email}
@@ -284,8 +293,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Dados do Problema</h3>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto (Apenas 1 problema por formulário)</label>
+                <label htmlFor="pf-subject" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto (Apenas 1 problema por formulário)</label>
                 <input
+                  id="pf-subject"
                   type="text"
                   name="subject"
                   value={formData.subject}
@@ -297,8 +307,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição Curta</label>
+                <label htmlFor="pf-description" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição Curta</label>
                 <textarea
+                  id="pf-description"
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
@@ -310,8 +321,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de Manutenção</label>
+                  <label htmlFor="pf-type" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de Manutenção</label>
                   <select
+                    id="pf-type"
                     name="type"
                     value={formData.type}
                     onChange={handleInputChange}
@@ -325,8 +337,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.type && <span className="text-xs text-red-500 mt-1 block">{errors.type}</span>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço (opcional)</label>
+                  <label htmlFor="pf-macroservice" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço (opcional)</label>
                   <select
+                    id="pf-macroservice"
                     name="macroServiceId"
                     value={formData.macroServiceId}
                     onChange={handleInputChange}
@@ -340,8 +353,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   <span className="mt-1 block text-xs text-roman-text-sub">Se não souber classificar, deixe em branco. A equipe define isso na triagem.</span>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço (opcional)</label>
+                  <label htmlFor="pf-service" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço (opcional)</label>
                   <select
+                    id="pf-service"
                     name="serviceCatalogId"
                     value={formData.serviceCatalogId}
                     onChange={handleInputChange}
@@ -356,8 +370,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   <span className="mt-1 block text-xs text-roman-text-sub">O administrador pode complementar essa informação depois.</span>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor / Local exato</label>
+                  <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor / Local exato</label>
                   <input
+                    id="pf-sector"
                     type="text"
                     name="sector"
                     value={formData.sector}
@@ -371,8 +386,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   A classificação operacional do chamado é validada pela triagem interna. Se não souber o macroserviço ou o serviço exato, deixe os campos em branco e descreva bem o problema.
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>
+                  <label htmlFor="pf-region" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>
                   <select
+                    id="pf-region"
                     name="region"
                     value={formData.region}
                     onChange={handleInputChange}
@@ -386,8 +402,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.region && <span className="text-xs text-red-500 mt-1 block">{errors.region}</span>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Sede</label>
+                  <label htmlFor="pf-sede" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Sede</label>
                   <select
+                    id="pf-sede"
                     name="sede"
                     value={formData.sede}
                     onChange={handleInputChange}
@@ -409,9 +426,17 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               <p className="text-xs text-roman-text-sub mb-4">
                 Anexe pelo menos uma foto de perto e uma de longe para facilitar a identificação.
               </p>
-              <div
-                className="border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg hover:bg-roman-border-light transition-colors cursor-pointer relative"
+              <button
+                type="button"
+                className="w-full border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg hover:bg-roman-border-light transition-colors cursor-pointer relative"
                 onClick={() => fileInputRef.current?.click()}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                aria-label="Selecionar ou soltar fotos do problema"
               >
                 <input
                   type="file"
@@ -434,7 +459,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     <div className="text-xs text-roman-text-sub">Apenas arquivos de imagem (JPG, PNG)</div>
                   </>
                 )}
-              </div>
+              </button>
               {files.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {files.map((file, index) => (
@@ -453,7 +478,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             )}
 
             <button
-              onClick={handleSubmit}
+              type="submit"
               disabled={isSubmitting}
               className="w-full bg-roman-primary hover:bg-roman-primary-hover text-white py-4 rounded-sm font-serif tracking-wide text-base transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
             >
@@ -462,6 +487,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                 : <>Registrar Ordem de Serviço <ArrowRight size={20} /></>}
             </button>
           </div>
+          </form>
         )}
       </div>
     </div>

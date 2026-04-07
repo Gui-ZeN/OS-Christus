@@ -3,12 +3,14 @@ import { AlertCircle, CheckCircle } from 'lucide-react';
 
 interface FloatingToastProps {
   message: string | null;
+  /** Explicit type overrides the heuristic detection. */
+  type?: 'success' | 'error';
 }
 
-export function FloatingToast({ message }: FloatingToastProps) {
+export function FloatingToast({ message, type }: FloatingToastProps) {
   if (!message) return null;
 
-  const isError = message.toLowerCase().includes('erro');
+  const isError = type === 'error' || (type === undefined && message.toLowerCase().includes('erro'));
 
   return (
     <div className="fixed top-5 left-1/2 z-[140] w-[min(92vw,760px)] -translate-x-1/2 pointer-events-none">
