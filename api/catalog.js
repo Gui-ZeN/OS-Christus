@@ -1,7 +1,7 @@
 import { requireAdminUser } from './_lib/authz.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readActorFromHeaders, readJsonBody, sendJson } from './_lib/http.js';
+import { readJsonBody, sendJson } from './_lib/http.js';
 import {
   DEFAULT_MACRO_SERVICES,
   DEFAULT_MATERIALS,
@@ -391,7 +391,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const adminUser = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || adminUser.email || adminUser.name || 'admin';
+      const actor = adminUser.name || adminUser.email || 'admin';
       const body = await readJsonBody(req);
 
       if (body?.seedDefaults === true) {
@@ -423,7 +423,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const adminUser = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || adminUser.email || adminUser.name || 'admin';
+      const actor = adminUser.name || adminUser.email || 'admin';
       const body = await readJsonBody(req);
       const entity = String(body?.entity || '').trim();
       const id = String(body?.id || '').trim();

@@ -73,7 +73,7 @@ function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
   const params = new URLSearchParams(window.location.search);
   const requestedView = params.get('view');
-  const queryAllowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs'];
+  const queryAllowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs', 'users', 'email-health'];
   if (queryAllowed.includes(requestedView as ViewState)) {
     return requestedView as ViewState;
   }
@@ -202,7 +202,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [theme, setThemeState] = useState<AppThemeId>(getInitialTheme);
 
+  const refreshCountRef = useRef(0);
+
   const refreshTickets = useCallback(async (options?: { silent?: boolean }) => {
+    const generation = ++refreshCountRef.current;
     const silent = options?.silent ?? false;
     if (authEnabled && !authResolved) {
       return;
@@ -229,13 +232,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     try {
       const remote = await fetchTicketsFromApi();
+      if (generation !== refreshCountRef.current) return;
       setAllTickets(remote);
     } catch {
-      if (!silent) {
+      if (!silent && generation === refreshCountRef.current) {
         setAllTickets([]);
       }
     } finally {
-      if (!silent) {
+      if (!silent && generation === refreshCountRef.current) {
         setTicketsLoading(false);
       }
     }
@@ -406,10 +410,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [theme]);
 
-  const tickets = useMemo(
-    () => allTickets.filter(ticket => canUserAccessTicket(currentUser, currentUserEmail, ticket, catalogRegions, catalogSites)),
-    [allTickets, currentUser, currentUserEmail, catalogRegions, catalogSites]
-  );
+  const tickets = allTickets;
 
   useEffect(() => {
     if (tickets.length === 0) {
@@ -436,6 +437,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
+        console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.');
       }
     })();
   };

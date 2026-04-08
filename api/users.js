@@ -1,8 +1,7 @@
-﻿import { requireAdminUser } from './_lib/authz.js';
-import { requireAuthenticatedUser } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { getAuth } from 'firebase-admin/auth';
-import { readActorFromHeaders, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readDirectory } from './_lib/directory.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { generatePasswordResetUrl, sendPasswordAccessEmail } from './_lib/passwordAccess.js';
@@ -136,7 +135,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const admin = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const actor = admin.name || admin.email || 'painel';
       const body = await readJsonBody(req);
       const user = normalizeUser(body?.user);
       const password = String(body?.password || '').trim();
@@ -195,7 +194,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const admin = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const actor = admin.name || admin.email || 'painel';
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       const user = normalizeUser(body?.updates);
@@ -224,7 +223,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const admin = await requireAdminUser(req);
-      const actor = readActorFromHeaders(req) || admin.email || admin.name || 'painel';
+      const actor = admin.name || admin.email || 'painel';
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       if (!id) {

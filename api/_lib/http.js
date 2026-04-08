@@ -40,11 +40,19 @@ export async function readJsonBody(req) {
   return JSON.parse(raw);
 }
 
+const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
+
 export function readRawBody(req) {
   return new Promise((resolve, reject) => {
     let raw = '';
+    let size = 0;
     req.setEncoding('utf8');
     req.on('data', chunk => {
+      size += Buffer.byteLength(chunk, 'utf8');
+      if (size > MAX_JSON_BODY_SIZE) {
+        req.destroy();
+        return reject(new HttpError(413, 'Corpo da requisição muito grande.'));
+      }
       raw += chunk;
     });
     req.on('end', () => resolve(raw));

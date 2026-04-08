@@ -31,6 +31,12 @@ export function ConfirmModal({
   const modalRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
+    if (!isOpen) return;
+    setReason('');
+    setError('');
+  }, [isOpen]);
+
+  React.useEffect(() => {
     if (isOpen && modalRef.current) {
       // Simple focus trap: focus the first focusable element or the container
       const focusable = modalRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');

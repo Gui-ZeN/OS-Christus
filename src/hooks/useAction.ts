@@ -4,6 +4,7 @@ interface UseActionOptions {
   onSuccess?: () => void;
   onError?: (error: Error) => void;
   successDuration?: number;
+  errorDuration?: number;
 }
 
 export function useAction(options: UseActionOptions = {}) {
@@ -44,8 +45,8 @@ export function useAction(options: UseActionOptions = {}) {
       setError(message);
       options.onError?.(err instanceof Error ? err : new Error(message));
       
-      if (options.successDuration !== 0) {
-        setTimeout(() => setError(null), options.successDuration || 3000);
+      if (options.errorDuration !== 0) {
+        setTimeout(() => setError(null), options.errorDuration || 3000);
       }
       return false;
     } finally {

@@ -1,6 +1,6 @@
 ﻿import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { sendJson } from './_lib/http.js';
+import { sendJson, HttpError } from './_lib/http.js';
 
 function normalizeTimestamp(value) {
   if (!value) return null;
@@ -63,6 +63,7 @@ export default async function handler(req, res) {
 
     return sendJson(res, 200, { ok: true, logs });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha ao carregar auditoria.' });
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    return sendJson(res, statusCode, { ok: false, error: error.message || 'Falha ao carregar auditoria.' });
   }
 }
