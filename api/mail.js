@@ -350,6 +350,76 @@ function buildInboundHistoryId(messageId, fallbackKey) {
   return `mail-${base || Date.now()}`;
 }
 
+function readProviderErrorStatus(error) {
+  const rawStatus = error?.response?.status ?? error?.status ?? error?.code ?? null;
+  const parsed = Number(rawStatus);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isThreadReferenceMissingError(error) {
+  const status = readProviderErrorStatus(error);
+  const providerMessage = String(
+    error?.response?.data?.error?.message || error?.message || ''
+  ).toLowerCase();
+  return status === 404 || providerMessage.includes('requested entity was not found');
+}
+
+async function sendWithGmailThreadFallback({
+  toEmail,
+  subject,
+  text,
+  html,
+  inReplyTo,
+  references,
+  ticketId,
+  trackingToken,
+  threadId,
+}) {
+  const normalizedReferences = Array.isArray(references) ? references : [];
+  const hasThreadContext = Boolean(threadId || inReplyTo || normalizedReferences.length > 0);
+
+  try {
+    const result = await gmailSend({
+      toEmail,
+      subject,
+      text,
+      html,
+      inReplyTo,
+      references: normalizedReferences,
+      ticketId,
+      trackingToken,
+      threadId,
+    });
+
+    return {
+      result,
+      inReplyTo: inReplyTo || null,
+      references: normalizedReferences,
+      recoveredThread: false,
+    };
+  } catch (error) {
+    if (!hasThreadContext || !isThreadReferenceMissingError(error)) {
+      throw error;
+    }
+
+    const retryResult = await gmailSend({
+      toEmail,
+      subject,
+      text,
+      html,
+      ticketId,
+      trackingToken,
+    });
+
+    return {
+      result: retryResult,
+      inReplyTo: null,
+      references: [],
+      recoveredThread: true,
+    };
+  }
+}
+
 function normalizeMessageIdToken(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -1023,33 +1093,50 @@ async function handleSend(req, res) {
     const finalText = personalizedBody || text || fallbackTemplate.text;
     const finalHtml = html || fallbackTemplate.html;
 
-    const sendResult =
-      provider === 'gmail'
-        ? await gmailSend({
-            toEmail,
-            subject: canonicalSubject,
-            text: finalText,
-            html: finalHtml,
-            inReplyTo: priorMessageId || undefined,
-            references: nextReferences,
-            ticketId,
-            trackingToken: trackingToken || undefined,
-            threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
-          })
-        : await sendWithSendGrid({
-            toEmail,
-            subject: canonicalSubject,
-            text: finalText,
-            html: finalHtml,
-            templateId,
-            templateData,
-            headers,
-            replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
-          });
+    let sendResult;
+    let effectiveInReplyTo = priorMessageId || null;
+    let effectiveReferences = nextReferences;
+    let recoveredThread = false;
+
+    if (provider === 'gmail') {
+      const gmailSendResult = await sendWithGmailThreadFallback({
+        toEmail,
+        subject: canonicalSubject,
+        text: finalText,
+        html: finalHtml,
+        inReplyTo: priorMessageId || undefined,
+        references: nextReferences,
+        ticketId,
+        trackingToken: trackingToken || undefined,
+        threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
+      });
+      sendResult = gmailSendResult.result;
+      effectiveInReplyTo = gmailSendResult.inReplyTo;
+      effectiveReferences = gmailSendResult.references;
+      recoveredThread = gmailSendResult.recoveredThread;
+    } else {
+      sendResult = await sendWithSendGrid({
+        toEmail,
+        subject: canonicalSubject,
+        text: finalText,
+        html: finalHtml,
+        templateId,
+        templateData,
+        headers,
+        replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+      });
+    }
 
     const now = new Date();
     const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
-    const mergedReferences = [...new Set([rootMessageId, ...nextReferences, messageId].filter(Boolean))].slice(-20);
+    const effectiveRootMessageId = recoveredThread ? messageId : rootMessageId;
+    const mergedReferences = [...new Set([effectiveRootMessageId, ...effectiveReferences, messageId].filter(Boolean))].slice(-20);
+    const persistedHeaders = {
+      'X-OS-Ticket-ID': ticketId,
+      ...(trackingToken ? { 'X-OS-Tracking-Token': trackingToken } : {}),
+      ...(effectiveInReplyTo ? { 'In-Reply-To': effectiveInReplyTo } : {}),
+      ...(effectiveReferences.length > 0 ? { References: effectiveReferences.join(' ') } : {}),
+    };
 
     if (!skipThread) {
       await threadRef.set(
@@ -1057,7 +1144,7 @@ async function handleSend(req, res) {
           ticketId,
           subject: canonicalSubject,
           toEmail,
-          rootMessageId,
+          rootMessageId: effectiveRootMessageId,
           lastMessageId: messageId,
           gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
           references: mergedReferences,
@@ -1078,10 +1165,10 @@ async function handleSend(req, res) {
         templateId: templateId || null,
         trigger: trigger || null,
         messageId,
-        rootMessageId,
-        inReplyTo: priorMessageId,
+        rootMessageId: effectiveRootMessageId,
+        inReplyTo: effectiveInReplyTo,
         references: mergedReferences,
-        headers,
+        headers: persistedHeaders,
         createdAt: now,
       });
     }
@@ -1101,8 +1188,9 @@ async function handleSend(req, res) {
       ticketId,
       toEmail,
       messageId,
-      inReplyTo: priorMessageId,
+      inReplyTo: effectiveInReplyTo,
       references: mergedReferences,
+      recoveredThread,
     });
   } catch (error) {
     await logEmailEvent({

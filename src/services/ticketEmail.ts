@@ -167,7 +167,7 @@ function appendAttachmentsToBody(message: string, attachments: TicketAttachment[
   return [base, '', 'Anexos enviados:', ...links].join('\n');
 }
 
-async function postEmail(payload: Record<string, unknown>) {
+async function postEmail(payload: Record<string, unknown>, options?: { throwOnError?: boolean }) {
   try {
     const headers = await getAuthenticatedActorHeaders();
     const response = await fetch('/api/mail?route=send', {
@@ -177,11 +177,18 @@ async function postEmail(payload: Record<string, unknown>) {
     });
     if (!response.ok) {
       const json = await response.json().catch(() => null);
-      throw new Error(json?.error || 'Falha ao enviar e-mail.');
+      const error = new Error(json?.error || 'Falha ao enviar e-mail.');
+      if (options?.throwOnError) {
+        throw error;
+      }
+      throw error;
     }
     return true;
   } catch (error) {
     console.error('[ticketEmail] envio falhou', error);
+    if (options?.throwOnError) {
+      throw error instanceof Error ? error : new Error('Falha ao enviar e-mail.');
+    }
     return false;
   }
 }
@@ -604,5 +611,5 @@ export async function notifyPaymentDispatch(
       ctaUrl: buildFinanceReviewUrl(ticket),
       ctaLabel: 'Abrir financeiro',
     },
-  });
+  }, { throwOnError: true });
 }
