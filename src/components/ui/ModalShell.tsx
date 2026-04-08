@@ -32,8 +32,10 @@ export function ModalShell({
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`w-full ${maxWidthClass} max-h-[92vh] overflow-hidden rounded-sm border border-roman-border bg-roman-surface shadow-xl`}>
-        <div className="flex items-start justify-between gap-4 border-b border-roman-border bg-roman-bg px-4 py-4 sm:px-5">
+      <div
+        className={`flex w-full ${maxWidthClass} max-h-[92vh] flex-col overflow-hidden rounded-sm border border-roman-border bg-roman-surface shadow-xl`}
+      >
+        <div className="shrink-0 flex items-start justify-between gap-4 border-b border-roman-border bg-roman-bg px-4 py-4 sm:px-5">
           <div className="min-w-0">
             <h3 className="font-serif text-lg text-roman-text-main font-medium">{title}</h3>
             {description && <p className="mt-1 text-sm text-roman-text-sub">{description}</p>}
@@ -43,12 +45,12 @@ export function ModalShell({
           </button>
         </div>
 
-        <div className="max-h-[calc(92vh-8.5rem)] overflow-y-auto px-4 py-5 sm:px-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-5">
           {children}
         </div>
 
         {footer && (
-          <div className="border-t border-roman-border bg-roman-surface px-4 py-4 sm:px-5">
+          <div className="shrink-0 border-t border-roman-border bg-roman-surface px-4 py-4 sm:px-5">
             {footer}
           </div>
         )}

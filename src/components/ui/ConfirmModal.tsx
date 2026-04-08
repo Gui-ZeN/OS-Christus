@@ -87,12 +87,12 @@ export function ConfirmModal({
     >
       <div 
         ref={modalRef}
-        className="bg-roman-surface w-full max-w-md rounded-sm shadow-2xl border border-roman-border overflow-hidden animate-in zoom-in-95 duration-200" 
+        className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-sm border border-roman-border bg-roman-surface shadow-2xl animate-in zoom-in-95 duration-200"
         role="dialog" 
         aria-modal="true"
         tabIndex={-1}
       >
-        <div className="p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <div className="flex items-start gap-4">
             <div className={`p-2 rounded-full shrink-0 ${isDestructive ? 'bg-red-100 text-red-600' : 'bg-roman-primary/10 text-roman-primary'}`}>
               <AlertCircle size={24} />
@@ -122,22 +122,24 @@ export function ConfirmModal({
           </div>
         </div>
         
-        <div className="bg-roman-bg px-6 py-4 border-t border-roman-border flex justify-end gap-3">
+        <div className="shrink-0 border-t border-roman-border bg-roman-bg px-6 py-4">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface rounded-sm transition-colors disabled:opacity-50"
+            className="w-full rounded-sm px-4 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-surface hover:text-roman-text-main disabled:opacity-50 sm:w-auto"
           >
             {cancelText}
           </button>
           <button
             onClick={handleConfirm}
             disabled={isLoading}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-sm shadow-sm flex items-center gap-2 transition-colors disabled:opacity-70 ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-roman-sidebar hover:bg-roman-sidebar-light'}`}
+            className={`flex w-full items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-70 sm:w-auto ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-roman-sidebar hover:bg-roman-sidebar-light'}`}
           >
             {isLoading && <Loader2 size={14} className="animate-spin" />}
             {confirmText}
           </button>
+          </div>
         </div>
       </div>
     </div>
