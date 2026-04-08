@@ -3017,6 +3017,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           </button>
                         )}
 
+                        {/* executionProgress is only set for active execution statuses (not CANCELED), so only CLOSED needs to be excluded */}
                         {canManageStatus &&
                           activeTicket.executionProgress &&
                           activeTicket.status !== TICKET_STATUS.CLOSED && (
