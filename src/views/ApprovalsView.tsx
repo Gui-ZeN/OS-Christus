@@ -394,9 +394,11 @@ export function ApprovalsView() {
       updateTicket(id, {
         status:
           tab === 'budgets'
-            ? budgetApprovalContext?.shouldMoveStatus
-              ? APPROVAL_STATUS[tab]
-              : targetTicket?.status || APPROVAL_STATUS[tab]
+            ? budgetApprovalContext?.isAdditive
+              ? TICKET_STATUS.IN_PROGRESS
+              : budgetApprovalContext?.shouldMoveStatus
+                ? APPROVAL_STATUS[tab]
+                : targetTicket?.status || APPROVAL_STATUS[tab]
             : APPROVAL_STATUS[tab],
         viewingBy: null,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
