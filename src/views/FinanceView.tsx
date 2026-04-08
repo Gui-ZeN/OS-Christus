@@ -571,13 +571,13 @@ export function FinanceView() {
             (paymentsByTicket[ticket.id]?.length || 0) > 0 ||
             (measurementsByTicket[ticket.id]?.length || 0) > 0;
 
-          return hasFinancialContext && [
+          return hasFinancialContext && ([
             TICKET_STATUS.IN_PROGRESS,
             TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
             TICKET_STATUS.WAITING_PAYMENT,
             TICKET_STATUS.CLOSED,
             TICKET_STATUS.CANCELED,
-          ].includes(ticket.status);
+          ] as Ticket['status'][]).includes(ticket.status);
         })
         .map(ticket => {
           const rawPayments = paymentsByTicket[ticket.id] || [];
