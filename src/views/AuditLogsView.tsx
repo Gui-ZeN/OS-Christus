@@ -235,7 +235,7 @@ export function AuditLogsView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={History}
@@ -248,16 +248,16 @@ export function AuditLogsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
       <div className="max-w-5xl mx-auto">
-        <header className="mb-8 border-b border-roman-border pb-4 flex items-end justify-between gap-4">
+        <header className="mb-8 flex flex-col gap-4 border-b border-roman-border pb-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Auditoria do Sistema</h1>
             <p className="text-roman-text-sub font-serif italic">Registro central das ações da OS e das principais alterações persistidas no sistema.</p>
           </div>
           <button
             onClick={() => void load()}
-            className="px-4 py-2 bg-roman-surface border border-roman-border hover:border-roman-primary rounded-sm text-sm font-medium text-roman-text-main flex items-center gap-2"
+            className="flex w-full items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary md:w-auto"
             disabled={loading}
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -308,7 +308,7 @@ export function AuditLogsView() {
               </select>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-xs text-roman-text-sub">
               <input
                 type="checkbox"

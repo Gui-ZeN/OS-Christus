@@ -88,7 +88,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={Mail}
@@ -103,52 +103,56 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   const content = (
     <>
       {!embedded && (
-        <header className="mb-8 flex items-end justify-between gap-4 border-b border-roman-border pb-4">
+        <header className="mb-8 flex flex-col gap-4 border-b border-roman-border pb-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-serif font-medium text-roman-text-main">Saúde de E-mail</h1>
             <p className="font-serif italic text-roman-text-sub">Monitoramento de envio e recebimento nas últimas 24 horas.</p>
           </div>
-          <button
-            onClick={() => void load()}
-            className="flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary"
-            disabled={loading || syncLoading}
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-          <button
-            onClick={() => void syncInbox()}
-            className="flex items-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60"
-            disabled={loading || syncLoading}
-          >
-            <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
-            Sincronizar e-mails
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+            <button
+              onClick={() => void load()}
+              className="flex w-full items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary sm:w-auto"
+              disabled={loading || syncLoading}
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              Atualizar
+            </button>
+            <button
+              onClick={() => void syncInbox()}
+              className="flex w-full items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60 sm:w-auto"
+              disabled={loading || syncLoading}
+            >
+              <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
+              Sincronizar e-mails
+            </button>
+          </div>
         </header>
       )}
 
       {embedded && (
-        <div className="mb-5 flex items-center justify-between gap-4">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-xl font-serif text-roman-text-main">Saúde de E-mail</h3>
             <p className="text-sm text-roman-text-sub">Acompanhe entregas, inbound, sync e falhas recentes no mesmo painel.</p>
           </div>
-          <button
-            onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary"
-            disabled={loading || syncLoading}
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-          <button
-            onClick={() => void syncInbox()}
-            className="inline-flex items-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60"
-            disabled={loading || syncLoading}
-          >
-            <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
-            Sincronizar e-mails
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              onClick={() => void load()}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary sm:w-auto"
+              disabled={loading || syncLoading}
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              Atualizar
+            </button>
+            <button
+              onClick={() => void syncInbox()}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60 sm:w-auto"
+              disabled={loading || syncLoading}
+            >
+              <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
+              Sincronizar e-mails
+            </button>
+          </div>
         </div>
       )}
 
@@ -216,7 +220,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
       <div className="mx-auto max-w-6xl">{content}</div>
     </div>
   );

@@ -560,7 +560,7 @@ export function KpiView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={TrendingUp}
@@ -588,7 +588,7 @@ export function KpiView() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <div className="flex bg-roman-bg border border-roman-border rounded-xl p-1">
+            <div className="flex w-full overflow-x-auto rounded-xl border border-roman-border bg-roman-bg p-1 hide-scrollbar sm:w-auto">
               <button
                 onClick={() => setPerspective('managerial')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
@@ -602,7 +602,7 @@ export function KpiView() {
                 Visão Financeira
               </button>
             </div>
-            <div className="flex bg-roman-bg border border-roman-border rounded-xl p-1 self-start md:self-end">
+            <div className="flex w-full self-start overflow-x-auto rounded-xl border border-roman-border bg-roman-bg p-1 hide-scrollbar md:w-auto md:self-end">
               <button
                 onClick={() => setPeriod('month')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'month' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
