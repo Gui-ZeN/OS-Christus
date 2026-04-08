@@ -47,6 +47,8 @@ interface PaymentEmailModalState {
   recipients: string[];
   newRecipient: string;
   isSending: boolean;
+  sendFeedbackType: 'success' | 'error' | null;
+  sendFeedbackMessage: string;
 }
 
 function parseCurrency(value: string) {
@@ -1250,6 +1252,8 @@ export function FinanceView() {
       recipients: defaultRecipients,
       newRecipient: '',
       isSending: false,
+      sendFeedbackType: null,
+      sendFeedbackMessage: '',
     });
   };
 
@@ -1279,7 +1283,7 @@ export function FinanceView() {
     );
     const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
 
-    setPaymentEmailModal(prev => prev ? { ...prev, isSending: true } : null);
+    setPaymentEmailModal(prev => prev ? { ...prev, isSending: true, sendFeedbackType: null, sendFeedbackMessage: '' } : null);
     setProcessingId(`${ticketId}:${payment.id}`);
     try {
       await notifyPaymentDispatch(targetTicket, payment, grossAmount, taxAmount, netAmount, recipients);
@@ -1354,15 +1358,39 @@ export function FinanceView() {
           ],
         });
       }
-      setPaymentEmailModal(null);
+      setPaymentEmailModal(prev =>
+        prev
+          ? {
+              ...prev,
+              isSending: false,
+              sendFeedbackType: 'success',
+              sendFeedbackMessage: `E-mail enviado com sucesso para: ${recipients.join(', ')}`,
+            }
+          : null
+      );
+      window.setTimeout(() => {
+        setPaymentEmailModal(current =>
+          current?.ticketId === ticketId && current?.payment.id === payment.id ? null : current
+        );
+      }, 1400);
       showToast(
         canCloseTicket
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
           : `${payment.label || 'Lançamento'} confirmado e email disparado.`
       , 3000);
     } catch (error) {
-      showToast(`Erro ao processar pagamento: ${error instanceof Error ? error.message : 'falha desconhecida.'}`, 4000);
-      setPaymentEmailModal(prev => prev ? { ...prev, isSending: false } : null);
+      const errorMessage = error instanceof Error ? error.message : 'falha desconhecida.';
+      showToast(`Erro ao processar pagamento: ${errorMessage}`, 4000);
+      setPaymentEmailModal(prev =>
+        prev
+          ? {
+              ...prev,
+              isSending: false,
+              sendFeedbackType: 'error',
+              sendFeedbackMessage: `Falha ao enviar e-mail: ${errorMessage}`,
+            }
+          : null
+      );
     } finally {
       setProcessingId(null);
     }
@@ -2254,11 +2282,13 @@ export function FinanceView() {
               <button
                 type="button"
                 onClick={() => void handleConfirmPaymentEmail()}
-                disabled={paymentEmailModal.isSending || paymentEmailModal.recipients.length === 0}
+                disabled={paymentEmailModal.isSending || paymentEmailModal.recipients.length === 0 || paymentEmailModal.sendFeedbackType === 'success'}
                 className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {paymentEmailModal.isSending ? (
                   <><Loader2 size={15} className="animate-spin" /> Enviando...</>
+                ) : paymentEmailModal.sendFeedbackType === 'success' ? (
+                  <><CheckCircle size={15} /> Enviado</>
                 ) : (
                   <><Mail size={15} /> Enviar Email e Confirmar</>
                 )}
@@ -2269,6 +2299,17 @@ export function FinanceView() {
       >
         {paymentEmailModal && (
           <div className="space-y-4">
+            {paymentEmailModal.sendFeedbackType && (
+              <div
+                className={`rounded-sm border px-4 py-2 text-sm ${
+                  paymentEmailModal.sendFeedbackType === 'success'
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                    : 'border-red-300 bg-red-50 text-red-800'
+                }`}
+              >
+                {paymentEmailModal.sendFeedbackMessage}
+              </div>
+            )}
             <div className="rounded-sm border border-roman-border bg-roman-bg px-4 py-3 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-roman-text-sub">Valor bruto</span>
@@ -2357,7 +2398,6 @@ export function FinanceView() {
     </div>
   );
 }
-
 
 
 
