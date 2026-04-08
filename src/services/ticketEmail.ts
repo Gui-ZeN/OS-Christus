@@ -1,5 +1,5 @@
 ﻿import { TICKET_STATUS } from '../constants/ticketStatus';
-import { Ticket, TicketAttachment } from '../types';
+import { PaymentRecord, Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -520,6 +520,89 @@ export async function notifyTicketDirectorReply(
       skipGreeting: true,
       ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
       ctaLabel: 'Abrir painel da Diretoria',
+    },
+  });
+}
+
+export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: number, additiveReason: string) {
+  const summaryList = buildDirectorTicketSummary(ticket);
+  const bodyText = [
+    `Aditivo ${additiveIndex} criado na etapa de execução e aguarda aprovação da Diretoria.`,
+    `Motivo do aditivo: ${additiveReason || 'Não informado'}`,
+    '',
+    'Resumo da OS:',
+    '',
+    summaryList,
+  ].join('\n');
+
+  const variables = await buildVariables(ticket, {
+    director: { summary: summaryList },
+    message: { sender: 'Sistema OS Christus', body: bodyText },
+  });
+
+  await sendToConfiguredFlowRecipients({
+    ticketId: ticket.id,
+    trackingToken: ticket.trackingToken,
+    trigger: 'EMAIL-DIRETORIA-APROVACAO',
+    variables,
+    templateData: {
+      title: `Aditivo ${additiveIndex} aguardando aprovação`,
+      intro: `${ticket.id} possui aditivo ${additiveIndex} em andamento e requer aprovação da Diretoria.`,
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      bodyText,
+      ctaUrl: buildDirectorReviewUrl(ticket, 'budgets'),
+      ctaLabel: 'Abrir aprovação do aditivo',
+    },
+  });
+}
+
+export async function notifyPaymentDispatch(
+  ticket: Ticket,
+  payment: PaymentRecord,
+  grossAmount: number,
+  taxAmount: number,
+  netAmount: number,
+  recipients: string[]
+) {
+  if (recipients.length === 0) return;
+
+  const lancamentoLabel = payment.label || `Lançamento ${payment.installmentNumber || 1}`;
+  const subject = `OS-${ticket.id} - Pagamento - ${lancamentoLabel}`;
+
+  const attachmentLinks = buildAttachmentList(payment.attachments || []);
+  const bodyLines = [
+    `Segue o lançamento de pagamento referente à OS ${ticket.id}.`,
+    '',
+    `Lançamento: ${lancamentoLabel}`,
+    `Valor bruto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grossAmount)}`,
+    `Imposto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(taxAmount)}`,
+    `Valor a pagar (líquido): ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(netAmount)}`,
+  ];
+  if (attachmentLinks.length > 0) {
+    bodyLines.push('', 'Anexos do lançamento:', ...attachmentLinks);
+  }
+  const bodyText = bodyLines.join('\n');
+
+  const variables = await buildVariables(ticket, {
+    message: { sender: 'Financeiro', body: bodyText },
+  });
+
+  await postEmail({
+    ticketId: ticket.id,
+    trackingToken: ticket.trackingToken,
+    toEmail: recipients.join(', '),
+    trigger: 'EMAIL-FINANCEIRO-PAGAMENTO',
+    subject,
+    variables,
+    templateData: {
+      title: subject,
+      intro: `Lançamento de pagamento para a OS ${ticket.id}.`,
+      ticketSubject: ticket.subject,
+      status: ticket.status,
+      bodyText,
+      ctaUrl: buildFinanceReviewUrl(ticket),
+      ctaLabel: 'Abrir financeiro',
     },
   });
 }

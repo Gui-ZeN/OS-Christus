@@ -1,14 +1,17 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, Mail, PlusCircle, Trash2, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
+import { ModalShell } from '../components/ui/ModalShell';
 import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
+import { fetchSettings } from '../services/settingsApi';
 import { deleteTicketAttachment, uploadClosureDocument, uploadPaymentAttachment } from '../services/ticketStorage';
+import { notifyPaymentDispatch } from '../services/ticketEmail';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
@@ -33,6 +36,17 @@ interface ClosureFormState {
   serviceCompletedAt: string;
   guaranteeMonths: string;
   closureNotes: string;
+}
+
+interface PaymentEmailModalState {
+  ticketId: string;
+  payment: PaymentRecord;
+  grossAmount: number;
+  taxAmount: number;
+  netAmount: number;
+  recipients: string[];
+  newRecipient: string;
+  isSending: boolean;
 }
 
 function parseCurrency(value: string) {
@@ -475,6 +489,7 @@ export function FinanceView() {
   const [historyGuaranteeFilter, setHistoryGuaranteeFilter] = useState<'all' | 'in_guarantee' | 'expiring_30'>('all');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
+  const [paymentEmailModal, setPaymentEmailModal] = useState<PaymentEmailModalState | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1212,8 +1227,63 @@ export function FinanceView() {
       }
     }
 
+    let defaultRecipients: string[] = [];
+    try {
+      const settings = await fetchSettings();
+      const paymentTemplate = settings.emailTemplates.find(t => t.trigger === 'EMAIL-FINANCEIRO-PAGAMENTO');
+      if (paymentTemplate?.recipients?.trim()) {
+        defaultRecipients = paymentTemplate.recipients
+          .split(/[,;\s]+/)
+          .map(e => e.trim())
+          .filter(e => e.includes('@'));
+      }
+    } catch {
+      // Fallback to empty recipients list; user can add manually.
+    }
+
+    setPaymentEmailModal({
+      ticketId,
+      payment,
+      grossAmount,
+      taxAmount,
+      netAmount,
+      recipients: defaultRecipients,
+      newRecipient: '',
+      isSending: false,
+    });
+  };
+
+  const handleConfirmPaymentEmail = async () => {
+    if (!paymentEmailModal) return;
+    const { ticketId, payment, grossAmount, taxAmount, netAmount, recipients } = paymentEmailModal;
+    if (recipients.length === 0) {
+      showToast('Erro: adicione pelo menos um destinatário antes de enviar.', 3000);
+      return;
+    }
+
+    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
+    if (!targetTicket) return;
+
+    const existingMeasurements = measurementsByTicket[ticketId] || [];
+    const rawPayments = paymentsByTicket[ticketId] || [];
+    const vendorForFlow =
+      contractsByTicket[ticketId]?.vendor ||
+      payment.vendor ||
+      targetTicket.assignedTeam ||
+      'Fornecedor não definido';
+    const existingPayments = getEffectiveDynamicPayments(
+      rawPayments,
+      existingMeasurements,
+      vendorForFlow,
+      Number(targetTicket.executionProgress?.paymentFlowParts || 0)
+    );
+    const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
+
+    setPaymentEmailModal(prev => prev ? { ...prev, isSending: true } : null);
     setProcessingId(`${ticketId}:${payment.id}`);
     try {
+      await notifyPaymentDispatch(targetTicket, payment, grossAmount, taxAmount, netAmount, recipients);
+
       const nextPayment: PaymentRecord = {
         ...payment,
         status: 'paid',
@@ -1273,22 +1343,26 @@ export function FinanceView() {
             {
               id: crypto.randomUUID(),
               type: 'system',
-              sender: 'Financeiro',
+              sender: actorLabel,
               time: new Date(),
               text: canCloseTicket
-                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Todos os lançamentos foram quitados, checklist concluído e garantia iniciada.`
+                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lançamentos foram quitados, checklist concluído e garantia iniciada.`
                 : remainingPendingPayments > 0
-                  ? `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Restam ${remainingPendingPayments} lançamento(s) pendente(s).`
-                  : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Todos os lançamentos atuais foram quitados e a obra segue em execução até novos registros de andamento.`,
+                  ? `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Restam ${remainingPendingPayments} lançamento(s) pendente(s).`
+                  : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lançamentos atuais foram quitados.`,
             },
           ],
         });
       }
+      setPaymentEmailModal(null);
       showToast(
         canCloseTicket
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
-          : `${payment.label || 'Lançamento'} confirmado.`
+          : `${payment.label || 'Lançamento'} confirmado e email disparado.`
       , 3000);
+    } catch (error) {
+      showToast(`Erro ao processar pagamento: ${error instanceof Error ? error.message : 'falha desconhecida.'}`, 4000);
+      setPaymentEmailModal(prev => prev ? { ...prev, isSending: false } : null);
     } finally {
       setProcessingId(null);
     }
@@ -1967,11 +2041,19 @@ export function FinanceView() {
                                   {payment.status === 'paid' ? 'Pago' : payment.status === 'approved' ? 'Liberada' : 'Pendente'}
                                 </span>
                                 <button
-                                  onClick={() => handlePayInstallment(ticket.id, payment)}
-                                  disabled={!canConfirmPayment}
+                                  onClick={() => void handlePayInstallment(ticket.id, payment)}
+                                  disabled={!canConfirmPayment || processingId === `${ticket.id}:${payment.id}`}
                                   className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  <DollarSign size={15} /> {payment.status !== 'approved' ? 'Aguardando avanço' : canConfirmPayment ? 'Confirmar' : 'Preencher checklist'}
+                                  {processingId === `${ticket.id}:${payment.id}` ? (
+                                    <><Loader2 size={15} className="animate-spin" /> Processando...</>
+                                  ) : payment.status !== 'approved' ? (
+                                    <><DollarSign size={15} /> Aguardando avanço</>
+                                  ) : canConfirmPayment ? (
+                                    <><Mail size={15} /> Disparar Email</>
+                                  ) : (
+                                    <><DollarSign size={15} /> Preencher checklist</>
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -2151,6 +2233,127 @@ export function FinanceView() {
           )}
         </div>
       </div>
+
+      <ModalShell
+        isOpen={paymentEmailModal !== null}
+        onClose={() => { if (!paymentEmailModal?.isSending) setPaymentEmailModal(null); }}
+        title="Disparar Email de Pagamento"
+        description={paymentEmailModal ? `OS-${paymentEmailModal.ticketId} - Pagamento - ${paymentEmailModal.payment.label || `Lançamento ${paymentEmailModal.payment.installmentNumber || 1}`}` : ''}
+        maxWidthClass="max-w-lg"
+        footer={
+          paymentEmailModal && (
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentEmailModal(null)}
+                disabled={paymentEmailModal.isSending}
+                className="w-full sm:w-auto px-4 py-2 border border-roman-border rounded-sm text-sm text-roman-text-main hover:bg-roman-bg transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmPaymentEmail()}
+                disabled={paymentEmailModal.isSending || paymentEmailModal.recipients.length === 0}
+                className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {paymentEmailModal.isSending ? (
+                  <><Loader2 size={15} className="animate-spin" /> Enviando...</>
+                ) : (
+                  <><Mail size={15} /> Enviar Email e Confirmar</>
+                )}
+              </button>
+            </div>
+          )
+        }
+      >
+        {paymentEmailModal && (
+          <div className="space-y-4">
+            <div className="rounded-sm border border-roman-border bg-roman-bg px-4 py-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-roman-text-sub">Valor bruto</span>
+                <span className="font-medium text-roman-text-main">{formatCurrency(paymentEmailModal.grossAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-roman-text-sub">Imposto</span>
+                <span className="font-medium text-roman-text-main">{formatCurrency(paymentEmailModal.taxAmount)}</span>
+              </div>
+              <div className="flex justify-between border-t border-roman-border pt-1 mt-1">
+                <span className="text-roman-text-sub font-medium">Valor a pagar (líquido)</span>
+                <span className="font-semibold text-roman-text-main">{formatCurrency(paymentEmailModal.netAmount)}</span>
+              </div>
+              {(paymentEmailModal.payment.attachments || []).length > 0 && (
+                <div className="border-t border-roman-border pt-2 mt-1">
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Anexos incluídos</div>
+                  {(paymentEmailModal.payment.attachments || []).map(attachment => (
+                    <div key={attachment.id} className="text-xs text-roman-text-sub truncate">• {attachment.name}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">
+                Destinatários
+              </label>
+              {paymentEmailModal.recipients.length === 0 && (
+                <p className="text-xs text-amber-700 mb-2">Nenhum destinatário configurado. Adicione ao menos um email.</p>
+              )}
+              <div className="space-y-1.5 mb-3">
+                {paymentEmailModal.recipients.map((email, index) => (
+                  <div key={index} className="flex items-center justify-between gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm">
+                    <span className="truncate text-roman-text-main">{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentEmailModal(prev => prev ? {
+                        ...prev,
+                        recipients: prev.recipients.filter((_, i) => i !== index),
+                      } : null)}
+                      disabled={paymentEmailModal.isSending}
+                      className="text-red-600 hover:text-red-800 transition-colors flex-shrink-0 disabled:opacity-50"
+                      aria-label={`Remover ${email}`}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={paymentEmailModal.newRecipient}
+                  onChange={e => setPaymentEmailModal(prev => prev ? { ...prev, newRecipient: e.target.value } : null)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const email = paymentEmailModal.newRecipient.trim();
+                      if (email && email.includes('@') && !paymentEmailModal.recipients.includes(email)) {
+                        setPaymentEmailModal(prev => prev ? { ...prev, recipients: [...prev.recipients, email], newRecipient: '' } : null);
+                      }
+                    }
+                  }}
+                  disabled={paymentEmailModal.isSending}
+                  placeholder="email@exemplo.com"
+                  className="flex-1 min-w-0 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const email = paymentEmailModal.newRecipient.trim();
+                    if (email && email.includes('@') && !paymentEmailModal.recipients.includes(email)) {
+                      setPaymentEmailModal(prev => prev ? { ...prev, recipients: [...prev.recipients, email], newRecipient: '' } : null);
+                    }
+                  }}
+                  disabled={paymentEmailModal.isSending || !paymentEmailModal.newRecipient.trim().includes('@')}
+                  className="flex-shrink-0 px-3 py-2 border border-roman-border rounded-sm text-sm text-roman-text-main hover:bg-roman-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  <PlusCircle size={15} /> Adicionar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </ModalShell>
     </div>
   );
 }
