@@ -118,7 +118,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           </button>
           <button
             onClick={() => void syncInbox()}
-            className="flex items-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-stone-900 disabled:opacity-60"
+            className="flex items-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60"
             disabled={loading || syncLoading}
           >
             <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
@@ -135,7 +135,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           </div>
           <button
             onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary"
+            className="inline-flex items-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary"
             disabled={loading || syncLoading}
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -143,7 +143,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           </button>
           <button
             onClick={() => void syncInbox()}
-            className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60"
             disabled={loading || syncLoading}
           >
             <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
@@ -182,7 +182,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
         ))}
       </div>
 
-      <section className={`p-5 ${embedded ? 'rounded-[1.4rem] border border-stone-200 bg-white' : 'rounded-sm border border-roman-border bg-roman-surface'}`}>
+      <section className={`p-5 ${embedded ? 'rounded-[1.4rem] border border-roman-border bg-roman-surface' : 'rounded-sm border border-roman-border bg-roman-surface'}`}>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-serif text-roman-text-main">
           <Mail size={18} />
           Últimas falhas
@@ -212,7 +212,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   );
 
   if (embedded) {
-    return <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50/70 p-6">{content}</div>;
+    return <div className="rounded-2xl border border-roman-border bg-roman-bg/70 p-6">{content}</div>;
   }
 
   return (

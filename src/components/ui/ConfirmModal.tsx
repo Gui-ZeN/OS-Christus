@@ -103,8 +103,9 @@ export function ConfirmModal({
               
               {requireReason && (
                 <div className="mt-4">
-                  <label className="block text-xs font-medium text-roman-text-main mb-1.5">Motivo (Obrigatório)</label>
+                  <label htmlFor="confirm-modal-reason" className="block text-xs font-medium text-roman-text-main mb-1.5">Motivo (Obrigatório)</label>
                   <textarea
+                    id="confirm-modal-reason"
                     value={reason}
                     onChange={(e) => {
                       setReason(e.target.value);
@@ -132,7 +133,7 @@ export function ConfirmModal({
           <button
             onClick={handleConfirm}
             disabled={isLoading}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-sm shadow-sm flex items-center gap-2 transition-colors disabled:opacity-70 ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-roman-sidebar hover:bg-stone-900'}`}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-sm shadow-sm flex items-center gap-2 transition-colors disabled:opacity-70 ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-roman-sidebar hover:bg-roman-sidebar-light'}`}
           >
             {isLoading && <Loader2 size={14} className="animate-spin" />}
             {confirmText}

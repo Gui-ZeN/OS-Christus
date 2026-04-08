@@ -7,6 +7,7 @@ import { ModalShell } from '../components/ui/ModalShell';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
+import { useToast } from '../hooks/useToast';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket, TicketAttachment } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
@@ -744,8 +745,7 @@ export function InboxView() {
   const handleCreateThirdParty = async () => {
     const name = newThirdPartyName.trim();
     if (!name) {
-      setToast('Informe o nome do terceiro para cadastrar.');
-      setTimeout(() => setToast(null), 2500);
+      showToast('Informe o nome do terceiro para cadastrar.', 2500);
       return;
     }
 
@@ -781,11 +781,9 @@ export function InboxView() {
       setNewThirdPartyName('');
       setNewThirdPartyEmail('');
       setNewThirdPartyTags([]);
-      setToast('Terceiro cadastrado com sucesso.');
-      setTimeout(() => setToast(null), 2500);
+      showToast('Terceiro cadastrado com sucesso.', 2500);
     } catch (error) {
-      setToast(`Erro ao cadastrar terceiro: ${error instanceof Error ? error.message : 'falha inesperada.'}`);
-      setTimeout(() => setToast(null), 3500);
+      showToast(`Erro ao cadastrar terceiro: ${error instanceof Error ? error.message : 'falha inesperada.'}`, 3500);
     }
   };
 
@@ -794,8 +792,7 @@ export function InboxView() {
     if (!normalized) return;
     const exists = sharedThirdPartyTags.some(tag => tag.toLowerCase() === normalized.toLowerCase());
     if (exists) {
-      setToast('Essa tag já existe.');
-      setTimeout(() => setToast(null), 2500);
+      showToast('Essa tag já existe.', 2500);
       return;
     }
 
@@ -806,11 +803,9 @@ export function InboxView() {
       setSharedThirdPartyTags(nextTags);
       setNewThirdPartyTags(prev => (prev.some(item => item.toLowerCase() === normalized.toLowerCase()) ? prev : [...prev, normalized]));
       setNewSharedTagDraft('');
-      setToast('Tag compartilhada cadastrada.');
-      setTimeout(() => setToast(null), 2500);
+      showToast('Tag compartilhada cadastrada.', 2500);
     } catch (error) {
-      setToast(`Erro ao salvar tag: ${error instanceof Error ? error.message : 'falha inesperada.'}`);
-      setTimeout(() => setToast(null), 3500);
+      showToast(`Erro ao salvar tag: ${error instanceof Error ? error.message : 'falha inesperada.'}`, 3500);
     } finally {
       setNewSharedTagSaving(false);
     }
@@ -935,8 +930,7 @@ export function InboxView() {
     if (!canManageStatus || isSending) return;
 
     if (isExternalTeam && selectedThirdParties.length === 0) {
-      setToast('Selecione ao menos um terceiro responsável para equipes externas.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Selecione ao menos um terceiro responsável para equipes externas.', 3000);
       return;
     }
 
@@ -970,8 +964,7 @@ export function InboxView() {
     }
     if (nextStatus !== activeTicket.status) {
       if (!canTransitionStatus(actorRole, 'inbox', activeTicket.status, nextStatus)) {
-        setToast(`Transição inválida de status: ${activeTicket.status} -> ${nextStatus}.`);
-        setTimeout(() => setToast(null), 3500);
+        showToast(`Transição inválida de status: ${activeTicket.status} -> ${nextStatus}.`, 3500);
         return;
       }
       Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
@@ -980,8 +973,7 @@ export function InboxView() {
     }
 
     if (changes.length === 0) {
-      setToast('Nenhuma alteração encontrada no painel da OS.');
-      setTimeout(() => setToast(null), 2500);
+      showToast('Nenhuma alteração encontrada no painel da OS.', 2500);
       return;
     }
 
@@ -999,28 +991,24 @@ export function InboxView() {
       ],
     });
 
-    setToast('Painel da OS atualizado.');
-    setTimeout(() => setToast(null), 2500);
+    showToast('Painel da OS atualizado.', 2500);
   };
 
   const handleAcceptTicket = () => {
     if (isSending) return;
 
     if (!techTeam) {
-      setToast('Defina a equipe responsável antes de aceitar a OS.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Defina a equipe responsável antes de aceitar a OS.', 3000);
       return;
     }
 
     if (!ticketPriority) {
-      setToast('Defina o grau de urgência antes de aceitar a OS.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Defina o grau de urgência antes de aceitar a OS.', 3000);
       return;
     }
 
     if (isExternalTeam && selectedThirdParties.length === 0) {
-      setToast('Selecione ao menos um terceiro responsável para encaminhamento externo.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Selecione ao menos um terceiro responsável para encaminhamento externo.', 3000);
       return;
     }
 
@@ -1051,8 +1039,7 @@ export function InboxView() {
     });
 
     setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
-    setToast('Triagem concluída e OS aceita.');
-    setTimeout(() => setToast(null), 2500);
+    showToast('Triagem concluída e OS aceita.', 2500);
   };
 
   // Botão principal de ação: transição de status + registro no histórico
@@ -1184,8 +1171,7 @@ export function InboxView() {
       setReplyFiles([]);
       if (replyFileRef.current) replyFileRef.current.value = '';
     } catch {
-      setToast('Falha ao anexar arquivos nesta mensagem. Tente novamente.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Falha ao anexar arquivos nesta mensagem. Tente novamente.', 3000);
     } finally {
       window.setTimeout(() => setIsSending(false), 400);
     }
@@ -1217,14 +1203,12 @@ export function InboxView() {
     if (isSending) return;
     const isReady = arePreliminaryActionsReady(prelimForm);
     if (startExecution && !isReady) {
-      setToast('Erro: conclua todas as ações preliminares antes de iniciar a execução.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: conclua todas as ações preliminares antes de iniciar a execução.', 3000);
       return;
     }
 
     if (startExecution && !prelimForm.plannedStartAt) {
-      setToast('Erro: informe a data prevista de início antes de iniciar a execução.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: informe a data prevista de início antes de iniciar a execução.', 3000);
       return;
     }
 
@@ -1251,8 +1235,7 @@ export function InboxView() {
     if (startExecution) {
       setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
       setShowExecutionSetupModal(true);
-      setToast('Checklist concluído. Defina o fluxo para iniciar a execução.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Checklist concluído. Defina o fluxo para iniciar a execução.', 3000);
     }
   };
 
@@ -1274,8 +1257,7 @@ export function InboxView() {
     const paymentFlowParts = Number(executionSetupForm.paymentFlowParts || 0);
     const measurementSheetUrl = String(executionSetupForm.measurementSheetUrl || '').trim();
     if (!Number.isFinite(paymentFlowParts) || paymentFlowParts < 1 || paymentFlowParts > 5) {
-      setToast('Erro: escolha um fluxo de pagamento entre 1x e 5x.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: escolha um fluxo de pagamento entre 1x e 5x.', 3000);
       return;
     }
 
@@ -1311,8 +1293,7 @@ export function InboxView() {
       });
 
       setShowExecutionSetupModal(false);
-      setToast(`Execução iniciada. Fluxo ${paymentFlowParts}x registrado.`);
-      setTimeout(() => setToast(null), 3000);
+      showToast(`Execução iniciada. Fluxo ${paymentFlowParts}x registrado.`, 3000);
     } finally {
       window.setTimeout(() => setIsSending(false), 500);
     }
@@ -1326,22 +1307,19 @@ export function InboxView() {
   const handleSaveProgressUpdate = async () => {
     if (isSending) return;
     if (!activeTicket.executionProgress?.paymentFlowParts) {
-      setToast('Erro: inicie a execução e defina o fluxo antes de atualizar o andamento.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: inicie a execução e defina o fluxo antes de atualizar o andamento.', 3000);
       return;
     }
 
     const baselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
     if (baselineValue <= 0) {
-      setToast('Erro: valor previsto da obra não encontrado para calcular o andamento.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: valor previsto da obra não encontrado para calcular o andamento.', 3000);
       return;
     }
 
     const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      setToast('Erro: informe o valor bruto do lançamento/etapa.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
       return;
     }
 
@@ -1349,8 +1327,7 @@ export function InboxView() {
     const accumulatedGross = currentGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
     if (progressPercent < activeProgressPercent) {
-      setToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.', 3000);
       return;
     }
 
@@ -1456,12 +1433,11 @@ export function InboxView() {
       });
 
       setShowProgressModal(false);
-      setToast(
+      showToast(
         shouldMoveToValidation
           ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
           : `${paymentLabel} registrada e liberada para o financeiro.`
-      );
-      setTimeout(() => setToast(null), 3000);
+      , 3000);
     } finally {
       window.setTimeout(() => setIsSending(false), 500);
     }
@@ -1506,7 +1482,7 @@ export function InboxView() {
   const [prelimForm, setPrelimForm] = useState<PreliminaryFormState>(createPreliminaryFormState());
   const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
   const [progressUpdateForm, setProgressUpdateForm] = useState<ProgressUpdateFormState>(createProgressUpdateFormState());
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
   const activeDynamicPayments = useMemo(() => stripLegacyFlowPlaceholders(activePayments), [activePayments]);
@@ -2055,13 +2031,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       .map((quote, index) => ({ quote, index }))
       .filter(({ quote }) => quote.vendor.trim() !== '' && quote.value.trim() !== '');
     if (roundType === 'additive' && filled.length !== 1) {
-      setToast('Erro: aditivo deve ter exatamente 1 cotação.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: aditivo deve ter exatamente 1 cotação.', 3000);
       return;
     }
     if (roundType === 'initial' && filled.length < 2) {
-      setToast('Erro: Informe no mínimo 2 cotações antes de enviar.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: Informe no mínimo 2 cotações antes de enviar.', 3000);
       return;
     }
     setIsSending(true);
@@ -2070,8 +2044,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       const normalizedAdditiveReason = additiveReason.trim();
       if (roundType === 'additive' && !normalizedAdditiveReason) {
         setIsSending(false);
-        setToast('Erro: informe o motivo do aditivo antes de enviar à diretoria.');
-        setTimeout(() => setToast(null), 3000);
+        showToast('Erro: informe o motivo do aditivo antes de enviar à diretoria.', 3000);
         return;
       }
       const roundAttachmentKey = roundType === 'additive' ? `additive-${additiveIndex}` : 'initial';
@@ -2161,20 +2134,17 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       });
       setIsSending(false);
       setShowQuotesModal(false);
-      setToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!');
-      setTimeout(() => setToast(null), 3000);
+      showToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!', 3000);
     }, 1500);
   };
 
   const handleSendContractToDirector = async () => {
     if (!activeContract) {
-      setToast('Contrato base não encontrado. Aprove o orçamento antes de enviar contrato.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Contrato base não encontrado. Aprove o orçamento antes de enviar contrato.', 3000);
       return;
     }
     if (!contractDispatchFile) {
-      setToast('Selecione o arquivo do contrato (PDF) antes de enviar à Diretoria.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Selecione o arquivo do contrato (PDF) antes de enviar à Diretoria.', 3000);
       return;
     }
 
@@ -2185,8 +2155,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       uploadedContract = await uploadContractAttachment(activeTicket.id, contractDispatchFile);
     } catch {
       setIsSending(false);
-      setToast('Falha ao enviar o PDF do contrato. Tente novamente.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Falha ao enviar o PDF do contrato. Tente novamente.', 3000);
       return;
     }
 
@@ -2207,8 +2176,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       console.error('[contract-dispatch] failed to save contract', error);
       const details = error instanceof Error ? error.message : 'Erro desconhecido ao salvar contrato.';
       setIsSending(false);
-      setToast(`Falha ao registrar contrato no servidor: ${details}`);
-      setTimeout(() => setToast(null), 6000);
+      showToast(`Falha ao registrar contrato no servidor: ${details}`, 6000);
       return;
     }
 
@@ -2230,8 +2198,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     setContractDispatchFile(null);
     setShowContractDispatchModal(false);
     setIsSending(false);
-    setToast('Contrato enviado para aprovação da Diretoria.');
-    setTimeout(() => setToast(null), 3000);
+    showToast('Contrato enviado para aprovação da Diretoria.', 3000);
   };
 
   // Usa trackingToken (opaco) em vez do ID sequencial
@@ -2246,8 +2213,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       document.execCommand('copy');
       document.body.removeChild(ta);
     });
-    setToast('Link copiado para a área de transferência!');
-    setTimeout(() => setToast(null), 3000);
+    showToast('Link copiado para a área de transferência!', 3000);
     setShowActionsMenu(false);
   };
 
@@ -2297,11 +2263,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
       setActiveTicketId(createdTicket.id);
       setShowActionsMenu(false);
-      setToast(`OS ${activeTicket.id} duplicada como ${createdTicket.id}.`);
-      setTimeout(() => setToast(null), 3000);
+      showToast(`OS ${activeTicket.id} duplicada como ${createdTicket.id}.`, 3000);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : 'Não foi possível duplicar a OS.');
-      setTimeout(() => setToast(null), 3000);
+      showToast(error instanceof Error ? error.message : 'Não foi possível duplicar a OS.', 3000);
     }
   };
 
@@ -2321,14 +2285,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       ],
     });
     setShowActionsMenu(false);
-    setToast(`OS ${activeTicket.id} cancelada.`);
-    setTimeout(() => setToast(null), 3000);
+    showToast(`OS ${activeTicket.id} cancelada.`, 3000);
   };
 
   const handleReopenTicket = () => {
     if (![TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED].includes(activeTicket.status)) {
-      setToast('Erro: apenas OS encerrada ou cancelada pode ser reaberta.');
-      setTimeout(() => setToast(null), 3000);
+      showToast('Erro: apenas OS encerrada ou cancelada pode ser reaberta.', 3000);
       return;
     }
     const nextStatus = resolveReopenStatus();
@@ -2348,8 +2310,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     });
     setStatusDraft(nextStatus);
     setShowActionsMenu(false);
-    setToast(`OS ${activeTicket.id} reaberta.`);
-    setTimeout(() => setToast(null), 3000);
+    showToast(`OS ${activeTicket.id} reaberta.`, 3000);
   };
 
   const handleDeleteTicket = async () => {
@@ -2360,12 +2321,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       await deleteTicketInApi(activeTicket.id);
       setShowDeleteTicketModal(false);
       setShowActionsMenu(false);
-      setToast(`OS ${activeTicket.id} excluída com sucesso.`);
-      await refreshTickets();
-      setTimeout(() => setToast(null), 3000);
+      showToast(`OS ${activeTicket.id} excluída com sucesso.`);
+      await refreshTickets({ silent: true });
     } catch (error) {
-      setToast(error instanceof Error ? error.message : 'Não foi possível excluir a OS.');
-      setTimeout(() => setToast(null), 4000);
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir a OS.', 4000);
     } finally {
       setIsDeletingTicket(false);
     }

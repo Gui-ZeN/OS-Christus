@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Inbox,
   Landmark,
+  Loader2,
   LogOut,
   Palette,
   ScrollText,
