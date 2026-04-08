@@ -64,14 +64,14 @@ export default async function handler(req, res) {
 
       if (action === 'markRead') {
         const id = String(body?.id || '').trim();
-        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigat�rio.' });
+        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
         await db.collection('notifications').doc(id).set({ read: true, updatedAt: new Date() }, { merge: true });
         return sendJson(res, 200, { ok: true });
       }
 
       if (action === 'dismiss') {
         const id = String(body?.id || '').trim();
-        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigat�rio.' });
+        if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
         await db.collection('notifications').doc(id).delete();
         await writeAuditLog({
           actor,
@@ -92,13 +92,13 @@ export default async function handler(req, res) {
         return sendJson(res, 200, { ok: true });
       }
 
-      return sendJson(res, 400, { ok: false, error: 'A��o inv�lida.' });
+      return sendJson(res, 400, { ok: false, error: 'Ação inválida.' });
     }
 
     res.setHeader('Allow', 'GET, POST');
-    return sendJson(res, 405, { ok: false, error: 'M�todo n�o permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   } catch (error) {
-    return sendError(res, error, 'Falha nas notifica��es.');
+    return sendError(res, error, 'Falha nas notificações.');
   }
 }
 

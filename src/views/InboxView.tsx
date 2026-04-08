@@ -617,13 +617,13 @@ export function InboxView() {
     setSidebarSections({
       summary: true,
       classification: true,
-      execution: [
+      execution: ([
         TICKET_STATUS.WAITING_PRELIM_ACTIONS,
         TICKET_STATUS.IN_PROGRESS,
         TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
         TICKET_STATUS.WAITING_PAYMENT,
         TICKET_STATUS.CLOSED,
-      ].includes(activeTicket.status),
+      ] as Ticket['status'][]).includes(activeTicket.status),
     });
   }, [activeTicket.id, activeTicket.status]);
 
@@ -901,10 +901,10 @@ export function InboxView() {
 
   const buildStatusSideEffects = (nextStatus: string, when: Date) => {
     const nextPreliminaryActions =
-      nextStatus === TICKET_STATUS.IN_PROGRESS
+      nextStatus === TICKET_STATUS.IN_PROGRESS && activeTicket.preliminaryActions
         ? {
-            ...(activeTicket.preliminaryActions || {}),
-            actualStartAt: activeTicket.preliminaryActions?.actualStartAt || when,
+            ...activeTicket.preliminaryActions,
+            actualStartAt: activeTicket.preliminaryActions.actualStartAt || when,
             updatedAt: when,
           }
         : activeTicket.preliminaryActions;
@@ -934,7 +934,7 @@ export function InboxView() {
       return;
     }
 
-    const nextStatus = statusDraft || activeTicket.status;
+    const nextStatus = (statusDraft || activeTicket.status) as Ticket['status'];
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
     const changes: string[] = [];
@@ -2289,7 +2289,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleReopenTicket = () => {
-    if (![TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED].includes(activeTicket.status)) {
+    if (!([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED] as Ticket['status'][]).includes(activeTicket.status)) {
       showToast('Erro: apenas OS encerrada ou cancelada pode ser reaberta.', 3000);
       return;
     }
@@ -3019,8 +3019,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                         {canManageStatus &&
                           activeTicket.executionProgress &&
-                          activeTicket.status !== TICKET_STATUS.CLOSED &&
-                          activeTicket.status !== TICKET_STATUS.CANCELED && (
+                          activeTicket.status !== TICKET_STATUS.CLOSED && (
                             <button
                               onClick={handleOpenProgressModal}
                               className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
@@ -3307,7 +3306,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           Salvar painel
                         </button>
                       )}
-                      {canManageStatus && [TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED].includes(activeTicket.status) && (
+                      {canManageStatus && ([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED] as Ticket['status'][]).includes(activeTicket.status) && (
                         <button
                           onClick={handleReopenTicket}
                           disabled={isSending}

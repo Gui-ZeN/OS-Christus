@@ -524,7 +524,7 @@ async function processGmailInboundMessage(db, msg, source) {
       fromEmail: firstEmail(msg.from),
       subject: msg.subject || '',
       messageId: msg.messageId || msg.id || null,
-      error: 'Mensagem autom?tica ou enviada pelo pr?prio sistema ignorada.',
+      error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
     });
     return false;
   }
@@ -1433,7 +1433,7 @@ async function handleInbound(req, res) {
         fromEmail: fromEmail || null,
         subject,
         messageId: body['message-id'] || headers['message-id'] || null,
-        error: 'Mensagem autom?tica ou enviada pelo pr?prio sistema ignorada.',
+        error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
       });
       return sendJson(res, 200, { ok: true, skipped: true });
     }
