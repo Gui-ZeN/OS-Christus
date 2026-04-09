@@ -3,15 +3,18 @@ function decodeLikelyLatin1AsUtf8(input: string) {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
+const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/g;
+const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/;
+
 function mojibakeScore(input: string): number {
-  const matches = input.match(/(?:Ã.|Â.|â.|ðŸ|ï¿½|�)/g);
+  const matches = input.match(LIKELY_MOJIBAKE_REGEX);
   return matches ? matches.length : 0;
 }
 
 export function repairMojibake(value: unknown): string {
   const input = String(value ?? '');
   if (!input) return '';
-  if (!/(?:Ã.|Â.|â.|ðŸ|ï¿½|�)/.test(input)) return input;
+  if (!LIKELY_MOJIBAKE_TEST_REGEX.test(input)) return input;
 
   try {
     let current = input;
@@ -34,3 +37,4 @@ export function repairMojibake(value: unknown): string {
     return input;
   }
 }
+

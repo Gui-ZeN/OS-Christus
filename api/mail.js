@@ -212,16 +212,37 @@ function renderTemplateString(template, variables) {
   });
 }
 
+const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/g;
+const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/;
+
+function mojibakeScore(input) {
+  const matches = String(input || '').match(LIKELY_MOJIBAKE_REGEX);
+  return matches ? matches.length : 0;
+}
+
 function repairMojibake(value) {
   const input = String(value || '');
-  if (!input || (!input.includes('Ãƒ') && !input.includes('Ã‚') && !input.includes('Ã¢'))) {
+  if (!input || !LIKELY_MOJIBAKE_TEST_REGEX.test(input)) {
     return input;
   }
 
   try {
-    const repaired = Buffer.from(input, 'latin1').toString('utf8');
-    if (!repaired || repaired.includes('ï¿½')) return input;
-    return repaired;
+    let current = input;
+    let currentScore = mojibakeScore(current);
+
+    for (let index = 0; index < 3; index += 1) {
+      const repaired = Buffer.from(current, 'latin1').toString('utf8');
+      if (!repaired || repaired.includes('\uFFFD')) break;
+
+      const repairedScore = mojibakeScore(repaired);
+      if (repairedScore >= currentScore) break;
+
+      current = repaired;
+      currentScore = repairedScore;
+      if (currentScore === 0) break;
+    }
+
+    return current;
   } catch {
     return input;
   }
