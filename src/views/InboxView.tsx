@@ -4356,68 +4356,56 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </div>
                     </div>
                     <div className="space-y-3 flex-1">
-                      <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Fornecedor</label>
-                        <input
-                          type="text"
-                          placeholder="Nome da Empresa"
-                          value={quote.vendor}
-                          onChange={e => handleQuoteChange(i, 'vendor', e.target.value)}
-                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                        />
-                        {(persistedServicePreference || budgetHistory.preferredVendor) && quote.vendor.trim() && (
-                          <div className={`mt-1 text-[11px] ${quote.vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
-                            {quote.vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase()
-                              ? persistedServicePreference
-                                ? 'Coincide com o fornecedor persistido para este serviço.'
-                                : 'Coincide com o fornecedor preferencial da base histórica.'
-                              : `Preferência atual: ${(persistedServicePreference || budgetHistory.preferredVendor)?.vendor}`}
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor Total</label>
-                        <input
-                          type="text"
-                          placeholder="R$ 0,00"
-                          value={quote.value}
-                          onChange={e => handleQuoteChange(i, 'value', e.target.value)}
-                          onBlur={() => handleQuoteCurrencyBlur(i, 'value')}
-                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 gap-2">
-                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
+                      <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
+                        <div className="min-w-0">
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Fornecedor</label>
+                          <input
+                            type="text"
+                            placeholder="Nome da Empresa"
+                            value={quote.vendor}
+                            onChange={e => handleQuoteChange(i, 'vendor', e.target.value)}
+                            className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                          />
+                          {(persistedServicePreference || budgetHistory.preferredVendor) && quote.vendor.trim() && (
+                            <div className={`mt-1 truncate text-[11px] ${quote.vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
+                              {quote.vendor.trim().toLowerCase() === String((persistedServicePreference || budgetHistory.preferredVendor)?.vendor || '').trim().toLowerCase()
+                                ? persistedServicePreference
+                                  ? 'Coincide com o fornecedor persistido para este serviço.'
+                                  : 'Coincide com o fornecedor preferencial da base histórica.'
+                                : `Preferência atual: ${(persistedServicePreference || budgetHistory.preferredVendor)?.vendor}`}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total</label>
+                          <input
+                            type="text"
+                            placeholder="R$ 0,00"
+                            value={quote.value}
+                            onChange={e => handleQuoteChange(i, 'value', e.target.value)}
+                            onBlur={() => handleQuoteCurrencyBlur(i, 'value')}
+                            className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                          />
+                        </div>
+                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
                           <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Material</div>
-                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.materialValue || '-'}</div>
+                          <div className="mt-1 text-sm font-medium text-roman-text-main truncate">{quote.materialValue || '-'}</div>
                         </div>
-                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
+                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
                           <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
-                          <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.laborValue || '-'}</div>
+                          <div className="mt-1 text-sm font-medium text-roman-text-main truncate">{quote.laborValue || '-'}</div>
                         </div>
-                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
-                          <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Total da obra (rodada)</div>
-                          <div className="mt-1 text-sm font-semibold text-roman-text-main">{quote.totalValue || quote.value || '-'}</div>
+                        <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
+                          <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Total da obra</div>
+                          <div className="mt-1 text-sm font-semibold text-roman-text-main truncate">{quote.totalValue || quote.value || '-'}</div>
                         </div>
                       </div>
                       <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Itens do orçamento</label>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                            Itens do orçamento ({quote.items.length})
+                          </label>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setAllQuoteItemsExpanded(i, false)}
-                              className="text-[11px] font-medium text-roman-text-sub hover:underline"
-                            >
-                              Recolher todos
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAllQuoteItemsExpanded(i, true)}
-                              className="text-[11px] font-medium text-roman-text-sub hover:underline"
-                            >
-                              Expandir todos
-                            </button>
                             <button
                               type="button"
                               onClick={() => handleAddMultipleQuoteItems(i, 5)}
@@ -4436,7 +4424,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         </div>
 
                         {suggestedQuoteMaterials.length > 0 && (
-                          <div className="mb-3 flex flex-wrap gap-2">
+                          <div className="mb-2 flex flex-wrap gap-2">
                             {suggestedQuoteMaterials.slice(0, 4).map(material => (
                               <button
                                 key={`${i}-${material.id}`}
@@ -4457,30 +4445,35 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           </div>
                         )}
 
-                        <div className="max-h-[30rem] space-y-3 overflow-y-auto pr-1">
-                          {quote.items.map((item, itemIndex) => (
-                            <div key={item.id} className="rounded-sm border border-roman-border bg-roman-bg p-3">
-                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleQuoteItemExpanded(i, item.id)}
-                                  className="text-left"
-                                >
-                                  <div className="text-[11px] font-medium text-roman-text-main">
-                                    Item {itemIndex + 1} · {item.description || item.materialName || 'Sem descrição'}
-                                  </div>
-                                  <div className="text-[11px] text-roman-text-sub">
-                                    {item.quantity != null ? `${item.quantity}` : '-'} {item.unit || ''} · Custo: {item.costUnitPrice || '-'} · Total: {item.totalPrice || '-'}
-                                  </div>
-                                </button>
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleQuoteItemExpanded(i, item.id)}
-                                    className="text-[11px] text-roman-primary hover:underline"
-                                  >
-                                    {isQuoteItemExpanded(i, item.id) ? 'Recolher' : 'Editar'}
-                                  </button>
+                        <div className="hidden lg:grid grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_100px_130px_150px_150px_88px] gap-2 px-2 pb-2 text-[10px] uppercase tracking-widest text-roman-text-sub">
+                          <span>Tipo</span>
+                          <span>Material</span>
+                          <span>Descrição</span>
+                          <span>Qtd.</span>
+                          <span>Unidade</span>
+                          <span>Custo unitário</span>
+                          <span>Total</span>
+                          <span className="text-right">Ação</span>
+                        </div>
+
+                        <div className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+                          {quote.items.map((item, itemIndex) => {
+                            const itemKey = String(item.materialId || item.materialName || item.description || '')
+                              .normalize('NFD')
+                              .replace(/[\u0300-\u036f]/g, '')
+                              .toLowerCase()
+                              .trim();
+                            const reference = budgetHistory.itemReferences.find(entry => entry.key === itemKey);
+                            const itemUnitKey = buildQuoteItemUnitKey(i, item.id);
+                            const hasCustomUnitInput = Object.prototype.hasOwnProperty.call(pendingCustomUnitByItem, itemUnitKey);
+                            const selectedUnitValue = hasCustomUnitInput
+                              ? CUSTOM_QUOTE_UNIT_VALUE
+                              : normalizeUnitAbbreviation(item.unit) || '';
+
+                            return (
+                              <div key={item.id} className="rounded-sm border border-roman-border bg-roman-bg px-2 py-2">
+                                <div className="mb-2 flex items-center justify-between gap-2 lg:hidden">
+                                  <div className="text-[11px] font-medium text-roman-text-main">Item {itemIndex + 1}</div>
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveQuoteItem(i, item.id)}
@@ -4489,47 +4482,31 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     Remover
                                   </button>
                                 </div>
-                              </div>
-                              {isQuoteItemExpanded(i, item.id) && (
-                              <div className="space-y-2">
-                                <select
-                                  value={normalizeQuoteSection(item.section)}
-                                  onChange={event => handleQuoteItemChange(i, item.id, 'section', event.target.value)}
-                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                >
-                                  {QUOTE_SECTION_OPTIONS.map(option => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                  ))}
-                                </select>
-                                <input
-                                  type="text"
-                                  placeholder="Adicionar material"
-                                  value={item.materialName || ''}
-                                  onChange={event => handleQuoteItemChange(i, item.id, 'materialName', event.target.value)}
-                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                />
-                                <input
-                                  type="text"
-                                  placeholder="Descrição do item"
-                                  value={item.description}
-                                  onChange={event => handleQuoteItemChange(i, item.id, 'description', event.target.value)}
-                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                />
-                                {(() => {
-                                  const itemKey = String(item.materialId || item.materialName || item.description || '')
-                                    .normalize('NFD')
-                                    .replace(/[\u0300-\u036f]/g, '')
-                                    .toLowerCase()
-                                    .trim();
-                                  const reference = budgetHistory.itemReferences.find(entry => entry.key === itemKey);
-                                  if (!reference) return null;
-                                  return (
-                                    <div className="rounded-sm border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-900">
-                                      Histórico unitário: média {reference.averageUnitPriceLabel ?? '-'} · faixa {reference.minUnitPriceLabel ?? '-'} a {reference.maxUnitPriceLabel ?? '-'}
-                                    </div>
-                                  );
-                                })()}
-                                <div className="grid grid-cols-2 gap-2">
+
+                                <div className="grid grid-cols-1 gap-2 lg:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_100px_130px_150px_150px_88px]">
+                                  <select
+                                    value={normalizeQuoteSection(item.section)}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'section', event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  >
+                                    {QUOTE_SECTION_OPTIONS.map(option => (
+                                      <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    type="text"
+                                    placeholder="Material"
+                                    value={item.materialName || ''}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'materialName', event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Descrição do item"
+                                    value={item.description}
+                                    onChange={event => handleQuoteItemChange(i, item.id, 'description', event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  />
                                   <input
                                     type="number"
                                     min="0"
@@ -4539,71 +4516,70 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                     onChange={event => handleQuoteItemChange(i, item.id, 'quantity', event.target.value ? Number(event.target.value) : null)}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
-                                  {(() => {
-                                    const itemUnitKey = buildQuoteItemUnitKey(i, item.id);
-                                    const hasCustomUnitInput = Object.prototype.hasOwnProperty.call(pendingCustomUnitByItem, itemUnitKey);
-                                    const selectedUnitValue = hasCustomUnitInput
-                                      ? CUSTOM_QUOTE_UNIT_VALUE
-                                      : normalizeUnitAbbreviation(item.unit) || '';
-
-                                    return (
-                                      <div className="space-y-2">
-                                        <select
-                                          value={selectedUnitValue}
-                                          onChange={event => handleQuoteItemUnitSelect(i, item.id, event.target.value)}
-                                          className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                        >
-                                          <option value="">Unidade</option>
-                                          {quoteUnitOptions.map(unit => (
-                                            <option key={`unit-${unit}`} value={unit}>{unit}</option>
-                                          ))}
-                                          <option value={CUSTOM_QUOTE_UNIT_VALUE}>+ Outra...</option>
-                                        </select>
-                                        {hasCustomUnitInput && (
-                                          <div className="grid grid-cols-[1fr_auto] gap-2">
-                                            <input
-                                              type="text"
-                                              placeholder="Sigla (ex.: M2)"
-                                              value={pendingCustomUnitByItem[itemUnitKey] || ''}
-                                              onChange={event => setPendingCustomUnitByItem(current => ({ ...current, [itemUnitKey]: event.target.value }))}
-                                              className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => handleQuoteItemCustomUnitSave(i, item.id)}
-                                              className="px-3 py-2 text-xs font-medium rounded-sm border border-roman-primary/30 bg-roman-primary/10 text-roman-primary hover:bg-roman-primary/20"
-                                            >
-                                              Salvar
-                                            </button>
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                                <div className="grid grid-cols-1 gap-2">
+                                  <select
+                                    value={selectedUnitValue}
+                                    onChange={event => handleQuoteItemUnitSelect(i, item.id, event.target.value)}
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                  >
+                                    <option value="">Unidade</option>
+                                    {quoteUnitOptions.map(unit => (
+                                      <option key={`unit-${unit}`} value={unit}>{unit}</option>
+                                    ))}
+                                    <option value={CUSTOM_QUOTE_UNIT_VALUE}>+ Outra...</option>
+                                  </select>
                                   <input
                                     type="text"
                                     inputMode="decimal"
-                                    placeholder="Custo unitário (interno)"
+                                    placeholder="Custo unitário"
                                     value={item.costUnitPrice || ''}
                                     onChange={event => handleQuoteItemChange(i, item.id, 'costUnitPrice', event.target.value)}
                                     onBlur={() => handleQuoteItemCurrencyBlur(i, item.id, 'costUnitPrice')}
                                     className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                                   />
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="Total"
+                                    value={item.totalPrice || ''}
+                                    readOnly
+                                    className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg text-roman-text-main/80 cursor-not-allowed"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveQuoteItem(i, item.id)}
+                                    className="hidden lg:inline-flex h-full items-center justify-end text-[11px] text-red-700 hover:underline"
+                                  >
+                                    Remover
+                                  </button>
                                 </div>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  placeholder="Valor cobrado (automático)"
-                                  value={item.totalPrice || ''}
-                                  readOnly
-                                  className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg text-roman-text-main/80 cursor-not-allowed"
-                                />
+
+                                {hasCustomUnitInput && (
+                                  <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 lg:max-w-[320px]">
+                                    <input
+                                      type="text"
+                                      placeholder="Sigla (ex.: M2)"
+                                      value={pendingCustomUnitByItem[itemUnitKey] || ''}
+                                      onChange={event => setPendingCustomUnitByItem(current => ({ ...current, [itemUnitKey]: event.target.value }))}
+                                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuoteItemCustomUnitSave(i, item.id)}
+                                      className="px-3 py-2 text-xs font-medium rounded-sm border border-roman-primary/30 bg-roman-primary/10 text-roman-primary hover:bg-roman-primary/20"
+                                    >
+                                      Salvar
+                                    </button>
+                                  </div>
+                                )}
+
+                                {reference && (
+                                  <div className="mt-2 rounded-sm border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-900">
+                                    Histórico unitário: média {reference.averageUnitPriceLabel ?? '-'} · faixa {reference.minUnitPriceLabel ?? '-'} a {reference.maxUnitPriceLabel ?? '-'}
+                                  </div>
+                                )}
                               </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                       {quoteAttachments[i] && (
