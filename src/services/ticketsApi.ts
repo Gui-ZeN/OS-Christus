@@ -43,6 +43,16 @@ type ApiTicket = Omit<Ticket, 'time' | 'history' | 'viewingBy'> & {
 type ApiMeasurement = Omit<MeasurementRecord, 'requestedAt' | 'approvedAt'> & {
   requestedAt?: string | null;
   approvedAt?: string | null;
+  attachments?: Array<{
+    id: string;
+    name: string;
+    path: string;
+    url: string;
+    contentType?: string | null;
+    size?: number | null;
+    uploadedAt?: string | null;
+    category?: 'closure_report' | 'closure_evidence' | 'attachment';
+  }> | null;
 };
 
 type ApiPayment = Omit<PaymentRecord, 'dueAt' | 'paidAt'> & {
@@ -148,6 +158,12 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
 function hydrateMeasurement(item: ApiMeasurement): MeasurementRecord {
   return {
     ...item,
+    attachments: Array.isArray(item.attachments)
+      ? item.attachments.map(attachment => ({
+          ...attachment,
+          uploadedAt: attachment.uploadedAt ? coerceDate(attachment.uploadedAt) : null,
+        }))
+      : [],
     requestedAt: item.requestedAt ? coerceDate(item.requestedAt) : null,
     approvedAt: item.approvedAt ? coerceDate(item.approvedAt) : null,
   };

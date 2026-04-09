@@ -330,6 +330,18 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
       grossValue: measurement.grossValue != null ? String(measurement.grossValue).trim() : null,
       status: String(measurement.status || 'approved'),
       notes: measurement.notes ? String(measurement.notes) : '',
+      attachments: Array.isArray(measurement.attachments)
+        ? measurement.attachments.map(item => ({
+            id: String(item?.id || '').trim() || `measurement-attachment-${Date.now()}`,
+            name: String(item?.name || '').trim() || 'Anexo',
+            path: String(item?.path || '').trim() || '',
+            url: String(item?.url || '').trim() || '',
+            contentType: item?.contentType ? String(item.contentType).trim() : null,
+            size: item?.size != null ? Number(item.size) : null,
+            uploadedAt: item?.uploadedAt ? new Date(item.uploadedAt) : null,
+            category: item?.category || 'attachment',
+          }))
+        : [],
       requestedAt: measurement.requestedAt ? new Date(measurement.requestedAt) : now,
       approvedAt: measurement.approvedAt ? new Date(measurement.approvedAt) : null,
       classification: measurement.classification || classification || null,

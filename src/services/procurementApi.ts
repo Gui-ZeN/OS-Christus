@@ -23,6 +23,16 @@ type PaymentApi = Omit<PaymentRecord, 'paidAt' | 'dueAt' | 'attachments'> & {
 type MeasurementApi = Omit<MeasurementRecord, 'requestedAt' | 'approvedAt'> & {
   requestedAt?: string | null;
   approvedAt?: string | null;
+  attachments?: Array<{
+    id: string;
+    name: string;
+    path: string;
+    url: string;
+    contentType?: string | null;
+    size?: number | null;
+    uploadedAt?: string | null;
+    category?: 'closure_report' | 'closure_evidence' | 'attachment';
+  }> | null;
   ticketId?: string;
 };
 
@@ -62,6 +72,12 @@ export async function fetchProcurementData() {
         ticketId,
         values.map(value => ({
           ...value,
+          attachments: Array.isArray(value.attachments)
+            ? value.attachments.map(item => ({
+                ...item,
+                uploadedAt: item?.uploadedAt ? coerceDate(item.uploadedAt) : null,
+              }))
+            : [],
           requestedAt: value.requestedAt ? coerceDate(value.requestedAt) : null,
           approvedAt: value.approvedAt ? coerceDate(value.approvedAt) : null,
         })) as MeasurementRecord[],
@@ -127,6 +143,12 @@ export async function saveMeasurement(ticketId: string, measurement: Measurement
       classification,
       measurement: {
         ...measurement,
+        attachments: Array.isArray(measurement.attachments)
+          ? measurement.attachments.map(item => ({
+              ...item,
+              uploadedAt: item?.uploadedAt ? item.uploadedAt.toISOString() : null,
+            }))
+          : [],
         requestedAt: measurement.requestedAt ? measurement.requestedAt.toISOString() : null,
         approvedAt: measurement.approvedAt ? measurement.approvedAt.toISOString() : null,
       },

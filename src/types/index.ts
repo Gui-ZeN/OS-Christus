@@ -177,6 +177,7 @@ export interface MeasurementRecord {
   grossValue?: string | null;
   status: 'pending' | 'approved' | 'paid';
   notes?: string;
+  attachments?: TicketAttachment[];
   requestedAt?: Date | null;
   approvedAt?: Date | null;
   classification?: ProcurementClassificationSnapshot;

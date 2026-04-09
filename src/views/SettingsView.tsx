@@ -309,7 +309,7 @@ export function SettingsView() {
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [vendorSaving, setVendorSaving] = useState(false);
   const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags'>('catalog');
-  const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', tags: [] as string[] });
+  const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', contact: '', tags: [] as string[] });
   const [thirdPartyTags, setThirdPartyTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
   const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
@@ -612,11 +612,12 @@ export function SettingsView() {
         id: vendorDraft.id || undefined,
         name,
         email: vendorDraft.email.trim() || undefined,
+        contact: vendorDraft.contact.trim() || undefined,
         tags,
         active: true,
       });
       await loadVendors();
-      setVendorDraft({ id: '', name: '', email: '', tags: [] });
+      setVendorDraft({ id: '', name: '', email: '', contact: '', tags: [] });
       setCatalogSaved('Terceiro salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -656,6 +657,7 @@ export function SettingsView() {
             id: vendor.id,
             name: vendor.name,
             email: vendor.email || undefined,
+            contact: vendor.contact || undefined,
             tags: (vendor.tags || []).filter(item => item.toLowerCase() !== normalized),
             active: vendor.active !== false,
           })
@@ -1407,6 +1409,7 @@ export function SettingsView() {
                                         <div className="min-w-0">
                                           <div className="text-sm font-medium text-roman-text-main truncate">{vendor.name}</div>
                                           <div className="text-[11px] text-roman-text-sub truncate">{vendor.email || 'Sem e-mail'}</div>
+                                          <div className="text-[11px] text-roman-text-sub truncate">{vendor.contact || 'Sem contato'}</div>
                                         </div>
                                         <button
                                           type="button"
@@ -1415,6 +1418,7 @@ export function SettingsView() {
                                               id: vendor.id,
                                               name: vendor.name || '',
                                               email: vendor.email || '',
+                                              contact: vendor.contact || '',
                                               tags: (vendor.tags || []).filter(Boolean),
                                             })
                                           }
@@ -1456,6 +1460,13 @@ export function SettingsView() {
                                 value={vendorDraft.email}
                                 onChange={event => setVendorDraft(current => ({ ...current, email: event.target.value }))}
                                 placeholder="terceiro@email.com"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              />
+                              <input
+                                type="text"
+                                value={vendorDraft.contact}
+                                onChange={event => setVendorDraft(current => ({ ...current, contact: event.target.value }))}
+                                placeholder="Contato (telefone/WhatsApp)"
                                 className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <div>
@@ -1506,7 +1517,7 @@ export function SettingsView() {
                                 {vendorDraft.id && (
                                   <button
                                     type="button"
-                                    onClick={() => setVendorDraft({ id: '', name: '', email: '', tags: [] })}
+                                    onClick={() => setVendorDraft({ id: '', name: '', email: '', contact: '', tags: [] })}
                                     className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-white"
                                   >
                                     Limpar

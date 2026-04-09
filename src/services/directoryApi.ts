@@ -24,6 +24,7 @@ export interface DirectoryVendor {
   id: string;
   name: string;
   email?: string;
+  contact?: string;
   tags?: string[];
   active?: boolean;
 }

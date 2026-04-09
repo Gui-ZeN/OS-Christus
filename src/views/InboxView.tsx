@@ -16,7 +16,7 @@ import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
-import { uploadContractAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
+import { uploadContractAttachment, uploadMeasurementAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
@@ -482,6 +482,7 @@ export function InboxView() {
   const [thirdPartySelectDraftId, setThirdPartySelectDraftId] = useState('');
   const [newThirdPartyName, setNewThirdPartyName] = useState('');
   const [newThirdPartyEmail, setNewThirdPartyEmail] = useState('');
+  const [newThirdPartyContact, setNewThirdPartyContact] = useState('');
   const [newThirdPartyTags, setNewThirdPartyTags] = useState<string[]>([]);
   const [newSharedTagDraft, setNewSharedTagDraft] = useState('');
   const [newSharedTagSaving, setNewSharedTagSaving] = useState(false);
@@ -500,9 +501,11 @@ export function InboxView() {
   const canMessageDirector = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
 
   const replyFileRef = useRef<HTMLInputElement>(null);
+  const progressReportFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
   const lastMailSyncAtRef = useRef(0);
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const [progressReportFiles, setProgressReportFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (currentView !== 'inbox') return undefined;
@@ -593,10 +596,13 @@ export function InboxView() {
     setQuickPanelExpanded(activeTicket.status === TICKET_STATUS.NEW);
     setNewThirdPartyName('');
     setNewThirdPartyEmail('');
+    setNewThirdPartyContact('');
     setNewThirdPartyTags([]);
     setReplyFiles([]);
+    setProgressReportFiles([]);
     setContractDispatchFile(null);
     if (replyFileRef.current) replyFileRef.current.value = '';
+    if (progressReportFileRef.current) progressReportFileRef.current.value = '';
   }, [
     activeTicketId,
     activeTicket.assignedEmail,
@@ -758,6 +764,7 @@ export function InboxView() {
       const response = await upsertVendor({
         name,
         email: newThirdPartyEmail.trim(),
+        contact: newThirdPartyContact.trim(),
         tags,
         active: true,
       });
@@ -765,6 +772,7 @@ export function InboxView() {
         id: normalizeTagValue(name).replace(/[^a-z0-9-]/g, '-') || `terceiro-${Date.now()}`,
         name,
         email: newThirdPartyEmail.trim(),
+        contact: newThirdPartyContact.trim(),
         tags,
         active: true,
       };
@@ -781,6 +789,7 @@ export function InboxView() {
       }
       setNewThirdPartyName('');
       setNewThirdPartyEmail('');
+      setNewThirdPartyContact('');
       setNewThirdPartyTags([]);
       showToast('Terceiro cadastrado com sucesso.', 2500);
     } catch (error) {
@@ -1302,6 +1311,8 @@ export function InboxView() {
 
   const handleOpenProgressModal = () => {
     setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
+    setProgressReportFiles([]);
+    if (progressReportFileRef.current) progressReportFileRef.current.value = '';
     setShowProgressModal(true);
   };
 
@@ -1373,17 +1384,7 @@ export function InboxView() {
       receiptFileName: null,
     };
 
-    const measurement: MeasurementRecord = {
-      id: measurementId,
-      label: `Andamento atualizado para ${normalizedProgress}% (bruto ${formattedGrossAmount} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
-      progressPercent: normalizedProgress,
-      releasePercent: progressDelta,
-      status: 'approved',
-      grossValue: formattedGrossAmount,
-      notes: progressUpdateForm.notes.trim(),
-      requestedAt: now,
-      approvedAt: now,
-    };
+    const reportAttachmentsSummarySuffix = progressReportFiles.length > 0 ? ` ${progressReportFiles.length} anexo(s) de relatório.` : '';
     const shouldMoveToValidation =
       normalizedProgress >= 100 &&
       activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
@@ -1395,6 +1396,24 @@ export function InboxView() {
       normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
 
     try {
+      const uploadedMeasurementAttachments: TicketAttachment[] = [];
+      for (const file of progressReportFiles) {
+        const uploaded = await uploadMeasurementAttachment(activeTicket.id, measurementId, file);
+        uploadedMeasurementAttachments.push(uploaded);
+      }
+      const measurement: MeasurementRecord = {
+        id: measurementId,
+        label: `Andamento atualizado para ${normalizedProgress}% (bruto ${formattedGrossAmount} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
+        progressPercent: normalizedProgress,
+        releasePercent: progressDelta,
+        status: 'approved',
+        grossValue: formattedGrossAmount,
+        notes: progressUpdateForm.notes.trim(),
+        attachments: uploadedMeasurementAttachments,
+        requestedAt: now,
+        approvedAt: now,
+      };
+
       await savePayment(activeTicket.id, nextPayment, classification);
       await saveMeasurement(activeTicket.id, measurement, classification);
 
@@ -1427,13 +1446,15 @@ export function InboxView() {
             sender: displayActorLabel,
             time: now,
             text: shouldMoveToValidation
-              ? `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`
-              : `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}`,
+              ? `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`
+              : `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
           },
         ],
       });
 
       setShowProgressModal(false);
+      setProgressReportFiles([]);
+      if (progressReportFileRef.current) progressReportFileRef.current.value = '';
       showToast(
         shouldMoveToValidation
           ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
@@ -3277,7 +3298,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <div className="mt-2 flex flex-wrap gap-2">
                             {selectedThirdParties.map(vendor => (
                               <span key={`selected-vendor-inline-${vendor.id}`} className="inline-flex items-center rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
-                                {vendor.name}
+                                {vendor.name}{vendor.contact ? ` · ${vendor.contact}` : ''}
                               </span>
                             ))}
                           </div>
@@ -3516,7 +3537,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <div className="flex flex-wrap gap-2">
                 {selectedThirdParties.map(vendor => (
                   <span key={`selected-vendor-modal-${vendor.id}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
-                    {vendor.name}
+                    {vendor.name}{vendor.contact ? ` · ${vendor.contact}` : ''}
                     {canEditQuickPanel && (
                       <button
                         type="button"
@@ -3560,6 +3581,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   value={newThirdPartyEmail}
                   onChange={event => setNewThirdPartyEmail(event.target.value)}
                   placeholder="Email (opcional)"
+                  className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                />
+                <input
+                  type="text"
+                  value={newThirdPartyContact}
+                  onChange={event => setNewThirdPartyContact(event.target.value)}
+                  placeholder="Contato (opcional)"
                   className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                 />
                 <div>
@@ -4697,12 +4725,57 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 />
               </div>
 
+              <div>
+                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={progressReportFileRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt"
+                      onChange={event => {
+                        const files = Array.from(event.target.files || []);
+                        if (files.length === 0) return;
+                        setProgressReportFiles(prev => [...prev, ...files]);
+                        event.currentTarget.value = '';
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => progressReportFileRef.current?.click()}
+                      className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                    >
+                      Anexar arquivos
+                    </button>
+                    <span className="text-xs text-roman-text-sub">{progressReportFiles.length} arquivo(s)</span>
+                  </div>
+                  {progressReportFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {progressReportFiles.map((file, index) => (
+                        <span key={`${file.name}-${file.size}-${index}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-[11px] text-roman-text-main">
+                          <FileText size={12} />
+                          <span className="max-w-[220px] truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setProgressReportFiles(prev => prev.filter((_, currentIndex) => currentIndex !== index))}
+                            className="text-roman-text-sub hover:text-red-600"
+                            aria-label={`Remover arquivo ${file.name}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
         </ModalShell>
       )}
     </div>
   );
 }
-
-
 
 

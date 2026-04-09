@@ -10,7 +10,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
 import { fetchSettings } from '../services/settingsApi';
-import { deleteTicketAttachment, uploadClosureDocument, uploadPaymentAttachment } from '../services/ticketStorage';
+import { deleteTicketAttachment, uploadClosureDocument, uploadMeasurementAttachment, uploadPaymentAttachment } from '../services/ticketStorage';
 import { notifyPaymentDispatch } from '../services/ticketEmail';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
@@ -22,6 +22,7 @@ interface MeasurementFormState {
   label: string;
   grossAmount: string;
   notes: string;
+  reportFiles: File[];
 }
 
 interface PaymentSettlementDraft {
@@ -187,7 +188,7 @@ function buildDynamicPaymentsFromMeasurements(
         measurementId: measurement.id,
         releasedPercent: measurement.releasePercent,
         milestonePercent: measurement.progressPercent,
-        attachments: [],
+        attachments: Array.isArray(measurement.attachments) ? measurement.attachments : [],
         receiptFileName: null,
       } as PaymentRecord;
     });
@@ -738,6 +739,7 @@ export function FinanceView() {
       label: '',
       grossAmount: '',
       notes: '',
+      reportFiles: [],
     };
 
   const setMeasurementDraft = (ticketId: string, updates: Partial<MeasurementFormState>) => {
@@ -1057,10 +1059,18 @@ export function FinanceView() {
     const nextClosureChecklist =
       normalizedProgress >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
     const historyNotesSuffix = draft.notes.trim() ? ` ${draft.notes.trim()}` : '';
+    const reportFiles = Array.isArray(draft.reportFiles) ? draft.reportFiles : [];
+    const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relatório.` : '';
 
     setProcessingId(ticketId);
     try {
+      const uploadedMeasurementAttachments = [];
+      for (const file of reportFiles) {
+        const uploaded = await uploadMeasurementAttachment(ticketId, measurementId, file);
+        uploadedMeasurementAttachments.push(uploaded);
+      }
       await savePayment(ticketId, nextPayment, classification);
+      measurement.attachments = uploadedMeasurementAttachments;
       await saveMeasurement(ticketId, measurement, classification);
       setMeasurementsByTicket(prev => ({
         ...prev,
@@ -1093,8 +1103,8 @@ export function FinanceView() {
             time: now,
             text:
               shouldMoveToValidation
-                ? `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}`
-                : `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}`,
+                ? `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`
+                : `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`,
           },
         ],
       });
@@ -1105,6 +1115,8 @@ export function FinanceView() {
           ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
           : `${paymentLabel} registrada e liberada para pagamento.`
       , 3000);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Falha ao salvar andamento da obra.', 4000);
     } finally {
       setProcessingId(null);
     }
@@ -1814,6 +1826,51 @@ export function FinanceView() {
                               placeholder="Ex: relatório com fotos enviado para liberação."
                             />
                           </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <label className="inline-flex cursor-pointer items-center justify-center rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary">
+                                  Anexar arquivos
+                                  <input
+                                    type="file"
+                                    multiple
+                                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt"
+                                    className="hidden"
+                                    onChange={event => {
+                                      const files = Array.from(event.target.files || []);
+                                      if (files.length === 0) return;
+                                      setMeasurementDraft(ticket.id, { reportFiles: [...measurementDraft.reportFiles, ...files] });
+                                      event.currentTarget.value = '';
+                                    }}
+                                  />
+                                </label>
+                                <span className="text-xs text-roman-text-sub">{measurementDraft.reportFiles.length} arquivo(s)</span>
+                              </div>
+                              {measurementDraft.reportFiles.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {measurementDraft.reportFiles.map((file, index) => (
+                                    <span key={`${file.name}-${file.size}-${index}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main">
+                                      <FileText size={12} />
+                                      <span className="max-w-[220px] truncate">{file.name}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setMeasurementDraft(ticket.id, {
+                                            reportFiles: measurementDraft.reportFiles.filter((_, currentIndex) => currentIndex !== index),
+                                          })
+                                        }
+                                        className="text-roman-text-sub hover:text-red-600"
+                                        aria-label={`Remover arquivo ${file.name}`}
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                           <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                             <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
                             <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'não definido'}</div>
@@ -1851,6 +1908,22 @@ export function FinanceView() {
                                 </div>
                               </div>
                               {measurement.notes && <div className="mt-2 text-sm text-roman-text-sub">{measurement.notes}</div>}
+                              {Array.isArray(measurement.attachments) && measurement.attachments.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {measurement.attachments.map((attachment, index) => (
+                                    <a
+                                      key={`${measurement.id}-attachment-${attachment.id || index}`}
+                                      href={attachment.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
+                                    >
+                                      <FileText size={12} />
+                                      <span className="max-w-[220px] truncate">{attachment.name || 'Anexo'}</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))
                         )}
@@ -2398,5 +2471,3 @@ export function FinanceView() {
     </div>
   );
 }
-
-
