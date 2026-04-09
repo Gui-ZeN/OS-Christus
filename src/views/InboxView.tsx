@@ -1594,6 +1594,9 @@ export function InboxView() {
   const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
   const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
   const [additiveReason, setAdditiveReason] = useState('');
+  const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
+  const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
+  const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
   const quoteUnitOptions = useMemo(() => {
     const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
     additionalQuoteUnits.forEach(unit => {
@@ -1683,6 +1686,13 @@ export function InboxView() {
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
   }, [activeTicket, activeTicketId, catalogSites, quoteAdditiveIndex, quoteRoundType, showQuotesModal, storedQuotesByTicket]);
+
+  useEffect(() => {
+    if (!showQuotesModal) return;
+    setShowQuoteContextPanel(false);
+    setShowQuoteHistoryPanel(false);
+    setShowQuoteComparisonPanel(false);
+  }, [showQuotesModal, activeTicketId, quoteRoundType]);
 
   // useMemo evita recalcular em todo re-render
   const filteredTickets = useMemo(() => tickets.filter(t => {
@@ -3725,6 +3735,45 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </span>
               </div>
 
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('quote-editor-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="inline-flex items-center gap-2 rounded-sm border border-roman-primary bg-roman-primary/10 px-3 py-1.5 text-xs font-medium text-roman-primary hover:bg-roman-primary/15"
+                >
+                  <Plus size={12} />
+                  Montar cotações
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuoteContextPanel(prev => !prev)}
+                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                >
+                  <ChevronDown size={12} className={`transition-transform ${showQuoteContextPanel ? 'rotate-180' : ''}`} />
+                  {showQuoteContextPanel ? 'Ocultar contexto' : 'Mostrar contexto'}
+                </button>
+                {showQuoteContextPanel && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuoteHistoryPanel(prev => !prev)}
+                      className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                    >
+                      <ChevronDown size={12} className={`transition-transform ${showQuoteHistoryPanel ? 'rotate-180' : ''}`} />
+                      Base histórica
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuoteComparisonPanel(prev => !prev)}
+                      className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                    >
+                      <ChevronDown size={12} className={`transition-transform ${showQuoteComparisonPanel ? 'rotate-180' : ''}`} />
+                      Comparativo
+                    </button>
+                  </>
+                )}
+              </div>
+
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 {quoteRoundType === 'additive' && (
                   <div className="space-y-3">
@@ -3756,44 +3805,46 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
               </div>
 
-              {(activeTicket.macroServiceName || activeTicket.serviceCatalogName) && (
-                <div className="mb-6 rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-4 py-3 text-sm text-roman-text-main">
-                  <div className="font-medium">Classificação da OS</div>
-                  <div className="mt-1 text-roman-text-sub">
-                    {activeTicket.macroServiceName || 'Sem macroserviço'} {activeTicket.serviceCatalogName ? `· ${activeTicket.serviceCatalogName}` : ''}
-                  </div>
-                </div>
-              )}
+              {showQuoteContextPanel && (
+                <>
+                  {(activeTicket.macroServiceName || activeTicket.serviceCatalogName) && (
+                    <div className="mb-6 rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-4 py-3 text-sm text-roman-text-main">
+                      <div className="font-medium">Classificação da OS</div>
+                      <div className="mt-1 text-roman-text-sub">
+                        {activeTicket.macroServiceName || 'Sem macroserviço'} {activeTicket.serviceCatalogName ? `· ${activeTicket.serviceCatalogName}` : ''}
+                      </div>
+                    </div>
+                  )}
 
-              <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor previsto</div>
-                  <div className="mt-1 text-base font-serif text-roman-text-main">
-                    {budgetBaselineAndRealized.plannedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.plannedValue) : '-'}
+                  <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor previsto</div>
+                      <div className="mt-1 text-base font-serif text-roman-text-main">
+                        {budgetBaselineAndRealized.plannedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.plannedValue) : '-'}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Aditivos aprovados</div>
+                      <div className="mt-1 text-base font-serif text-roman-text-main">
+                        {budgetBaselineAndRealized.additiveValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.additiveValue) : '-'}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor realizado</div>
+                      <div className="mt-1 text-base font-serif text-roman-text-main">
+                        {budgetBaselineAndRealized.realizedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.realizedValue) : '-'}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Aditivos aprovados</div>
-                  <div className="mt-1 text-base font-serif text-roman-text-main">
-                    {budgetBaselineAndRealized.additiveValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.additiveValue) : '-'}
-                  </div>
-                </div>
-                <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor realizado</div>
-                  <div className="mt-1 text-base font-serif text-roman-text-main">
-                    {budgetBaselineAndRealized.realizedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.realizedValue) : '-'}
-                  </div>
-                </div>
-              </div>
 
-              <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-serif text-roman-text-main">Cabeçalho da proposta</h4>
-                    <p className="text-xs text-roman-text-sub">Estruture a rodada com unidade, local e pasta da referência enviada pelo solicitante.</p>
-                  </div>
-                  <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">Comparativo lado a lado</span>
-                </div>
+                  <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-serif text-roman-text-main">Cabeçalho da proposta</h4>
+                        <p className="text-xs text-roman-text-sub">Estruture a rodada com unidade, local e pasta da referência enviada pelo solicitante.</p>
+                      </div>
+                      <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">Comparativo lado a lado</span>
+                    </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <div>
@@ -3858,9 +3909,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     />
                   </div>
                 </div>
-              </div>
+                  </div>
 
-              <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
+              {showQuoteHistoryPanel && (
+                <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
                 <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h4 className="text-sm font-serif text-roman-text-main">Base histórica (24 meses)</h4>
@@ -3959,7 +4011,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <div className="text-right">
                           <div className="text-sm font-serif text-roman-text-main">{item.valueLabel}</div>
                           <div className="text-[11px] text-roman-text-sub">
-                            Match: {item.sharedTerms.length > 0 ? item.sharedTerms.join(', ') : 'tipo/regiao'}
+                            Match: {item.sharedTerms.length > 0 ? item.sharedTerms.join(', ') : 'macroserviço/serviço'}
                           </div>
                         </div>
                       </div>
@@ -3997,33 +4049,35 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 )}
               </div>
+              )}
 
-              <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-                {quotes.map((quote, index) => (
-                  <div key={`quote-total-${index}`} className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">Cotação {index + 1}</div>
-                    <div className="mt-1 text-sm font-medium text-roman-text-main break-words">
-                      {quote.vendor || 'Fornecedor não informado'}
-                    </div>
-                    <div className="mt-2 text-[11px] text-roman-text-sub">Total geral da proposta</div>
-                    <div className="mt-1 text-lg font-serif text-roman-text-main">
-                      {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : quote.value || '-'}
-                    </div>
-                    <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
-                      <div>Material: {quote.materialValue || '-'}</div>
-                      <div>Mão de obra: {quote.laborValue || '-'}</div>
-                    </div>
+                  <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {quotes.map((quote, index) => (
+                      <div key={`quote-total-${index}`} className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">Cotação {index + 1}</div>
+                        <div className="mt-1 text-sm font-medium text-roman-text-main break-words">
+                          {quote.vendor || 'Fornecedor não informado'}
+                        </div>
+                        <div className="mt-2 text-[11px] text-roman-text-sub">Total geral da proposta</div>
+                        <div className="mt-1 text-lg font-serif text-roman-text-main">
+                          {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : quote.value || '-'}
+                        </div>
+                        <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
+                          <div>Material: {quote.materialValue || '-'}</div>
+                          <div>Mão de obra: {quote.laborValue || '-'}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-serif text-roman-text-main">Comparativo consolidado</h4>
-                    <p className="text-xs text-roman-text-sub">Use esta grade para conferir quantidade, custo unitário e total cobrado por fornecedor.</p>
-                  </div>
-                </div>
+              {showQuoteComparisonPanel && (
+                  <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-serif text-roman-text-main">Comparativo consolidado</h4>
+                        <p className="text-xs text-roman-text-sub">Use esta grade para conferir quantidade, custo unitário e total cobrado por fornecedor.</p>
+                      </div>
+                    </div>
 
                 {quoteComparisonSections.length === 0 ? (
                   <div className="mt-3 rounded-sm border border-dashed border-roman-border bg-roman-bg px-3 py-4 text-sm text-roman-text-sub">
@@ -4124,9 +4178,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
                   </div>
                 )}
-              </div>
+                  </div>
+                )}
+                </>
+              )}
 
-              <div className="mb-3 flex justify-end">
+              <div id="quote-editor-start" className="mb-3 flex justify-end">
                 {quotes.length < getRoundMaxQuoteSlots(quoteRoundType) && (
                   <button
                     type="button"
@@ -4777,5 +4834,3 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     </div>
   );
 }
-
-

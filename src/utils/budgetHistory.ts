@@ -9,47 +9,6 @@ type BudgetHistoryVendor = {
   tags?: string[];
 };
 
-const STOP_WORDS = new Set([
-  'com',
-  'para',
-  'uma',
-  'das',
-  'dos',
-  'por',
-  'sem',
-  'sob',
-  'ate',
-  'nos',
-  'nas',
-  'que',
-  'ser',
-  'em',
-  'na',
-  'no',
-  'de',
-  'do',
-  'da',
-  'e',
-  'o',
-  'a',
-]);
-
-const GENERIC_DOMAIN_TERMS = new Set([
-  'mail',
-  'email',
-  'manutencao',
-  'predial',
-  'servico',
-  'servicos',
-  'obra',
-  'obras',
-  'sistema',
-  'chamado',
-  'chamados',
-  'ticket',
-  'teste',
-]);
-
 export interface BudgetHistoryCase {
   ticketId: string;
   subject: string;
@@ -114,28 +73,6 @@ function normalizeText(value: string) {
     .toLowerCase();
 }
 
-function extractKeywords(ticket: Ticket) {
-  const source = normalizeText(
-    [
-      ticket.type,
-      ticket.subject,
-      ticket.sector,
-      ticket.macroServiceName,
-      ticket.serviceCatalogName,
-    ]
-      .filter(Boolean)
-      .join(' ')
-  );
-  return Array.from(
-    new Set(
-      source
-        .split(/[^a-z0-9]+/)
-        .map(part => part.trim())
-        .filter(part => part.length >= 3 && !STOP_WORDS.has(part) && !GENERIC_DOMAIN_TERMS.has(part))
-    )
-  );
-}
-
 function dedupeTerms(terms: string[]) {
   const seen = new Set<string>();
   const output: string[] = [];
@@ -173,64 +110,15 @@ function extractThirdPartyNames(ticket: Ticket) {
   return parseDelimitedValues(ticket.assignedTeam || '').filter(part => part.length >= 2).slice(0, 3);
 }
 
-function extractThirdPartyEmails(ticket: Ticket) {
-  return parseDelimitedValues(ticket.assignedEmail || '').filter(email => email.includes('@')).slice(0, 5);
-}
-
-function resolveTicketThirdPartyTags(ticket: Ticket, vendors: BudgetHistoryVendor[]) {
-  if (!Array.isArray(vendors) || vendors.length === 0) return [];
-
-  const vendorByEmail = new Map<string, BudgetHistoryVendor>();
-  const vendorByName = new Map<string, BudgetHistoryVendor>();
-
-  vendors.forEach(vendor => {
-    const normalizedEmail = normalizeText(String(vendor.email || '').trim());
-    const normalizedName = normalizeText(String(vendor.name || '').trim());
-    if (normalizedEmail) vendorByEmail.set(normalizedEmail, vendor);
-    if (normalizedName) vendorByName.set(normalizedName, vendor);
-  });
-
-  const matchedVendors = new Set<BudgetHistoryVendor>();
-  extractThirdPartyEmails(ticket).forEach(email => {
-    const matched = vendorByEmail.get(normalizeText(email));
-    if (matched) matchedVendors.add(matched);
-  });
-  extractThirdPartyNames(ticket).forEach(name => {
-    const matched = vendorByName.get(normalizeText(name));
-    if (matched) matchedVendors.add(matched);
-  });
-
-  return dedupeTerms(
-    [...matchedVendors]
-      .flatMap(vendor => vendor.tags || [])
-      .map(tag => String(tag || '').trim())
-      .filter(Boolean)
-      .slice(0, 8)
-  );
-}
-
-function countSharedTerms(left: string[], right: string[]) {
-  if (left.length === 0 || right.length === 0) return 0;
-  const rightSet = new Set(right.map(item => normalizeText(item)));
-  return left.reduce((acc, item) => (rightSet.has(normalizeText(item)) ? acc + 1 : acc), 0);
-}
-
-function buildBasisTerms(
-  ticket: Ticket,
-  quotesByTicket: QuoteMap,
-  keywordTerms: string[],
-  thirdPartyTags: string[]
-) {
+function buildBasisTerms(ticket: Ticket, quotesByTicket: QuoteMap) {
   const structuredTerms = [
     ticket.macroServiceName ? `macroserviço: ${ticket.macroServiceName}` : '',
     ticket.serviceCatalogName ? `serviço: ${ticket.serviceCatalogName}` : '',
-    ...extractQuotedVendors(ticket.id, quotesByTicket).map(vendor => `fornecedor: ${vendor}`),
+    ...extractQuotedVendors(ticket.id, quotesByTicket).map(vendor => `externo: ${vendor}`),
     ...extractThirdPartyNames(ticket).map(name => `terceiro: ${name}`),
-    ...thirdPartyTags.map(tag => `tag: ${tag}`),
   ].filter(Boolean);
 
-  const keywordLabels = keywordTerms.slice(0, 4);
-  return dedupeTerms([...structuredTerms, ...keywordLabels]).slice(0, 8);
+  return dedupeTerms(structuredTerms).slice(0, 8);
 }
 
 function parseCurrency(value: string) {
@@ -250,7 +138,8 @@ function getItemReferenceKey(item: QuoteItem) {
 }
 
 function getItemReferenceLabel(item: QuoteItem) {
-  return String(item.materialName || item.description || 'Item sem descrição').trim();
+  const fallbackLabel = 'Item sem descrição';
+  return String(item.materialName || item.description || fallbackLabel).trim();
 }
 
 function getItemUnitPrice(item: QuoteItem) {
@@ -310,10 +199,8 @@ export function buildBudgetHistorySummary(
   }
 
   const cutoffDate = subMonths(new Date(), 24);
-  const currentKeywords = extractKeywords(currentTicket);
-  const currentKeywordSet = new Set(currentKeywords);
   const currentThirdParties = extractThirdPartyNames(currentTicket);
-  const currentThirdPartyTags = resolveTicketThirdPartyTags(currentTicket, directoryVendors);
+  const currentQuotedVendors = extractQuotedVendors(currentTicket.id, quotesByTicket);
 
   const comparableEntries = tickets
     .filter(ticket => ticket.id !== currentTicket.id)
@@ -325,39 +212,33 @@ export function buildBudgetHistorySummary(
       const comparableQuotes = selectInitialRoundQuotes(candidateQuotes);
       if (comparableQuotes.length === 0) return null;
 
-      const candidateKeywords = extractKeywords(ticket);
-      const sharedTerms = candidateKeywords.filter(term => currentKeywordSet.has(term));
-      const sameType = normalizeText(ticket.type) === normalizeText(currentTicket.type);
+      const sharedThirdParties = extractThirdPartyNames(ticket).filter(name =>
+        currentThirdParties.some(current => normalizeText(current) === normalizeText(name))
+      );
+      const sharedQuotedVendors = extractQuotedVendors(ticket.id, quotesByTicket).filter(vendor =>
+        currentQuotedVendors.some(current => normalizeText(current) === normalizeText(vendor))
+      );
       const sameMacroService =
         (ticket.macroServiceId && currentTicket.macroServiceId && ticket.macroServiceId === currentTicket.macroServiceId) ||
         normalizeText(ticket.macroServiceName || '') === normalizeText(currentTicket.macroServiceName || '');
       const sameService =
         (ticket.serviceCatalogId && currentTicket.serviceCatalogId && ticket.serviceCatalogId === currentTicket.serviceCatalogId) ||
         normalizeText(ticket.serviceCatalogName || '') === normalizeText(currentTicket.serviceCatalogName || '');
-      const sameSector = normalizeText(ticket.sector) === normalizeText(currentTicket.sector);
-      const sameRegion =
-        (ticket.regionId && currentTicket.regionId && ticket.regionId === currentTicket.regionId) ||
-        normalizeText(ticket.region) === normalizeText(currentTicket.region);
-      const sameSite =
-        (ticket.siteId && currentTicket.siteId && ticket.siteId === currentTicket.siteId) ||
-        normalizeText(ticket.sede) === normalizeText(currentTicket.sede);
-      const sharedThirdPartyCount = countSharedTerms(currentThirdParties, extractThirdPartyNames(ticket));
-      const sharedTagCount = countSharedTerms(
-        currentThirdPartyTags,
-        resolveTicketThirdPartyTags(ticket, directoryVendors)
-      );
-      const score =
-        sharedTerms.length +
-        (sameType ? 3 : 0) +
-        (sameMacroService ? 4 : 0) +
-        (sameService ? 5 : 0) +
-        (sameSector ? 2 : 0) +
-        (sameRegion ? 1 : 0) +
-        (sameSite ? 1 : 0) +
-        Math.min(sharedThirdPartyCount * 4, 8) +
-        Math.min(sharedTagCount * 2, 4);
 
-      if (score < 3 && sharedTerms.length === 0) return null;
+      const sharedTerms = [
+        ...(sameService ? ['serviço'] : []),
+        ...(sameMacroService ? ['macroserviço'] : []),
+        ...sharedThirdParties.slice(0, 2).map(name => `terceiro: ${name}`),
+        ...sharedQuotedVendors.slice(0, 2).map(vendor => `externo: ${vendor}`),
+      ];
+
+      const score =
+        (sameService ? 7 : 0) +
+        (sameMacroService ? 4 : 0) +
+        Math.min(sharedThirdParties.length * 3, 6) +
+        Math.min(sharedQuotedVendors.length * 3, 6);
+
+      if (score < 4) return null;
 
       const representative = selectRepresentativeQuote(comparableQuotes);
       if (!representative) return null;
@@ -556,7 +437,7 @@ export function buildBudgetHistorySummary(
     .slice(0, 6);
 
   return {
-    basisTerms: buildBasisTerms(currentTicket, quotesByTicket, currentKeywords, currentThirdPartyTags),
+    basisTerms: buildBasisTerms(currentTicket, quotesByTicket),
     similarCases,
     comparableTicketCount: similarCases.length,
     comparableQuoteCount: quoteValues.length,
@@ -575,3 +456,4 @@ export function buildBudgetHistorySummary(
 export function formatBudgetHistoryValue(value: number | null) {
   return formatCurrency(value) ?? '-';
 }
+
