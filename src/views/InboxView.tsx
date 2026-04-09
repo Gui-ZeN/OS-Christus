@@ -1597,7 +1597,7 @@ export function InboxView() {
   const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
   const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
   const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
-  const [quoteEditorFocus, setQuoteEditorFocus] = useState<number | 'all'>('all');
+  const [quoteEditorFocus, setQuoteEditorFocus] = useState<number | 'all'>(0);
   const [expandedQuoteItems, setExpandedQuoteItems] = useState<Record<string, boolean>>({});
   const quoteUnitOptions = useMemo(() => {
     const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
@@ -1694,7 +1694,7 @@ export function InboxView() {
     setShowQuoteContextPanel(false);
     setShowQuoteHistoryPanel(false);
     setShowQuoteComparisonPanel(false);
-    setQuoteEditorFocus('all');
+    setQuoteEditorFocus(0);
   }, [showQuotesModal, activeTicketId, quoteRoundType]);
 
   useEffect(() => {
@@ -1836,6 +1836,13 @@ export function InboxView() {
         .filter(entry => quoteEditorFocus === 'all' || entry.index === quoteEditorFocus),
     [quoteEditorFocus, quotes]
   );
+
+  useEffect(() => {
+    if (quoteEditorFocus === 'all') return;
+    if (quoteEditorFocus >= quotes.length) {
+      setQuoteEditorFocus(0);
+    }
+  }, [quoteEditorFocus, quotes.length]);
 
   const persistedServicePreference = useMemo(() => {
     const exactService = vendorPreferences
@@ -4131,7 +4138,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
                     {quotes.map((quote, index) => (
                       <div key={`quote-total-${index}`} className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">Cotação {index + 1}</div>
+                        <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">
+                          Fornecedor {index < 26 ? String.fromCharCode(65 + index) : index + 1}
+                        </div>
                         <div className="mt-1 text-sm font-medium text-roman-text-main break-words">
                           {quote.vendor || 'Fornecedor não informado'}
                         </div>
@@ -4175,7 +4184,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               <th className="px-3 py-2 font-medium text-roman-text-main">Und.</th>
                               {quotes.map((quote, index) => (
                                 <th key={`${section.key}-quote-${index}`} colSpan={2} className="border-l border-roman-border px-3 py-2">
-                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cotação {index + 1}</div>
+                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                                    Fornecedor {index < 26 ? String.fromCharCode(65 + index) : index + 1}
+                                  </div>
                                   <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.vendor || 'Fornecedor não informado'}</div>
                                 </th>
                               ))}
@@ -4262,19 +4273,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
               <div id="quote-editor-start" className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-roman-text-sub">Exibir:</span>
+                  <span className="text-[11px] text-roman-text-sub">Fornecedor:</span>
                   <button
                     type="button"
-                    onClick={() => setQuoteEditorFocus('all')}
+                    onClick={() => setQuoteEditorFocus(0)}
                     className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
-                      quoteEditorFocus === 'all'
+                      quoteEditorFocus === 0
                         ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
                         : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
                     }`}
                   >
-                    Todas
+                    A
                   </button>
-                  {quotes.map((_, index) => (
+                  {quotes.slice(1).map((_, offset) => {
+                    const index = offset + 1;
+                    const label = index === 1 ? 'B' : index === 2 ? 'C' : String(index + 1);
+                    return (
                     <button
                       key={`quote-focus-${index}`}
                       type="button"
@@ -4285,9 +4299,21 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
                       }`}
                     >
-                      Cotação {index + 1}
+                      {label}
                     </button>
-                  ))}
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setQuoteEditorFocus('all')}
+                    className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      quoteEditorFocus === 'all'
+                        ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                        : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
+                    }`}
+                  >
+                    Consolidado
+                  </button>
                 </div>
                 {quotes.length < getRoundMaxQuoteSlots(quoteRoundType) && (
                   <button
@@ -4305,7 +4331,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 {visibleQuoteEditors.map(({ quote, index: i }) => (
                   <div key={`quote-editor-${i}`} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
-                      <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
+                      <span className="text-sm font-medium text-roman-text-main">
+                        Fornecedor {i < 26 ? String.fromCharCode(65 + i) : i + 1}
+                      </span>
                       <div className="flex items-center gap-3">
                         {quotes.length > getRoundMinQuoteSlots(quoteRoundType) && (
                           <button
