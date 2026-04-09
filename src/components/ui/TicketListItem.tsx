@@ -2,6 +2,7 @@
 import { AlertCircle } from 'lucide-react';
 import { TICKET_STATUS } from '../../constants/ticketStatus';
 import { formatDateTimeSafe } from '../../utils/date';
+import { repairMojibake } from '../../utils/text';
 import { StatusBadge } from './StatusBadge';
 
 interface TicketListItemProps {
@@ -25,6 +26,9 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   active,
   onClick,
 }) => {
+  const normalizedRequester = repairMojibake(requester);
+  const normalizedSubject = repairMojibake(subject);
+  const normalizedPriority = priority ? repairMojibake(priority) : '';
   const isNew = status === TICKET_STATUS.NEW;
   const isWaitingValidation = status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL;
 
@@ -44,14 +48,14 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 pr-2">
           {isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-roman-primary" aria-hidden="true" />}
-          <span className="truncate text-[15px] font-semibold text-roman-text-main xl:text-base">{requester}</span>
+          <span className="truncate text-[15px] font-semibold text-roman-text-main xl:text-base">{normalizedRequester}</span>
         </div>
         <span className="whitespace-nowrap text-[11px] font-serif italic text-roman-text-sub xl:text-xs">
           {formatDateTimeSafe(time)}
         </span>
       </div>
 
-      <div className="mb-1.5 truncate text-[15px] font-medium text-roman-text-main xl:mb-2 xl:text-base">{subject}</div>
+      <div className="mb-1.5 truncate text-[15px] font-medium text-roman-text-main xl:mb-2 xl:text-base">{normalizedSubject}</div>
 
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-serif text-roman-text-sub">
         <StatusBadge status={status} />
@@ -62,15 +66,15 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
             <span className="opacity-50">•</span>
             <span
               className={`flex items-center gap-1 font-medium ${
-                priority === 'Urgente'
+                normalizedPriority === 'Urgente'
                   ? 'text-red-600'
-                  : priority === 'Alta'
+                  : normalizedPriority === 'Alta'
                     ? 'text-roman-primary'
                     : 'text-roman-text-sub'
               }`}
             >
-              {priority === 'Urgente' && <AlertCircle size={10} />}
-              {priority}
+              {normalizedPriority === 'Urgente' && <AlertCircle size={10} />}
+              {normalizedPriority}
             </span>
           </>
         )}

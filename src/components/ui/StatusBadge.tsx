@@ -1,4 +1,5 @@
-﻿import React from 'react';
+import React from 'react';
+import { repairMojibake } from '../../utils/text';
 
 interface StatusBadgeProps {
   status: string;
@@ -6,54 +7,48 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
+  const normalizedStatusText = repairMojibake(status);
   let bgColor = 'bg-roman-bg';
   let textColor = 'text-roman-text-main';
   let dotColor = 'bg-roman-text-sub';
   let borderColor = 'border-roman-border';
 
-  const normalizedStatus = status
+  const normalizedStatus = normalizedStatusText
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
   if (normalizedStatus.includes('nova os')) {
-    // Novo — azul (entrada)
     bgColor = 'bg-sky-50';
     textColor = 'text-sky-700';
     dotColor = 'bg-sky-500';
     borderColor = 'border-sky-200';
   } else if (normalizedStatus.includes('aguardando parecer') || normalizedStatus.includes('aguardando aprovacao da solucao')) {
-    // Triagem / aprovação técnica — violeta
     bgColor = 'bg-violet-50';
     textColor = 'text-violet-700';
     dotColor = 'bg-violet-500';
     borderColor = 'border-violet-200';
   } else if (normalizedStatus.includes('orcamento') || normalizedStatus.includes('cotacao')) {
-    // Orçamento — âmbar
     bgColor = 'bg-amber-50';
     textColor = 'text-amber-700';
     dotColor = 'bg-amber-500';
     borderColor = 'border-amber-200';
   } else if (normalizedStatus.includes('contrato') || normalizedStatus.includes('preliminares')) {
-    // Contrato / ações preliminares — laranja
     bgColor = 'bg-orange-50';
     textColor = 'text-orange-700';
     dotColor = 'bg-orange-500';
     borderColor = 'border-orange-200';
   } else if (normalizedStatus.includes('em andamento') || normalizedStatus.includes('execucao')) {
-    // Em execução — esmeralda (em curso)
     bgColor = 'bg-emerald-50';
     textColor = 'text-emerald-700';
     dotColor = 'bg-emerald-500';
     borderColor = 'border-emerald-200';
   } else if (normalizedStatus.includes('validacao') || normalizedStatus.includes('manutencao')) {
-    // Aguardando validação do solicitante — cyan
     bgColor = 'bg-cyan-50';
     textColor = 'text-cyan-700';
     dotColor = 'bg-cyan-500';
     borderColor = 'border-cyan-200';
   } else if (normalizedStatus.includes('pagamento')) {
-    // Pagamento — azul-índigo
     bgColor = 'bg-indigo-50';
     textColor = 'text-indigo-700';
     dotColor = 'bg-indigo-500';
@@ -72,7 +67,7 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border ${borderColor} px-2.5 py-1 text-xs font-medium ${bgColor} ${textColor} ${className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} aria-hidden="true"></span>
-      {status}
+      {normalizedStatusText}
     </span>
   );
 }
