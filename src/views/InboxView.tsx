@@ -1597,6 +1597,8 @@ export function InboxView() {
   const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
   const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
   const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
+  const [quoteEditorFocus, setQuoteEditorFocus] = useState<number | 'all'>('all');
+  const [expandedQuoteItems, setExpandedQuoteItems] = useState<Record<string, boolean>>({});
   const quoteUnitOptions = useMemo(() => {
     const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
     additionalQuoteUnits.forEach(unit => {
@@ -1692,7 +1694,23 @@ export function InboxView() {
     setShowQuoteContextPanel(false);
     setShowQuoteHistoryPanel(false);
     setShowQuoteComparisonPanel(false);
+    setQuoteEditorFocus('all');
   }, [showQuotesModal, activeTicketId, quoteRoundType]);
+
+  useEffect(() => {
+    setExpandedQuoteItems(current => {
+      const next = { ...current };
+      quotes.forEach((quote, quoteIndex) => {
+        quote.items.forEach((item, itemIndex) => {
+          const key = `${quoteIndex}:${item.id}`;
+          if (!(key in next)) {
+            next[key] = itemIndex < 2;
+          }
+        });
+      });
+      return next;
+    });
+  }, [quotes]);
 
   // useMemo evita recalcular em todo re-render
   const filteredTickets = useMemo(() => tickets.filter(t => {
@@ -1809,6 +1827,14 @@ export function InboxView() {
         quote.items.reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0)
       ),
     [quotes]
+  );
+
+  const visibleQuoteEditors = useMemo(
+    () =>
+      quotes
+        .map((quote, index) => ({ quote, index }))
+        .filter(entry => quoteEditorFocus === 'all' || entry.index === quoteEditorFocus),
+    [quoteEditorFocus, quotes]
   );
 
   const persistedServicePreference = useMemo(() => {
@@ -1982,6 +2008,27 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const buildQuoteItemUnitKey = (quoteIndex: number, itemId: string) => `${quoteIndex}:${itemId}`;
+  const buildQuoteEditorItemKey = (quoteIndex: number, itemId: string) => `${quoteIndex}:${itemId}`;
+
+  const isQuoteItemExpanded = (quoteIndex: number, itemId: string) =>
+    expandedQuoteItems[buildQuoteEditorItemKey(quoteIndex, itemId)] ?? false;
+
+  const toggleQuoteItemExpanded = (quoteIndex: number, itemId: string) => {
+    const key = buildQuoteEditorItemKey(quoteIndex, itemId);
+    setExpandedQuoteItems(current => ({ ...current, [key]: !current[key] }));
+  };
+
+  const setAllQuoteItemsExpanded = (quoteIndex: number, expanded: boolean) => {
+    setExpandedQuoteItems(current => {
+      const next = { ...current };
+      const quote = quotes[quoteIndex];
+      if (!quote) return next;
+      quote.items.forEach(item => {
+        next[buildQuoteEditorItemKey(quoteIndex, item.id)] = expanded;
+      });
+      return next;
+    });
+  };
 
   const handleQuoteItemUnitSelect = (quoteIndex: number, itemId: string, selectedValue: string) => {
     const itemKey = buildQuoteItemUnitKey(quoteIndex, itemId);
@@ -2013,19 +2060,49 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleAddQuoteItem = (quoteIndex: number) => {
+    const newItem = createEmptyQuoteItem(activeTicket.serviceCatalogName || '', suggestedQuoteMaterials[0]?.unit || '');
     setQuotes(current =>
       current.map((quote, index) =>
-        index === quoteIndex ? { ...quote, items: [...quote.items, createEmptyQuoteItem(activeTicket.serviceCatalogName || '', suggestedQuoteMaterials[0]?.unit || '')] } : quote
+        index === quoteIndex ? { ...quote, items: [...quote.items, newItem] } : quote
       )
     );
+    setExpandedQuoteItems(current => ({ ...current, [buildQuoteEditorItemKey(quoteIndex, newItem.id)]: true }));
+  };
+
+  const handleAddMultipleQuoteItems = (quoteIndex: number, count: number) => {
+    const safeCount = Math.max(1, Math.min(20, Number(count || 1)));
+    const newItems = Array.from({ length: safeCount }, () =>
+      createEmptyQuoteItem(activeTicket.serviceCatalogName || '', suggestedQuoteMaterials[0]?.unit || '')
+    );
+
+    setQuotes(current =>
+      current.map((quote, index) =>
+        index === quoteIndex ? { ...quote, items: [...quote.items, ...newItems] } : quote
+      )
+    );
+
+    setExpandedQuoteItems(current => {
+      const next = { ...current };
+      newItems.forEach((item, itemIndex) => {
+        next[buildQuoteEditorItemKey(quoteIndex, item.id)] = itemIndex === 0;
+      });
+      return next;
+    });
   };
 
   const handleRemoveQuoteItem = (quoteIndex: number, itemId: string) => {
     const itemKey = buildQuoteItemUnitKey(quoteIndex, itemId);
+    const editorKey = buildQuoteEditorItemKey(quoteIndex, itemId);
     setPendingCustomUnitByItem(current => {
       if (!(itemKey in current)) return current;
       const next = { ...current };
       delete next[itemKey];
+      return next;
+    });
+    setExpandedQuoteItems(current => {
+      if (!(editorKey in current)) return current;
+      const next = { ...current };
+      delete next[editorKey];
       return next;
     });
     setQuotes(current =>
@@ -4183,7 +4260,35 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </>
               )}
 
-              <div id="quote-editor-start" className="mb-3 flex justify-end">
+              <div id="quote-editor-start" className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-roman-text-sub">Exibir:</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuoteEditorFocus('all')}
+                    className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      quoteEditorFocus === 'all'
+                        ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                        : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {quotes.map((_, index) => (
+                    <button
+                      key={`quote-focus-${index}`}
+                      type="button"
+                      onClick={() => setQuoteEditorFocus(index)}
+                      className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        quoteEditorFocus === index
+                          ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                          : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
+                      }`}
+                    >
+                      Cotação {index + 1}
+                    </button>
+                  ))}
+                </div>
                 {quotes.length < getRoundMaxQuoteSlots(quoteRoundType) && (
                   <button
                     type="button"
@@ -4196,9 +4301,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6 items-start">
-                {quotes.map((quote, i) => (
-                  <div key={i} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
+              <div className={`grid grid-cols-1 gap-4 mb-6 items-start ${quoteEditorFocus === 'all' ? 'xl:grid-cols-2 2xl:grid-cols-3' : 'xl:grid-cols-1'}`}>
+                {visibleQuoteEditors.map(({ quote, index: i }) => (
+                  <div key={`quote-editor-${i}`} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-roman-border/50">
                       <span className="text-sm font-medium text-roman-text-main">Cotação {i + 1}</span>
                       <div className="flex items-center gap-3">
@@ -4268,15 +4373,38 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         </div>
                       </div>
                       <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                           <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Itens do orçamento</label>
-                          <button
-                            type="button"
-                            onClick={() => handleAddQuoteItem(i)}
-                            className="text-[11px] font-medium text-roman-primary hover:underline"
-                          >
-                            + Adicionar item
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAllQuoteItemsExpanded(i, false)}
+                              className="text-[11px] font-medium text-roman-text-sub hover:underline"
+                            >
+                              Recolher todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAllQuoteItemsExpanded(i, true)}
+                              className="text-[11px] font-medium text-roman-text-sub hover:underline"
+                            >
+                              Expandir todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAddMultipleQuoteItems(i, 5)}
+                              className="text-[11px] font-medium text-roman-primary hover:underline"
+                            >
+                              +5 itens
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAddQuoteItem(i)}
+                              className="text-[11px] font-medium text-roman-primary hover:underline"
+                            >
+                              +1 item
+                            </button>
+                          </div>
                         </div>
 
                         {suggestedQuoteMaterials.length > 0 && (
@@ -4301,19 +4429,40 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           </div>
                         )}
 
-                        <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+                        <div className="max-h-[30rem] space-y-3 overflow-y-auto pr-1">
                           {quote.items.map((item, itemIndex) => (
                             <div key={item.id} className="rounded-sm border border-roman-border bg-roman-bg p-3">
-                              <div className="mb-2 flex items-center justify-between">
-                                <div className="text-[11px] font-medium text-roman-text-main">Item {itemIndex + 1}</div>
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveQuoteItem(i, item.id)}
-                                  className="text-[11px] text-red-700 hover:underline"
+                                  onClick={() => toggleQuoteItemExpanded(i, item.id)}
+                                  className="text-left"
                                 >
-                                  Remover
+                                  <div className="text-[11px] font-medium text-roman-text-main">
+                                    Item {itemIndex + 1} · {item.description || item.materialName || 'Sem descrição'}
+                                  </div>
+                                  <div className="text-[11px] text-roman-text-sub">
+                                    {item.quantity != null ? `${item.quantity}` : '-'} {item.unit || ''} · Custo: {item.costUnitPrice || '-'} · Total: {item.totalPrice || '-'}
+                                  </div>
                                 </button>
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleQuoteItemExpanded(i, item.id)}
+                                    className="text-[11px] text-roman-primary hover:underline"
+                                  >
+                                    {isQuoteItemExpanded(i, item.id) ? 'Recolher' : 'Editar'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveQuoteItem(i, item.id)}
+                                    className="text-[11px] text-red-700 hover:underline"
+                                  >
+                                    Remover
+                                  </button>
+                                </div>
                               </div>
+                              {isQuoteItemExpanded(i, item.id) && (
                               <div className="space-y-2">
                                 <select
                                   value={normalizeQuoteSection(item.section)}
@@ -4424,6 +4573,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg text-roman-text-main/80 cursor-not-allowed"
                                 />
                               </div>
+                              )}
                             </div>
                           ))}
                         </div>
