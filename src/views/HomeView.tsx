@@ -186,7 +186,7 @@ export function HomeView() {
   }, [regions, scopedTickets, selectedRegion, sites]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="max-w-7xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm">
           <div className="text-[10px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">Painel operacional</div>

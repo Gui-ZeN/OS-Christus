@@ -848,7 +848,7 @@ export function ApprovalsView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={Shield}
@@ -861,7 +861,7 @@ export function ApprovalsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8 relative">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8 relative">
       <FloatingToast message={toast} />
       <div className="max-w-6xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">

@@ -88,7 +88,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={Mail}
@@ -220,7 +220,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="mx-auto max-w-6xl">{content}</div>
     </div>
   );

@@ -684,7 +684,7 @@ export function SettingsView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={Mail}
@@ -709,7 +709,7 @@ export function SettingsView() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-5 xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="mx-auto max-w-[1500px] space-y-5">
         <section className="rounded-[1.5rem] border border-stone-200 bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:px-8">
           <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>

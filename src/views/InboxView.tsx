@@ -77,6 +77,7 @@ const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
 const INITIAL_MIN_QUOTE_SLOTS = 2;
 const INITIAL_MAX_QUOTE_SLOTS = 3;
 const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
+const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
 
 const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.NEW,
@@ -1463,6 +1464,10 @@ export function InboxView() {
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showMobileTicketList, setShowMobileTicketList] = useState(false);
   const [showMobileContext, setShowMobileContext] = useState(false);
+  const [isCompactInboxWorkspace, setIsCompactInboxWorkspace] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth >= 768 && window.innerWidth < NOTEBOOK_CONTEXT_PANEL_BREAKPOINT;
+  });
   const [showQuotesModal, setShowQuotesModal] = useState(false);
   const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
@@ -1535,6 +1540,20 @@ export function InboxView() {
     setShowMobileTicketList(false);
     setShowMobileContext(false);
   }, [activeTicketId]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const compact = window.innerWidth >= 768 && window.innerWidth < NOTEBOOK_CONTEXT_PANEL_BREAKPOINT;
+      setIsCompactInboxWorkspace(compact);
+      if (!compact && window.innerWidth >= 768) {
+        setShowMobileContext(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!shouldLockBodyScroll) return;
@@ -2348,7 +2367,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
       {isMobileOverlayOpen && (
         <button
-          className="md:hidden fixed inset-0 bg-black/40 z-30"
+          className={`${isCompactInboxWorkspace ? '' : 'md:hidden'} fixed inset-0 bg-black/40 z-30`}
           onClick={() => {
             setShowMobileTicketList(false);
             setShowMobileContext(false);
@@ -2555,6 +2574,19 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </button>
           </div>
           <div className="ml-auto flex items-center gap-3 px-4">
+            {isCompactInboxWorkspace && (
+              <button
+                onClick={() => {
+                  setShowMobileContext(prev => !prev);
+                  setShowMobileTicketList(false);
+                }}
+                className="hidden md:inline-flex items-center rounded-sm border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary/40"
+                aria-expanded={showMobileContext}
+                aria-controls="context-drawer"
+              >
+                Painel da OS
+              </button>
+            )}
             <div className="hidden md:flex items-center gap-2 mr-4 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs text-roman-text-sub">
               <User size={14} />
               <span>Visualizando como: <strong>{displayActorLabel}</strong></span>
@@ -2904,7 +2936,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 h-full w-[88vw] max-w-96 md:w-[15rem] lg:w-[16rem] xl:w-[17.5rem] min-[1500px]:w-[18.5rem] min-[1800px]:w-[21rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside
+            id="context-drawer"
+            className={`fixed inset-y-0 right-0 z-40 h-full w-[88vw] max-w-96 md:w-[15rem] lg:w-[16rem] xl:w-[17.5rem] min-[1500px]:w-[18.5rem] min-[1800px]:w-[21rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${
+              isCompactInboxWorkspace
+                ? (showMobileContext ? 'translate-x-0' : 'translate-x-full')
+                : (showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0')
+            } ${isCompactInboxWorkspace ? '' : 'md:static'}`}
+          >
             <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Painel da OS</span>
               <button
@@ -2912,7 +2951,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   e.stopPropagation();
                   setShowMobileContext(false);
                 }}
-                className="md:hidden text-roman-text-sub hover:text-roman-text-main"
+                className={`${isCompactInboxWorkspace ? '' : 'md:hidden'} text-roman-text-sub hover:text-roman-text-main`}
                 aria-label="Fechar painel de dados"
               >
                 <X size={16} />
@@ -4663,7 +4702,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     </div>
   );
 }
-
 
 
 

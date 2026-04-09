@@ -235,7 +235,7 @@ export function AuditLogsView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={History}
@@ -248,7 +248,7 @@ export function AuditLogsView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8 flex flex-col gap-4 border-b border-roman-border pb-4 md:flex-row md:items-end md:justify-between">
           <div>

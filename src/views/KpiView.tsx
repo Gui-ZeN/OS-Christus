@@ -560,7 +560,7 @@ export function KpiView() {
 
   if (!canAccess) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
         <div className="max-w-4xl mx-auto min-h-[60vh]">
           <EmptyState
             icon={TrendingUp}
@@ -573,7 +573,7 @@ export function KpiView() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>

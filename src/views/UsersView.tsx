@@ -214,7 +214,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
 
   if (!canAccess) {
     return (
-      <div className={embedded ? '' : 'flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8'}>
+      <div className={embedded ? '' : 'flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8'}>
         <div className={embedded ? '' : 'max-w-4xl mx-auto min-h-[60vh]'}>
           <EmptyState icon={Plus} title="Acesso restrito" description="A administração de usuários está disponível apenas para perfis Admin." />
         </div>
@@ -223,7 +223,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div className={embedded ? '' : 'flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-8'}>
+    <div className={embedded ? '' : 'flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8'}>
       <div className={embedded ? '' : 'max-w-6xl mx-auto'}>
         <header className="mb-8 flex flex-col gap-4 border-b border-roman-border pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
