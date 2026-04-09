@@ -1597,6 +1597,26 @@ export function InboxView() {
   const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
   const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
   const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
+  const toggleQuoteMetaPanel = (panel: 'context' | 'history' | 'comparison') => {
+    const isContextOpen = showQuoteContextPanel;
+    const isHistoryOpen = showQuoteHistoryPanel;
+    const isComparisonOpen = showQuoteComparisonPanel;
+    const isPanelOpen =
+      (panel === 'context' && isContextOpen) ||
+      (panel === 'history' && isHistoryOpen) ||
+      (panel === 'comparison' && isComparisonOpen);
+
+    if (isPanelOpen) {
+      setShowQuoteContextPanel(false);
+      setShowQuoteHistoryPanel(false);
+      setShowQuoteComparisonPanel(false);
+      return;
+    }
+
+    setShowQuoteContextPanel(panel === 'context');
+    setShowQuoteHistoryPanel(panel === 'history');
+    setShowQuoteComparisonPanel(panel === 'comparison');
+  };
   const [quoteEditorFocus, setQuoteEditorFocus] = useState<number | 'all'>(0);
   const [expandedQuoteItems, setExpandedQuoteItems] = useState<Record<string, boolean>>({});
   const quoteUnitOptions = useMemo(() => {
@@ -3830,32 +3850,28 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowQuoteContextPanel(prev => !prev)}
+                  onClick={() => toggleQuoteMetaPanel('context')}
                   className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
                 >
                   <ChevronDown size={12} className={`transition-transform ${showQuoteContextPanel ? 'rotate-180' : ''}`} />
                   {showQuoteContextPanel ? 'Ocultar contexto' : 'Mostrar contexto'}
                 </button>
-                {showQuoteContextPanel && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuoteHistoryPanel(prev => !prev)}
-                      className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                    >
-                      <ChevronDown size={12} className={`transition-transform ${showQuoteHistoryPanel ? 'rotate-180' : ''}`} />
-                      Base histórica
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuoteComparisonPanel(prev => !prev)}
-                      className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                    >
-                      <ChevronDown size={12} className={`transition-transform ${showQuoteComparisonPanel ? 'rotate-180' : ''}`} />
-                      Comparativo
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={() => toggleQuoteMetaPanel('history')}
+                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                >
+                  <ChevronDown size={12} className={`transition-transform ${showQuoteHistoryPanel ? 'rotate-180' : ''}`} />
+                  Base histórica
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleQuoteMetaPanel('comparison')}
+                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                >
+                  <ChevronDown size={12} className={`transition-transform ${showQuoteComparisonPanel ? 'rotate-180' : ''}`} />
+                  Comparativo
+                </button>
               </div>
 
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
