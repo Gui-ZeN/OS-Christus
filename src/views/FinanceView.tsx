@@ -254,6 +254,7 @@ function getFinanceNextActionLabel(ticket: Ticket) {
 }
 
 type FinanceTab = 'execution' | 'financial' | 'guarantee' | 'documents';
+type PaymentFlowListTab = 'pending' | 'paid';
 
 function FinanceSection({
   title,
@@ -492,6 +493,7 @@ export function FinanceView() {
   const [historyGuaranteeFilter, setHistoryGuaranteeFilter] = useState<'all' | 'in_guarantee' | 'expiring_30'>('all');
   const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
+  const [paymentFlowTabByTicket, setPaymentFlowTabByTicket] = useState<Record<string, PaymentFlowListTab>>({});
   const [paymentEmailModal, setPaymentEmailModal] = useState<PaymentEmailModalState | null>(null);
 
   useEffect(() => {
@@ -728,6 +730,18 @@ export function FinanceView() {
       for (const entry of financeTickets) {
         if (!(entry.ticket.id in next)) {
           next[entry.ticket.id] = 'financial';
+        }
+      }
+      return next;
+    });
+  }, [financeTickets]);
+
+  useEffect(() => {
+    setPaymentFlowTabByTicket(prev => {
+      const next = { ...prev };
+      for (const entry of financeTickets) {
+        if (!(entry.ticket.id in next)) {
+          next[entry.ticket.id] = 'pending';
         }
       }
       return next;
@@ -2014,7 +2028,53 @@ export function FinanceView() {
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {payments.map(payment => (
+                          {(() => {
+                            const pendingPayments = payments.filter(item => item.status !== 'paid');
+                            const paidPayments = payments.filter(item => item.status === 'paid');
+                            const selectedTab = paymentFlowTabByTicket[ticket.id] || 'pending';
+                            const visiblePayments = selectedTab === 'paid' ? paidPayments : pendingPayments;
+
+                            return (
+                              <>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="inline-flex rounded-full border border-roman-border bg-roman-bg p-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPaymentFlowTabByTicket(prev => ({ ...prev, [ticket.id]: 'pending' }))}
+                                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                        selectedTab === 'pending'
+                                          ? 'bg-roman-sidebar text-white'
+                                          : 'text-roman-text-main hover:bg-roman-surface'
+                                      }`}
+                                    >
+                                      Pendentes ({pendingPayments.length})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPaymentFlowTabByTicket(prev => ({ ...prev, [ticket.id]: 'paid' }))}
+                                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                        selectedTab === 'paid'
+                                          ? 'bg-roman-sidebar text-white'
+                                          : 'text-roman-text-main hover:bg-roman-surface'
+                                      }`}
+                                    >
+                                      Pagos ({paidPayments.length})
+                                    </button>
+                                  </div>
+                                  <div className="text-xs text-roman-text-sub">
+                                    Exibindo {selectedTab === 'paid' ? 'lançamentos pagos' : 'lançamentos pendentes'}
+                                  </div>
+                                </div>
+
+                                {visiblePayments.length === 0 && (
+                                  <div className="rounded-sm border border-dashed border-roman-border bg-roman-bg px-3 py-3 text-sm text-roman-text-sub font-serif italic">
+                                    {selectedTab === 'paid'
+                                      ? 'Nenhum lançamento pago ainda.'
+                                      : 'Nenhum lançamento pendente no momento.'}
+                                  </div>
+                                )}
+
+                                {visiblePayments.map(payment => (
                             (() => {
                               const pendingPaymentsForTicket = payments.filter(item => item.status !== 'paid');
                               const isFinalInstallment = pendingPaymentsForTicket.length === 1 && pendingPaymentsForTicket[0].id === payment.id;
@@ -2148,6 +2208,8 @@ export function FinanceView() {
                                 >
                                   {processingId === `${ticket.id}:${payment.id}` ? (
                                     <><Loader2 size={15} className="animate-spin" /> Processando...</>
+                                  ) : payment.status === 'paid' ? (
+                                    <><CheckCircle size={15} /> Pago</>
                                   ) : payment.status !== 'approved' ? (
                                     <><DollarSign size={15} /> Aguardando avanço</>
                                   ) : canConfirmPayment ? (
@@ -2160,7 +2222,10 @@ export function FinanceView() {
                             </div>
                               );
                             })()
-                          ))}
+                                ))}
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </FinanceSection>
