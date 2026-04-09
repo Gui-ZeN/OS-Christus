@@ -1,4 +1,4 @@
-Ôªøimport React, { Component, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BarChart2,
   DollarSign,
@@ -20,18 +20,53 @@ import { SidebarIcon } from './components/ui/SidebarIcon';
 import { useApp } from './context/AppContext';
 import { ViewState } from './types';
 
-const KpiView = lazy(async () => ({ default: (await import('./views/KpiView')).KpiView }));
-const SettingsView = lazy(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
-const TrackingView = lazy(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
-const ApprovalsView = lazy(async () => ({ default: (await import('./views/ApprovalsView')).ApprovalsView }));
-const FinanceView = lazy(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
-const HomeView = lazy(async () => ({ default: (await import('./views/HomeView')).HomeView }));
-const InboxView = lazy(async () => ({ default: (await import('./views/InboxView')).InboxView }));
-const SplitLoginView = lazy(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
-const LandingView = lazy(async () => ({ default: (await import('./views/LandingView')).LandingView }));
-const PublicFormView = lazy(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
-const EmailHealthView = lazy(async () => ({ default: (await import('./views/EmailHealthView')).EmailHealthView }));
-const AuditLogsView = lazy(async () => ({ default: (await import('./views/AuditLogsView')).AuditLogsView }));
+const CHUNK_RELOAD_KEY = 'os-chunk-reloaded-once';
+function isChunkLoadError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('failed to fetch dynamically imported module') ||
+    normalized.includes('importing a module script failed') ||
+    normalized.includes('chunkloaderror') ||
+    normalized.includes('loading chunk')
+  );
+}
+function lazyWithAutoRecovery<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
+  return lazy(async () => {
+    try {
+      const module = await loader();
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+      }
+      return module;
+    } catch (error) {
+      if (typeof window !== 'undefined' && isChunkLoadError(error)) {
+        const alreadyReloaded = window.sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1';
+        if (!alreadyReloaded) {
+          window.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+          const url = new URL(window.location.href);
+          url.searchParams.set('__chunkFix', String(Date.now()));
+          window.location.replace(url.toString());
+        } else {
+          window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+        }
+      }
+      throw error;
+    }
+  });
+}
+const KpiView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/KpiView')).KpiView }));
+const SettingsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
+const TrackingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
+const ApprovalsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/ApprovalsView')).ApprovalsView }));
+const FinanceView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
+const HomeView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/HomeView')).HomeView }));
+const InboxView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/InboxView')).InboxView }));
+const SplitLoginView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
+const LandingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/LandingView')).LandingView }));
+const PublicFormView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
+const EmailHealthView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/EmailHealthView')).EmailHealthView }));
+const AuditLogsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/AuditLogsView')).AuditLogsView }));
 
 export const VIEWS = {
   LANDING: 'landing',
@@ -319,7 +354,7 @@ export default function App() {
           <Landmark size={22} />
         </div>
         <nav className="flex flex-col gap-1.5 w-full px-1.5">
-          <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="In√≠cio" />
+          <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="InÌcio" />
           {canAccessInbox && (
             <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           )}
@@ -327,7 +362,7 @@ export default function App() {
           {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
           {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
           {canAccessKpi && <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />}
-          {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configura√ß√µes" />}
+          {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="ConfiguraÁıes" />}
         </nav>
         <div className="mt-auto flex flex-col gap-3 px-2.5">
           <div className="relative" ref={themeMenuRef}>
@@ -370,7 +405,7 @@ export default function App() {
           <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="flex items-center justify-center text-white/70 hover:text-white transition-colors py-2" title="Sair" aria-label="Sair">
             <LogOut size={18} />
           </button>
-          <div className="flex items-center justify-center rounded-xl border border-white/10 bg-roman-sidebar-light px-1.5 py-1.5" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usu√°rio'}`}>
+          <div className="flex items-center justify-center rounded-xl border border-white/10 bg-roman-sidebar-light px-1.5 py-1.5" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usu·rio'}`}>
             <div className="w-8 h-8 rounded-full bg-roman-sidebar border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs">
               {initials}
             </div>
@@ -441,7 +476,7 @@ export default function App() {
                             className="w-full max-h-[60vh] object-contain bg-roman-bg"
                           />
                         ) : (
-                          <div className="h-80 flex items-center justify-center text-roman-text-sub font-serif italic">Pr√©-visualiza√ß√£o indispon√≠vel</div>
+                          <div className="h-80 flex items-center justify-center text-roman-text-sub font-serif italic">PrÈ-visualizaÁ„o indisponÌvel</div>
                         )}
                       </div>
                     ))}
@@ -455,17 +490,17 @@ export default function App() {
                 ) : attachmentPreview.type === 'image' ? (
                   <div className="flex flex-col items-center justify-center gap-4 text-roman-text-sub">
                     <ImageIcon size={64} strokeWidth={1} />
-                    <p className="font-serif italic text-sm">Pr√©-visualiza√ß√£o indispon√≠vel</p>
+                    <p className="font-serif italic text-sm">PrÈ-visualizaÁ„o indisponÌvel</p>
                     <p className="text-xs opacity-60">{attachmentPreview.title}</p>
                   </div>
                 ) : (
                   <div className="w-full max-w-2xl h-full bg-roman-surface shadow-lg border border-roman-border p-12 flex flex-col">
                     <div className="border-b-2 border-roman-border pb-4 mb-8 flex justify-between items-end">
                       <h1 className="text-3xl font-serif font-bold text-roman-text-main">Documento</h1>
-                      <span className="text-roman-text-sub font-mono">Pr√©via indispon√≠vel</span>
+                      <span className="text-roman-text-sub font-mono">PrÈvia indisponÌvel</span>
                     </div>
                     <div className="space-y-4 flex-1 text-roman-text-sub">
-                      <p>O arquivo n√£o p√¥de ser renderizado no navegador.</p>
+                      <p>O arquivo n„o pÙde ser renderizado no navegador.</p>
                       {previewUrl && (
                         <a href={previewUrl} target="_blank" rel="noreferrer" className="text-roman-primary underline">Abrir arquivo em nova aba</a>
                       )}
@@ -480,6 +515,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
