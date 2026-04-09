@@ -31,7 +31,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   return (
     <button
       onClick={onClick}
-      className={`w-full cursor-pointer border-b border-roman-border p-4 text-left transition-colors ${
+      className={`w-full cursor-pointer border-b border-roman-border p-3 xl:p-4 text-left transition-colors ${
         active
           ? 'border-l-2 border-l-roman-primary bg-roman-bg'
           : isWaitingValidation
@@ -41,17 +41,17 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
             : 'border-l-2 border-l-transparent hover:bg-roman-bg'
       }`}
     >
-      <div className="mb-1 flex items-start justify-between">
+      <div className="mb-1 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 pr-2">
           {isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-roman-primary" aria-hidden="true" />}
-          <span className="truncate font-semibold text-roman-text-main">{requester}</span>
+          <span className="truncate text-[15px] font-semibold text-roman-text-main xl:text-base">{requester}</span>
         </div>
-        <span className="whitespace-nowrap text-xs font-serif italic text-roman-text-sub">
+        <span className="whitespace-nowrap text-[11px] font-serif italic text-roman-text-sub xl:text-xs">
           {formatDateTimeSafe(time)}
         </span>
       </div>
 
-      <div className="mb-2 truncate font-medium text-roman-text-main">{subject}</div>
+      <div className="mb-1.5 truncate text-[15px] font-medium text-roman-text-main xl:mb-2 xl:text-base">{subject}</div>
 
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-serif text-roman-text-sub">
         <StatusBadge status={status} />

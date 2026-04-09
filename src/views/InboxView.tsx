@@ -2358,7 +2358,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 h-full w-[88vw] max-w-96 md:w-[18.5rem] xl:w-[20rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 h-full w-[88vw] max-w-96 md:w-[15.5rem] lg:w-[16.5rem] xl:w-[17.5rem] min-[1500px]:w-[18.5rem] min-[1800px]:w-[20rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-b from-roman-bg to-roman-surface">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -2586,7 +2586,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </span>
                     ) : null}
                   </div>
-                  <h1 className="text-[2rem] leading-tight font-serif font-medium text-roman-text-main">{activeTicket.subject}</h1>
+                  <h1 className="text-[1.7rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.85rem] xl:text-[2rem]">{activeTicket.subject}</h1>
                 </div>
                 <div className="relative">
                   <button
@@ -2677,7 +2677,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   if (item.type === 'system') {
                     return (
                       <div key={index} className="flex justify-center">
-                        <div className="max-w-[82%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub">
+                        <div className="max-w-[92%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub xl:max-w-[86%]">
                           <div className="flex items-center justify-center gap-2 text-center">
                             <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[10px] md:text-[11px]">
                               <Clock size={11} />
@@ -2719,7 +2719,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                   return (
                     <div key={index} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex w-full max-w-[80%] gap-3 ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <div className={`flex w-full max-w-[94%] gap-3 xl:max-w-[88%] ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
                         <div className={`w-9 h-9 rounded-sm border flex items-center justify-center font-serif text-base shrink-0 ${
                           isExternalMessage
                             ? 'bg-roman-primary/10 text-roman-primary border-roman-primary/20'
@@ -2779,23 +2779,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             <div className="border-t border-roman-border bg-roman-bg/95 px-4 pb-4 pt-3 backdrop-blur md:px-5">
               <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode !== 'public' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
-                <div className="flex border-b border-roman-border bg-roman-bg/50">
+                <div className="flex overflow-x-auto border-b border-roman-border bg-roman-bg/50">
                   <button
                     onClick={() => setReplyMode('internal')}
-                    className={`px-4 py-2 font-serif text-base tracking-wide flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     <Lock size={14} /> {internalTabLabel}
                   </button>
                   <button
                     onClick={() => setReplyMode('public')}
-                    className={`px-4 py-2 font-serif text-base tracking-wide ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     Mensagem ao Solicitante
                   </button>
                   {canMessageDirector && (
                     <button
                       onClick={() => setReplyMode('director')}
-                      className={`px-4 py-2 font-serif text-base tracking-wide ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                      className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                     >
                       Mensagem à Diretoria
                     </button>
@@ -2904,7 +2904,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           </div>
 
           {/* Context Panel (Right Sidebar) */}
-          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 h-full w-[88vw] max-w-96 md:w-[18rem] xl:w-[21rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <aside id="context-drawer" className={`fixed md:static inset-y-0 right-0 z-40 h-full w-[88vw] max-w-96 md:w-[15rem] lg:w-[16rem] xl:w-[17.5rem] min-[1500px]:w-[18.5rem] min-[1800px]:w-[21rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
             <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Painel da OS</span>
               <button
@@ -4663,7 +4663,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     </div>
   );
 }
-
 
 
 
