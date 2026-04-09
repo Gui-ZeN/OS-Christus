@@ -11,7 +11,7 @@ function sanitizeFileName(value: string) {
     .replace(/^-|-$/g, '');
 }
 
-function resolveContentType(file: File, fallback: 'application/pdf' | 'image/png' = 'application/pdf') {
+function resolveContentType(file: File, fallback = 'application/octet-stream') {
   const explicit = String(file.type || '').trim().toLowerCase();
   if (explicit) return explicit;
   const lowerName = String(file.name || '').trim().toLowerCase();
@@ -19,6 +19,16 @@ function resolveContentType(file: File, fallback: 'application/pdf' | 'image/png
   if (lowerName.endsWith('.png')) return 'image/png';
   if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) return 'image/jpeg';
   if (lowerName.endsWith('.webp')) return 'image/webp';
+  if (lowerName.endsWith('.gif')) return 'image/gif';
+  if (lowerName.endsWith('.bmp')) return 'image/bmp';
+  if (lowerName.endsWith('.svg')) return 'image/svg+xml';
+  if (lowerName.endsWith('.doc')) return 'application/msword';
+  if (lowerName.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (lowerName.endsWith('.xls')) return 'application/vnd.ms-excel';
+  if (lowerName.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (lowerName.endsWith('.xml')) return 'application/xml';
+  if (lowerName.endsWith('.csv')) return 'text/csv';
+  if (lowerName.endsWith('.txt')) return 'text/plain';
   return fallback;
 }
 
@@ -59,7 +69,7 @@ export async function uploadPaymentAttachment(ticketId: string, paymentId: strin
   }
 
   const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/pdf');
+  const contentType = resolveContentType(file, 'application/octet-stream');
   const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
   const path = `attachments/tickets/payments/${ticketId}/${paymentId}/${Date.now()}-${safeName}`;
   const storageRef = ref(storage, path);

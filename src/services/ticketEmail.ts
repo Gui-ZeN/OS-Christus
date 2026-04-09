@@ -575,7 +575,8 @@ export async function notifyPaymentDispatch(
   if (recipients.length === 0) return;
 
   const lancamentoLabel = payment.label || `Lançamento ${payment.installmentNumber || 1}`;
-  const subject = `OS-${ticket.id} - Pagamento - ${lancamentoLabel}`;
+  const subject = `${ticket.id} - Pagamento - ${lancamentoLabel}`;
+  const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
 
   const attachmentLinks = buildAttachmentList(payment.attachments || []);
   const bodyLines = [
@@ -586,8 +587,11 @@ export async function notifyPaymentDispatch(
     `Imposto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(taxAmount)}`,
     `Valor a pagar (líquido): ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(netAmount)}`,
   ];
+  if (measurementSheetUrl) {
+    bodyLines.push('', `Planilha de medição: ${measurementSheetUrl}`);
+  }
   if (attachmentLinks.length > 0) {
-    bodyLines.push('', 'Anexos do lançamento:', ...attachmentLinks);
+    bodyLines.push('', 'Anexos do lançamento (links):', ...attachmentLinks);
   }
   const bodyText = bodyLines.join('\n');
 

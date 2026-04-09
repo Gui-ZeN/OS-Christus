@@ -2011,13 +2011,13 @@ export function FinanceView() {
 
                               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                  <div className="text-xs text-roman-text-sub">Anexos do lançamento (PDF, PNG, JPG e similares).</div>
+                                  <div className="text-xs text-roman-text-sub">Anexos do lançamento (PDF, Word, XML, imagens e similares).</div>
                                   <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
                                     {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
                                     <input
                                       type="file"
                                       multiple
-                                      accept=".pdf,image/*"
+                                      accept=".pdf,.doc,.docx,.xml,.csv,.xls,.xlsx,.txt,image/*"
                                       className="hidden"
                                       disabled={isUploadingPaymentAttachment || payment.status === 'paid'}
                                       onChange={event => {
@@ -2183,13 +2183,13 @@ export function FinanceView() {
                           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                               <div className="text-sm font-semibold text-roman-text-main">Laudos e anexos de encerramento</div>
-                              <div className="text-xs text-roman-text-sub mt-1">Envie PDF para laudos e imagens para evidências fotográficas.</div>
+                              <div className="text-xs text-roman-text-sub mt-1">Envie PDF, Word, XML, planilhas e imagens para compor o encerramento.</div>
                             </div>
                             <label className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
                               {uploadingTicketId === ticket.id ? 'Enviando...' : 'Anexar documento'}
                               <input
                                 type="file"
-                                accept=".pdf,image/*"
+                                accept=".pdf,.doc,.docx,.xml,.csv,.xls,.xlsx,.txt,image/*"
                                 className="hidden"
                                 disabled={uploadingTicketId === ticket.id}
                                 onChange={event => {
@@ -2266,7 +2266,7 @@ export function FinanceView() {
         isOpen={paymentEmailModal !== null}
         onClose={() => { if (!paymentEmailModal?.isSending) setPaymentEmailModal(null); }}
         title="Disparar Email de Pagamento"
-        description={paymentEmailModal ? `OS-${paymentEmailModal.ticketId} - Pagamento - ${paymentEmailModal.payment.label || `Lançamento ${paymentEmailModal.payment.installmentNumber || 1}`}` : ''}
+        description={paymentEmailModal ? `${paymentEmailModal.ticketId} - Pagamento - ${paymentEmailModal.payment.label || `Lançamento ${paymentEmailModal.payment.installmentNumber || 1}`}` : ''}
         maxWidthClass="max-w-lg"
         footer={
           paymentEmailModal && (
@@ -2398,8 +2398,6 @@ export function FinanceView() {
     </div>
   );
 }
-
-
 
 
 
