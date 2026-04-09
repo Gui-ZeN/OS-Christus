@@ -218,8 +218,12 @@ select:focus-visible {
 .theme-bridge [class*="bg-blue-100"],
 .theme-bridge [class*="bg-indigo-50"],
 .theme-bridge [class*="bg-indigo-100"],
+.theme-bridge [class*="bg-violet-50"],
+.theme-bridge [class*="bg-violet-100"],
 .theme-bridge [class*="bg-purple-50"],
 .theme-bridge [class*="bg-purple-100"],
+.theme-bridge [class*="bg-cyan-50"],
+.theme-bridge [class*="bg-cyan-100"],
 .theme-bridge [class*="bg-orange-50"],
 .theme-bridge [class*="bg-orange-100"],
 .theme-bridge [class*="bg-emerald-50"],
@@ -227,6 +231,11 @@ select:focus-visible {
 .theme-bridge [class*="bg-green-50"],
 .theme-bridge [class*="bg-green-100"] {
   background-color: color-mix(in srgb, var(--color-roman-primary) 12%, var(--color-roman-bg)) !important;
+}
+
+.theme-bridge [class*="bg-violet-500"],
+.theme-bridge [class*="bg-cyan-500"] {
+  background-color: var(--color-roman-primary) !important;
 }
 
 .theme-bridge [class*="border-amber-200"],
@@ -237,8 +246,12 @@ select:focus-visible {
 .theme-bridge [class*="border-blue-300"],
 .theme-bridge [class*="border-indigo-200"],
 .theme-bridge [class*="border-indigo-300"],
+.theme-bridge [class*="border-violet-200"],
+.theme-bridge [class*="border-violet-300"],
 .theme-bridge [class*="border-purple-200"],
 .theme-bridge [class*="border-purple-300"],
+.theme-bridge [class*="border-cyan-200"],
+.theme-bridge [class*="border-cyan-300"],
 .theme-bridge [class*="border-orange-200"],
 .theme-bridge [class*="border-orange-300"],
 .theme-bridge [class*="border-emerald-200"],
@@ -260,9 +273,15 @@ select:focus-visible {
 .theme-bridge [class*="text-indigo-700"],
 .theme-bridge [class*="text-indigo-800"],
 .theme-bridge [class*="text-indigo-900"],
+.theme-bridge [class*="text-violet-700"],
+.theme-bridge [class*="text-violet-800"],
+.theme-bridge [class*="text-violet-900"],
 .theme-bridge [class*="text-purple-700"],
 .theme-bridge [class*="text-purple-800"],
 .theme-bridge [class*="text-purple-900"],
+.theme-bridge [class*="text-cyan-700"],
+.theme-bridge [class*="text-cyan-800"],
+.theme-bridge [class*="text-cyan-900"],
 .theme-bridge [class*="text-orange-700"],
 .theme-bridge [class*="text-orange-800"],
 .theme-bridge [class*="text-orange-900"],
