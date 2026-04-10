@@ -96,6 +96,14 @@ function resolveExpectedBaselineValue(contract?: ContractRecord, payments: Payme
   return parseCurrency(payments[0]?.value || '');
 }
 
+function resolveCompletionBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
+  const expectedBaseline = resolveExpectedBaselineValue(contract, payments);
+  const realizedValue = parseCurrency(contract?.realizedValue || '');
+  const contractValue = parseCurrency(contract?.value || '');
+  const completionBaseline = realizedValue > 0 ? realizedValue : contractValue > 0 ? contractValue : expectedBaseline;
+  return Math.max(expectedBaseline, completionBaseline);
+}
+
 function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
   if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
   return roundProgressPercent((grossAmount / baselineValue) * 100);
@@ -997,6 +1005,8 @@ export function FinanceView() {
     const currentAccumulatedGross = (baselineValue * currentProgress) / 100;
     const accumulatedGross = currentAccumulatedGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
+    const completionBaselineValue = resolveCompletionBaselineValue(contractsByTicket[ticketId], rawPayments);
+    const completionPercent = calculateProgressPercentFromGross(accumulatedGross, completionBaselineValue);
 
     if (!targetTicket.executionProgress?.paymentFlowParts) {
       showToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.', 3000);
@@ -1064,14 +1074,14 @@ export function FinanceView() {
       approvedAt: now,
     };
     const shouldMoveToValidation =
-      normalizedProgress >= 100 &&
+      completionPercent >= 100 &&
       targetTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
       targetTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
       targetTicket.status !== TICKET_STATUS.CLOSED &&
       targetTicket.status !== TICKET_STATUS.CANCELED;
     const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : targetTicket.status;
     const nextClosureChecklist =
-      normalizedProgress >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
+      completionPercent >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
     const historyNotesSuffix = draft.notes.trim() ? ` ${draft.notes.trim()}` : '';
     const reportFiles = Array.isArray(draft.reportFiles) ? draft.reportFiles : [];
     const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relatório.` : '';

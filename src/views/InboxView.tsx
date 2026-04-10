@@ -366,6 +366,14 @@ function resolveExpectedBaselineValue(contract?: ContractRecord, payments: Payme
   return parseCurrencyInput(payments[0]?.value || '');
 }
 
+function resolveCompletionBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
+  const expectedBaseline = resolveExpectedBaselineValue(contract, payments);
+  const realizedValue = parseCurrencyInput(contract?.realizedValue || '');
+  const contractValue = parseCurrencyInput(contract?.value || '');
+  const completionBaseline = realizedValue > 0 ? realizedValue : contractValue > 0 ? contractValue : expectedBaseline;
+  return Math.max(expectedBaseline, completionBaseline);
+}
+
 function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
   if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
   return roundProgressPercent((grossAmount / baselineValue) * 100);
@@ -1350,6 +1358,8 @@ export function InboxView() {
     const currentGross = (baselineValue * activeProgressPercent) / 100;
     const accumulatedGross = currentGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
+    const completionBaselineValue = resolveCompletionBaselineValue(activeContract, activePayments);
+    const completionPercent = calculateProgressPercentFromGross(accumulatedGross, completionBaselineValue);
     if (progressPercent < activeProgressPercent) {
       showToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.', 3000);
       return;
@@ -1398,14 +1408,14 @@ export function InboxView() {
 
     const reportAttachmentsSummarySuffix = progressReportFiles.length > 0 ? ` ${progressReportFiles.length} anexo(s) de relatório.` : '';
     const shouldMoveToValidation =
-      normalizedProgress >= 100 &&
+      completionPercent >= 100 &&
       activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
       activeTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
       activeTicket.status !== TICKET_STATUS.CLOSED &&
       activeTicket.status !== TICKET_STATUS.CANCELED;
     const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
     const nextClosureChecklist =
-      normalizedProgress >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
+      completionPercent >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
 
     try {
       const uploadedMeasurementAttachments: TicketAttachment[] = [];
