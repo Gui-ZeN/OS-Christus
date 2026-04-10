@@ -368,14 +368,6 @@ function resolveExpectedBaselineValue(contract?: ContractRecord, payments: Payme
   return parseCurrencyInput(payments[0]?.value || '');
 }
 
-function resolveCompletionBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
-  const expectedBaseline = resolveExpectedBaselineValue(contract, payments);
-  const realizedValue = parseCurrencyInput(contract?.realizedValue || '');
-  const contractValue = parseCurrencyInput(contract?.value || '');
-  const completionBaseline = realizedValue > 0 ? realizedValue : contractValue > 0 ? contractValue : expectedBaseline;
-  return Math.max(expectedBaseline, completionBaseline);
-}
-
 function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
   if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
   return roundProgressPercent((grossAmount / baselineValue) * 100);
@@ -1366,8 +1358,6 @@ export function InboxView() {
     const currentGross = (baselineValue * activeProgressPercent) / 100;
     const accumulatedGross = currentGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
-    const completionBaselineValue = resolveCompletionBaselineValue(activeContract, activePayments);
-    const completionPercent = calculateProgressPercentFromGross(accumulatedGross, completionBaselineValue);
     if (progressPercent < activeProgressPercent) {
       showToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.', 3000);
       return;
@@ -1416,15 +1406,8 @@ export function InboxView() {
     };
 
     const reportAttachmentsSummarySuffix = progressReportFiles.length > 0 ? ` ${progressReportFiles.length} anexo(s) de relatório.` : '';
-    const shouldMoveToValidation =
-      completionPercent >= 100 &&
-      activeTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
-      activeTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
-      activeTicket.status !== TICKET_STATUS.CLOSED &&
-      activeTicket.status !== TICKET_STATUS.CANCELED;
-    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : activeTicket.status;
-    const nextClosureChecklist =
-      completionPercent >= 100 ? buildValidationClosureChecklist(activeTicket, now) : activeTicket.closureChecklist;
+    const nextStatus = activeTicket.status;
+    const nextClosureChecklist = activeTicket.closureChecklist;
 
     try {
       const uploadedMeasurementAttachments: TicketAttachment[] = [];
@@ -1477,9 +1460,7 @@ export function InboxView() {
             type: 'system',
             sender: displayActorLabel,
             time: now,
-            text: shouldMoveToValidation
-              ? `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`
-              : `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
+            text: `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
           },
         ],
       });
@@ -1487,11 +1468,7 @@ export function InboxView() {
       setShowProgressModal(false);
       setProgressReportFiles([]);
       if (progressReportFileRef.current) progressReportFileRef.current.value = '';
-      showToast(
-        shouldMoveToValidation
-          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
-          : `${paymentLabel} registrada e liberada para o financeiro.`
-      , 3000);
+      showToast(`${paymentLabel} registrada e liberada para o financeiro.`, 3000);
     } finally {
       window.setTimeout(() => setIsSending(false), 500);
     }
@@ -1545,7 +1522,6 @@ export function InboxView() {
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
   const activeDynamicPayments = useMemo(() => stripLegacyFlowPlaceholders(activePayments), [activePayments]);
   const activeExpectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
-  const activeCompletionBaselineValue = resolveCompletionBaselineValue(activeContract, activePayments);
   const activeProgressPercent = Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0));
   const activeProgressBarPercent = Math.min(100, activeProgressPercent);
   const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activeDynamicPayments);
@@ -1560,7 +1536,6 @@ export function InboxView() {
   const currentAccumulatedGross = activeExpectedBaselineValue > 0 ? (activeExpectedBaselineValue * activeProgressPercent) / 100 : 0;
   const projectedAccumulatedGross = currentAccumulatedGross + draftGrossAmount;
   const draftProgressPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeExpectedBaselineValue);
-  const draftCompletionPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeCompletionBaselineValue);
   const ticketAttachmentItems = (activeTicket.attachments || [])
     .filter(attachment => attachment?.url)
     .map(attachment => ({
@@ -4986,7 +4961,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                   <div className="font-medium text-roman-text-main">Percentual calculado</div>
                   <div className="mt-1 text-base font-semibold text-roman-text-main">{draftProgressPercent}%</div>
-                  <div className="mt-1">% para conclusão (com aditivos): {draftCompletionPercent}%</div>
                   <div className="mt-1">Andamento atual salvo: {activeProgressPercent}%</div>
                   <div className="mt-1">Bruto acumulado projetado: {formatCurrencyInput(projectedAccumulatedGross)}</div>
                 </div>
@@ -5030,7 +5004,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                 <div className="font-medium text-roman-text-main">Valor de referência</div>
                 <div>Previsto inicial: {activeExpectedBaselineValue > 0 ? formatCurrencyInput(activeExpectedBaselineValue) : 'Não definido'}</div>
-                <div>Base de conclusão (realizado): {activeCompletionBaselineValue > 0 ? formatCurrencyInput(activeCompletionBaselineValue) : 'Não definido'}</div>
                 <div>Bruto acumulado atual: {formatCurrencyInput(currentAccumulatedGross)}</div>
               </div>
 

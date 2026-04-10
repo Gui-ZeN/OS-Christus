@@ -7,8 +7,8 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import type { ContractRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
-import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
+import type { ContractRecord, PaymentRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
+import { fetchProcurementData, saveContract, savePayment, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
@@ -291,6 +291,7 @@ export function ApprovalsView() {
         isAdditive: boolean;
         winner: string;
         shouldMoveStatus: boolean;
+        additivePaymentCreated: boolean;
       } | null = null;
 
       if (tab === 'budgets') {
@@ -322,6 +323,7 @@ export function ApprovalsView() {
           ? currentRealizedValue + approvedQuoteValue
           : approvedQuoteValue;
         const nextContractValue = nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : approvedQuote?.value || currentContract?.value || 'A confirmar';
+        let additivePaymentCreated = false;
 
         try {
           await saveQuotes(id, nextQuotes, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
@@ -345,6 +347,39 @@ export function ApprovalsView() {
               },
               targetTicket ? buildProcurementClassification(targetTicket) : undefined
             );
+
+            if (isAdditive && targetTicket && approvedQuoteValue > 0) {
+              const additiveIndex = Math.max(1, Number(selectedAdditiveIndex || 1));
+              const additiveValue = formatCurrencyValue(approvedQuoteValue);
+              const now = new Date();
+              const autoPayment: PaymentRecord = {
+                id: `payment-additive-${additiveIndex}`,
+                vendor: approvedQuote.vendor || currentContract?.vendor || 'Fornecedor não definido',
+                value: additiveValue,
+                grossValue: additiveValue,
+                budgetSource: 'additive',
+                taxValue: '',
+                netValue: additiveValue,
+                progressPercent: Number(targetTicket.executionProgress?.currentPercent || 0),
+                expectedBaselineValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
+                status: 'approved',
+                label: `Lançamento de aditivo ${additiveIndex}`,
+                installmentNumber: null,
+                totalInstallments: null,
+                dueAt: now,
+                measurementId: `additive-${additiveIndex}`,
+                releasedPercent: 0,
+                milestonePercent: null,
+                attachments: [],
+                receiptFileName: null,
+              };
+              await savePayment(
+                id,
+                autoPayment,
+                buildProcurementClassification(targetTicket)
+              );
+              additivePaymentCreated = true;
+            }
           }
         } catch {
           // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
@@ -375,6 +410,7 @@ export function ApprovalsView() {
           isAdditive,
           winner,
           shouldMoveStatus: targetTicket?.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+          additivePaymentCreated,
         };
         showToast(`Automação: aprovação enviada para ${winner}.`, 4000);
       }
@@ -387,7 +423,7 @@ export function ApprovalsView() {
         text:
           tab === 'budgets'
             ? budgetApprovalContext?.isAdditive
-              ? `Aditivo aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.`
+              ? `Aditivo aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.${budgetApprovalContext?.additivePaymentCreated ? ' Lançamento financeiro criado automaticamente.' : ''}`
               : `Orçamento aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido; aguardando anexo do contrato pelo gestor.`
             : `Solução técnica aprovada por ${directorActorName}. OS liberada para a etapa de orçamentação.`,
       };

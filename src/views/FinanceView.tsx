@@ -135,14 +135,6 @@ function resolveExpectedBaselineValue(contract?: ContractRecord, payments: Payme
   return parseCurrency(payments[0]?.value || '');
 }
 
-function resolveCompletionBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
-  const expectedBaseline = resolveExpectedBaselineValue(contract, payments);
-  const realizedValue = parseCurrency(contract?.realizedValue || '');
-  const contractValue = parseCurrency(contract?.value || '');
-  const completionBaseline = realizedValue > 0 ? realizedValue : contractValue > 0 ? contractValue : expectedBaseline;
-  return Math.max(expectedBaseline, completionBaseline);
-}
-
 function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
   if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
   return roundProgressPercent((grossAmount / baselineValue) * 100);
@@ -660,7 +652,7 @@ export function FinanceView() {
           const expectedBaselineValue = resolveExpectedBaselineValue(contract, payments);
           const totalValue = parseCurrency(contract?.realizedValue || contract?.value || payments[0]?.value || '0');
           const totalReleased = sumReleasedPercent(payments);
-          const plannedValue = totalValue > 0 ? totalValue : payments.length > 0 ? sumPlannedValue(payments) : 0;
+          const plannedValue = expectedBaselineValue > 0 ? expectedBaselineValue : totalValue > 0 ? totalValue : payments.length > 0 ? sumPlannedValue(payments) : 0;
           const paidValue = sumPaidValue(payments);
           const remainingValue = plannedValue - paidValue;
           const pendingInstallments = payments.filter(payment => payment.status !== 'paid');
@@ -1051,9 +1043,6 @@ export function FinanceView() {
     const currentAccumulatedGross = (baselineValue * currentProgress) / 100;
     const accumulatedGross = currentAccumulatedGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
-    const completionBaselineValue = resolveCompletionBaselineValue(contractsByTicket[ticketId], rawPayments);
-    const completionPercent = calculateProgressPercentFromGross(accumulatedGross, completionBaselineValue);
-
     if (!targetTicket.executionProgress?.paymentFlowParts) {
       showToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.', 3000);
       return;
@@ -1121,15 +1110,8 @@ export function FinanceView() {
       requestedAt: now,
       approvedAt: now,
     };
-    const shouldMoveToValidation =
-      completionPercent >= 100 &&
-      targetTicket.status !== TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL &&
-      targetTicket.status !== TICKET_STATUS.WAITING_PAYMENT &&
-      targetTicket.status !== TICKET_STATUS.CLOSED &&
-      targetTicket.status !== TICKET_STATUS.CANCELED;
-    const nextStatus = shouldMoveToValidation ? TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL : targetTicket.status;
-    const nextClosureChecklist =
-      completionPercent >= 100 ? buildValidationClosureChecklist(targetTicket, now) : targetTicket.closureChecklist;
+    const nextStatus = targetTicket.status;
+    const nextClosureChecklist = targetTicket.closureChecklist;
     const historyNotesSuffix = draft.notes.trim() ? ` ${draft.notes.trim()}` : '';
     const reportFiles = Array.isArray(draft.reportFiles) ? draft.reportFiles : [];
     const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relatório.` : '';
@@ -1173,20 +1155,13 @@ export function FinanceView() {
             type: 'system',
             sender: actorLabel,
             time: now,
-            text:
-              shouldMoveToValidation
-                ? `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrency(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`
-                : `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`,
+            text: `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`,
           },
         ],
       });
       clearMeasurementDraft(ticketId);
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
-      showToast(
-        shouldMoveToValidation
-          ? 'Andamento salvo. Obra concluída e enviada para validação do solicitante.'
-          : `${paymentLabel} registrada e liberada para pagamento.`
-      , 3000);
+      showToast(`${paymentLabel} registrada e liberada para pagamento.`, 3000);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Falha ao salvar andamento da obra.', 4000);
     } finally {
@@ -1602,8 +1577,6 @@ export function FinanceView() {
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.grossAmount);
             const currentAccumulatedGross = expectedBaselineValue > 0 ? (expectedBaselineValue * progressPercent) / 100 : 0;
             const projectedAccumulatedGross = currentAccumulatedGross + parseCurrency(measurementDraft.grossAmount || '');
-            const completionBaselineValue = resolveCompletionBaselineValue(contract, payments);
-            const completionPreviewPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, completionBaselineValue);
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
             const guaranteeDaysRemaining = getGuaranteeDaysRemaining(ticket.guarantee);
@@ -1864,7 +1837,6 @@ export function FinanceView() {
                           <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                             <div className="font-medium text-roman-text-main mb-1">Percentual calculado</div>
                             <div>{releasePreview.progressPercent}%</div>
-                            <div className="mt-1">% para conclusão (com aditivos): {completionPreviewPercent}%</div>
                             <div className="mt-1">Andamento atual salvo: {progressPercent}%</div>
                             <div className="mt-1">Bruto acumulado projetado: {formatCurrency(projectedAccumulatedGross)}</div>
                           </div>
@@ -1964,7 +1936,6 @@ export function FinanceView() {
                             <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
                             <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'não definido'}</div>
                             <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'não definido'}</div>
-                            <div>Base de conclusão (realizado): {completionBaselineValue > 0 ? formatCurrency(completionBaselineValue) : 'não definido'}</div>
                             <div>Bruto acumulado atual: {formatCurrency(currentAccumulatedGross)}</div>
                             <div>Andamento atual salvo: {progressPercent}%</div>
                             <div>Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
@@ -2077,7 +2048,7 @@ export function FinanceView() {
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
                           <div className="text-lg font-serif text-roman-text-main">
-                            {totalValue > 0 ? `${roundProgressPercent((paidValue / totalValue) * 100)}%` : '0%'}
+                            {plannedValue > 0 ? `${roundProgressPercent((paidValue / plannedValue) * 100)}%` : '0%'}
                           </div>
                           <div className="mt-1 text-xs text-roman-text-sub">
                             {remainingValue >= 0
