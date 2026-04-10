@@ -1640,11 +1640,11 @@ export function InboxView() {
   );
   const quoteDraftTicketRef = useRef<string>('');
 
-  // Reseta cotações ao trocar de ticket
+  // Carrega as cotações da rodada ativa (inicial/aditivo) quando o modal estiver aberto
   useEffect(() => {
-    const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
-    if (showQuotesModal && !ticketChanged) return;
+    if (!showQuotesModal) return;
 
+    const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
     const allTicketQuotes = storedQuotesByTicket[activeTicketId] || [];
     const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
     if (ticketChanged) {
