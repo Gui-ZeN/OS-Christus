@@ -404,6 +404,18 @@ function summarizeQuoteDraft(draft: QuoteDraft) {
   };
 }
 
+function resolveQuoteDraftSubmittedTotal(draft: QuoteDraft) {
+  const summarized = summarizeQuoteDraft(draft);
+  return draft.totalValue || summarized.totalValue || draft.value || '';
+}
+
+function isQuoteDraftFilledForSubmission(draft: QuoteDraft) {
+  const vendor = String(draft.vendor || '').trim();
+  if (!vendor) return false;
+  const total = parseCurrencyInput(resolveQuoteDraftSubmittedTotal(draft));
+  return total > 0;
+}
+
 function getAvailableAdditiveRounds(quotes: Quote[]) {
   return Array.from(
     new Set(
@@ -1712,7 +1724,7 @@ export function InboxView() {
     setQuoteAttachments(Array.from({ length: nextQuotes.length }, () => null));
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
-  }, [activeTicket, activeTicketId, catalogSites, quoteAdditiveIndex, quoteRoundType, showQuotesModal, storedQuotesByTicket]);
+  }, [activeTicketId, catalogSites, quoteAdditiveIndex, quoteRoundType, showQuotesModal, storedQuotesByTicket]);
 
   useEffect(() => {
     if (!showQuotesModal) return;
@@ -2195,9 +2207,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     const roundType = quoteRoundType;
     const filled = quotes
       .map((quote, index) => ({ quote, index }))
-      .filter(({ quote }) => quote.vendor.trim() !== '' && quote.value.trim() !== '');
+      .filter(({ quote }) => isQuoteDraftFilledForSubmission(quote));
     if (roundType === 'additive' && filled.length !== 1) {
-      showToast('Erro: aditivo deve ter exatamente 1 cotação.', 3000);
+      showToast('Erro: aditivo deve ter exatamente 1 cotação preenchida com fornecedor e valor total.', 3500);
       return;
     }
     if (roundType === 'initial' && filled.length < 2) {
@@ -2230,13 +2242,17 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       uploadedAttachments.forEach(item => {
         if (item.uploaded) uploadedByOriginalIndex.set(item.index, item.uploaded);
       });
-      const nextQuotes: Quote[] = filled.map(({ quote, index: originalIndex }, index) => ({
+      const nextQuotes: Quote[] = filled.map(({ quote, index: originalIndex }, index) => {
+        const summary = summarizeQuoteDraft(quote);
+        const resolvedTotal = resolveQuoteDraftSubmittedTotal(quote).trim();
+        const resolvedValue = quote.value.trim() || resolvedTotal;
+        return ({
         id: `quote-${index + 1}`,
         vendor: quote.vendor.trim(),
-        value: quote.value.trim(),
-        laborValue: quote.laborValue || summarizeQuoteDraft(quote).laborValue,
-        materialValue: quote.materialValue || summarizeQuoteDraft(quote).materialValue,
-        totalValue: quote.totalValue || summarizeQuoteDraft(quote).totalValue || quote.value.trim(),
+        value: resolvedValue,
+        laborValue: quote.laborValue || summary.laborValue,
+        materialValue: quote.materialValue || summary.materialValue,
+        totalValue: resolvedTotal,
         category: roundType,
         additiveIndex,
         additiveReason: roundType === 'additive' ? normalizedAdditiveReason : null,
@@ -2265,7 +2281,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
           }))
           .filter(item => item.description || item.totalPrice || item.quantity),
-      }));
+      })});
       try {
         await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
       } catch {
@@ -3280,7 +3296,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
                     >
                       <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                      Gerenciar Cotações ({quotes.filter(q => q.vendor && q.value).length}/3)
+                      Gerenciar Cotações ({quotes.filter(isQuoteDraftFilledForSubmission).length}/3)
                     </button>
                     <button
                       onClick={() => {
