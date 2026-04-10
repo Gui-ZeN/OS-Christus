@@ -1016,9 +1016,14 @@ async function handleSend(req, res) {
     const templateSubject = repairMojibake(
       storedTemplate?.subject ? renderTemplateString(storedTemplate.subject, variables) : subject
     );
-    const isDirectorTrigger = String(trigger || '').startsWith('EMAIL-DIRETORIA-');
-    const directorBodyOverride = isDirectorTrigger ? String(templateData.bodyText || '').trim() : '';
-    const baseResolvedBody = directorBodyOverride || repairMojibake(
+    const triggerKey = String(trigger || '').trim();
+    const isDirectorTrigger = triggerKey.startsWith('EMAIL-DIRETORIA-');
+    const templateBodyText = String(templateData.bodyText || '').trim();
+    const forceBodyFromTemplateData =
+      isDirectorTrigger ||
+      triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
+    const requestedBodyOverride = forceBodyFromTemplateData ? templateBodyText : '';
+    const baseResolvedBody = requestedBodyOverride || repairMojibake(
       storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text
     );
     const directorSummary = String(templateData.directorSummary || '').trim();
