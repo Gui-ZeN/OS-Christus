@@ -11,7 +11,7 @@ import { useToast } from '../hooks/useToast';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket, TicketAttachment } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
-import { notifyAdditiveToDirector, notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
+import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
@@ -2314,9 +2314,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         status: TICKET_STATUS.WAITING_BUDGET_APPROVAL,
         history: [...activeTicket.history, historyItem],
       });
-      if (roundType === 'additive') {
-        void notifyAdditiveToDirector(activeTicket, additiveIndex ?? 1, normalizedAdditiveReason);
-      }
       setIsSending(false);
       setShowQuotesModal(false);
       showToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!', 3000);

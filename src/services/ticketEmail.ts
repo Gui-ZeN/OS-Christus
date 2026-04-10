@@ -1,7 +1,8 @@
 ﻿import { TICKET_STATUS } from '../constants/ticketStatus';
-import { PaymentRecord, Ticket, TicketAttachment } from '../types';
+import { PaymentRecord, Quote, Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
+import { fetchProcurementData } from './procurementApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
 function resolveTicketEmail(ticket: Ticket): string | null {
@@ -145,6 +146,96 @@ function buildDirectorEmailBody(ticket: Ticket, isApprovalStatus: boolean, summa
     '',
     summaryList,
   ].join('\n');
+}
+
+function normalizeRoundCategory(value: unknown): 'initial' | 'additive' {
+  return value === 'additive' ? 'additive' : 'initial';
+}
+
+function normalizeQuoteStatus(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function parseCurrencyInput(value: string) {
+  const normalized = String(value || '')
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+  }).format(value);
+}
+
+function resolveQuoteDisplayValue(quote: Quote) {
+  const raw = String(quote.totalValue || quote.value || '').trim();
+  if (raw) return raw;
+  const numeric = parseCurrencyInput(raw);
+  return numeric > 0 ? formatCurrency(numeric) : '-';
+}
+
+async function buildDirectorBudgetContext(ticket: Ticket) {
+  const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
+  try {
+    const procurement = await fetchProcurementData();
+    const allQuotes = Array.isArray(procurement.quotesByTicket?.[ticket.id]) ? procurement.quotesByTicket[ticket.id] : [];
+    if (allQuotes.length === 0) {
+      return {
+        roundTypeLabel: 'Orçamento inicial',
+        additiveReason: null as string | null,
+        quoteLines: [] as string[],
+        measurementSheetUrl,
+      };
+    }
+
+    const pendingQuotes = allQuotes.filter(quote => normalizeQuoteStatus((quote as Quote).status) === 'pending');
+    const sourceQuotes = pendingQuotes.length > 0 ? pendingQuotes : allQuotes;
+    const additivePending = sourceQuotes.filter(quote => normalizeRoundCategory((quote as Quote).category) === 'additive');
+
+    if (additivePending.length > 0) {
+      const additiveIndexes = additivePending
+        .map(quote => Number((quote as Quote).additiveIndex || 0))
+        .filter(value => Number.isFinite(value) && value > 0);
+      const additiveIndex = additiveIndexes.length > 0 ? Math.max(...additiveIndexes) : 1;
+      const roundQuotes = additivePending.filter(quote => Number((quote as Quote).additiveIndex || 0) === additiveIndex);
+      const additiveReason = String((roundQuotes[0] as Quote)?.additiveReason || '').trim() || null;
+      const quoteLines = roundQuotes.map((quote, index) => {
+        const normalized = quote as Quote;
+        return `- Cotação ${index + 1}: ${normalized.vendor || 'Fornecedor não informado'} · Total: ${resolveQuoteDisplayValue(normalized)}`;
+      });
+      return {
+        roundTypeLabel: `Aditivo ${additiveIndex}`,
+        additiveReason,
+        quoteLines,
+        measurementSheetUrl,
+      };
+    }
+
+    const initialQuotes = sourceQuotes.filter(quote => normalizeRoundCategory((quote as Quote).category) === 'initial');
+    const quoteLines = initialQuotes.map((quote, index) => {
+      const normalized = quote as Quote;
+      return `- Cotação ${index + 1}: ${normalized.vendor || 'Fornecedor não informado'} · Total: ${resolveQuoteDisplayValue(normalized)}`;
+    });
+    return {
+      roundTypeLabel: 'Orçamento inicial',
+      additiveReason: null as string | null,
+      quoteLines,
+      measurementSheetUrl,
+    };
+  } catch {
+    return {
+      roundTypeLabel: 'Orçamento inicial',
+      additiveReason: null as string | null,
+      quoteLines: [] as string[],
+      measurementSheetUrl,
+    };
+  }
 }
 
 function buildAttachmentList(attachments: TicketAttachment[]) {
@@ -416,13 +507,26 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   if (DIRECTOR_FLOW_STATUSES.has(ticket.status)) {
     const directorTab = resolveDirectorApprovalTab(ticket.status);
     const isApprovalStatus = directorTab !== 'solutions';
+    const budgetContext = directorTab === 'budgets' ? await buildDirectorBudgetContext(ticket) : null;
     const latestInternalTechEntry = resolveLatestInternalTechEntry(ticket);
     const latestAttachments = Array.isArray(latestInternalTechEntry?.attachments) ? latestInternalTechEntry.attachments : [];
     const technicalBlock = latestInternalTechEntry?.text
       ? `Parecer técnico:\n${latestInternalTechEntry.text}`
       : '';
+    const budgetBlock =
+      budgetContext
+        ? [
+            `Tipo da rodada: ${budgetContext.roundTypeLabel}`,
+            budgetContext.additiveReason ? `Motivo do aditivo: ${budgetContext.additiveReason}` : null,
+            budgetContext.quoteLines.length > 0 ? ['', 'Valores das cotações:', ...budgetContext.quoteLines] : null,
+            budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : null,
+          ]
+            .flat()
+            .filter(Boolean)
+            .join('\n')
+        : '';
     const directorBody = appendAttachmentsToBody(
-      [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), technicalBlock].filter(Boolean).join('\n\n'),
+      [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, technicalBlock].filter(Boolean).join('\n\n'),
       latestAttachments
     );
     await sendToConfiguredFlowRecipients({
@@ -431,9 +535,13 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
       variables,
       templateData: {
-        title: isApprovalStatus ? 'Etapa em aprovação da Diretoria' : 'Nova demanda para avaliação da Diretoria',
+        title: isApprovalStatus
+          ? (budgetContext ? `${budgetContext.roundTypeLabel} em aprovação da Diretoria` : 'Etapa em aprovação da Diretoria')
+          : 'Nova demanda para avaliação da Diretoria',
         intro: isApprovalStatus
-          ? `${ticket.id} já está pronta para revisão da Diretoria.`
+          ? (budgetContext
+            ? `${ticket.id} está em ${budgetContext.roundTypeLabel.toLowerCase()} e requer aprovação da Diretoria.`
+            : `${ticket.id} já está pronta para revisão da Diretoria.`)
           : `${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
@@ -532,10 +640,13 @@ export async function notifyTicketDirectorReply(
 }
 
 export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: number, additiveReason: string) {
+  const budgetContext = await buildDirectorBudgetContext(ticket);
   const summaryList = buildDirectorTicketSummary(ticket);
   const bodyText = [
-    `Aditivo ${additiveIndex} criado na etapa de execução e aguarda aprovação da Diretoria.`,
-    `Motivo do aditivo: ${additiveReason || 'Não informado'}`,
+    `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} criado na etapa de execução e aguarda aprovação da Diretoria.`,
+    `Motivo do aditivo: ${additiveReason || budgetContext.additiveReason || 'Não informado'}`,
+    ...(budgetContext.quoteLines.length > 0 ? ['', 'Valores das cotações:', ...budgetContext.quoteLines] : []),
+    ...(budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : []),
     '',
     'Resumo da OS:',
     '',
@@ -553,8 +664,8 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
     trigger: 'EMAIL-DIRETORIA-APROVACAO',
     variables,
     templateData: {
-      title: `Aditivo ${additiveIndex} aguardando aprovação`,
-      intro: `${ticket.id} possui aditivo ${additiveIndex} em andamento e requer aprovação da Diretoria.`,
+      title: `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} aguardando aprovação`,
+      intro: `${ticket.id} possui ${budgetContext.roundTypeLabel?.toLowerCase() || `aditivo ${additiveIndex}`} em andamento e requer aprovação da Diretoria.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
