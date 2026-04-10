@@ -21,6 +21,23 @@ service firebase.storage {
         && request.resource.contentType == 'application/pdf';
     }
 
+    function isValidAttachmentDocument() {
+      return request.resource != null
+        && request.resource.size < 25 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/msword'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          || request.resource.contentType == 'application/vnd.ms-excel'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          || request.resource.contentType == 'application/xml'
+          || request.resource.contentType == 'text/xml'
+          || request.resource.contentType == 'text/csv'
+          || request.resource.contentType == 'text/plain'
+        );
+    }
+
     // O upload/download público não é permitido. Tudo passa por usuário logado.
 
     match /attachments/tickets/images/{ticketId}/{fileName=**} {
@@ -45,12 +62,22 @@ service firebase.storage {
 
     match /attachments/tickets/payments/{ticketId}/{fileName=**} {
       allow read: if isManager();
-      allow write: if isManager() && (isValidPdf() || isValidImage());
+      allow write: if isManager() && isValidAttachmentDocument();
+    }
+
+    match /attachments/tickets/measurements/{ticketId}/{fileName=**} {
+      allow read: if isManager();
+      allow write: if isManager() && isValidAttachmentDocument();
+    }
+
+    match /attachments/tickets/messages/{ticketId}/{fileName=**} {
+      allow read: if isManager();
+      allow write: if isManager() && isValidAttachmentDocument();
     }
 
     match /attachments/tickets/inbound/{ticketId}/{fileName=**} {
       allow read: if isManager();
-      allow write: if isManager() && (isValidPdf() || isValidImage());
+      allow write: if isManager() && isValidAttachmentDocument();
     }
 
     match /{allPaths=**} {

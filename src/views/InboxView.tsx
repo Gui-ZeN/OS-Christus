@@ -163,6 +163,7 @@ interface ExecutionSetupFormState {
 
 interface ProgressUpdateFormState {
   grossAmount: string;
+  budgetSource: 'initial' | 'additive';
   notes: string;
 }
 
@@ -210,6 +211,7 @@ function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState
 function createProgressUpdateFormState(_ticket?: Ticket): ProgressUpdateFormState {
   return {
     grossAmount: '',
+    budgetSource: 'initial',
     notes: '',
   };
 }
@@ -377,6 +379,10 @@ function resolveCompletionBaselineValue(contract?: ContractRecord, payments: Pay
 function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
   if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
   return roundProgressPercent((grossAmount / baselineValue) * 100);
+}
+
+function getBudgetSourceLabel(source: 'initial' | 'additive' | null | undefined) {
+  return source === 'additive' ? 'Aditivo' : 'Orçamento inicial';
 }
 
 function normalizeQuoteSection(section?: string | null) {
@@ -1350,6 +1356,8 @@ export function InboxView() {
     }
 
     const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
+    const budgetSource = progressUpdateForm.budgetSource === 'additive' ? 'additive' : 'initial';
+    const budgetSourceLabel = getBudgetSourceLabel(budgetSource);
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
       showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
       return;
@@ -1390,6 +1398,7 @@ export function InboxView() {
       vendor,
       value: formattedGrossAmount,
       grossValue: formattedGrossAmount,
+      budgetSource,
       taxValue: '',
       netValue: formattedGrossAmount,
       progressPercent: normalizedProgress,
@@ -1430,6 +1439,7 @@ export function InboxView() {
         releasePercent: progressDelta,
         status: 'approved',
         grossValue: formattedGrossAmount,
+        budgetSource,
         notes: progressUpdateForm.notes.trim(),
         attachments: uploadedMeasurementAttachments,
         requestedAt: now,
@@ -1468,8 +1478,8 @@ export function InboxView() {
             sender: displayActorLabel,
             time: now,
             text: shouldMoveToValidation
-              ? `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`
-              : `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
+              ? `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. Execução concluída e OS enviada para validação do solicitante. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`
+              : `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
           },
         ],
       });
@@ -4956,6 +4966,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     placeholder="Ex: 12500,00"
                     className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                   />
+                  <div className="mt-2">
+                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Origem do valor</label>
+                    <select
+                      value={progressUpdateForm.budgetSource}
+                      onChange={event =>
+                        setProgressUpdateForm(prev => ({
+                          ...prev,
+                          budgetSource: event.target.value === 'additive' ? 'additive' : 'initial',
+                        }))
+                      }
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                    >
+                      <option value="initial">Orçamento inicial</option>
+                      <option value="additive">Aditivo</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                   <div className="font-medium text-roman-text-main">Percentual calculado</div>

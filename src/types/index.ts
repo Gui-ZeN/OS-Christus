@@ -175,6 +175,7 @@ export interface MeasurementRecord {
   progressPercent: number;
   releasePercent: number;
   grossValue?: string | null;
+  budgetSource?: 'initial' | 'additive' | null;
   status: 'pending' | 'approved' | 'paid';
   notes?: string;
   attachments?: TicketAttachment[];
@@ -188,6 +189,7 @@ export interface PaymentRecord {
   vendor: string;
   value: string;
   grossValue?: string | null;
+  budgetSource?: 'initial' | 'additive' | null;
   taxValue?: string | null;
   netValue?: string | null;
   progressPercent?: number | null;

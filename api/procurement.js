@@ -283,6 +283,7 @@ async function writePayment(db, ticketId, payment, classification) {
       vendor: String(payment.vendor || '').trim(),
       value: String(payment.value || '').trim(),
       grossValue: payment.grossValue != null ? String(payment.grossValue).trim() : null,
+      budgetSource: payment.budgetSource === 'additive' ? 'additive' : 'initial',
       taxValue: payment.taxValue != null ? String(payment.taxValue).trim() : null,
       netValue: payment.netValue != null ? String(payment.netValue).trim() : null,
       progressPercent: payment.progressPercent != null ? Number(payment.progressPercent) : null,
@@ -328,6 +329,7 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
       progressPercent: Number(measurement.progressPercent || 0),
       releasePercent: Number(measurement.releasePercent || 0),
       grossValue: measurement.grossValue != null ? String(measurement.grossValue).trim() : null,
+      budgetSource: measurement.budgetSource === 'additive' ? 'additive' : 'initial',
       status: String(measurement.status || 'approved'),
       notes: measurement.notes ? String(measurement.notes) : '',
       attachments: Array.isArray(measurement.attachments)
