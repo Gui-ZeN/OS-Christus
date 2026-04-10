@@ -284,7 +284,7 @@ async function postEmail(payload: Record<string, unknown>, options?: { throwOnEr
   }
 }
 
-function shouldNotifyRequesterForStatus(status: string) {
+function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previousStatus: string) {
   const blockedStatuses = new Set<string>([
     TICKET_STATUS.WAITING_BUDGET,
     TICKET_STATUS.WAITING_BUDGET_APPROVAL,
@@ -292,7 +292,15 @@ function shouldNotifyRequesterForStatus(status: string) {
     TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
     TICKET_STATUS.WAITING_PAYMENT,
   ]);
-  return !blockedStatuses.has(status);
+  if (blockedStatuses.has(status)) return false;
+
+  const returningFromApprovalToExecution =
+    status === TICKET_STATUS.IN_PROGRESS &&
+    previousStatus === TICKET_STATUS.WAITING_BUDGET_APPROVAL &&
+    Boolean(ticket.executionProgress?.startedAt);
+  if (returningFromApprovalToExecution) return false;
+
+  return true;
 }
 
 function buildRequesterStatusLabel(status: string) {
@@ -485,7 +493,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     },
   });
 
-  if (requesterEmail && shouldNotifyRequesterForStatus(ticket.status)) {
+  if (requesterEmail && shouldNotifyRequesterForStatus(ticket, ticket.status, previousStatus)) {
     const requesterCopy = buildRequesterUpdateCopy(ticket.status, messageBody, cancellationReason);
     await postEmail({
       ticketId: ticket.id,
