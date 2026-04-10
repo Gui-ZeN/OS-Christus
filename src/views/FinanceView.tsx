@@ -53,6 +53,8 @@ interface PaymentEmailModalState {
   sendFeedbackMessage: string;
 }
 
+const FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY = 'os-christus-finance-payment-recipients';
+
 function parseCurrency(value: string) {
   const normalized = String(value || '')
     .replace(/[^\d,.-]/g, '')
@@ -60,6 +62,42 @@ function parseCurrency(value: string) {
     .replace(',', '.');
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeRecipientEmail(value: string) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function mergeRecipientEmails(...groups: Array<string[] | undefined>) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const group of groups) {
+    for (const item of group || []) {
+      const normalized = normalizeRecipientEmail(item);
+      if (!normalized || !normalized.includes('@') || seen.has(normalized)) continue;
+      seen.add(normalized);
+      result.push(normalized);
+    }
+  }
+  return result;
+}
+
+function readStoredFinanceRecipients() {
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? mergeRecipientEmails(parsed.map(value => String(value || ''))) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredFinanceRecipients(recipients: string[]) {
+  if (typeof window === 'undefined') return;
+  const normalized = mergeRecipientEmails(recipients);
+  window.localStorage.setItem(FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY, JSON.stringify(normalized));
 }
 
 function formatCurrency(value: number) {
@@ -1275,12 +1313,12 @@ export function FinanceView() {
       }
     }
 
-    let defaultRecipients: string[] = [];
+    let templateRecipients: string[] = [];
     try {
       const settings = await fetchSettings();
       const paymentTemplate = settings.emailTemplates.find(t => t.trigger === 'EMAIL-FINANCEIRO-PAGAMENTO');
       if (paymentTemplate?.recipients?.trim()) {
-        defaultRecipients = paymentTemplate.recipients
+        templateRecipients = paymentTemplate.recipients
           .split(/[,;\s]+/)
           .map(e => e.trim())
           .filter(e => e.includes('@'));
@@ -1288,6 +1326,8 @@ export function FinanceView() {
     } catch {
       // Fallback to empty recipients list; user can add manually.
     }
+    const storedRecipients = readStoredFinanceRecipients();
+    const defaultRecipients = mergeRecipientEmails(templateRecipients, storedRecipients);
 
     setPaymentEmailModal({
       ticketId,
@@ -1333,6 +1373,7 @@ export function FinanceView() {
     setProcessingId(`${ticketId}:${payment.id}`);
     try {
       await notifyPaymentDispatch(targetTicket, payment, grossAmount, taxAmount, netAmount, recipients);
+      writeStoredFinanceRecipients(recipients);
 
       const nextPayment: PaymentRecord = {
         ...payment,
@@ -2510,6 +2551,7 @@ export function FinanceView() {
               <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">
                 Destinatários
               </label>
+              <p className="mb-2 text-[11px] text-roman-text-sub">Pré-carrega os e-mails configurados e os últimos usados no financeiro.</p>
               {paymentEmailModal.recipients.length === 0 && (
                 <p className="text-xs text-amber-700 mb-2">Nenhum destinatário configurado. Adicione ao menos um email.</p>
               )}
@@ -2519,10 +2561,17 @@ export function FinanceView() {
                     <span className="truncate text-roman-text-main">{email}</span>
                     <button
                       type="button"
-                      onClick={() => setPaymentEmailModal(prev => prev ? {
-                        ...prev,
-                        recipients: prev.recipients.filter((_, i) => i !== index),
-                      } : null)}
+                      onClick={() =>
+                        setPaymentEmailModal(prev => {
+                          if (!prev) return null;
+                          const nextRecipients = prev.recipients.filter((_, i) => i !== index);
+                          writeStoredFinanceRecipients(nextRecipients);
+                          return {
+                            ...prev,
+                            recipients: nextRecipients,
+                          };
+                        })
+                      }
                       disabled={paymentEmailModal.isSending}
                       className="text-red-600 hover:text-red-800 transition-colors flex-shrink-0 disabled:opacity-50"
                       aria-label={`Remover ${email}`}
@@ -2540,10 +2589,14 @@ export function FinanceView() {
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      const email = paymentEmailModal.newRecipient.trim();
-                      if (email && email.includes('@') && !paymentEmailModal.recipients.includes(email)) {
-                        setPaymentEmailModal(prev => prev ? { ...prev, recipients: [...prev.recipients, email], newRecipient: '' } : null);
-                      }
+                      const email = normalizeRecipientEmail(paymentEmailModal.newRecipient);
+                      if (!email || !email.includes('@')) return;
+                      setPaymentEmailModal(prev => {
+                        if (!prev) return null;
+                        const nextRecipients = mergeRecipientEmails(prev.recipients, [email]);
+                        writeStoredFinanceRecipients(nextRecipients);
+                        return { ...prev, recipients: nextRecipients, newRecipient: '' };
+                      });
                     }
                   }}
                   disabled={paymentEmailModal.isSending}
@@ -2553,10 +2606,14 @@ export function FinanceView() {
                 <button
                   type="button"
                   onClick={() => {
-                    const email = paymentEmailModal.newRecipient.trim();
-                    if (email && email.includes('@') && !paymentEmailModal.recipients.includes(email)) {
-                      setPaymentEmailModal(prev => prev ? { ...prev, recipients: [...prev.recipients, email], newRecipient: '' } : null);
-                    }
+                    const email = normalizeRecipientEmail(paymentEmailModal.newRecipient);
+                    if (!email || !email.includes('@')) return;
+                    setPaymentEmailModal(prev => {
+                      if (!prev) return null;
+                      const nextRecipients = mergeRecipientEmails(prev.recipients, [email]);
+                      writeStoredFinanceRecipients(nextRecipients);
+                      return { ...prev, recipients: nextRecipients, newRecipient: '' };
+                    });
                   }}
                   disabled={paymentEmailModal.isSending || !paymentEmailModal.newRecipient.trim().includes('@')}
                   className="flex-shrink-0 px-3 py-2 border border-roman-border rounded-sm text-sm text-roman-text-main hover:bg-roman-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
