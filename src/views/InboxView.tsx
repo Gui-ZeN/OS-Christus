@@ -1535,6 +1535,7 @@ export function InboxView() {
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
   const activeDynamicPayments = useMemo(() => stripLegacyFlowPlaceholders(activePayments), [activePayments]);
   const activeExpectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
+  const activeCompletionBaselineValue = resolveCompletionBaselineValue(activeContract, activePayments);
   const activeProgressPercent = Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0));
   const activeProgressBarPercent = Math.min(100, activeProgressPercent);
   const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activeDynamicPayments);
@@ -1549,6 +1550,7 @@ export function InboxView() {
   const currentAccumulatedGross = activeExpectedBaselineValue > 0 ? (activeExpectedBaselineValue * activeProgressPercent) / 100 : 0;
   const projectedAccumulatedGross = currentAccumulatedGross + draftGrossAmount;
   const draftProgressPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeExpectedBaselineValue);
+  const draftCompletionPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeCompletionBaselineValue);
   const ticketAttachmentItems = (activeTicket.attachments || [])
     .filter(attachment => attachment?.url)
     .map(attachment => ({
@@ -4958,6 +4960,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                   <div className="font-medium text-roman-text-main">Percentual calculado</div>
                   <div className="mt-1 text-base font-semibold text-roman-text-main">{draftProgressPercent}%</div>
+                  <div className="mt-1">% para conclusão (com aditivos): {draftCompletionPercent}%</div>
                   <div className="mt-1">Andamento atual salvo: {activeProgressPercent}%</div>
                   <div className="mt-1">Bruto acumulado projetado: {formatCurrencyInput(projectedAccumulatedGross)}</div>
                 </div>
@@ -5001,6 +5004,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                 <div className="font-medium text-roman-text-main">Valor de referência</div>
                 <div>Previsto inicial: {activeExpectedBaselineValue > 0 ? formatCurrencyInput(activeExpectedBaselineValue) : 'Não definido'}</div>
+                <div>Base de conclusão (realizado): {activeCompletionBaselineValue > 0 ? formatCurrencyInput(activeCompletionBaselineValue) : 'Não definido'}</div>
                 <div>Bruto acumulado atual: {formatCurrencyInput(currentAccumulatedGross)}</div>
               </div>
 

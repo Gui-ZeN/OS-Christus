@@ -1551,6 +1551,8 @@ export function FinanceView() {
             const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.grossAmount);
             const currentAccumulatedGross = expectedBaselineValue > 0 ? (expectedBaselineValue * progressPercent) / 100 : 0;
             const projectedAccumulatedGross = currentAccumulatedGross + parseCurrency(measurementDraft.grossAmount || '');
+            const completionBaselineValue = resolveCompletionBaselineValue(contract, payments);
+            const completionPreviewPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, completionBaselineValue);
             const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
             const activeTab = financeTabs[ticket.id] || 'financial';
             const guaranteeDaysRemaining = getGuaranteeDaysRemaining(ticket.guarantee);
@@ -1800,6 +1802,7 @@ export function FinanceView() {
                           <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                             <div className="font-medium text-roman-text-main mb-1">Percentual calculado</div>
                             <div>{releasePreview.progressPercent}%</div>
+                            <div className="mt-1">% para conclusão (com aditivos): {completionPreviewPercent}%</div>
                             <div className="mt-1">Andamento atual salvo: {progressPercent}%</div>
                             <div className="mt-1">Bruto acumulado projetado: {formatCurrency(projectedAccumulatedGross)}</div>
                           </div>
@@ -1899,6 +1902,7 @@ export function FinanceView() {
                             <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
                             <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'não definido'}</div>
                             <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'não definido'}</div>
+                            <div>Base de conclusão (realizado): {completionBaselineValue > 0 ? formatCurrency(completionBaselineValue) : 'não definido'}</div>
                             <div>Bruto acumulado atual: {formatCurrency(currentAccumulatedGross)}</div>
                             <div>Andamento atual salvo: {progressPercent}%</div>
                             <div>Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
