@@ -2177,15 +2177,15 @@ export function FinanceView() {
                                 </div>
                               </div>
 
-                              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                  <div className="text-xs text-roman-text-sub">Anexos do lançamento (PDF, Word, XML, imagens e similares).</div>
+                                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                  <div className="text-xs text-roman-text-sub">Anexos do lançamento (Excel, CSV, PDF, Word e imagens).</div>
                                   <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
                                     {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
                                     <input
                                       type="file"
                                       multiple
-                                      accept=".pdf,.doc,.docx,.xml,.csv,.xls,.xlsx,.txt,image/*"
+                                      accept=".pdf,.doc,.docx,.csv,.xls,.xlsx,image/*"
                                       className="hidden"
                                       disabled={isUploadingPaymentAttachment || payment.status === 'paid'}
                                       onChange={event => {
