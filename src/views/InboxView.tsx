@@ -1597,6 +1597,7 @@ export function InboxView() {
   const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
   const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
   const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
+  const [showAdditiveReference, setShowAdditiveReference] = useState(true);
   const toggleQuoteMetaPanel = (panel: 'context' | 'history' | 'comparison') => {
     const isContextOpen = showQuoteContextPanel;
     const isHistoryOpen = showQuoteHistoryPanel;
@@ -1647,18 +1648,22 @@ export function InboxView() {
     const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
     const allTicketQuotes = storedQuotesByTicket[activeTicketId] || [];
     const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
-    if (ticketChanged) {
-      setQuoteRoundType('initial');
+    if (ticketChanged && quoteRoundType !== 'additive') {
       setQuoteAdditiveIndex(additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1);
     }
 
-    const targetRoundType: 'initial' | 'additive' = ticketChanged ? 'initial' : quoteRoundType;
+    const targetRoundType: 'initial' | 'additive' = quoteRoundType;
+    const nextAdditiveIndex = additiveRounds.length > 0 ? Math.max(...additiveRounds) + 1 : 1;
+    const effectiveAdditiveIndex =
+      targetRoundType === 'additive'
+        ? Math.max(1, Number(quoteAdditiveIndex || nextAdditiveIndex))
+        : quoteAdditiveIndex;
     const targetRoundMinSlots = getRoundMinQuoteSlots(targetRoundType);
     const targetRoundMaxSlots = getRoundMaxQuoteSlots(targetRoundType);
     const currentQuotes = getQuotesByRound(
       allTicketQuotes,
       targetRoundType,
-      ticketChanged ? (additiveRounds.length > 0 ? Math.max(...additiveRounds) : quoteAdditiveIndex) : quoteAdditiveIndex
+      effectiveAdditiveIndex
     );
     const fallbackQuotes = Array.from({ length: targetRoundMinSlots }, () => createEmptyQuoteDraft());
     const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
@@ -1714,6 +1719,7 @@ export function InboxView() {
     setShowQuoteContextPanel(false);
     setShowQuoteHistoryPanel(false);
     setShowQuoteComparisonPanel(false);
+    setShowAdditiveReference(true);
     setQuoteEditorFocus(0);
   }, [showQuotesModal, activeTicketId, quoteRoundType]);
 
@@ -1772,6 +1778,12 @@ export function InboxView() {
       realizedValue: plannedValue + approvedAdditives,
       additiveValue: approvedAdditives,
     };
+  }, [activeTicket.id, storedQuotesByTicket]);
+  const approvedInitialQuote = useMemo(() => {
+    const allQuotes = storedQuotesByTicket[activeTicket.id] || [];
+    const approved = allQuotes.find(quote => (quote.category || 'initial') === 'initial' && quote.status === 'approved');
+    if (approved) return approved;
+    return allQuotes.find(quote => (quote.category || 'initial') === 'initial') || null;
   }, [activeTicket.id, storedQuotesByTicket]);
 
   const suggestedQuoteMaterials = useMemo(() => {
@@ -3273,7 +3285,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <button
                       onClick={() => {
                         setQuoteRoundType('additive');
-                        setQuoteAdditiveIndex(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 1);
+                        setQuoteAdditiveIndex((availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1);
                         setShowQuotesModal(true);
                       }}
                       className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
@@ -3877,6 +3889,48 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 {quoteRoundType === 'additive' && (
                   <div className="space-y-3">
+                    <div className="rounded-sm border border-roman-border bg-roman-bg p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Orçamento base escolhido</div>
+                          <div className="mt-1 text-sm text-roman-text-main">Referência para montar o aditivo</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowAdditiveReference(current => !current)}
+                          className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white px-2.5 py-1 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                        >
+                          <ChevronDown size={12} className={`transition-transform ${showAdditiveReference ? 'rotate-180' : ''}`} />
+                          {showAdditiveReference ? 'Recolher' : 'Expandir'}
+                        </button>
+                      </div>
+                      {showAdditiveReference && (
+                        <div className="mt-3 rounded-sm border border-roman-border bg-white p-3 text-sm text-roman-text-main">
+                          {approvedInitialQuote ? (
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                              <div>
+                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Fornecedor aprovado</div>
+                                <div className="mt-1 font-medium">{approvedInitialQuote.vendor || 'Não informado'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Valor aprovado</div>
+                                <div className="mt-1 font-medium">{approvedInitialQuote.totalValue || approvedInitialQuote.value || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Material</div>
+                                <div className="mt-1">{approvedInitialQuote.materialValue || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
+                                <div className="mt-1">{approvedInitialQuote.laborValue || '-'}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-roman-text-sub">Nenhum orçamento inicial aprovado encontrado para usar como referência.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
                     <select
                       value={quoteAdditiveIndex}
