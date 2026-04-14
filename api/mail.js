@@ -1076,17 +1076,20 @@ async function handleSend(req, res) {
     const templateRecipients = parseEmailList(storedTemplate?.recipients || '');
     const flowFallbackRecipients = await resolveFlowFallbackRecipients(db, trigger);
     const threadRecipients = parseEmailList(thread?.toEmail || '');
+    const directorRecipientsMerged = [...new Set([...templateRecipients, ...flowFallbackRecipients])];
     const recipients = internalCopy
       ? (internalEmail ? [internalEmail] : [])
       : explicitRecipients.length > 0
         ? explicitRecipients
-        : templateRecipients.length > 0
-          ? templateRecipients
-          : flowFallbackRecipients.length > 0
-            ? flowFallbackRecipients
-          : allowThreadRecipientFallback
-            ? threadRecipients
-            : [];
+        : isDirectorTrigger
+          ? directorRecipientsMerged
+          : templateRecipients.length > 0
+            ? templateRecipients
+            : flowFallbackRecipients.length > 0
+              ? flowFallbackRecipients
+              : allowThreadRecipientFallback
+                ? threadRecipients
+                : [];
     const toEmail = recipients.join(', ');
     toEmailForLog = toEmail;
     if (!toEmail || recipients.length === 0) {

@@ -285,6 +285,10 @@ async function postEmail(payload: Record<string, unknown>, options?: { throwOnEr
 }
 
 function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previousStatus: string) {
+  if (status === TICKET_STATUS.WAITING_TECH_OPINION) {
+    return previousStatus === TICKET_STATUS.NEW;
+  }
+
   const blockedStatuses = new Set<string>([
     TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
     TICKET_STATUS.WAITING_BUDGET,
