@@ -31,6 +31,31 @@ function daysBetween(start: Date, end: Date) {
   return Math.max(0, (end.getTime() - start.getTime()) / 86400000);
 }
 
+function buildMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function buildMonthBuckets(
+  start: Date,
+  end: Date,
+  formatter: Intl.DateTimeFormat
+) {
+  const normalizedStart = new Date(start.getFullYear(), start.getMonth(), 1);
+  const normalizedEnd = new Date(end.getFullYear(), end.getMonth(), 1);
+  const buckets: Array<{ key: string; label: string }> = [];
+  const cursor = new Date(normalizedStart);
+
+  while (cursor.getTime() <= normalizedEnd.getTime()) {
+    buckets.push({
+      key: buildMonthKey(cursor),
+      label: formatter.format(cursor).replace('.', ''),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return buckets;
+}
+
 function resolveItemValue(
   item: { totalPrice?: string | null; unitPrice?: string | null; quantity?: number | null },
   fallbackValue = 0
@@ -49,6 +74,7 @@ export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [period, setPeriod] = useState<'month' | 'semester' | 'custom'>('month');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
@@ -100,11 +126,93 @@ export function KpiView() {
     };
   }, []);
 
+  const timelineDates = useMemo(() => {
+    const dates: Date[] = [];
+    for (const ticket of tickets) {
+      if (ticket.time instanceof Date && !Number.isNaN(ticket.time.getTime())) {
+        dates.push(ticket.time);
+      }
+      const closedAt = ticket.closureChecklist?.closedAt;
+      if (closedAt instanceof Date && !Number.isNaN(closedAt.getTime())) {
+        dates.push(closedAt);
+      }
+    }
+    for (const payments of Object.values(paymentsByTicket) as PaymentRecord[][]) {
+      for (const payment of payments) {
+        if (payment.dueAt instanceof Date && !Number.isNaN(payment.dueAt.getTime())) {
+          dates.push(payment.dueAt);
+        }
+        if (payment.paidAt instanceof Date && !Number.isNaN(payment.paidAt.getTime())) {
+          dates.push(payment.paidAt);
+        }
+      }
+    }
+    return dates;
+  }, [paymentsByTicket, tickets]);
+
+  const latestBalanceDate = useMemo(() => {
+    if (timelineDates.length === 0) return new Date();
+    const latestMs = Math.max(...timelineDates.map(date => date.getTime()));
+    return new Date(latestMs);
+  }, [timelineDates]);
+
+  const latestBalanceYear = latestBalanceDate.getFullYear();
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>(timelineDates.map(date => date.getFullYear()));
+    if (years.size === 0) {
+      years.add(new Date().getFullYear());
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [timelineDates]);
+
+  useEffect(() => {
+    if (!availableYears.includes(selectedYear)) {
+      setSelectedYear(latestBalanceYear);
+    }
+  }, [availableYears, latestBalanceYear, selectedYear]);
+
+  const periodRange = useMemo(() => {
+    const now = new Date();
+    if (period === 'month') {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 29);
+      return { start, end: now };
+    }
+    if (period === 'semester') {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 179);
+      return { start, end: now };
+    }
+
+    if (selectedYear === latestBalanceYear) {
+      const end = new Date(
+        latestBalanceDate.getFullYear(),
+        latestBalanceDate.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
+      const start = new Date(latestBalanceDate.getFullYear(), latestBalanceDate.getMonth() - 11, 1, 0, 0, 0, 0);
+      return { start, end };
+    }
+
+    return {
+      start: new Date(selectedYear, 0, 1, 0, 0, 0, 0),
+      end: new Date(selectedYear, 11, 31, 23, 59, 59, 999),
+    };
+  }, [latestBalanceDate, latestBalanceYear, period, selectedYear]);
+
   const periodTickets = useMemo(() => {
-    const now = Date.now();
-    const rangeDays = period === 'month' ? 30 : period === 'semester' ? 180 : 365;
-    return tickets.filter(ticket => now - ticket.time.getTime() <= rangeDays * 86400000);
-  }, [period, tickets]);
+    const startMs = periodRange.start.getTime();
+    const endMs = periodRange.end.getTime();
+    return tickets.filter(ticket => {
+      const ticketMs = ticket.time.getTime();
+      return ticketMs >= startMs && ticketMs <= endMs;
+    });
+  }, [periodRange, tickets]);
 
   const regionOptions = useMemo(
     () => {
@@ -231,32 +339,27 @@ export function KpiView() {
   }, [filteredTickets]);
 
   const tendenciaMensal = useMemo(() => {
-    const months = new Map<string, { name: string; abertas: number; encerradas: number }>();
     const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' });
+    const monthBuckets = buildMonthBuckets(periodRange.start, periodRange.end, formatter);
+    const months = new Map<string, { name: string; abertas: number; encerradas: number }>(
+      monthBuckets.map(bucket => [bucket.key, { name: bucket.label, abertas: 0, encerradas: 0 }])
+    );
 
-    const ensureBucket = (date: Date) => {
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!months.has(key)) {
-        months.set(key, {
-          name: formatter.format(date).replace('.', ''),
-          abertas: 0,
-          encerradas: 0,
-        });
-      }
-      return months.get(key)!;
-    };
+    const ensureBucket = (date: Date) => months.get(buildMonthKey(date));
 
     for (const ticket of filteredTickets) {
-      ensureBucket(ticket.time).abertas += 1;
+      const openBucket = ensureBucket(ticket.time);
+      if (openBucket) openBucket.abertas += 1;
 
       const closedAt = ticket.closureChecklist?.closedAt || ticket.guarantee?.startAt;
       if (closedAt instanceof Date) {
-        ensureBucket(closedAt).encerradas += 1;
+        const closedBucket = ensureBucket(closedAt);
+        if (closedBucket) closedBucket.encerradas += 1;
       }
     }
 
-    return [...months.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, value]) => value);
-  }, [filteredTickets]);
+    return monthBuckets.map(bucket => months.get(bucket.key) || { name: bucket.label, abertas: 0, encerradas: 0 });
+  }, [filteredTickets, periodRange.end, periodRange.start]);
 
   const agingBuckets = useMemo(() => {
     const buckets = [
@@ -506,30 +609,30 @@ export function KpiView() {
   }, [contractValues, contractsByTicket]);
 
   const calendarioFinanceiro = useMemo(() => {
-    const grouped = new Map<string, { name: string; previsto: number; pago: number }>();
     const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' });
+    const monthBuckets = buildMonthBuckets(periodRange.start, periodRange.end, formatter);
+    const grouped = new Map<string, { name: string; previsto: number; pago: number }>(
+      monthBuckets.map(bucket => [bucket.key, { name: bucket.label, previsto: 0, pago: 0 }])
+    );
 
-    const ensureBucket = (date: Date) => {
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!grouped.has(key)) {
-        grouped.set(key, { name: formatter.format(date).replace('.', ''), previsto: 0, pago: 0 });
-      }
-      return grouped.get(key)!;
-    };
+    const ensureBucket = (date: Date) => grouped.get(buildMonthKey(date));
 
-    for (const payments of Object.values(paymentsByTicket) as PaymentRecord[][]) {
+    for (const ticket of filteredTickets) {
+      const payments = (paymentsByTicket[ticket.id] || []) as PaymentRecord[];
       for (const payment of payments) {
         if (payment.dueAt instanceof Date) {
-          ensureBucket(payment.dueAt).previsto += parseCurrency(payment.value);
+          const dueBucket = ensureBucket(payment.dueAt);
+          if (dueBucket) dueBucket.previsto += parseCurrency(payment.value);
         }
         if (payment.status === 'paid' && payment.paidAt instanceof Date) {
-          ensureBucket(payment.paidAt).pago += parseCurrency(payment.value);
+          const paidBucket = ensureBucket(payment.paidAt);
+          if (paidBucket) paidBucket.pago += parseCurrency(payment.value);
         }
       }
     }
 
-    return [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, value]) => value);
-  }, [paymentsByTicket]);
+    return monthBuckets.map(bucket => grouped.get(bucket.key) || { name: bucket.label, previsto: 0, pago: 0 });
+  }, [filteredTickets, paymentsByTicket, periodRange.end, periodRange.start]);
 
   const maioresSaldosPendentes = useMemo(() => {
     return contractValues
@@ -622,6 +725,21 @@ export function KpiView() {
                 Últimos 12 Meses
               </button>
             </div>
+            {period === 'custom' && (
+              <div className="flex justify-end">
+                <select
+                  value={selectedYear}
+                  onChange={event => setSelectedYear(Number(event.target.value))}
+                  className="w-full md:w-44 rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>
+                      {year}{year === latestBalanceYear ? ' (12 meses móveis)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </header>
 
