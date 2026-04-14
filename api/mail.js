@@ -308,14 +308,36 @@ async function resolveFlowFallbackRecipients(db, trigger) {
   const normalizedTrigger = String(trigger || '').trim().toUpperCase();
   if (!normalizedTrigger.startsWith('EMAIL-DIRETORIA-')) return [];
 
-  const snap = await db.collection('users').where('role', '==', 'Diretor').get();
-  if (snap.empty) return [];
+  const normalizeLabel = value =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
 
-  return snap.docs
+  const usersSnap = await db.collection('users').get();
+  const userRecipients = usersSnap.docs
     .map(doc => doc.data() || {})
-    .filter(user => user.active !== false && String(user.status || 'Ativo').trim() === 'Ativo')
+    .filter(user => {
+      const role = normalizeLabel(user.role);
+      const status = normalizeLabel(user.status || 'ativo');
+      const isDirectorRole = role === 'diretor' || role === 'director';
+      const isActive = user.active !== false && (status === '' || status === 'ativo' || status === 'active');
+      return isDirectorRole && isActive;
+    })
     .map(user => firstEmail(user.email))
     .filter(Boolean);
+
+  const templateKeys = ['EMAIL-DIRETORIA-SOLUCAO', 'EMAIL-DIRETORIA-APROVACAO'];
+  const templateRecipientBuckets = await Promise.all(
+    templateKeys.map(async key => {
+      const template = await resolveEmailTemplate(db, key);
+      return parseEmailList(template?.recipients || '');
+    })
+  );
+  const templateRecipients = templateRecipientBuckets.flat();
+
+  return [...new Set([...templateRecipients, ...userRecipients])];
 }
 
 function normalizeDirectorGreeting(body) {
