@@ -29,6 +29,7 @@ export async function sendWithSendGrid({
   templateData,
   headers,
   replyTo,
+  attachments,
 }) {
   const apiKey = requiredEnv('SENDGRID_API_KEY');
   const fromEmail = requiredEnv('SENDGRID_FROM_EMAIL');
@@ -54,6 +55,17 @@ export async function sendWithSendGrid({
           { type: 'text/plain', value: text || '' },
           { type: 'text/html', value: html || `<pre>${(text || '').replace(/[<>&]/g, '')}</pre>` },
         ],
+    attachments: Array.isArray(attachments) && attachments.length > 0
+      ? attachments
+          .filter(item => item?.buffer)
+          .map(item => ({
+            content: Buffer.isBuffer(item.buffer) ? item.buffer.toString('base64') : '',
+            filename: String(item.filename || 'anexo'),
+            type: String(item.mimeType || 'application/octet-stream'),
+            disposition: 'attachment',
+          }))
+          .filter(item => item.content)
+      : undefined,
     template_id: templateId || undefined,
     headers: headers || undefined,
     reply_to: replyTo ? { email: replyTo } : undefined,

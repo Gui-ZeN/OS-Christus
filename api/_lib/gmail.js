@@ -69,31 +69,72 @@ export function decodeMimeHeader(value) {
   });
 }
 
-function buildRawMessage({ from, to, subject, text, html, inReplyTo, references, extraHeaders = {} }) {
-  const boundary = `oschristus_${Math.random().toString(16).slice(2)}`;
+function foldBase64(input) {
+  return String(input || '').replace(/.{1,76}/g, '$&\r\n').trim();
+}
+
+function buildRawMessage({ from, to, subject, text, html, inReplyTo, references, extraHeaders = {}, attachments = [] }) {
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+  const mixedBoundary = `oschristus_mixed_${Math.random().toString(16).slice(2)}`;
+  const alternativeBoundary = `oschristus_alt_${Math.random().toString(16).slice(2)}`;
   const headers = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${encodeMimeHeader(subject)}`,
     'MIME-Version: 1.0',
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    `Content-Type: ${hasAttachments ? `multipart/mixed; boundary="${mixedBoundary}"` : `multipart/alternative; boundary="${alternativeBoundary}"`}`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
     ...(references && references.length > 0 ? [`References: ${references.join(' ')}`] : []),
     ...Object.entries(extraHeaders).map(([key, value]) => `${key}: ${value}`),
     '',
-    `--${boundary}`,
+  ];
+
+  const parts = [];
+
+  if (hasAttachments) {
+    parts.push(
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+      ''
+    );
+  }
+
+  parts.push(
+    `--${alternativeBoundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     '',
     text || '',
     '',
-    `--${boundary}`,
+    `--${alternativeBoundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     '',
     html || `<pre>${(text || '').replace(/[<>&]/g, '')}</pre>`,
     '',
-    `--${boundary}--`,
-  ];
-  return toBase64Url(headers.join('\r\n'));
+    `--${alternativeBoundary}--`
+  );
+
+  if (hasAttachments) {
+    for (const attachment of attachments) {
+      const filename = String(attachment?.filename || 'anexo');
+      const mimeType = String(attachment?.mimeType || 'application/octet-stream');
+      const content = Buffer.isBuffer(attachment?.buffer) ? attachment.buffer.toString('base64') : '';
+      if (!content) continue;
+
+      parts.push(
+        '',
+        `--${mixedBoundary}`,
+        `Content-Type: ${mimeType}; name="${encodeMimeHeader(filename)}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${encodeMimeHeader(filename)}"`,
+        '',
+        foldBase64(content)
+      );
+    }
+
+    parts.push('', `--${mixedBoundary}--`);
+  }
+
+  return toBase64Url([...headers, ...parts].join('\r\n'));
 }
 
 function extractHeader(headers, name) {
@@ -156,7 +197,7 @@ async function gmailGetAttachment(gmail, messageId, attachmentId) {
   return Buffer.from(normalized, 'base64');
 }
 
-export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId }) {
+export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId, attachments = [] }) {
   const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
 
@@ -168,6 +209,7 @@ export async function gmailSend({ toEmail, subject, text, html, inReplyTo, refer
     html,
     inReplyTo,
     references,
+    attachments,
     extraHeaders: {
       'X-OS-Ticket-ID': ticketId,
       ...(trackingToken ? { 'X-OS-Tracking-Token': trackingToken } : {}),

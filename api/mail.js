@@ -1026,6 +1026,7 @@ async function handleSend(req, res) {
     }
 
     const db = getAdminDb();
+    const outboundAttachments = await resolveOutboundAttachments(body.attachments);
     const isPublicCreationEmail =
       trigger === 'EMAIL-NOVA-OS' &&
       (await canSendPublicCreationEmail(db, ticketId, firstEmail(toEmailInput) || '', internalCopy));
@@ -1160,6 +1161,7 @@ async function handleSend(req, res) {
         ticketId,
         trackingToken: trackingToken || undefined,
         threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
+        attachments: outboundAttachments,
       });
       sendResult = gmailSendResult.result;
       effectiveInReplyTo = gmailSendResult.inReplyTo;
@@ -1175,6 +1177,7 @@ async function handleSend(req, res) {
         templateData,
         headers,
         replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+        attachments: outboundAttachments,
       });
     }
 
@@ -1220,6 +1223,11 @@ async function handleSend(req, res) {
         inReplyTo: effectiveInReplyTo,
         references: mergedReferences,
         headers: persistedHeaders,
+        attachments: outboundAttachments.map(item => ({
+          name: item.filename,
+          contentType: item.mimeType,
+          size: item.size,
+        })),
         createdAt: now,
       });
     }
@@ -1368,6 +1376,49 @@ async function handleGmailSync(req, res) {
     });
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no sync do Gmail.' });
   }
+}
+
+async function resolveOutboundAttachments(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return [];
+
+  const filtered = attachments.slice(0, MAX_ATTACHMENTS);
+  const bucket = getStorage().bucket();
+  const results = [];
+
+  for (const attachment of filtered) {
+    const path = String(attachment?.path || '').trim();
+    const url = String(attachment?.url || '').trim();
+    const filename = String(attachment?.name || attachment?.filename || 'anexo').trim() || 'anexo';
+    const mimeType = String(attachment?.contentType || attachment?.mimeType || 'application/octet-stream').trim() || 'application/octet-stream';
+    let buffer = null;
+
+    try {
+      if (path) {
+        const [downloaded] = await bucket.file(path).download();
+        buffer = downloaded;
+      } else if (url) {
+        const response = await fetch(url);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer);
+        }
+      }
+    } catch {
+      buffer = null;
+    }
+
+    if (!buffer) continue;
+    if (buffer.length > MAX_ATTACHMENT_SIZE) continue;
+
+    results.push({
+      filename,
+      mimeType,
+      size: buffer.length,
+      buffer,
+    });
+  }
+
+  return results;
 }
 
 async function handleGmailWatch(req, res) {

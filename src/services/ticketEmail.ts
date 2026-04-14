@@ -285,6 +285,19 @@ async function postEmail(payload: Record<string, unknown>, options?: { throwOnEr
   }
 }
 
+function normalizeEmailAttachments(attachments: TicketAttachment[] = []) {
+  return attachments
+    .filter(item => String(item?.path || item?.url || '').trim())
+    .map(item => ({
+      id: item.id,
+      name: item.name,
+      path: item.path,
+      url: item.url,
+      contentType: item.contentType,
+      size: item.size,
+    }));
+}
+
 function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previousStatus: string) {
   if (status === TICKET_STATUS.WAITING_TECH_OPINION) {
     return previousStatus === TICKET_STATUS.NEW;
@@ -584,14 +597,12 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
             .filter(Boolean)
             .join('\n')
         : '';
-    const directorBody = appendAttachmentsToBody(
-      [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, technicalBlock].filter(Boolean).join('\n\n'),
-      latestAttachments
-    );
+    const directorBody = [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, technicalBlock].filter(Boolean).join('\n\n');
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
       trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
+      attachments: normalizeEmailAttachments(latestAttachments),
       variables,
       templateData: {
         title: isApprovalStatus
@@ -684,6 +695,7 @@ export async function notifyTicketDirectorReply(
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     trigger,
+    attachments: normalizeEmailAttachments(attachments),
     variables,
     templateData: {
       title: 'Nova mensagem para a Diretoria',
