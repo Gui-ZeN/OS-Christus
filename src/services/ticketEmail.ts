@@ -2,6 +2,7 @@
 import { PaymentRecord, Quote, Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
+import { fetchDirectory } from './directoryApi';
 import { fetchProcurementData } from './procurementApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 
@@ -424,16 +425,49 @@ function resolveDirectorApprovalTab(status: string): 'solutions' | 'budgets' | '
 }
 
 async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) {
+  const trigger = String(payload?.trigger || '').trim().toUpperCase();
+  let enrichedPayload = { ...payload };
+
+  if (!payload?.toEmail && trigger.startsWith('EMAIL-DIRETORIA-')) {
+    try {
+      const directory = await fetchDirectory();
+      const directorRecipients = (directory.users || [])
+        .filter(user => {
+          const role = String(user.role || '')
+            .trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+          const status = String(user.status || 'Ativo')
+            .trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+          return (role === 'diretor' || role === 'director') && user.active !== false && (status === 'ativo' || status === 'active');
+        })
+        .map(user => String(user.email || '').trim().toLowerCase())
+        .filter(Boolean);
+
+      if (directorRecipients.length > 0) {
+        enrichedPayload = {
+          ...payload,
+          toEmail: [...new Set(directorRecipients)].join(', '),
+        };
+      }
+    } catch (error) {
+      console.error('[ticketEmail] failed to resolve director recipients from directory', error);
+    }
+  }
+
   const sentToConfiguredRecipients = await postEmail({
-    ...payload,
+    ...enrichedPayload,
     allowThreadRecipientFallback: false,
   });
   if (sentToConfiguredRecipients) return true;
 
-  const trigger = String(payload?.trigger || '').trim().toUpperCase();
   if (trigger === 'EMAIL-DIRETORIA-SOLUCAO') {
     const sentUsingApprovalTrigger = await postEmail({
-      ...payload,
+      ...enrichedPayload,
       trigger: 'EMAIL-DIRETORIA-APROVACAO',
       allowThreadRecipientFallback: false,
     });
@@ -441,7 +475,7 @@ async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) 
   }
 
   await postEmail({
-    ...payload,
+    ...enrichedPayload,
     allowThreadRecipientFallback: false,
     internalCopy: true,
     skipThread: true,
