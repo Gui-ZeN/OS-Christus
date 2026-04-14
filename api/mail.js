@@ -417,6 +417,7 @@ async function sendWithGmailThreadFallback({
   ticketId,
   trackingToken,
   threadId,
+  attachments,
 }) {
   const normalizedReferences = Array.isArray(references) ? references : [];
   const hasThreadContext = Boolean(threadId || inReplyTo || normalizedReferences.length > 0);
@@ -432,6 +433,7 @@ async function sendWithGmailThreadFallback({
       ticketId,
       trackingToken,
       threadId,
+      attachments,
     });
 
     return {
@@ -452,6 +454,7 @@ async function sendWithGmailThreadFallback({
       html,
       ticketId,
       trackingToken,
+      attachments,
     });
 
     return {
