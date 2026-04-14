@@ -122,6 +122,26 @@ function parseDate(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
   }
+  if (typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (value && typeof value === 'object') {
+    if ('toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+      const parsed = (value as { toDate: () => unknown }).toDate();
+      if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) return parsed;
+    }
+    if ('_seconds' in value) {
+      const seconds = Number((value as { _seconds?: unknown })._seconds || 0);
+      const parsed = new Date(seconds * 1000);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    if ('seconds' in value) {
+      const seconds = Number((value as { seconds?: unknown }).seconds || 0);
+      const parsed = new Date(seconds * 1000);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
   if (!value) return null;
   const parsed = new Date(value as string);
   return Number.isNaN(parsed.getTime()) ? null : parsed;

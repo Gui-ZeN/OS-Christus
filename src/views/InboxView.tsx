@@ -2231,10 +2231,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             const uploaded = await uploadQuoteAttachment(activeTicket.id, roundAttachmentKey, `quote-${quoteOrder + 1}`, attachmentFile);
             return { index, uploaded };
           } catch {
-            return { index, uploaded: null };
+            return { index, uploaded: null, uploadFailed: true };
           }
         })
       );
+      const failedUploads = uploadedAttachments.filter(item => Boolean((item as { uploadFailed?: boolean }).uploadFailed));
+      if (failedUploads.length > 0) {
+        setIsSending(false);
+        showToast('Falha ao enviar um ou mais anexos de cotação. Revise os arquivos e tente novamente.', 3500);
+        return;
+      }
       const uploadedByOriginalIndex = new Map<number, Awaited<ReturnType<typeof uploadQuoteAttachment>>>();
       uploadedAttachments.forEach(item => {
         if (item.uploaded) uploadedByOriginalIndex.set(item.index, item.uploaded);
@@ -2281,8 +2287,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       })});
       try {
         await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
-      } catch {
-        // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
+      } catch (error) {
+        const details = error instanceof Error ? error.message : 'Erro desconhecido ao salvar cotações.';
+        setIsSending(false);
+        showToast(`Falha ao salvar cotações no servidor: ${details}`, 5000);
+        return;
       }
       setStoredQuotesByTicket(prev => {
         const existing = prev[activeTicket.id] || [];
