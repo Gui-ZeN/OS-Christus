@@ -1050,7 +1050,7 @@ async function handleSend(req, res) {
     );
     const directorSummary = String(templateData.directorSummary || '').trim();
     const resolvedBody =
-      isDirectorTrigger && !directorBodyOverride && directorSummary
+      isDirectorTrigger && !requestedBodyOverride && directorSummary
         ? (baseResolvedBody
             ? baseResolvedBody.includes(directorSummary)
               ? baseResolvedBody
