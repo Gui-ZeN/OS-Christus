@@ -38,3 +38,13 @@ export function repairMojibake(value: unknown): string {
   }
 }
 
+export function stripAttachmentLinksFromMessage(value: unknown): string {
+  const text = repairMojibake(value);
+  if (!text) return '';
+
+  const marker = 'anexos enviados:';
+  const markerIndex = text.toLowerCase().indexOf(marker);
+  if (markerIndex === -1) return text.trim();
+
+  return text.slice(0, markerIndex).trim();
+}

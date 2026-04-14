@@ -286,6 +286,7 @@ async function postEmail(payload: Record<string, unknown>, options?: { throwOnEr
 
 function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previousStatus: string) {
   const blockedStatuses = new Set<string>([
+    TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
     TICKET_STATUS.WAITING_BUDGET,
     TICKET_STATUS.WAITING_BUDGET_APPROVAL,
     TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
@@ -343,8 +344,8 @@ function buildRequesterUpdateCopy(status: string, messageBody: string, cancellat
       };
     case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
       return {
-        title: 'Plano técnico definido',
-        intro: 'A solução técnica foi definida e autorizada para seguir com a execução.',
+        title: 'Plano técnico em avaliação',
+        intro: 'O parecer técnico foi consolidado e está em avaliação da diretoria.',
         ctaLabel: 'Acompanhar solicitação',
       };
     case TICKET_STATUS.WAITING_BUDGET:

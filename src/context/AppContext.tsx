@@ -203,6 +203,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<AppThemeId>(getInitialTheme);
 
   const refreshCountRef = useRef(0);
+  const pendingTicketUpdatesRef = useRef<Record<string, { ticket: Ticket; expiresAt: number }>>({});
+
+  const prunePendingTicketUpdates = () => {
+    const now = Date.now();
+    const pending = pendingTicketUpdatesRef.current;
+    for (const id of Object.keys(pending)) {
+      const entry = pending[id];
+      if (!entry || entry.expiresAt <= now) {
+        delete pending[id];
+      }
+    }
+  };
+
+  const registerPendingTicketUpdate = (id: string, ticket: Ticket) => {
+    pendingTicketUpdatesRef.current[id] = {
+      ticket,
+      expiresAt: Date.now() + 30_000,
+    };
+  };
+
+  const clearPendingTicketUpdate = (id: string) => {
+    delete pendingTicketUpdatesRef.current[id];
+  };
+
+  const mergeRemoteWithPendingTickets = (remote: Ticket[]) => {
+    prunePendingTicketUpdates();
+    const pending = pendingTicketUpdatesRef.current;
+    const merged = remote.map(ticket => pending[ticket.id]?.ticket || ticket);
+    for (const id of Object.keys(pending)) {
+      const entry = pending[id];
+      if (!merged.some(ticket => ticket.id === id)) {
+        merged.unshift(entry.ticket);
+      }
+    }
+    return merged;
+  };
 
   const refreshTickets = useCallback(async (options?: { silent?: boolean }) => {
     const generation = ++refreshCountRef.current;
@@ -233,7 +269,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const remote = await fetchTicketsFromApi();
       if (generation !== refreshCountRef.current) return;
-      setAllTickets(remote);
+      setAllTickets(mergeRemoteWithPendingTickets(remote));
     } catch {
       if (!silent && generation === refreshCountRef.current) {
         setAllTickets([]);
@@ -427,12 +463,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!previousTicket) return;
 
     const nextTicket: Ticket = { ...previousTicket, ...updates };
+    registerPendingTicketUpdate(id, nextTicket);
     setAllTickets(prev => prev.map(ticket => (ticket.id === id ? nextTicket : ticket)));
 
     void (async () => {
       try {
         await patchTicketInApi(id, updates);
+        clearPendingTicketUpdate(id);
       } catch (error) {
+        clearPendingTicketUpdate(id);
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
         console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.', error);
         return;

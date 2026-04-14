@@ -6,7 +6,7 @@ import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi } from '../services/ticketsApi';
 import type { HistoryItem, Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
-import { repairMojibake } from '../utils/text';
+import { repairMojibake, stripAttachmentLinksFromMessage } from '../utils/text';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 
 interface TrackingViewProps {
@@ -393,7 +393,7 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
         isCustomerMessage: item.type === 'customer',
         sender: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
         title: repairMojibake(item.sender || (item.type === 'customer' ? ticket.requester : 'Sistema')),
-        description: repairMojibake(item.text || ''),
+        description: stripAttachmentLinksFromMessage(item.text || ''),
       };
     });
 

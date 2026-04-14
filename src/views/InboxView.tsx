@@ -25,6 +25,7 @@ import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymen
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
+import { stripAttachmentLinksFromMessage } from '../utils/text';
 
 type QuoteDraft = {
   vendor: string;
@@ -1005,19 +1006,24 @@ export function InboxView() {
       return;
     }
 
-    updateTicket(activeTicket.id, {
-      ...updates,
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: new Date(),
-          text: `Painel da OS atualizado: ${changes.join(' · ')}.`,
-        },
-      ],
-    });
+    setIsSending(true);
+    try {
+      updateTicket(activeTicket.id, {
+        ...updates,
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: displayActorLabel,
+            time: new Date(),
+            text: `Painel da OS atualizado: ${changes.join(' · ')}.`,
+          },
+        ],
+      });
+    } finally {
+      window.setTimeout(() => setIsSending(false), 600);
+    }
 
     showToast('Painel da OS atualizado.', 2500);
   };
@@ -1045,29 +1051,34 @@ export function InboxView() {
       : techTeam;
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
-    updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.WAITING_TECH_OPINION,
-      priority: ticketPriority,
-      assignedTeam: techTeam,
-      assignedEmail: nextAssignedEmail,
-      macroServiceId: nextClassification.macroServiceId,
-      macroServiceName: nextClassification.macroServiceName,
-      serviceCatalogId: nextClassification.serviceCatalogId,
-      serviceCatalogName: nextClassification.serviceCatalogName,
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: new Date(),
-          text: `Triagem concluída. OS aceita com prioridade ${ticketPriority} e encaminhada para ${target}.`,
-        },
-      ],
-    });
+    setIsSending(true);
+    try {
+      updateTicket(activeTicket.id, {
+        status: TICKET_STATUS.WAITING_TECH_OPINION,
+        priority: ticketPriority,
+        assignedTeam: techTeam,
+        assignedEmail: nextAssignedEmail,
+        macroServiceId: nextClassification.macroServiceId,
+        macroServiceName: nextClassification.macroServiceName,
+        serviceCatalogId: nextClassification.serviceCatalogId,
+        serviceCatalogName: nextClassification.serviceCatalogName,
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: displayActorLabel,
+            time: new Date(),
+            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority} e encaminhada para ${target}.`,
+          },
+        ],
+      });
 
-    setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
-    showToast('Triagem concluída e OS aceita.', 2500);
+      setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
+      showToast('Triagem concluída e OS aceita.', 2500);
+    } finally {
+      window.setTimeout(() => setIsSending(false), 600);
+    }
   };
 
   // Botão principal de ação: transição de status + registro no histórico
@@ -1078,14 +1089,6 @@ export function InboxView() {
     const sender = displayActorLabel;
     const trimmedReply = replyText.trim();
 
-    const buildAttachmentText = (attachments: TicketAttachment[]) => {
-      const links = attachments
-        .filter(item => String(item?.url || '').trim())
-        .map(item => `- ${item.name}: ${item.url}`);
-      if (links.length === 0) return '';
-      return `Anexos enviados:\n${links.join('\n')}`;
-    };
-
     try {
       let uploadedReplyAttachments: TicketAttachment[] = [];
       if (replyFiles.length > 0) {
@@ -1094,10 +1097,7 @@ export function InboxView() {
         );
       }
 
-      const messageWithAttachments = [trimmedReply, buildAttachmentText(uploadedReplyAttachments)]
-        .filter(Boolean)
-        .join('\n\n')
-        .trim();
+      const messageWithAttachments = trimmedReply;
 
       if (replyMode === 'internal') {
         const items: HistoryItem[] = [];
@@ -2872,6 +2872,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               {[...activeTicket.history]
                 .sort((a, b) => a.time.getTime() - b.time.getTime())
                 .map((item, index) => {
+                  const displayText = stripAttachmentLinksFromMessage(item.text);
                   if (item.type === 'system') {
                     return (
                       <div key={index} className="flex justify-center">
@@ -2879,7 +2880,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <div className="flex items-center justify-center gap-2 text-center">
                             <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[10px] md:text-[11px]">
                               <Clock size={11} />
-                              <span className="truncate">{item.text}</span>
+                              <span className="truncate">{displayText}</span>
                             </div>
                             <div className="shrink-0 text-[10px] font-sans text-roman-text-sub/80">
                               {formatDateTimeSafe(item.time)}
@@ -2943,7 +2944,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   : 'bg-roman-surface border-roman-border'
                             }`}
                           >
-                            {item.text}
+                            {displayText}
                             {messageAttachmentItems.length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {messageAttachmentItems.map((attachment, attachmentIndex) => (
