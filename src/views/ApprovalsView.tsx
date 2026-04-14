@@ -450,27 +450,78 @@ export function ApprovalsView() {
     setRejectModalOpen(true);
   };
 
-  const handleReject = (reason: string) => {
+  const handleReject = async (reason: string) => {
     if (!canApprove) return;
     if (!rejectTargetId) return;
     setProcessingId(rejectTargetId);
     setRejectModalOpen(false);
     const targetTicket = tickets.find(ticket => ticket.id === rejectTargetId);
     const reasonText = reason.trim() || 'Motivo não informado.';
-    const historyItem = {
-      id: crypto.randomUUID(),
-      type: 'system' as const,
-      sender: directorActorName,
-      time: new Date(),
-      text: `OS cancelada por ${directorActorName}. Motivo: ${reasonText}`,
-    };
-    updateTicket(rejectTargetId, {
-      status: TICKET_STATUS.CANCELED,
-      viewingBy: null,
-      history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
-    });
-    setRejectTargetId(null);
-    setProcessingId(null);
+    const targetBudget = budgets.find(budget => budget.id === rejectTargetId) || null;
+
+    try {
+      if (targetBudget && targetTicket) {
+        const currentQuotes = quotesByTicket[rejectTargetId] || [];
+        const rejectedQuotes = currentQuotes.map(quote => {
+          const sameCategory = (quote.category === 'additive' ? 'additive' : 'initial') === targetBudget.roundCategory;
+          const sameAdditiveIndex =
+            targetBudget.roundCategory !== 'additive' ||
+            Number(quote.additiveIndex || 1) === Number(targetBudget.roundAdditiveIndex || 1);
+
+          if (!sameCategory || !sameAdditiveIndex) return quote;
+          return {
+            ...quote,
+            recommended: false,
+            status: 'rejected',
+          };
+        });
+
+        await saveQuotes(
+          rejectTargetId,
+          rejectedQuotes,
+          buildProcurementClassification(targetTicket)
+        );
+        setQuotesByTicket(prev => ({ ...prev, [rejectTargetId]: rejectedQuotes }));
+
+        const budgetLabel =
+          targetBudget.roundCategory === 'additive'
+            ? `Aditivo ${targetBudget.roundAdditiveIndex || 1}`
+            : 'Orçamento';
+        const historyItem = {
+          id: crypto.randomUUID(),
+          type: 'system' as const,
+          sender: directorActorName,
+          time: new Date(),
+          text: `${budgetLabel} reprovado por ${directorActorName}. Motivo: ${reasonText}. Nova rodada de cotações liberada para o gestor.`,
+        };
+
+        updateTicket(rejectTargetId, {
+          status: TICKET_STATUS.WAITING_BUDGET,
+          viewingBy: null,
+          history: [...targetTicket.history, historyItem],
+        });
+        showToast(`${budgetLabel} reprovado. Ticket devolvido para nova rodada de cotações.`, 3500);
+      } else {
+        const historyItem = {
+          id: crypto.randomUUID(),
+          type: 'system' as const,
+          sender: directorActorName,
+          time: new Date(),
+          text: `OS cancelada por ${directorActorName}. Motivo: ${reasonText}`,
+        };
+        updateTicket(rejectTargetId, {
+          status: TICKET_STATUS.CANCELED,
+          viewingBy: null,
+          history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao reprovar a etapa.';
+      showToast(message, 3500);
+    } finally {
+      setRejectTargetId(null);
+      setProcessingId(null);
+    }
   };
 
   const handleApproveContract = async (id: string) => {
