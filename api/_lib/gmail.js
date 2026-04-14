@@ -42,6 +42,16 @@ function encodeMimeHeader(value) {
   return `=?UTF-8?B?${Buffer.from(input, 'utf8').toString('base64')}?=`;
 }
 
+function sanitizeFilename(value) {
+  const input = String(value || 'anexo').trim() || 'anexo';
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'anexo';
+}
+
 function decodeQuotedPrintableWord(value) {
   const normalized = String(value || '')
     .replace(/_/g, ' ')
@@ -116,6 +126,7 @@ function buildRawMessage({ from, to, subject, text, html, inReplyTo, references,
   if (hasAttachments) {
     for (const attachment of attachments) {
       const filename = String(attachment?.filename || 'anexo');
+      const safeFilename = sanitizeFilename(filename);
       const mimeType = String(attachment?.mimeType || 'application/octet-stream');
       const content = Buffer.isBuffer(attachment?.buffer) ? attachment.buffer.toString('base64') : '';
       if (!content) continue;
@@ -123,9 +134,10 @@ function buildRawMessage({ from, to, subject, text, html, inReplyTo, references,
       parts.push(
         '',
         `--${mixedBoundary}`,
-        `Content-Type: ${mimeType}; name="${encodeMimeHeader(filename)}"`,
+        `Content-Type: ${mimeType}; name="${safeFilename}"`,
         'Content-Transfer-Encoding: base64',
-        `Content-Disposition: attachment; filename="${encodeMimeHeader(filename)}"`,
+        `Content-Disposition: attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        `Content-Description: ${encodeMimeHeader(filename)}`,
         '',
         foldBase64(content)
       );
