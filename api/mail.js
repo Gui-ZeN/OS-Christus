@@ -1399,15 +1399,21 @@ async function resolveOutboundAttachments(attachments) {
       if (path) {
         const [downloaded] = await bucket.file(path).download();
         buffer = downloaded;
-      } else if (url) {
+      }
+    } catch {
+      buffer = null;
+    }
+
+    if (!buffer && url) {
+      try {
         const response = await fetch(url);
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
           buffer = Buffer.from(arrayBuffer);
         }
+      } catch {
+        buffer = null;
       }
-    } catch {
-      buffer = null;
     }
 
     if (!buffer) continue;
