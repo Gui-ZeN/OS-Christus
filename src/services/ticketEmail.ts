@@ -424,13 +424,25 @@ async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) 
     ...payload,
     allowThreadRecipientFallback: false,
   });
-  if (sentToConfiguredRecipients) return;
+  if (sentToConfiguredRecipients) return true;
+
+  const trigger = String(payload?.trigger || '').trim().toUpperCase();
+  if (trigger === 'EMAIL-DIRETORIA-SOLUCAO') {
+    const sentUsingApprovalTrigger = await postEmail({
+      ...payload,
+      trigger: 'EMAIL-DIRETORIA-APROVACAO',
+      allowThreadRecipientFallback: false,
+    });
+    if (sentUsingApprovalTrigger) return true;
+  }
+
   await postEmail({
     ...payload,
     allowThreadRecipientFallback: false,
     internalCopy: true,
     skipThread: true,
   });
+  return false;
 }
 
 export async function notifyTicketCreated(ticket: Ticket) {
