@@ -12,6 +12,7 @@ import { fetchProcurementData, saveContract, savePayment, saveQuotes } from '../
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
+import { stripAttachmentLinksFromMessage } from '../utils/text';
 
 const REVIEW_ACTIVE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -971,7 +972,7 @@ export function ApprovalsView() {
               </div>
               <div className="bg-roman-bg border border-roman-border rounded-xl p-3.5 mb-5">
                 <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2 font-bold flex items-center gap-2"><FileText size={14} /> Parecer Técnico</h4>
-                <p className="text-sm text-roman-text-main leading-relaxed">{solution.technicalOpinion}</p>
+                <p className="text-sm text-roman-text-main leading-relaxed">{stripAttachmentLinksFromMessage(solution.technicalOpinion)}</p>
                 {solution.technicalAttachments.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {solution.technicalAttachments.map((attachment, attachmentIndex) => (
