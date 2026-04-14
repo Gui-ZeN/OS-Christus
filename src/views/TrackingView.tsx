@@ -304,7 +304,11 @@ function getStageForStatus(status: TicketStatus): StatusStage {
 }
 
 function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
-  const history = [...(ticket.history || [])].sort((a, b) => a.time.getTime() - b.time.getTime());
+  const history = [...(ticket.history || [])].sort((a, b) => {
+    const aTime = parseDate(a.time)?.getTime() ?? 0;
+    const bTime = parseDate(b.time)?.getTime() ?? 0;
+    return aTime - bTime;
+  });
   const earliestHistoryTime = history.reduce<Date | null>((earliest, item) => {
     const parsed = parseDate(item.time);
     if (!parsed) return earliest;
@@ -314,56 +318,45 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
 
   const openedAt = earliestHistoryTime || parseDate(ticket.time) || new Date();
   const baseMs = openedAt.getTime();
+  const currentStatus = ticket.status as TicketStatus;
+  const statusEvents: Array<{ status: TicketStatus; time: Date | null; index: number }> = [
+    { status: TICKET_STATUS.NEW, time: openedAt, index: -1 },
+  ];
 
-  const explicitStatusTimes = new Map<TicketStatus, Date>();
-  explicitStatusTimes.set(TICKET_STATUS.NEW, openedAt);
-
-  history.forEach(item => {
+  history.forEach((item, index) => {
     const status = extractStatusFromHistoryItem(item);
     if (!status) return;
-    const parsed = parseDate(item.time);
-    if (!parsed) return;
-    const previous = explicitStatusTimes.get(status);
-    if (!previous || parsed.getTime() < previous.getTime()) {
-      explicitStatusTimes.set(status, parsed);
-    }
+    statusEvents.push({
+      status,
+      time: parseDate(item.time),
+      index,
+    });
   });
 
-  const currentStatus = ticket.status as TicketStatus;
   const resolvedCurrentStatusTime = resolveStatusTimestamp(ticket, currentStatus);
-  if (!explicitStatusTimes.has(currentStatus) && resolvedCurrentStatusTime) {
-    explicitStatusTimes.set(currentStatus, resolvedCurrentStatusTime);
+  const hasCurrentStatusEvent = statusEvents.some(event => event.status === currentStatus);
+  if (!hasCurrentStatusEvent) {
+    statusEvents.push({
+      status: currentStatus,
+      time: resolvedCurrentStatusTime,
+      index: history.length + 1,
+    });
   }
 
-  const stageTimelineMap = new Map<string, { stage: StatusStage; time: Date | null }>();
-
-  explicitStatusTimes.forEach((statusTime, status) => {
-    const stage = getStageForStatus(status);
-    const existing = stageTimelineMap.get(stage.id);
-    if (!existing || !existing.time || statusTime.getTime() < existing.time.getTime()) {
-      stageTimelineMap.set(stage.id, { stage, time: statusTime });
-    }
-  });
-
-  const currentStage = getStageForStatus(currentStatus);
-  if (!stageTimelineMap.has(currentStage.id)) {
-    stageTimelineMap.set(currentStage.id, { stage: currentStage, time: resolvedCurrentStatusTime || null });
-  }
-
-  const statusEntries: TimelineEntry[] = [...stageTimelineMap.values()].map(({ stage, time }, index) => {
+  const statusEntries: TimelineEntry[] = statusEvents.map((event, index) => {
+    const stage = getStageForStatus(event.status);
     const fallbackSortBase = baseMs + 10_000_000;
-    const sortMs = time?.getTime() ?? (fallbackSortBase + index);
-
+    const sortMs = event.time?.getTime() ?? (fallbackSortBase + index);
     return {
-      id: `status-${stage.id}-${index}`,
+      id: `status-${event.status}-${index}-${sortMs}`,
       kind: 'status',
-      time,
+      time: event.time,
       sortMs,
       isCustomerMessage: false,
       sender: 'Sistema',
       title: stage.title,
       description: stage.description,
-      status: stage.statuses[stage.statuses.length - 1],
+      status: event.status,
     };
   });
 

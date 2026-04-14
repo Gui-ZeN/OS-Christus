@@ -432,12 +432,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         await patchTicketInApi(id, updates);
-        if (updates.status && previousTicket.status !== nextTicket.status) {
-          await notifyTicketStatusChange(nextTicket, previousTicket.status);
-        }
-      } catch {
+      } catch (error) {
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
-        console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.');
+        console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.', error);
+        return;
+      }
+
+      if (updates.status && previousTicket.status !== nextTicket.status) {
+        try {
+          await notifyTicketStatusChange(nextTicket, previousTicket.status);
+        } catch (error) {
+          console.error('[updateTicket] Status persisted, but status e-mail notification failed for ticket', id, error);
+        }
       }
     })();
   };

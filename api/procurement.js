@@ -180,15 +180,16 @@ async function syncVendorPreferenceEvents(db, ticketId, approvedQuote, classific
 }
 
 async function writeQuotes(db, ticketId, quotes) {
-  const batch = db.batch();
   const now = new Date();
   const classification = quotes[0]?.classification || null;
 
   for (let index = 0; index < quotes.length; index += 1) {
     const quote = quotes[index];
     const id = quote.id || `quote-${index + 1}`;
-    batch.set(
-      db.collection('tickets').doc(ticketId).collection('quotes').doc(id),
+    const quoteRef = db.collection('tickets').doc(ticketId).collection('quotes').doc(id);
+    const existingSnap = await quoteRef.get();
+    const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
+    await quoteRef.set(
       {
         id,
         ticketId,
@@ -228,19 +229,20 @@ async function writeQuotes(db, ticketId, quotes) {
           : [],
         classification: quote.classification || classification,
         updatedAt: now,
-        createdAt: now,
+        createdAt: existing.createdAt || now,
       },
       { merge: true }
     );
   }
-
-  await batch.commit();
 }
 
 async function writeContract(db, ticketId, contract, classification) {
   const now = new Date();
   const id = contract.id || 'contract-1';
-  await db.collection('tickets').doc(ticketId).collection('contracts').doc(id).set(
+  const contractRef = db.collection('tickets').doc(ticketId).collection('contracts').doc(id);
+  const existingSnap = await contractRef.get();
+  const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
+  await contractRef.set(
     {
       id,
       ticketId,
@@ -267,7 +269,7 @@ async function writeContract(db, ticketId, contract, classification) {
         : [],
       classification: contract.classification || classification || null,
       updatedAt: now,
-      createdAt: now,
+      createdAt: existing.createdAt || now,
     },
     { merge: true }
   );
@@ -276,7 +278,10 @@ async function writeContract(db, ticketId, contract, classification) {
 async function writePayment(db, ticketId, payment, classification) {
   const now = new Date();
   const id = payment.id || 'payment-1';
-  await db.collection('tickets').doc(ticketId).collection('payments').doc(id).set(
+  const paymentRef = db.collection('tickets').doc(ticketId).collection('payments').doc(id);
+  const existingSnap = await paymentRef.get();
+  const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
+  await paymentRef.set(
     {
       id,
       ticketId,
@@ -312,7 +317,7 @@ async function writePayment(db, ticketId, payment, classification) {
       paidAt: payment.paidAt ? new Date(payment.paidAt) : null,
       classification: payment.classification || classification || null,
       updatedAt: now,
-      createdAt: now,
+      createdAt: existing.createdAt || now,
     },
     { merge: true }
   );
@@ -321,7 +326,10 @@ async function writePayment(db, ticketId, payment, classification) {
 async function writeMeasurement(db, ticketId, measurement, classification) {
   const now = new Date();
   const id = measurement.id || `measurement-${Date.now()}`;
-  await db.collection('tickets').doc(ticketId).collection('measurements').doc(id).set(
+  const measurementRef = db.collection('tickets').doc(ticketId).collection('measurements').doc(id);
+  const existingSnap = await measurementRef.get();
+  const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
+  await measurementRef.set(
     {
       id,
       ticketId,
@@ -348,7 +356,7 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
       approvedAt: measurement.approvedAt ? new Date(measurement.approvedAt) : null,
       classification: measurement.classification || classification || null,
       updatedAt: now,
-      createdAt: now,
+      createdAt: existing.createdAt || now,
     },
     { merge: true }
   );

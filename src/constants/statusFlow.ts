@@ -4,6 +4,7 @@ export type AppActorRole = 'Admin' | 'Diretor' | 'Usuario';
 export type FlowScreen = 'inbox' | 'approvals' | 'finance' | 'tracking';
 
 type TransitionMap = Partial<Record<TicketStatus, TicketStatus[]>>;
+const ALL_TICKET_STATUSES = Object.values(TICKET_STATUS) as TicketStatus[];
 
 const ADMIN_INBOX_TRANSITIONS: TransitionMap = {
   [TICKET_STATUS.NEW]: [TICKET_STATUS.WAITING_TECH_OPINION, TICKET_STATUS.CANCELED],
@@ -51,6 +52,9 @@ const FLOW_TRANSITIONS: Record<AppActorRole, Partial<Record<FlowScreen, Transiti
 };
 
 export function getAllowedNextStatuses(role: AppActorRole, screen: FlowScreen, currentStatus: TicketStatus) {
+  if (role === 'Admin' && screen === 'inbox') {
+    return ALL_TICKET_STATUSES.filter(status => status !== currentStatus);
+  }
   const transitions = FLOW_TRANSITIONS[role]?.[screen];
   if (!transitions) return [] as TicketStatus[];
   return transitions[currentStatus] || [];
@@ -63,6 +67,6 @@ export function canTransitionStatus(
   nextStatus: TicketStatus
 ) {
   if (currentStatus === nextStatus) return true;
+  if (role === 'Admin' && screen === 'inbox') return true;
   return getAllowedNextStatuses(role, screen, currentStatus).includes(nextStatus);
 }
-

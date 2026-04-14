@@ -1,4 +1,4 @@
-﻿import React, { Component, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+﻿import React, { lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BarChart2,
   DollarSign,
@@ -84,32 +84,8 @@ export const VIEWS = {
   AUDIT_LOGS: 'audit-logs',
 } as const;
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-roman-text-sub font-serif italic p-8">
-          <p className="text-base">Ocorreu um erro inesperado nesta tela.</p>
-          <button
-            className="text-roman-primary underline text-sm"
-            onClick={() => this.setState({ hasError: false })}
-          >
-            Tentar novamente
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+function ErrorBoundary({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
 function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
@@ -515,6 +491,8 @@ export default function App() {
     </div>
   );
 }
+
+
 
 
 

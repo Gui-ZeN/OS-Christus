@@ -1113,7 +1113,9 @@ export function FinanceView() {
     const nextStatus = targetTicket.status;
     const nextClosureChecklist = targetTicket.closureChecklist;
     const historyNotesSuffix = draft.notes.trim() ? ` ${draft.notes.trim()}` : '';
-    const reportFiles = Array.isArray(draft.reportFiles) ? draft.reportFiles : [];
+    const reportFiles: File[] = Array.isArray(draft.reportFiles)
+      ? draft.reportFiles.filter((file): file is File => file instanceof File)
+      : [];
     const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relatório.` : '';
 
     setProcessingId(ticketId);
@@ -1899,9 +1901,12 @@ export function FinanceView() {
                                     accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt"
                                     className="hidden"
                                     onChange={event => {
-                                      const files = Array.from(event.target.files || []);
+                                      const files: File[] = Array.from(event.target.files || []);
                                       if (files.length === 0) return;
-                                      setMeasurementDraft(ticket.id, { reportFiles: [...measurementDraft.reportFiles, ...files] });
+                                      const currentFiles: File[] = Array.isArray(measurementDraft.reportFiles)
+                                        ? measurementDraft.reportFiles.filter((file): file is File => file instanceof File)
+                                        : [];
+                                      setMeasurementDraft(ticket.id, { reportFiles: [...currentFiles, ...files] });
                                       event.currentTarget.value = '';
                                     }}
                                   />

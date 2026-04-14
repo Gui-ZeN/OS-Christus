@@ -325,64 +325,60 @@ export function ApprovalsView() {
         const nextContractValue = nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : approvedQuote?.value || currentContract?.value || 'A confirmar';
         let additivePaymentCreated = false;
 
-        try {
-          await saveQuotes(id, nextQuotes, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
-          if (approvedQuote) {
-            await saveContract(
-              id,
-              {
-                id: currentContract?.id || 'contract-1',
-                vendor: approvedQuote.vendor,
-                value: nextContractValue,
-                initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
-                realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
-                status: 'pending_upload',
-                viewingBy: null,
-                signedFileName: currentContract?.signedFileName || null,
-                signedFileUrl: currentContract?.signedFileUrl || null,
-                signedFilePath: currentContract?.signedFilePath || null,
-                signedFileContentType: currentContract?.signedFileContentType || null,
-                signedFileSize: currentContract?.signedFileSize ?? null,
-                items: approvedQuote.items || [],
-              },
-              targetTicket ? buildProcurementClassification(targetTicket) : undefined
-            );
+        await saveQuotes(id, nextQuotes, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
+        if (approvedQuote) {
+          await saveContract(
+            id,
+            {
+              id: currentContract?.id || 'contract-1',
+              vendor: approvedQuote.vendor,
+              value: nextContractValue,
+              initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
+              realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
+              status: 'pending_upload',
+              viewingBy: null,
+              signedFileName: currentContract?.signedFileName || null,
+              signedFileUrl: currentContract?.signedFileUrl || null,
+              signedFilePath: currentContract?.signedFilePath || null,
+              signedFileContentType: currentContract?.signedFileContentType || null,
+              signedFileSize: currentContract?.signedFileSize ?? null,
+              items: approvedQuote.items || [],
+            },
+            targetTicket ? buildProcurementClassification(targetTicket) : undefined
+          );
 
-            if (isAdditive && targetTicket && approvedQuoteValue > 0) {
-              const additiveIndex = Math.max(1, Number(selectedAdditiveIndex || 1));
-              const additiveValue = formatCurrencyValue(approvedQuoteValue);
-              const now = new Date();
-              const autoPayment: PaymentRecord = {
-                id: `payment-additive-${additiveIndex}`,
-                vendor: approvedQuote.vendor || currentContract?.vendor || 'Fornecedor não definido',
-                value: additiveValue,
-                grossValue: additiveValue,
-                budgetSource: 'additive',
-                taxValue: '',
-                netValue: additiveValue,
-                progressPercent: Number(targetTicket.executionProgress?.currentPercent || 0),
-                expectedBaselineValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
-                status: 'approved',
-                label: `Lançamento de aditivo ${additiveIndex}`,
-                installmentNumber: null,
-                totalInstallments: null,
-                dueAt: now,
-                measurementId: `additive-${additiveIndex}`,
-                releasedPercent: 0,
-                milestonePercent: null,
-                attachments: [],
-                receiptFileName: null,
-              };
-              await savePayment(
-                id,
-                autoPayment,
-                buildProcurementClassification(targetTicket)
-              );
-              additivePaymentCreated = true;
-            }
+          if (isAdditive && targetTicket && approvedQuoteValue > 0) {
+            const additiveIndex = Math.max(1, Number(selectedAdditiveIndex || 1));
+            const additiveValue = formatCurrencyValue(approvedQuoteValue);
+            const now = new Date();
+            const autoPayment: PaymentRecord = {
+              id: `payment-additive-${additiveIndex}`,
+              vendor: approvedQuote.vendor || currentContract?.vendor || 'Fornecedor não definido',
+              value: additiveValue,
+              grossValue: additiveValue,
+              budgetSource: 'additive',
+              taxValue: '',
+              netValue: additiveValue,
+              progressPercent: Number(targetTicket.executionProgress?.currentPercent || 0),
+              expectedBaselineValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
+              status: 'approved',
+              label: `Lançamento de aditivo ${additiveIndex}`,
+              installmentNumber: null,
+              totalInstallments: null,
+              dueAt: now,
+              measurementId: `additive-${additiveIndex}`,
+              releasedPercent: 0,
+              milestonePercent: null,
+              attachments: [],
+              receiptFileName: null,
+            };
+            await savePayment(
+              id,
+              autoPayment,
+              buildProcurementClassification(targetTicket)
+            );
+            additivePaymentCreated = true;
           }
-        } catch {
-          // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
         }
         setQuotesByTicket(prev => ({ ...prev, [id]: nextQuotes }));
         if (approvedQuote) {
@@ -431,7 +427,7 @@ export function ApprovalsView() {
         status:
           tab === 'budgets'
             ? budgetApprovalContext?.isAdditive
-              ? TICKET_STATUS.IN_PROGRESS
+              ? targetTicket?.status || TICKET_STATUS.IN_PROGRESS
               : budgetApprovalContext?.shouldMoveStatus
                 ? APPROVAL_STATUS[tab]
                 : targetTicket?.status || APPROVAL_STATUS[tab]
@@ -439,6 +435,9 @@ export function ApprovalsView() {
         viewingBy: null,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao concluir aprovação.';
+      showToast(message, 3500);
     } finally {
       setProcessingId(null);
     }
@@ -490,15 +489,11 @@ export function ApprovalsView() {
         status: 'approved',
         viewingBy: null,
       };
-      try {
-        await saveContract(
-          id,
-          nextContract,
-          targetTicket ? buildProcurementClassification(targetTicket) : undefined
-        );
-      } catch {
-        // Mantém o fluxo local mesmo se a API não estiver disponível no ambiente atual.
-      }
+      await saveContract(
+        id,
+        nextContract,
+        targetTicket ? buildProcurementClassification(targetTicket) : undefined
+      );
       setContractsByTicket(prev => ({ ...prev, [id]: nextContract }));
       const historyItem = {
         id: crypto.randomUUID(),
@@ -511,6 +506,9 @@ export function ApprovalsView() {
         status: APPROVAL_STATUS.contracts,
         history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
       });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao aprovar contrato.';
+      showToast(message, 3500);
     } finally {
       setProcessingId(null);
     }

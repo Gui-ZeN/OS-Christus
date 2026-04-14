@@ -4,7 +4,7 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
-import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
+import { readAccessibleTickets } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
 const STATUS_IN_PROGRESS = 'Em andamento';
@@ -107,17 +107,19 @@ function isPublicTrackingHistoryEntry(item) {
   const visibility = String(item.visibility || '').trim().toLowerCase();
   if (type === 'customer') return true;
   if (type === 'tech') {
+    if (visibility === 'internal') return false;
+
     const normalizedText = normalizeHistoryText(text);
     const hasStatusMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
     if (hasStatusMarker) return true;
 
-    if (visibility === 'internal') return false;
     if (visibility === 'public') return true;
     const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
     const hasInternalMarker = PUBLIC_HISTORY_INTERNAL_MARKERS.some(marker => normalizedText.includes(marker));
     return !hasSensitiveMarker && !hasInternalMarker;
   }
   if (type !== 'system') return false;
+  if (visibility === 'internal') return false;
   if (visibility === 'public') return true;
 
   const normalizedText = normalizeHistoryText(text);
@@ -613,6 +615,10 @@ export default async function handler(req, res) {
       const user = await requireAuthenticatedUser(req);
       const actor = user.name || user.email || 'painel';
 
+      if (user.role !== 'Admin' && user.role !== 'Diretor') {
+        return sendJson(res, 403, { ok: false, error: 'Somente Admin ou Diretor podem atualizar tickets pelo painel.' });
+      }
+
       if (!body?.id) {
         return sendJson(res, 400, { ok: false, error: 'id e updates são obrigatórios.' });
       }
@@ -625,12 +631,6 @@ export default async function handler(req, res) {
       }
 
       const beforeData = beforeSnap.data() || {};
-      if (user.role !== 'Admin' && user.role !== 'Diretor') {
-        const { regions, sites } = await readTerritoryCatalog(db);
-        if (!canUserAccessTicket(user, { id: beforeSnap.id, ...beforeData }, regions, sites)) {
-          return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente para editar este ticket.' });
-        }
-      }
       const payload = { ...updates, updatedAt: new Date() };
 
       if (
