@@ -1700,6 +1700,7 @@ export function InboxView() {
     [availableInitialRounds, ticketQuotes]
   );
   const quoteDraftTicketRef = useRef<string>('');
+  const quoteDraftSessionKeyRef = useRef<string>('');
 
   // Carrega as cotações da rodada ativa (inicial/aditivo) quando o modal estiver aberto
   useEffect(() => {
@@ -1709,8 +1710,14 @@ export function InboxView() {
     const allTicketQuotes = ticketQuotes;
     const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
     if (ticketChanged && quoteRoundType !== 'additive') {
-      setQuoteInitialRoundIndex(nextEditableInitialRoundIndex);
-      setQuoteAdditiveIndex(additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1);
+      const nextAdditiveRoundIndex = additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1;
+      const shouldResetInitialRound = quoteInitialRoundIndex !== nextEditableInitialRoundIndex;
+      const shouldResetAdditiveRound = quoteAdditiveIndex !== nextAdditiveRoundIndex;
+      quoteDraftTicketRef.current = activeTicketId;
+      quoteDraftSessionKeyRef.current = '';
+      if (shouldResetInitialRound) setQuoteInitialRoundIndex(nextEditableInitialRoundIndex);
+      if (shouldResetAdditiveRound) setQuoteAdditiveIndex(nextAdditiveRoundIndex);
+      if (shouldResetInitialRound || shouldResetAdditiveRound) return;
     }
 
     const targetRoundType: 'initial' | 'additive' = quoteRoundType;
@@ -1721,6 +1728,8 @@ export function InboxView() {
         : quoteAdditiveIndex;
     const effectiveInitialRoundIndex = Math.max(1, Number(quoteInitialRoundIndex || nextEditableInitialRoundIndex || 1));
     const targetRoundIndex = targetRoundType === 'additive' ? effectiveAdditiveIndex : effectiveInitialRoundIndex;
+    const draftSessionKey = `${activeTicketId}:${targetRoundType}:${targetRoundIndex}`;
+    if (quoteDraftSessionKeyRef.current === draftSessionKey) return;
     const targetRoundMinSlots = getRoundMinQuoteSlots(targetRoundType);
     const targetRoundMaxSlots = getRoundMaxQuoteSlots(targetRoundType);
     const roundQuotes = getQuotesByRound(allTicketQuotes, targetRoundType, targetRoundIndex);
@@ -1773,7 +1782,13 @@ export function InboxView() {
     setQuoteAttachments(Array.from({ length: nextQuotes.length }, () => null));
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
+    quoteDraftSessionKeyRef.current = draftSessionKey;
   }, [activeTicket, activeTicketId, catalogSites, nextEditableInitialRoundIndex, quoteAdditiveIndex, quoteInitialRoundIndex, quoteRoundType, showQuotesModal]);
+
+  useEffect(() => {
+    if (showQuotesModal) return;
+    quoteDraftSessionKeyRef.current = '';
+  }, [showQuotesModal]);
 
   useEffect(() => {
     if (!showQuotesModal) return;
