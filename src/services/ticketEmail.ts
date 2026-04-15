@@ -188,9 +188,9 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
     const allQuotes = Array.isArray(procurement.quotesByTicket?.[ticket.id]) ? procurement.quotesByTicket[ticket.id] : [];
     if (allQuotes.length === 0) {
       return {
-        roundTypeLabel: 'Orçamento inicial',
+        roundTypeLabel: 'Orçamento inicial - rodada 1',
         additiveReason: null as string | null,
-        quoteLines: [] as string[],
+        quoteBlocks: [] as string[],
         measurementSheetUrl,
       };
     }
@@ -206,34 +206,51 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
       const additiveIndex = additiveIndexes.length > 0 ? Math.max(...additiveIndexes) : 1;
       const roundQuotes = additivePending.filter(quote => Number((quote as Quote).additiveIndex || 0) === additiveIndex);
       const additiveReason = String((roundQuotes[0] as Quote)?.additiveReason || '').trim() || null;
-      const quoteLines = roundQuotes.map((quote, index) => {
+      const quoteBlocks = roundQuotes.map((quote, index) => {
         const normalized = quote as Quote;
-        return `- Cotação ${index + 1}: ${normalized.vendor || 'Fornecedor não informado'} · Total: ${resolveQuoteDisplayValue(normalized)}`;
+        return [
+          `- Cotação ${index + 1}`,
+          `- Fornecedor: ${normalized.vendor || 'Fornecedor não informado'}`,
+          `- Valor total: ${resolveQuoteDisplayValue(normalized)}`,
+          `- Material: ${normalized.materialValue || '-'}`,
+          `- Mão de obra: ${normalized.laborValue || '-'}`,
+        ].join('\n');
       });
       return {
         roundTypeLabel: `Aditivo ${additiveIndex}`,
         additiveReason,
-        quoteLines,
+        quoteBlocks,
         measurementSheetUrl,
       };
     }
 
     const initialQuotes = sourceQuotes.filter(quote => normalizeRoundCategory((quote as Quote).category) === 'initial');
-    const quoteLines = initialQuotes.map((quote, index) => {
+    const initialRoundIndex = Math.max(
+      1,
+      ...initialQuotes.map(quote => Number((quote as Quote).initialRoundIndex || 1)).filter(value => Number.isFinite(value) && value > 0)
+    );
+    const roundQuotes = initialQuotes.filter(quote => Number((quote as Quote).initialRoundIndex || 1) === initialRoundIndex);
+    const quoteBlocks = roundQuotes.map((quote, index) => {
       const normalized = quote as Quote;
-      return `- Cotação ${index + 1}: ${normalized.vendor || 'Fornecedor não informado'} · Total: ${resolveQuoteDisplayValue(normalized)}`;
+      return [
+        `- Cotação ${index + 1}`,
+        `- Fornecedor: ${normalized.vendor || 'Fornecedor não informado'}`,
+        `- Valor total: ${resolveQuoteDisplayValue(normalized)}`,
+        `- Material: ${normalized.materialValue || '-'}`,
+        `- Mão de obra: ${normalized.laborValue || '-'}`,
+      ].join('\n');
     });
     return {
-      roundTypeLabel: 'Orçamento inicial',
+      roundTypeLabel: `Orçamento inicial - rodada ${initialRoundIndex}`,
       additiveReason: null as string | null,
-      quoteLines,
+      quoteBlocks,
       measurementSheetUrl,
     };
   } catch {
     return {
-      roundTypeLabel: 'Orçamento inicial',
+      roundTypeLabel: 'Orçamento inicial - rodada 1',
       additiveReason: null as string | null,
-      quoteLines: [] as string[],
+      quoteBlocks: [] as string[],
       measurementSheetUrl,
     };
   }
@@ -582,7 +599,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     const budgetContext = directorTab === 'budgets' ? await buildDirectorBudgetContext(ticket) : null;
     const latestInternalTechEntry = resolveLatestInternalTechEntry(ticket);
     const latestAttachments = Array.isArray(latestInternalTechEntry?.attachments) ? latestInternalTechEntry.attachments : [];
-    const technicalBlock = latestInternalTechEntry?.text
+    const technicalBlock = directorTab === 'solutions' && latestInternalTechEntry?.text
       ? `Parecer técnico:\n${latestInternalTechEntry.text}`
       : '';
     const budgetBlock =
@@ -590,7 +607,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
         ? [
             `Tipo da rodada: ${budgetContext.roundTypeLabel}`,
             budgetContext.additiveReason ? `Motivo do aditivo: ${budgetContext.additiveReason}` : null,
-            budgetContext.quoteLines.length > 0 ? ['', 'Valores das cotações:', ...budgetContext.quoteLines] : null,
+            budgetContext.quoteBlocks.length > 0 ? ['', 'Cotações da rodada:', '', ...budgetContext.quoteBlocks] : null,
             budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : null,
           ]
             .flat()
@@ -716,7 +733,7 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
   const bodyText = [
     `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} criado na etapa de execução e aguarda aprovação da Diretoria.`,
     `Motivo do aditivo: ${additiveReason || budgetContext.additiveReason || 'Não informado'}`,
-    ...(budgetContext.quoteLines.length > 0 ? ['', 'Valores das cotações:', ...budgetContext.quoteLines] : []),
+    ...(budgetContext.quoteBlocks.length > 0 ? ['', 'Cotações da rodada:', '', ...budgetContext.quoteBlocks] : []),
     ...(budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : []),
     '',
     'Resumo da OS:',
