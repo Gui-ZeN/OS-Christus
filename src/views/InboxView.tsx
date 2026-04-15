@@ -1628,6 +1628,7 @@ export function InboxView() {
     Array.from({ length: INITIAL_MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft())
   );
   const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
+  const [quoteInitialRoundIndex, setQuoteInitialRoundIndex] = useState(1);
   const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
   const [additiveReason, setAdditiveReason] = useState('');
   const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
@@ -1683,7 +1684,7 @@ export function InboxView() {
     () => getAvailableAdditiveRounds(ticketQuotes),
     [ticketQuotes]
   );
-  const currentInitialRoundIndex = useMemo(
+  const nextEditableInitialRoundIndex = useMemo(
     () => getEditableInitialRoundIndex(ticketQuotes),
     [ticketQuotes]
   );
@@ -1708,6 +1709,7 @@ export function InboxView() {
     const allTicketQuotes = ticketQuotes;
     const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
     if (ticketChanged && quoteRoundType !== 'additive') {
+      setQuoteInitialRoundIndex(nextEditableInitialRoundIndex);
       setQuoteAdditiveIndex(additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1);
     }
 
@@ -1717,7 +1719,7 @@ export function InboxView() {
       targetRoundType === 'additive'
         ? Math.max(1, Number(quoteAdditiveIndex || nextAdditiveIndex))
         : quoteAdditiveIndex;
-    const effectiveInitialRoundIndex = currentInitialRoundIndex;
+    const effectiveInitialRoundIndex = Math.max(1, Number(quoteInitialRoundIndex || nextEditableInitialRoundIndex || 1));
     const targetRoundIndex = targetRoundType === 'additive' ? effectiveAdditiveIndex : effectiveInitialRoundIndex;
     const targetRoundMinSlots = getRoundMinQuoteSlots(targetRoundType);
     const targetRoundMaxSlots = getRoundMaxQuoteSlots(targetRoundType);
@@ -1771,7 +1773,7 @@ export function InboxView() {
     setQuoteAttachments(Array.from({ length: nextQuotes.length }, () => null));
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
-  }, [activeTicket, activeTicketId, catalogSites, currentInitialRoundIndex, quoteAdditiveIndex, quoteRoundType, showQuotesModal, ticketQuotes]);
+  }, [activeTicket, activeTicketId, catalogSites, nextEditableInitialRoundIndex, quoteAdditiveIndex, quoteInitialRoundIndex, quoteRoundType, showQuotesModal]);
 
   useEffect(() => {
     if (!showQuotesModal) return;
@@ -2265,7 +2267,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     }
     setIsSending(true);
     setTimeout(async () => {
-      const initialRoundIndex = roundType === 'initial' ? Math.max(1, Number(currentInitialRoundIndex || 1)) : null;
+      const initialRoundIndex = roundType === 'initial' ? Math.max(1, Number(quoteInitialRoundIndex || 1)) : null;
       const additiveIndex = roundType === 'additive' ? Math.max(1, Number(quoteAdditiveIndex || 1)) : null;
       const normalizedAdditiveReason = additiveReason.trim();
       if (roundType === 'additive' && !normalizedAdditiveReason) {
@@ -3352,6 +3354,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <button
                       onClick={() => {
                         setQuoteRoundType('initial');
+                        setQuoteInitialRoundIndex(nextEditableInitialRoundIndex);
                         setShowQuotesModal(true);
                       }}
                       className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
@@ -3924,7 +3927,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     : 'Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.'}
                 </p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">
-                  {quoteRoundType === 'initial' ? `Rodada ${currentInitialRoundIndex} · Orçamento Inicial` : `Aditivo ${quoteAdditiveIndex}`}
+                  {quoteRoundType === 'initial' ? `Rodada ${quoteInitialRoundIndex} · Orçamento Inicial` : `Aditivo ${quoteAdditiveIndex}`}
                 </span>
               </div>
 
@@ -3936,7 +3939,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <p className="text-xs text-amber-900">As rodadas anteriores ficam preservadas só para consulta. A área abaixo é exclusiva da nova rodada.</p>
                     </div>
                     <span className="rounded-sm border border-amber-300 bg-white px-2 py-1 text-[11px] text-amber-900">
-                      Nova rodada: {currentInitialRoundIndex}
+                      Nova rodada: {quoteInitialRoundIndex}
                     </span>
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
