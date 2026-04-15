@@ -499,7 +499,6 @@ function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?:
 function getFinalInstallmentBlockingReasons(ticket: Ticket, closureDraft: ClosureFormState) {
   const reasons: string[] = [];
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) {
-    reasons.push('Execução ainda não foi concluída');
     return reasons;
   }
 
