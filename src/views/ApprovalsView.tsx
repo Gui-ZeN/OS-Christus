@@ -7,7 +7,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import type { ContractRecord, PaymentRecord, Quote, QuoteProposalHeader, TicketStatus } from '../types';
+import type { ContractRecord, PaymentRecord, Quote, QuoteProposalHeader, Ticket, TicketStatus } from '../types';
 import { fetchProcurementData, saveContract, savePayment, saveQuotes } from '../services/procurementApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
@@ -141,6 +141,18 @@ const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatu
   budgets: TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
   contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
 };
+
+function resolveAdditiveReturnStatus(ticket?: Ticket | null): TicketStatus {
+  if (!ticket) return TICKET_STATUS.IN_PROGRESS;
+  const hasExecutionStarted =
+    Boolean(ticket.executionProgress?.startedAt) ||
+    Number(ticket.executionProgress?.currentPercent || 0) > 0 ||
+    Boolean(ticket.preliminaryActions?.actualStartAt) ||
+    Boolean(ticket.closureChecklist?.serviceStartedAt);
+
+  if (hasExecutionStarted) return TICKET_STATUS.IN_PROGRESS;
+  return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
+}
 
 function isQuoteFilled(quote: Quote) {
   return (
@@ -428,7 +440,7 @@ export function ApprovalsView() {
         status:
           tab === 'budgets'
             ? budgetApprovalContext?.isAdditive
-              ? targetTicket?.status || TICKET_STATUS.IN_PROGRESS
+              ? resolveAdditiveReturnStatus(targetTicket)
               : budgetApprovalContext?.shouldMoveStatus
                 ? APPROVAL_STATUS[tab]
                 : targetTicket?.status || APPROVAL_STATUS[tab]
@@ -483,24 +495,29 @@ export function ApprovalsView() {
         );
         setQuotesByTicket(prev => ({ ...prev, [rejectTargetId]: rejectedQuotes }));
 
-        const budgetLabel =
-          targetBudget.roundCategory === 'additive'
-            ? `Aditivo ${targetBudget.roundAdditiveIndex || 1}`
-            : 'Orçamento';
+        const isAdditiveRound = targetBudget.roundCategory === 'additive';
+        const budgetLabel = isAdditiveRound ? `Aditivo ${targetBudget.roundAdditiveIndex || 1}` : 'Orçamento';
         const historyItem = {
           id: crypto.randomUUID(),
           type: 'system' as const,
           sender: directorActorName,
           time: new Date(),
-          text: `${budgetLabel} reprovado por ${directorActorName}. Motivo: ${reasonText}. Nova rodada de cotações liberada para o gestor.`,
+          text: isAdditiveRound
+            ? `${budgetLabel} reprovado por ${directorActorName}. Motivo: ${reasonText}. Nova rodada de aditivo liberada para o gestor.`
+            : `${budgetLabel} reprovado por ${directorActorName}. Motivo: ${reasonText}. Nova rodada de cotações liberada para o gestor.`,
         };
 
         updateTicket(rejectTargetId, {
-          status: TICKET_STATUS.WAITING_BUDGET,
+          status: isAdditiveRound ? resolveAdditiveReturnStatus(targetTicket) : TICKET_STATUS.WAITING_BUDGET,
           viewingBy: null,
           history: [...targetTicket.history, historyItem],
         });
-        showToast(`${budgetLabel} reprovado. Ticket devolvido para nova rodada de cotações.`, 3500);
+        showToast(
+          isAdditiveRound
+            ? `${budgetLabel} reprovado. Nova rodada de aditivo liberada para o gestor.`
+            : `${budgetLabel} reprovado. Ticket devolvido para nova rodada de cotações.`,
+          3500
+        );
       } else {
         const historyItem = {
           id: crypto.randomUUID(),
