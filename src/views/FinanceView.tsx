@@ -496,8 +496,23 @@ function createClosureFormState(closureChecklist?: ClosureChecklist, guarantee?:
   };
 }
 
-function getFinalInstallmentBlockingReasons(closureDraft: ClosureFormState) {
+function getFinalInstallmentBlockingReasons(ticket: Ticket, closureDraft: ClosureFormState) {
   const reasons: string[] = [];
+  if (ticket.status === TICKET_STATUS.IN_PROGRESS) {
+    reasons.push('Execução ainda não foi concluída');
+    return reasons;
+  }
+
+  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) {
+    reasons.push('Validação do solicitante pendente');
+    return reasons;
+  }
+
+  if (ticket.status !== TICKET_STATUS.WAITING_PAYMENT && ticket.status !== TICKET_STATUS.CLOSED) {
+    reasons.push('A OS ainda não entrou na etapa final de pagamento');
+    return reasons;
+  }
+
   const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
 
   if (!closureDraft.infrastructureApprovalPrimary) reasons.push('Aprovação técnica 1 pendente');
@@ -1272,22 +1287,14 @@ export function FinanceView() {
     );
     const pendingPayments = existingPayments.filter(item => item.status !== 'paid');
     const isFinalInstallment = pendingPayments.length === 1 && pendingPayments[0].id === payment.id;
-    const mustValidateClosingChecklist = isFinalInstallment && shouldEnforceClosingChecklist(targetTicket);
     const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
+    const finalInstallmentBlockingReasons = isFinalInstallment
+      ? getFinalInstallmentBlockingReasons(targetTicket, closureDraft)
+      : [];
 
-    if (mustValidateClosingChecklist) {
-      const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
-      if (
-        !closureDraft.infrastructureApprovalPrimary ||
-        !closureDraft.infrastructureApprovalSecondary ||
-        !closureDraft.serviceStartedAt ||
-        !closureDraft.serviceCompletedAt ||
-        !Number.isFinite(guaranteeMonths) ||
-        guaranteeMonths <= 0
-      ) {
-        showToast('Erro: preencha o checklist de encerramento e a garantia antes de quitar o último lançamento.', 3000);
-        return;
-      }
+    if (finalInstallmentBlockingReasons.length > 0) {
+      showToast(`Erro: último lançamento bloqueado. ${finalInstallmentBlockingReasons.join(' | ')}`, 4000);
+      return;
     }
 
     let templateRecipients: string[] = [];
@@ -2130,12 +2137,13 @@ export function FinanceView() {
                             (() => {
                               const pendingPaymentsForTicket = payments.filter(item => item.status !== 'paid');
                               const isFinalInstallment = pendingPaymentsForTicket.length === 1 && pendingPaymentsForTicket[0].id === payment.id;
-                              const mustValidateClosingChecklist = isFinalInstallment && shouldEnforceClosingChecklist(ticket);
-                              const finalInstallmentBlockingReasons = mustValidateClosingChecklist ? getFinalInstallmentBlockingReasons(closureDraft) : [];
+                              const finalInstallmentBlockingReasons = isFinalInstallment
+                                ? getFinalInstallmentBlockingReasons(ticket, closureDraft)
+                                : [];
                               const canConfirmPayment =
                                 canPay &&
                                 payment.status === 'approved' &&
-                                (!mustValidateClosingChecklist || finalInstallmentBlockingReasons.length === 0);
+                                finalInstallmentBlockingReasons.length === 0;
                               const paymentDraft = getPaymentDraft(ticket.id, payment);
                               const grossPreview = parseCurrency(paymentDraft.grossValue || payment.grossValue || '0');
                               const taxPreview = parseCurrency(paymentDraft.taxValue || payment.taxValue || '0');
@@ -2151,7 +2159,7 @@ export function FinanceView() {
                                   Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Origem: {getBudgetSourceLabel(payment.budgetSource)} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
-                                {payment.status === 'approved' && mustValidateClosingChecklist && finalInstallmentBlockingReasons.length > 0 && (
+                                {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
                                   <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
                                     <div className="font-medium">Último lançamento bloqueado até concluir o encerramento:</div>
                                     {finalInstallmentBlockingReasons.map(reason => (
@@ -2266,6 +2274,10 @@ export function FinanceView() {
                                     <><DollarSign size={15} /> Aguardando avanço</>
                                   ) : canConfirmPayment ? (
                                     <><Mail size={15} /> Disparar Email</>
+                                  ) : isFinalInstallment && ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ? (
+                                    <><DollarSign size={15} /> Aguardando solicitante</>
+                                  ) : isFinalInstallment && ticket.status === TICKET_STATUS.IN_PROGRESS ? (
+                                    <><DollarSign size={15} /> Aguardando conclusão</>
                                   ) : (
                                     <><DollarSign size={15} /> Preencher checklist</>
                                   )}
