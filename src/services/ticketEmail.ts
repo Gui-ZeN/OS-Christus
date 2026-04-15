@@ -826,10 +826,14 @@ export async function notifyPaymentDispatch(
   const lancamentoLabel = payment.label || `Lançamento ${payment.installmentNumber || 1}`;
   const subject = `${ticket.id} - Pagamento - ${lancamentoLabel}`;
   const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
-
-  const attachmentLinks = buildAttachmentList(payment.attachments || []);
+  const summaryList = buildDirectorTicketSummary(ticket);
+  const normalizedAttachments = normalizeEmailAttachments(payment.attachments || []);
   const bodyLines = [
     `Segue o lançamento de pagamento referente à OS ${ticket.id}.`,
+    '',
+    'Resumo da OS:',
+    '',
+    summaryList,
     '',
     `Lançamento: ${lancamentoLabel}`,
     `Valor bruto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grossAmount)}`,
@@ -839,8 +843,8 @@ export async function notifyPaymentDispatch(
   if (measurementSheetUrl) {
     bodyLines.push('', `Planilha de medição: ${measurementSheetUrl}`);
   }
-  if (attachmentLinks.length > 0) {
-    bodyLines.push('', 'Anexos do lançamento (links):', ...attachmentLinks);
+  if (normalizedAttachments.length > 0) {
+    bodyLines.push('', `Anexos do lançamento: ${normalizedAttachments.map(item => item.name || 'Arquivo').join(', ')}`);
   }
   const bodyText = bodyLines.join('\n');
 
@@ -854,6 +858,7 @@ export async function notifyPaymentDispatch(
     toEmail: recipients.join(', '),
     trigger: 'EMAIL-FINANCEIRO-PAGAMENTO',
     subject,
+    attachments: normalizedAttachments,
     variables,
     templateData: {
       title: subject,
