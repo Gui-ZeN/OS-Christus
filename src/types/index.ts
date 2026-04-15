@@ -140,6 +140,7 @@ export interface Quote {
   materialValue?: string | null;
   totalValue?: string | null;
   category?: 'initial' | 'additive';
+  initialRoundIndex?: number | null;
   additiveIndex?: number | null;
   additiveReason?: string | null;
   recommended: boolean;

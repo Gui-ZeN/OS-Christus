@@ -434,15 +434,42 @@ function getAvailableAdditiveRounds(quotes: Quote[]) {
   ).sort((a, b) => a - b);
 }
 
-function getQuotesByRound(quotes: Quote[], roundType: 'initial' | 'additive', additiveIndex: number) {
+function getAvailableInitialRounds(quotes: Quote[]) {
+  return Array.from(
+    new Set(
+      (Array.isArray(quotes) ? quotes : [])
+        .filter(quote => (quote.category === 'additive' ? 'additive' : 'initial') === 'initial')
+        .map(quote => Number(quote.initialRoundIndex || 1))
+        .filter(value => Number.isFinite(value) && value > 0)
+    )
+  ).sort((a, b) => a - b);
+}
+
+function normalizeQuoteStatus(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isRejectedQuoteRound(quotes: Quote[]) {
+  return quotes.length > 0 && quotes.every(quote => normalizeQuoteStatus(quote.status) === 'rejected');
+}
+
+function getEditableInitialRoundIndex(quotes: Quote[]) {
+  const initialRounds = getAvailableInitialRounds(quotes);
+  if (initialRounds.length === 0) return 1;
+  const latestRound = Math.max(...initialRounds);
+  const latestRoundQuotes = getQuotesByRound(quotes, 'initial', latestRound);
+  return isRejectedQuoteRound(latestRoundQuotes) ? latestRound + 1 : latestRound;
+}
+
+function getQuotesByRound(quotes: Quote[], roundType: 'initial' | 'additive', roundIndex: number) {
   const list = Array.isArray(quotes) ? quotes : [];
   const filtered = list.filter(quote => {
     const category = quote.category === 'additive' ? 'additive' : 'initial';
     if (roundType !== category) return false;
     if (roundType === 'additive') {
-      return Number(quote.additiveIndex || 1) === Number(additiveIndex || 1);
+      return Number(quote.additiveIndex || 1) === Number(roundIndex || 1);
     }
-    return true;
+    return Number(quote.initialRoundIndex || 1) === Number(roundIndex || 1);
   });
 
   return filtered.sort((a, b) => String(a.id).localeCompare(String(b.id), 'pt-BR'));
@@ -1644,9 +1671,32 @@ export function InboxView() {
     return Array.from(options);
   }, [additionalQuoteUnits, quotes]);
   const [proposalHeader, setProposalHeader] = useState<ProposalHeaderDraft>(createProposalHeaderDraft());
-  const availableAdditiveRounds = useMemo(
-    () => getAvailableAdditiveRounds(storedQuotesByTicket[activeTicketId] || []),
+  const ticketQuotes = useMemo(
+    () => storedQuotesByTicket[activeTicketId] || [],
     [activeTicketId, storedQuotesByTicket]
+  );
+  const availableInitialRounds = useMemo(
+    () => getAvailableInitialRounds(ticketQuotes),
+    [ticketQuotes]
+  );
+  const availableAdditiveRounds = useMemo(
+    () => getAvailableAdditiveRounds(ticketQuotes),
+    [ticketQuotes]
+  );
+  const currentInitialRoundIndex = useMemo(
+    () => getEditableInitialRoundIndex(ticketQuotes),
+    [ticketQuotes]
+  );
+  const rejectedInitialRounds = useMemo(
+    () =>
+      availableInitialRounds
+        .map(roundIndex => ({
+          roundIndex,
+          quotes: getQuotesByRound(ticketQuotes, 'initial', roundIndex),
+        }))
+        .filter(round => isRejectedQuoteRound(round.quotes))
+        .sort((a, b) => b.roundIndex - a.roundIndex),
+    [availableInitialRounds, ticketQuotes]
   );
   const quoteDraftTicketRef = useRef<string>('');
 
@@ -1655,7 +1705,7 @@ export function InboxView() {
     if (!showQuotesModal) return;
 
     const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
-    const allTicketQuotes = storedQuotesByTicket[activeTicketId] || [];
+    const allTicketQuotes = ticketQuotes;
     const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
     if (ticketChanged && quoteRoundType !== 'additive') {
       setQuoteAdditiveIndex(additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1);
@@ -1667,13 +1717,13 @@ export function InboxView() {
       targetRoundType === 'additive'
         ? Math.max(1, Number(quoteAdditiveIndex || nextAdditiveIndex))
         : quoteAdditiveIndex;
+    const effectiveInitialRoundIndex = currentInitialRoundIndex;
+    const targetRoundIndex = targetRoundType === 'additive' ? effectiveAdditiveIndex : effectiveInitialRoundIndex;
     const targetRoundMinSlots = getRoundMinQuoteSlots(targetRoundType);
     const targetRoundMaxSlots = getRoundMaxQuoteSlots(targetRoundType);
-    const currentQuotes = getQuotesByRound(
-      allTicketQuotes,
-      targetRoundType,
-      effectiveAdditiveIndex
-    );
+    const roundQuotes = getQuotesByRound(allTicketQuotes, targetRoundType, targetRoundIndex);
+    const currentQuotes = roundQuotes.filter(quote => normalizeQuoteStatus(quote.status) !== 'rejected');
+    const referenceQuote = currentQuotes[0] || roundQuotes[0] || null;
     const fallbackQuotes = Array.from({ length: targetRoundMinSlots }, () => createEmptyQuoteDraft());
     const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
     const slotCount = currentQuotes.length > 0
@@ -1707,21 +1757,21 @@ export function InboxView() {
     setQuotes(nextQuotes);
     setAdditiveReason(currentQuotes[0]?.additiveReason ? String(currentQuotes[0].additiveReason) : '');
     setProposalHeader(
-      currentQuotes[0]?.proposalHeader
+      referenceQuote?.proposalHeader
         ? {
-            unitName: currentQuotes[0].proposalHeader?.unitName || currentSiteLabel || activeTicket.sede || '',
-            location: currentQuotes[0].proposalHeader?.location || '',
-            folderLink: currentQuotes[0].proposalHeader?.folderLink || '',
-            contractedVendor: currentQuotes[0].proposalHeader?.contractedVendor || '',
-            totalQuantity: currentQuotes[0].proposalHeader?.totalQuantity || '',
-            totalEstimatedValue: currentQuotes[0].proposalHeader?.totalEstimatedValue || '',
+            unitName: referenceQuote.proposalHeader?.unitName || currentSiteLabel || activeTicket.sede || '',
+            location: referenceQuote.proposalHeader?.location || '',
+            folderLink: referenceQuote.proposalHeader?.folderLink || '',
+            contractedVendor: referenceQuote.proposalHeader?.contractedVendor || '',
+            totalQuantity: referenceQuote.proposalHeader?.totalQuantity || '',
+            totalEstimatedValue: referenceQuote.proposalHeader?.totalEstimatedValue || '',
           }
         : createProposalHeaderDraft(activeTicket, currentSiteLabel)
     );
     setQuoteAttachments(Array.from({ length: nextQuotes.length }, () => null));
     setPendingCustomUnitByItem({});
     quoteDraftTicketRef.current = activeTicketId;
-  }, [activeTicketId, catalogSites, quoteAdditiveIndex, quoteRoundType, showQuotesModal, storedQuotesByTicket]);
+  }, [activeTicket, activeTicketId, catalogSites, currentInitialRoundIndex, quoteAdditiveIndex, quoteRoundType, showQuotesModal, ticketQuotes]);
 
   useEffect(() => {
     if (!showQuotesModal) return;
@@ -2215,6 +2265,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     }
     setIsSending(true);
     setTimeout(async () => {
+      const initialRoundIndex = roundType === 'initial' ? Math.max(1, Number(currentInitialRoundIndex || 1)) : null;
       const additiveIndex = roundType === 'additive' ? Math.max(1, Number(quoteAdditiveIndex || 1)) : null;
       const normalizedAdditiveReason = additiveReason.trim();
       if (roundType === 'additive' && !normalizedAdditiveReason) {
@@ -2222,7 +2273,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         showToast('Erro: informe o motivo do aditivo antes de enviar à diretoria.', 3000);
         return;
       }
-      const roundAttachmentKey = roundType === 'additive' ? `additive-${additiveIndex}` : 'initial';
+      const roundAttachmentKey = roundType === 'additive' ? `additive-${additiveIndex}` : `initial-${initialRoundIndex}`;
       const uploadedAttachments = await Promise.all(
         filled.map(async ({ index }, quoteOrder) => {
           const attachmentFile = quoteAttachments[index];
@@ -2257,6 +2308,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         materialValue: quote.materialValue || summary.materialValue,
         totalValue: resolvedTotal,
         category: roundType,
+        initialRoundIndex,
         additiveIndex,
         additiveReason: roundType === 'additive' ? normalizedAdditiveReason : null,
         recommended: false,
@@ -2300,7 +2352,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             const category = quote.category === 'additive' ? 'additive' : 'initial';
             if (category !== roundType) return true;
             if (roundType === 'additive') return Number(quote.additiveIndex || 1) !== Number(additiveIndex || 1);
-            return false;
+            return Number(quote.initialRoundIndex || 1) !== Number(initialRoundIndex || 1);
           }),
           ...nextQuotes,
         ];
@@ -2314,7 +2366,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         text:
           roundType === 'additive'
             ? `Aditivo ${additiveIndex} consolidado e enviado para aprovação da Diretoria.`
-            : 'Orçamentos consolidados e enviados para aprovação da Diretoria.',
+            : `Orçamentos da rodada ${initialRoundIndex} consolidados e enviados para aprovação da Diretoria.`,
       };
       updateTicket(activeTicket.id, {
         status: TICKET_STATUS.WAITING_BUDGET_APPROVAL,
@@ -2322,7 +2374,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       });
       setIsSending(false);
       setShowQuotesModal(false);
-      showToast(roundType === 'additive' ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!` : 'Orçamentos enviados para a Diretoria com sucesso!', 3000);
+      showToast(
+        roundType === 'additive'
+          ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!`
+          : `Rodada ${initialRoundIndex} de orçamentos enviada para a Diretoria com sucesso!`,
+        3000
+      );
     }, 1500);
   };
 
@@ -3867,9 +3924,43 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     : 'Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.'}
                 </p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">
-                  {quoteRoundType === 'initial' ? 'Orçamento Inicial' : `Aditivo ${quoteAdditiveIndex}`}
+                  {quoteRoundType === 'initial' ? `Rodada ${currentInitialRoundIndex} · Orçamento Inicial` : `Aditivo ${quoteAdditiveIndex}`}
                 </span>
               </div>
+
+              {quoteRoundType === 'initial' && rejectedInitialRounds.length > 0 && (
+                <div className="mb-6 rounded-sm border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-serif text-amber-950">Rodadas recusadas</h4>
+                      <p className="text-xs text-amber-900">As rodadas anteriores ficam preservadas só para consulta. A área abaixo é exclusiva da nova rodada.</p>
+                    </div>
+                    <span className="rounded-sm border border-amber-300 bg-white px-2 py-1 text-[11px] text-amber-900">
+                      Nova rodada: {currentInitialRoundIndex}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {rejectedInitialRounds.map(round => (
+                      <div key={`rejected-round-${round.roundIndex}`} className="rounded-sm border border-amber-300 bg-white p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-medium text-amber-950">Rodada {round.roundIndex}</div>
+                          <span className="rounded-sm border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] text-red-700">Recusada</span>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          {round.quotes.map((quote, index) => (
+                            <div key={`rejected-round-${round.roundIndex}-quote-${index}`} className="rounded-sm border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
+                              <div className="font-medium text-stone-900">{quote.vendor || `Cotação ${index + 1}`}</div>
+                              <div className="mt-1 text-xs text-stone-600">
+                                Total: {quote.totalValue || quote.value || '-'} · Material: {quote.materialValue || '-'} · Mão de obra: {quote.laborValue || '-'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <button
