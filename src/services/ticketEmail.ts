@@ -1,5 +1,5 @@
 ﻿import { TICKET_STATUS } from '../constants/ticketStatus';
-import { PaymentRecord, Quote, Ticket, TicketAttachment } from '../types';
+import { ContractRecord, PaymentRecord, Quote, Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
 import { fetchDirectory } from './directoryApi';
@@ -252,6 +252,48 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
       additiveReason: null as string | null,
       quoteBlocks: [] as string[],
       measurementSheetUrl,
+    };
+  }
+}
+
+async function buildDirectorContractContext(ticket: Ticket) {
+  try {
+    const procurement = await fetchProcurementData();
+    const contract = (procurement.contractsByTicket?.[ticket.id] || null) as ContractRecord | null;
+    if (!contract) {
+      return {
+        contractBlock: '',
+        attachments: [] as ReturnType<typeof normalizeEmailAttachments>,
+      };
+    }
+
+    const attachmentSource: TicketAttachment[] =
+      contract.signedFileName || contract.signedFileUrl || contract.signedFilePath
+        ? [
+            {
+              id: `contract-${ticket.id}`,
+              name: contract.signedFileName || 'Contrato anexado',
+              path: contract.signedFilePath || '',
+              url: contract.signedFileUrl || '',
+              contentType: contract.signedFileContentType || 'application/pdf',
+              size: contract.signedFileSize ?? null,
+            },
+          ]
+        : [];
+
+    return {
+      contractBlock: [
+        'Contrato em aprovação:',
+        `- Fornecedor: ${contract.vendor || 'Não informado'}`,
+        `- Valor do contrato: ${contract.value || 'Não informado'}`,
+        `- Arquivo anexado: ${contract.signedFileName || 'Não informado'}`,
+      ].join('\n'),
+      attachments: normalizeEmailAttachments(attachmentSource),
+    };
+  } catch {
+    return {
+      contractBlock: '',
+      attachments: [] as ReturnType<typeof normalizeEmailAttachments>,
     };
   }
 }
@@ -597,6 +639,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     const directorTab = resolveDirectorApprovalTab(ticket.status);
     const isApprovalStatus = directorTab !== 'solutions';
     const budgetContext = directorTab === 'budgets' ? await buildDirectorBudgetContext(ticket) : null;
+    const contractContext = directorTab === 'contracts' ? await buildDirectorContractContext(ticket) : null;
     const latestInternalTechEntry = resolveLatestInternalTechEntry(ticket);
     const latestAttachments = Array.isArray(latestInternalTechEntry?.attachments) ? latestInternalTechEntry.attachments : [];
     const technicalBlock = directorTab === 'solutions' && latestInternalTechEntry?.text
@@ -614,12 +657,19 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
             .filter(Boolean)
             .join('\n')
         : '';
-    const directorBody = [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, technicalBlock].filter(Boolean).join('\n\n');
+    const contractBlock = contractContext?.contractBlock || '';
+    const directorAttachments =
+      directorTab === 'solutions'
+        ? normalizeEmailAttachments(latestAttachments)
+        : directorTab === 'contracts'
+          ? (contractContext?.attachments || [])
+          : [];
+    const directorBody = [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, contractBlock, technicalBlock].filter(Boolean).join('\n\n');
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
       trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
-      attachments: normalizeEmailAttachments(latestAttachments),
+      attachments: directorAttachments,
       variables,
       templateData: {
         title: isApprovalStatus
