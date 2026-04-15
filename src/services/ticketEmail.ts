@@ -828,17 +828,14 @@ export async function notifyPaymentDispatch(
   const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
   const summaryList = buildDirectorTicketSummary(ticket);
   const normalizedAttachments = normalizeEmailAttachments(payment.attachments || []);
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   const bodyLines = [
     `Segue o lançamento de pagamento referente à OS ${ticket.id}.`,
     '',
     'Resumo da OS:',
     '',
     summaryList,
-    '',
-    `Lançamento: ${lancamentoLabel}`,
-    `Valor bruto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grossAmount)}`,
-    `Imposto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(taxAmount)}`,
-    `Valor a pagar (líquido): ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(netAmount)}`,
   ];
   if (measurementSheetUrl) {
     bodyLines.push('', `Planilha de medição: ${measurementSheetUrl}`);
@@ -866,6 +863,12 @@ export async function notifyPaymentDispatch(
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
+      metricRows: [
+        { label: 'Lançamento', value: lancamentoLabel },
+        { label: 'Valor bruto', value: formatMoney(grossAmount) },
+        { label: 'Imposto', value: formatMoney(taxAmount) },
+        { label: 'Valor a pagar', value: formatMoney(netAmount) },
+      ],
       ctaUrl: buildFinanceReviewUrl(ticket),
       ctaLabel: 'Abrir financeiro',
     },
