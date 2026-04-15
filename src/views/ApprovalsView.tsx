@@ -470,6 +470,7 @@ export function ApprovalsView() {
     const targetTicket = tickets.find(ticket => ticket.id === rejectTargetId);
     const reasonText = reason.trim() || 'Motivo não informado.';
     const targetBudget = budgets.find(budget => budget.id === rejectTargetId) || null;
+    const targetContract = contracts.find(contract => contract.id === rejectTargetId) || null;
 
     try {
       if (targetBudget && targetTicket) {
@@ -518,6 +519,44 @@ export function ApprovalsView() {
             : `${budgetLabel} reprovado. Ticket devolvido para nova rodada de cotações.`,
           3500
         );
+      } else if (targetContract && targetTicket) {
+        const currentContract = contractsByTicket[rejectTargetId];
+        const nextContract: ContractRecord = {
+          ...currentContract,
+          id: currentContract?.id || 'contract-1',
+          vendor: currentContract?.vendor || targetContract.vendor || 'A confirmar',
+          value: currentContract?.value || targetContract.value || 'A confirmar',
+          status: 'pending_upload',
+          viewingBy: null,
+          signedFileName: currentContract?.signedFileName ?? null,
+          signedFileUrl: currentContract?.signedFileUrl ?? null,
+          signedFilePath: currentContract?.signedFilePath ?? null,
+          signedFileContentType: currentContract?.signedFileContentType ?? null,
+          signedFileSize: currentContract?.signedFileSize ?? null,
+          items: currentContract?.items || targetContract.items || [],
+        };
+
+        await saveContract(
+          rejectTargetId,
+          nextContract,
+          buildProcurementClassification(targetTicket)
+        );
+        setContractsByTicket(prev => ({ ...prev, [rejectTargetId]: nextContract }));
+
+        const historyItem = {
+          id: crypto.randomUUID(),
+          type: 'system' as const,
+          sender: directorActorName,
+          time: new Date(),
+          text: `Contrato reprovado por ${directorActorName}. Motivo: ${reasonText}. Gestor deve reenviar o contrato para nova aprovação da Diretoria.`,
+        };
+
+        updateTicket(rejectTargetId, {
+          status: TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
+          viewingBy: null,
+          history: [...targetTicket.history, historyItem],
+        });
+        showToast('Contrato reprovado. Ticket devolvido para reenvio do contrato.', 3500);
       } else {
         const historyItem = {
           id: crypto.randomUUID(),
@@ -1513,6 +1552,13 @@ export function ApprovalsView() {
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                   <button
+                    onClick={() => openRejectModal(contract.id)}
+                    disabled={processingId === contract.id}
+                    className="flex-1 md:flex-none px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Reprovar Contrato
+                  </button>
+                  <button
                     onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', { url: contract.signedFileUrl || null })}
                     disabled={!contract.signedFileUrl}
                     className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
@@ -1545,8 +1591,18 @@ export function ApprovalsView() {
         isOpen={rejectModalOpen}
         onClose={() => setRejectModalOpen(false)}
         onConfirm={handleReject}
-        title="Reprovar Solicitação"
-        description="Informe o motivo da reprovação para o gestor buscar novas opções."
+        title={
+          activeTab === 'contracts'
+            ? 'Reprovar Contrato'
+            : activeTab === 'budgets'
+              ? 'Reprovar Orçamento'
+              : 'Reprovar Solicitação'
+        }
+        description={
+          activeTab === 'contracts'
+            ? 'Informe o motivo da reprovação para o gestor reenviar o contrato.'
+            : 'Informe o motivo da reprovação para o gestor buscar novas opções.'
+        }
         confirmText="Confirmar Reprovação"
         isDestructive={true}
         requireReason={true}
