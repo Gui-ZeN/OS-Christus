@@ -1144,6 +1144,7 @@ async function handleSend(req, res) {
       ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
       bodyText: personalizedBody || templateData.bodyText || '',
       metricRows: Array.isArray(templateData.metricRows) ? templateData.metricRows : [],
+      detailCards: Array.isArray(templateData.detailCards) ? templateData.detailCards : [],
     });
 
     const finalText = personalizedBody || text || fallbackTemplate.text;

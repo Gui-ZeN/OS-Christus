@@ -169,6 +169,54 @@ function renderMetricRows(metricRows) {
     </table>`;
 }
 
+function renderDetailCards(detailCards) {
+  const cards = Array.isArray(detailCards)
+    ? detailCards
+        .map(card => ({
+          title: String(card?.title || '').trim(),
+          rows: Array.isArray(card?.rows)
+            ? card.rows
+                .map(row => ({
+                  label: String(row?.label || '').trim(),
+                  value: String(row?.value || '').trim(),
+                }))
+                .filter(row => row.label && row.value)
+            : [],
+        }))
+        .filter(card => card.title && card.rows.length > 0)
+    : [];
+
+  if (cards.length === 0) return '';
+
+  const cardHtml = cards
+    .map(
+      card => `
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;border:1px solid #e5dac8;border-radius:16px;background:#fffaf3;">
+          <tr>
+            <td style="padding:14px 16px;border-bottom:1px solid #eee3d5;">
+              <div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7a67;">${esc(card.title)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 16px 12px;">
+              ${card.rows
+                .map(
+                  row => `
+                    <div style="padding:8px 0;border-bottom:1px solid #f1e8dc;">
+                      <div style="font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:#8a7a67;">${esc(row.label)}</div>
+                      <div style="margin-top:4px;font-size:16px;line-height:1.5;color:#2d241d;">${esc(row.value)}</div>
+                    </div>`,
+                )
+                .join('')}
+            </td>
+          </tr>
+        </table>`,
+    )
+    .join('');
+
+  return `<div style="margin:0 0 18px;">${cardHtml}</div>`;
+}
+
 export function buildTicketEmailTemplate({
   trigger,
   title,
@@ -179,6 +227,7 @@ export function buildTicketEmailTemplate({
   ctaLabel = 'Acompanhar OS',
   bodyText,
   metricRows,
+  detailCards,
 }) {
   const stage = getStageMeta(trigger, status);
   const isCommunication = normalizeToken(trigger).includes('mensagem');
@@ -186,6 +235,7 @@ export function buildTicketEmailTemplate({
   const messageParts = [cleanedBody || intro || ''].filter(Boolean);
   const messageHtml = renderBodyText(messageParts.join('\n\n'));
   const metricsHtml = renderMetricRows(metricRows);
+  const detailCardsHtml = renderDetailCards(detailCards);
   const fullLinkLabel = ctaUrl ? esc(ctaUrl) : '';
 
   const html = `
@@ -218,6 +268,7 @@ export function buildTicketEmailTemplate({
                 <div style="margin-bottom:16px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7a67;">Mensagem</div>
                 <div style="padding:20px;border:1px solid #e5dac8;border-radius:18px;background:#ffffff;">
                   ${metricsHtml}
+                  ${detailCardsHtml}
                   ${messageHtml || `<p style="margin:0;color:#544b41;font-size:14px;line-height:1.8;">Atualização registrada na OS.</p>`}
                 </div>
 
@@ -261,6 +312,21 @@ export function buildTicketEmailTemplate({
           .filter(Boolean)
       : []),
     ...(Array.isArray(metricRows) && metricRows.length > 0 ? [''] : []),
+    ...(Array.isArray(detailCards)
+      ? detailCards.flatMap(card => {
+          const title = String(card?.title || '').trim();
+          const rows = Array.isArray(card?.rows)
+            ? card.rows
+                .map(row => {
+                  const label = String(row?.label || '').trim();
+                  const value = String(row?.value || '').trim();
+                  return label && value ? `${label}: ${value}` : '';
+                })
+                .filter(Boolean)
+            : [];
+          return title && rows.length > 0 ? [title, ...rows, ''] : [];
+        })
+      : []),
     cleanedBody || intro || '',
     '',
     ctaUrl ? `Link completo: ${ctaUrl}` : '',

@@ -183,6 +183,15 @@ function resolveQuoteDisplayValue(quote: Quote) {
 
 async function buildDirectorBudgetContext(ticket: Ticket) {
   const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
+  const buildQuoteCard = (quote: Quote, index: number) => ({
+    title: `Cotação ${index + 1}`,
+    rows: [
+      { label: 'Fornecedor', value: quote.vendor || 'Fornecedor não informado' },
+      { label: 'Valor total', value: resolveQuoteDisplayValue(quote) },
+      { label: 'Material', value: quote.materialValue || '-' },
+      { label: 'Mão de obra', value: quote.laborValue || '-' },
+    ],
+  });
   try {
     const procurement = await fetchProcurementData();
     const allQuotes = Array.isArray(procurement.quotesByTicket?.[ticket.id]) ? procurement.quotesByTicket[ticket.id] : [];
@@ -191,6 +200,7 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
         roundTypeLabel: 'Orçamento inicial - rodada 1',
         additiveReason: null as string | null,
         quoteBlocks: [] as string[],
+        quoteCards: [] as Array<{ title: string; rows: Array<{ label: string; value: string }> }>,
         measurementSheetUrl,
       };
     }
@@ -220,6 +230,7 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
         roundTypeLabel: `Aditivo ${additiveIndex}`,
         additiveReason,
         quoteBlocks,
+        quoteCards: roundQuotes.map((quote, index) => buildQuoteCard(quote as Quote, index)),
         measurementSheetUrl,
       };
     }
@@ -244,6 +255,7 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
       roundTypeLabel: `Orçamento inicial - rodada ${initialRoundIndex}`,
       additiveReason: null as string | null,
       quoteBlocks,
+      quoteCards: roundQuotes.map((quote, index) => buildQuoteCard(quote as Quote, index)),
       measurementSheetUrl,
     };
   } catch {
@@ -251,6 +263,7 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
       roundTypeLabel: 'Orçamento inicial - rodada 1',
       additiveReason: null as string | null,
       quoteBlocks: [] as string[],
+      quoteCards: [] as Array<{ title: string; rows: Array<{ label: string; value: string }> }>,
       measurementSheetUrl,
     };
   }
@@ -648,10 +661,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     const budgetBlock =
       budgetContext
         ? [
-            `Tipo da rodada: ${budgetContext.roundTypeLabel}`,
-            budgetContext.additiveReason ? `Motivo do aditivo: ${budgetContext.additiveReason}` : null,
-            budgetContext.quoteBlocks.length > 0 ? ['', 'Cotações da rodada:', '', ...budgetContext.quoteBlocks] : null,
-            budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : null,
+            budgetContext.measurementSheetUrl ? `Planilha de medição: ${budgetContext.measurementSheetUrl}` : null,
           ]
             .flat()
             .filter(Boolean)
@@ -683,6 +693,13 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
         ticketSubject: ticket.subject,
         status: ticket.status,
         bodyText: directorBody,
+        metricRows: budgetContext
+          ? [
+              { label: 'Rodada', value: budgetContext.roundTypeLabel },
+              ...(budgetContext.additiveReason ? [{ label: 'Motivo do aditivo', value: budgetContext.additiveReason }] : []),
+            ]
+          : [],
+        detailCards: budgetContext?.quoteCards || [],
         ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
         ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Abrir painel da Diretoria',
       },
@@ -783,7 +800,6 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
   const bodyText = [
     `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} criado na etapa de execução e aguarda aprovação da Diretoria.`,
     `Motivo do aditivo: ${additiveReason || budgetContext.additiveReason || 'Não informado'}`,
-    ...(budgetContext.quoteBlocks.length > 0 ? ['', 'Cotações da rodada:', '', ...budgetContext.quoteBlocks] : []),
     ...(budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : []),
     '',
     'Resumo da OS:',
@@ -807,6 +823,11 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
+      metricRows: [
+        { label: 'Rodada', value: budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}` },
+        { label: 'Motivo do aditivo', value: additiveReason || budgetContext.additiveReason || 'Não informado' },
+      ],
+      detailCards: budgetContext.quoteCards || [],
       ctaUrl: buildDirectorReviewUrl(ticket, 'budgets'),
       ctaLabel: 'Abrir aprovação do aditivo',
     },
