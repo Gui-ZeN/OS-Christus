@@ -267,6 +267,20 @@ function parseEmailList(input) {
   return [...new Set(emails)];
 }
 
+function filterCopyRecipients(input, excluded = []) {
+  const blocked = new Set(
+    [...getSystemMailboxEmails(), ...excluded]
+      .map(value => firstEmail(value) || String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  return parseEmailList(input).filter(email => !blocked.has(email));
+}
+
+function mergeEmailLists(...inputs) {
+  return [...new Set(inputs.flatMap(input => parseEmailList(input)))];
+}
+
 function sameRecipientSet(current, previous) {
   if (!Array.isArray(current) || !Array.isArray(previous)) return false;
   if (current.length !== previous.length) return false;
@@ -409,6 +423,7 @@ function isThreadReferenceMissingError(error) {
 
 async function sendWithGmailThreadFallback({
   toEmail,
+  ccEmail,
   subject,
   text,
   html,
@@ -425,6 +440,7 @@ async function sendWithGmailThreadFallback({
   try {
     const result = await gmailSend({
       toEmail,
+      ccEmail,
       subject,
       text,
       html,
@@ -449,6 +465,7 @@ async function sendWithGmailThreadFallback({
 
     const retryResult = await gmailSend({
       toEmail,
+      ccEmail,
       subject,
       text,
       html,
@@ -683,12 +700,13 @@ async function processGmailInboundMessage(db, msg, source) {
     }
     const now = msg.internalDate || new Date();
     const toEmail = firstEmail(msg.to);
+    const ccRecipients = filterCopyRecipients(mergeEmailLists(msg.to, msg.cc), [fromEmail]);
     const references = String(msg.references || '')
       .split(/\s+/)
       .map(value => value.trim())
       .filter(Boolean)
       .slice(-20);
-    const participants = [fromEmail, toEmail].filter(Boolean);
+    const participants = [fromEmail, toEmail, ...ccRecipients].filter(Boolean);
 
     await threadRef.set(
       {
@@ -699,6 +717,7 @@ async function processGmailInboundMessage(db, msg, source) {
         updatedAt: now,
         references,
         gmailThreadId: msg.threadId || null,
+        ...(ccRecipients.length > 0 ? { ccEmail: ccRecipients.join(', ') } : {}),
         ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
       },
       { merge: true }
@@ -720,6 +739,7 @@ async function processGmailInboundMessage(db, msg, source) {
       direction: 'inbound',
       fromEmail: fromEmail || null,
       toEmail: toEmail || null,
+      ccEmail: ccRecipients.join(', ') || null,
       subject: msg.subject || '',
       text: msg.text || null,
       html: msg.html || null,
@@ -734,6 +754,7 @@ async function processGmailInboundMessage(db, msg, source) {
     await db.collection('ticketInbound').add({
       ticketId,
       fromEmail: fromEmail || null,
+      ccEmail: ccRecipients.join(', ') || null,
       subject: msg.subject || '',
       text: msg.text || null,
       html: msg.html || null,
@@ -938,6 +959,7 @@ async function createTicketFromInbound(db, message) {
   const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
   const attachments = await uploadInboundAttachments(ticketId, message.attachments || []);
   const fromEmail = firstEmail(message.from);
+  const ccRecipients = filterCopyRecipients(mergeEmailLists(message.to, message.cc), [fromEmail]);
   const requester = displayNameFromEmail(message.from);
   const description =
     stripSignature(stripQuotedReply(String(message.text || '').trim())) ||
@@ -950,6 +972,7 @@ async function createTicketFromInbound(db, message) {
     subject: parsedSubject.subject,
     requester,
     requesterEmail: fromEmail || '',
+    requesterCcEmails: ccRecipients,
     time: now,
     status: 'Nova OS',
     type: 'Manutenção Predial Estrutural',
@@ -1071,6 +1094,8 @@ async function handleSend(req, res) {
     const threadRef = db.collection('emailThreads').doc(ticketId);
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
+    const ticketSnapForCopies = await db.collection('tickets').doc(ticketId).get();
+    const ticketForCopies = ticketSnapForCopies.exists ? ticketSnapForCopies.data() || {} : {};
     const canonicalSubject =
       ticketId && String(thread?.subject || '').trim()
         ? repairMojibake(String(thread.subject))
@@ -1095,6 +1120,22 @@ async function handleSend(req, res) {
                 ? threadRecipients
                 : [];
     const toEmail = recipients.join(', ');
+    const ticketCopyRecipients = Array.isArray(ticketForCopies.requesterCcEmails)
+      ? ticketForCopies.requesterCcEmails
+      : parseEmailList(ticketForCopies.requesterCcEmails || ticketForCopies.requesterCcEmail || '');
+    const shouldUseConversationCopies =
+      !internalCopy &&
+      !isDirectorTrigger &&
+      triggerKey !== 'EMAIL-FINANCEIRO-PAGAMENTO' &&
+      triggerKey !== 'EMAIL-DIRETORIA-SOLUCAO' &&
+      triggerKey !== 'EMAIL-DIRETORIA-APROVACAO';
+    const ccRecipients = shouldUseConversationCopies
+      ? filterCopyRecipients(
+          mergeEmailLists(body.ccEmail || body.cc || '', thread?.ccEmail || '', ticketCopyRecipients),
+          recipients
+        )
+      : filterCopyRecipients(body.ccEmail || body.cc || '', recipients);
+    const ccEmail = ccRecipients.join(', ');
     toEmailForLog = toEmail;
     if (!toEmail || recipients.length === 0) {
       throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
@@ -1158,6 +1199,7 @@ async function handleSend(req, res) {
     if (provider === 'gmail') {
       const gmailSendResult = await sendWithGmailThreadFallback({
         toEmail,
+        ccEmail,
         subject: canonicalSubject,
         text: finalText,
         html: finalHtml,
@@ -1175,6 +1217,7 @@ async function handleSend(req, res) {
     } else {
       sendResult = await sendWithSendGrid({
         toEmail,
+        ccEmail,
         subject: canonicalSubject,
         text: finalText,
         html: finalHtml,
@@ -1203,6 +1246,7 @@ async function handleSend(req, res) {
           ticketId,
           subject: canonicalSubject,
           toEmail,
+          ...(ccEmail ? { ccEmail } : {}),
           rootMessageId: effectiveRootMessageId,
           lastMessageId: messageId,
           gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
@@ -1210,7 +1254,9 @@ async function handleSend(req, res) {
           lastDirection: 'outbound',
           lastOutboundAt: now,
           updatedAt: now,
-          ...(recipients.length > 0 ? { participants: FieldValue.arrayUnion(...recipients) } : {}),
+          ...(recipients.length + ccRecipients.length > 0
+            ? { participants: FieldValue.arrayUnion(...recipients, ...ccRecipients) }
+            : {}),
         },
         { merge: true }
       );
@@ -1218,6 +1264,7 @@ async function handleSend(req, res) {
       await threadRef.collection('messages').add({
         direction: 'outbound',
         toEmail,
+        ccEmail: ccEmail || null,
         subject: canonicalSubject,
         text: finalText || null,
         html: finalHtml || null,
@@ -1243,6 +1290,7 @@ async function handleSend(req, res) {
       provider,
       ticketId,
       toEmail,
+      ccEmail: ccEmail || null,
       subject: canonicalSubject,
       messageId,
     });
@@ -1251,6 +1299,7 @@ async function handleSend(req, res) {
       ok: true,
       ticketId,
       toEmail,
+      ccEmail: ccEmail || null,
       messageId,
       inReplyTo: effectiveInReplyTo,
       references: mergedReferences,

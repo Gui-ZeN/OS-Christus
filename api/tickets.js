@@ -159,6 +159,19 @@ function sanitizeTicketForPublicTracking(ticket) {
   return nextTicket;
 }
 
+function parseEmailList(input) {
+  if (!input) return [];
+  const values = Array.isArray(input) ? input : String(input).split(/[;,\s]+/);
+  const emails = values
+    .map(value => String(value || '').trim().toLowerCase())
+    .map(value => {
+      const match = value.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+      return match ? match[0].toLowerCase() : '';
+    })
+    .filter(Boolean);
+  return [...new Set(emails)];
+}
+
 function buildPublicTrackingPayload(beforeData, approved) {
   const now = new Date();
   const previousChecklist = beforeData?.closureChecklist || {};
@@ -197,6 +210,7 @@ function sanitizePublicTicketCreate(rawTicket) {
     subject: rawTicket.subject,
     requester: rawTicket.requester,
     requesterEmail: rawTicket.requesterEmail,
+    requesterCcEmails: parseEmailList(rawTicket.requesterCcEmails || rawTicket.requesterCcEmail || ''),
     time: rawTicket.time,
     status: 'Nova OS',
     type: rawTicket.type,

@@ -83,13 +83,14 @@ function foldBase64(input) {
   return String(input || '').replace(/.{1,76}/g, '$&\r\n').trim();
 }
 
-function buildRawMessage({ from, to, subject, text, html, inReplyTo, references, extraHeaders = {}, attachments = [] }) {
+function buildRawMessage({ from, to, cc, subject, text, html, inReplyTo, references, extraHeaders = {}, attachments = [] }) {
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
   const mixedBoundary = `oschristus_mixed_${Math.random().toString(16).slice(2)}`;
   const alternativeBoundary = `oschristus_alt_${Math.random().toString(16).slice(2)}`;
   const headers = [
     `From: ${from}`,
     `To: ${to}`,
+    ...(cc ? [`Cc: ${cc}`] : []),
     `Subject: ${encodeMimeHeader(subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: ${hasAttachments ? `multipart/mixed; boundary="${mixedBoundary}"` : `multipart/alternative; boundary="${alternativeBoundary}"`}`,
@@ -209,13 +210,14 @@ async function gmailGetAttachment(gmail, messageId, attachmentId) {
   return Buffer.from(normalized, 'base64');
 }
 
-export async function gmailSend({ toEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId, attachments = [] }) {
+export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId, attachments = [] }) {
   const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
 
   const raw = buildRawMessage({
     from: fromEmail,
     to: toEmail,
+    cc: ccEmail,
     subject,
     text,
     html,
@@ -288,6 +290,7 @@ export async function gmailGetMessage(messageId) {
     internalDate: result.data.internalDate ? new Date(Number(result.data.internalDate)) : new Date(),
     from: extractHeader(headers, 'From'),
     to: extractHeader(headers, 'To'),
+    cc: extractHeader(headers, 'Cc'),
     subject: decodeMimeHeader(extractHeader(headers, 'Subject') || ''),
     messageId: extractHeader(headers, 'Message-Id') || null,
     inReplyTo: extractHeader(headers, 'In-Reply-To') || null,

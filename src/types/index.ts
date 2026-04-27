@@ -95,6 +95,7 @@ export interface Ticket {
   subject: string;
   requester: string;
   requesterEmail?: string;
+  requesterCcEmails?: string[];
   time: Date;
   status: TicketStatus;
   type: string;

@@ -16,6 +16,25 @@ interface PublicFormViewProps {
   onBack: () => void;
 }
 
+function parseEmailList(input: string) {
+  const values = input
+    .split(/[;,\s]+/)
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean);
+  const valid: string[] = [];
+  const invalid: string[] = [];
+
+  values.forEach(value => {
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      if (!valid.includes(value)) valid.push(value);
+    } else {
+      invalid.push(value);
+    }
+  });
+
+  return { valid, invalid };
+}
+
 export function PublicFormView({ onBack }: PublicFormViewProps) {
   const { addTicket } = useApp();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -27,6 +46,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    interestedEmails: '',
     subject: '',
     description: '',
     type: '',
@@ -100,6 +120,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório';
     if (!formData.email.trim()) newErrors.email = 'E-mail é obrigatório';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'E-mail inválido';
+    const invalidInterestedEmail = parseEmailList(formData.interestedEmails).invalid[0];
+    if (invalidInterestedEmail) newErrors.interestedEmails = `E-mail inválido: ${invalidInterestedEmail}`;
     if (!formData.subject.trim()) newErrors.subject = 'Assunto é obrigatório';
     if (!formData.description.trim()) newErrors.description = 'Descrição é obrigatória';
     if (!formData.type) newErrors.type = 'Selecione o tipo';
@@ -118,12 +140,15 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       const now = new Date();
       const selectedRegion = catalogRegions.find(region => region.name === formData.region) || null;
       const selectedSite = availableSites.find(site => site.code === formData.sede) || null;
+      const interestedEmails = parseEmailList(formData.interestedEmails).valid
+        .filter(email => email !== formData.email.trim().toLowerCase());
       const draftTicket: Ticket = {
         id: '',
         trackingToken: '',
         subject: formData.subject,
         requester: formData.name,
         requesterEmail: formData.email,
+        requesterCcEmails: interestedEmails,
         time: now,
         status: TICKET_STATUS.NEW,
         type: formData.type,
@@ -151,6 +176,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       setFormData({
         name: '',
         email: '',
+        interestedEmails: '',
         subject: '',
         description: '',
         type: '',
@@ -285,6 +311,22 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.email && <span className="text-xs text-red-500 mt-1 block">{errors.email}</span>}
+                </div>
+                <div className="md:col-span-2">
+                  <label htmlFor="pf-interested-emails" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Pessoas interessadas na OS (opcional)</label>
+                  <textarea
+                    id="pf-interested-emails"
+                    name="interestedEmails"
+                    value={formData.interestedEmails}
+                    onChange={handleInputChange}
+                    placeholder={`email1@dominio.com, email2@dominio.com\nou um e-mail por linha`}
+                    className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.interestedEmails ? 'border-red-500' : 'border-roman-border'}`}
+                  />
+                  {errors.interestedEmails ? (
+                    <span className="text-xs text-red-500 mt-1 block">{errors.interestedEmails}</span>
+                  ) : (
+                    <span className="mt-1 block text-xs text-roman-text-sub">Separe por vírgula ou coloque um e-mail por linha. Essas pessoas receberão as atualizações públicas junto com o solicitante.</span>
+                  )}
                 </div>
               </div>
             </div>

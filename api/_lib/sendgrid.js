@@ -22,6 +22,7 @@ function parseRecipientList(input) {
 
 export async function sendWithSendGrid({
   toEmail,
+  ccEmail,
   subject,
   text,
   html,
@@ -36,6 +37,8 @@ export async function sendWithSendGrid({
   const fromName = process.env.SENDGRID_FROM_NAME || 'OS Christus';
 
   const recipients = [...new Set(parseRecipientList(toEmail))];
+  const ccRecipients = [...new Set(parseRecipientList(ccEmail))]
+    .filter(email => !recipients.includes(email));
   if (recipients.length === 0) {
     throw new Error('Destinatário de e-mail ausente para envio via SendGrid.');
   }
@@ -44,6 +47,7 @@ export async function sendWithSendGrid({
     personalizations: [
       compact({
         to: recipients.map(email => ({ email })),
+        cc: ccRecipients.length > 0 ? ccRecipients.map(email => ({ email })) : undefined,
         dynamic_template_data: templateId ? (templateData || {}) : undefined,
       }),
     ],

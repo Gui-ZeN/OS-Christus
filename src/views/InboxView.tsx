@@ -3637,6 +3637,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
                       <PropertyField label="Solicitante" value={activeTicket.requester} />
                       <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
+                      <PropertyField
+                        label="Interessados"
+                        value={
+                          Array.isArray(activeTicket.requesterCcEmails) && activeTicket.requesterCcEmails.length > 0
+                            ? activeTicket.requesterCcEmails.join(', ')
+                            : 'Não informado'
+                        }
+                      />
                       <PropertyField label="Setor" value={activeTicket.sector} />
                       <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
                       <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
