@@ -172,6 +172,7 @@ interface TicketDetailsFormState {
   subject: string;
   requester: string;
   requesterEmail: string;
+  time: string;
   sector: string;
   macroServiceId: string;
   serviceCatalogId: string;
@@ -180,6 +181,17 @@ interface TicketDetailsFormState {
 function formatInputDate(value?: Date | null) {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
   return value.toISOString().slice(0, 10);
+}
+
+function formatInputDateTime(value?: Date | null) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
+  const offsetMs = value.getTimezoneOffset() * 60000;
+  return new Date(value.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function parseInputDateTime(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function formatShortDate(value?: Date | null) {
@@ -222,6 +234,7 @@ function createTicketDetailsFormState(ticket?: Ticket): TicketDetailsFormState {
     subject: ticket?.subject || '',
     requester: ticket?.requester || '',
     requesterEmail: ticket?.requesterEmail || '',
+    time: formatInputDateTime(ticket?.time),
     sector: ticket?.sector || '',
     macroServiceId: ticket?.macroServiceId || '',
     serviceCatalogId: ticket?.serviceCatalogId || '',
@@ -656,6 +669,7 @@ export function InboxView() {
     activeTicket.priority,
     activeTicket.status,
     activeTicket.subject,
+    activeTicket.time,
     activeTicket.requester,
     activeTicket.requesterEmail,
     activeTicket.sector,
@@ -995,10 +1009,20 @@ export function InboxView() {
     const nextClassification = resolveClassificationSelection();
     const changes: string[] = [];
     const updates: Partial<Ticket> = {};
+    const nextTicketTime = parseInputDateTime(ticketDetailsForm.time);
+
+    if (!nextTicketTime) {
+      showToast('Informe uma data de abertura válida para a OS.', 3000);
+      return;
+    }
 
     if ((techTeam || '') !== (activeTicket.assignedTeam || '')) {
       updates.assignedTeam = techTeam || '';
       changes.push('responsável técnico');
+    }
+    if (Math.abs(nextTicketTime.getTime() - activeTicket.time.getTime()) >= 60000) {
+      updates.time = nextTicketTime;
+      changes.push(`data da OS: ${formatDateTimeSafe(activeTicket.time)} -> ${formatDateTimeSafe(nextTicketTime)}`);
     }
     if ((ticketPriority || '') !== (activeTicket.priority || '')) {
       updates.priority = ticketPriority || '';
@@ -1053,6 +1077,26 @@ export function InboxView() {
     }
 
     showToast('Painel da OS atualizado.', 2500);
+  };
+
+  const handleUpdateHistoryItemTime = (originalIndex: number, value: string) => {
+    if (!canManageStatus || isSending) return;
+    const nextTime = parseInputDateTime(value);
+    if (!nextTime) {
+      showToast('Informe uma data válida para a mensagem.', 2500);
+      return;
+    }
+
+    const currentItem = activeTicket.history[originalIndex];
+    if (!currentItem) return;
+    if (Math.abs(nextTime.getTime() - currentItem.time.getTime()) < 60000) return;
+
+    const nextHistory = activeTicket.history.map((item, index) =>
+      index === originalIndex ? { ...item, time: nextTime } : item
+    );
+
+    updateTicket(activeTicket.id, { history: nextHistory });
+    showToast('Data da mensagem atualizada.', 2000);
   };
 
   const handleAcceptTicket = () => {
@@ -2943,13 +2987,14 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
             <div className="min-h-0 overflow-y-auto p-4 md:p-5">
               <div className="space-y-5 pb-4">
-              {[...activeTicket.history]
-                .sort((a, b) => a.time.getTime() - b.time.getTime())
-                .map((item, index) => {
+              {activeTicket.history
+                .map((item, originalIndex) => ({ item, originalIndex }))
+                .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
+                .map(({ item, originalIndex }, index) => {
                   const displayText = stripAttachmentLinksFromMessage(item.text);
                   if (item.type === 'system') {
                     return (
-                      <div key={index} className="flex justify-center">
+                      <div key={`${item.id || 'system'}-${originalIndex}`} className="flex justify-center">
                         <div className="max-w-[92%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub xl:max-w-[86%]">
                           <div className="flex items-center justify-center gap-2 text-center">
                             <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[10px] md:text-[11px]">
@@ -2959,6 +3004,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             <div className="shrink-0 text-[10px] font-sans text-roman-text-sub/80">
                               {formatDateTimeSafe(item.time)}
                             </div>
+                            {canManageStatus && (
+                              <input
+                                type="datetime-local"
+                                defaultValue={formatInputDateTime(item.time)}
+                                onBlur={event => handleUpdateHistoryItemTime(originalIndex, event.target.value)}
+                                className="w-[150px] rounded-sm border border-roman-border bg-white px-1.5 py-0.5 text-[10px] font-sans text-roman-text-main outline-none focus:border-roman-primary"
+                                disabled={isSending}
+                                title="Editar data da mensagem"
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2967,13 +3022,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                   if (item.type === 'field_change') {
                     return (
-                      <div key={index} className="flex justify-center">
+                      <div key={`${item.id || 'field'}-${originalIndex}`} className="flex justify-center">
                         <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1.5 text-[10px] text-roman-text-sub font-mono flex flex-wrap items-center justify-center gap-1.5">
                           <span className="font-semibold">{item.sender}</span> alterou
                           <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
                           de <span className="line-through opacity-70">{item.from}</span>
                           para <span className="font-medium text-roman-text-main">{item.to}</span>
                           <span className="text-[10px] opacity-50">{formatDateTimeSafe(item.time)}</span>
+                          {canManageStatus && (
+                            <input
+                              type="datetime-local"
+                              defaultValue={formatInputDateTime(item.time)}
+                              onBlur={event => handleUpdateHistoryItemTime(originalIndex, event.target.value)}
+                              className="w-[150px] rounded-sm border border-roman-border bg-white px-1.5 py-0.5 text-[10px] text-roman-text-main outline-none focus:border-roman-primary"
+                              disabled={isSending}
+                              title="Editar data da mensagem"
+                            />
+                          )}
                         </div>
                       </div>
                     );
@@ -2991,7 +3056,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     }));
 
                   return (
-                    <div key={index} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
+                    <div key={`${item.id || 'message'}-${originalIndex}`} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
                       <div className={`flex w-full max-w-[94%] gap-3 xl:max-w-[88%] ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
                         <div className={`w-9 h-9 rounded-sm border flex items-center justify-center font-serif text-base shrink-0 ${
                           isExternalMessage
@@ -3009,6 +3074,18 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               {formatDateTimeSafe(item.time)}
                             </span>
                           </div>
+                          {canManageStatus && (
+                            <div className={`mb-2 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
+                              <input
+                                type="datetime-local"
+                                defaultValue={formatInputDateTime(item.time)}
+                                onBlur={event => handleUpdateHistoryItemTime(originalIndex, event.target.value)}
+                                className="w-[170px] rounded-sm border border-roman-border bg-white px-2 py-1 text-[11px] text-roman-text-main outline-none focus:border-roman-primary"
+                                disabled={isSending}
+                                title="Editar data da mensagem"
+                              />
+                            </div>
+                          )}
                           <div
                             className={`rounded-sm p-4 text-[13px] leading-relaxed shadow-sm border ${
                               isExternalMessage
@@ -3444,6 +3521,18 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </select>
                       </div>
                     )}
+                    {canManageStatus && (
+                      <div>
+                        <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Data de abertura</label>
+                        <input
+                          type="datetime-local"
+                          value={ticketDetailsForm.time}
+                          onChange={event => setTicketDetailsForm(current => ({ ...current, time: event.target.value }))}
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                          disabled={isSending}
+                        />
+                      </div>
+                    )}
                     <div>
                       <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Responsável técnico</label>
                       <select
@@ -3561,7 +3650,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   )}
 
                   {activeTicket.status === TICKET_STATUS.NEW ? (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={handleAcceptTicket}
                         disabled={isSending}
@@ -3578,6 +3668,17 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <X size={14} />
                         Cancelar OS
                       </button>
+                      </div>
+                      {canManageStatus && (
+                        <button
+                          onClick={handleSaveQuickPanel}
+                          disabled={isSending}
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
+                        >
+                          {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                          Salvar painel
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-2">
