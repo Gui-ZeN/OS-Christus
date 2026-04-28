@@ -678,9 +678,13 @@ async function processGmailInboundMessage(db, msg, source) {
   }
 
   try {
+    const explicitTicketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text);
+    const referencedTicketId = explicitTicketId
+      ? null
+      : await resolveTicketIdByThreadReferences(db, msg.inReplyTo, msg.references);
     const createdTicket =
-      msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) ? null : await createTicketFromInbound(db, msg);
-    const ticketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text) || createdTicket?.id;
+      explicitTicketId || referencedTicketId ? null : await createTicketFromInbound(db, msg);
+    const ticketId = explicitTicketId || referencedTicketId || createdTicket?.id;
     if (!ticketId) {
       await finalizeInboundMessageLock(lock.ref);
       return false;
@@ -706,16 +710,18 @@ async function processGmailInboundMessage(db, msg, source) {
       .map(value => value.trim())
       .filter(Boolean)
       .slice(-20);
+    const mergedReferences = [...new Set([...references, msg.inReplyTo, messageId].filter(Boolean))].slice(-20);
     const participants = [fromEmail, toEmail, ...ccRecipients].filter(Boolean);
 
     await threadRef.set(
       {
         ticketId,
+        ...(createdTicket && messageId ? { rootMessageId: messageId } : {}),
         lastMessageId: messageId,
         lastDirection: 'inbound',
         lastInboundAt: now,
         updatedAt: now,
-        references,
+        references: mergedReferences,
         gmailThreadId: msg.threadId || null,
         ...(ccRecipients.length > 0 ? { ccEmail: ccRecipients.join(', ') } : {}),
         ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
@@ -745,7 +751,7 @@ async function processGmailInboundMessage(db, msg, source) {
       html: msg.html || null,
       messageId,
       inReplyTo: msg.inReplyTo || null,
-      references,
+      references: mergedReferences,
       provider: 'gmail',
       attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
       createdAt: now,
@@ -1753,6 +1759,7 @@ async function handleInbound(req, res) {
     await threadRef.set(
       {
         ticketId,
+        ...(createdTicket && messageId ? { rootMessageId: messageId } : {}),
         lastMessageId: messageId,
         lastDirection: 'inbound',
         lastInboundAt: now,
