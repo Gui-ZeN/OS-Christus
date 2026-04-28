@@ -36,6 +36,10 @@ const EMPTY_FORM: UserForm = {
   password: '',
 };
 
+function isDeliverableEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
+}
+
 function normalizeUserForm(user: DirectoryUser): UserForm {
   return {
     id: user.id,
@@ -141,6 +145,13 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
   const handleSave = async () => {
     if (!canManageUsers) return;
     if (!form.name.trim() || !form.email.trim() || !form.role.trim()) return;
+    if (!isDeliverableEmail(form.email)) {
+      setFeedback({
+        type: 'error',
+        text: 'Informe um e-mail completo, com domínio válido. Exemplo: nome@empresa.com.br. E-mails como usuario@px não recebem convite de senha.',
+      });
+      return;
+    }
 
     const payload: DirectoryUser = {
       id: form.id || form.email.split('@')[0].toLowerCase(),

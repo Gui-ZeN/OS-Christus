@@ -25,6 +25,22 @@ function normalizeUser(input) {
   };
 }
 
+function isDeliverableEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
+}
+
+function describePasswordEmailError(error) {
+  const code = String(error?.code || '').trim();
+  const message = String(error?.message || '').trim();
+  if (code === 'auth/invalid-email' || /invalid.*email/i.test(message)) {
+    return 'E-mail inválido para envio de convite. Use um endereço completo, por exemplo nome@empresa.com.br.';
+  }
+  if (/sendgrid\s+4\d\d/i.test(message)) {
+    return 'O provedor recusou o destinatário. Verifique se o e-mail existe e possui domínio completo.';
+  }
+  return message || 'Falha ao enviar e-mail de acesso.';
+}
+
 function mapRoleToClaim(role) {
   const normalized = String(role || '').trim();
   if (normalized === 'Admin') return 'admin';
@@ -142,6 +158,12 @@ export default async function handler(req, res) {
       if (!user.name || !user.email || !user.role) {
         return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
       }
+      if (!isDeliverableEmail(user.email)) {
+        return sendJson(res, 400, {
+          ok: false,
+          error: 'Informe um e-mail completo, com domínio válido, por exemplo nome@empresa.com.br. E-mails internos como usuario@px não recebem convite de senha.',
+        });
+      }
       const id =
         body?.user?.id ||
         user.email
@@ -174,7 +196,7 @@ export default async function handler(req, res) {
       });
       let passwordEmailSent = false;
       let passwordEmailError = null;
-      if (user.role === 'Usuario' && user.status === 'Ativo' && user.active !== false) {
+      if (user.status === 'Ativo' && user.active !== false) {
         try {
           const resetUrl = await generatePasswordResetUrl(user.email, req);
           await sendPasswordAccessEmail({
@@ -185,7 +207,7 @@ export default async function handler(req, res) {
           });
           passwordEmailSent = true;
         } catch (error) {
-          passwordEmailError = error instanceof Error ? error.message : 'Falha ao enviar e-mail de acesso.';
+          passwordEmailError = describePasswordEmailError(error);
         }
       }
 
@@ -204,6 +226,12 @@ export default async function handler(req, res) {
       }
       if (!user.name || !user.email || !user.role) {
         return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
+      }
+      if (!isDeliverableEmail(user.email)) {
+        return sendJson(res, 400, {
+          ok: false,
+          error: 'Informe um e-mail completo, com domínio válido, por exemplo nome@empresa.com.br. E-mails internos como usuario@px não recebem convite de senha.',
+        });
       }
       const docRef = db.collection('users').doc(id);
       const beforeSnap = await docRef.get();
