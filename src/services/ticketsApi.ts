@@ -91,6 +91,9 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     requesterCcEmails: Array.isArray(ticket.requesterCcEmails)
       ? ticket.requesterCcEmails.map(email => repairMojibake(email || '')).filter(Boolean)
       : [],
+    directorCcEmails: Array.isArray(ticket.directorCcEmails)
+      ? ticket.directorCcEmails.map(email => repairMojibake(email || '')).filter(Boolean)
+      : [],
     type: repairMojibake(ticket.type),
     macroServiceName: repairMojibake(ticket.macroServiceName || ''),
     serviceCatalogName: repairMojibake(ticket.serviceCatalogName || ''),

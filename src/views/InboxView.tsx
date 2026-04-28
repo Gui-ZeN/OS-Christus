@@ -95,6 +95,27 @@ function normalizeUnitAbbreviation(value?: string | null) {
   return value.trim().toUpperCase();
 }
 
+function parseEmailTokens(input: string) {
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  String(input || '')
+    .split(/[;,\s]+/)
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)
+    .forEach(value => {
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        if (!valid.includes(value)) valid.push(value);
+      } else if (!invalid.includes(value)) {
+        invalid.push(value);
+      }
+    });
+  return { valid, invalid };
+}
+
+function mergeEmails(...groups: Array<string[] | undefined>) {
+  return [...new Set(groups.flatMap(group => group || []).map(email => String(email || '').trim().toLowerCase()).filter(Boolean))];
+}
+
 const EMPTY_TICKET: Ticket = {
   id: '',
   trackingToken: '',
@@ -1789,6 +1810,9 @@ export function InboxView() {
   const [quoteInitialRoundIndex, setQuoteInitialRoundIndex] = useState(1);
   const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
   const [additiveReason, setAdditiveReason] = useState('');
+  const [showQuoteDirectorInterests, setShowQuoteDirectorInterests] = useState(false);
+  const [directorInterestedEmails, setDirectorInterestedEmails] = useState<string[]>([]);
+  const [directorInterestedDraft, setDirectorInterestedDraft] = useState('');
   const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
   const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
   const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
@@ -1857,6 +1881,16 @@ export function InboxView() {
         .sort((a, b) => b.roundIndex - a.roundIndex),
     [availableInitialRounds, ticketQuotes]
   );
+  const directorEmailSuggestions = useMemo(() => {
+    const siteKey = String(activeTicket.siteId || activeTicket.sede || '').trim().toLowerCase();
+    const suggestions = tickets
+      .filter(ticket => {
+        const candidate = String(ticket.siteId || ticket.sede || '').trim().toLowerCase();
+        return siteKey && candidate === siteKey && ticket.id !== activeTicket.id;
+      })
+      .flatMap(ticket => ticket.directorCcEmails || []);
+    return mergeEmails(suggestions).filter(email => !directorInterestedEmails.includes(email));
+  }, [activeTicket.id, activeTicket.sede, activeTicket.siteId, directorInterestedEmails, tickets]);
   const quoteDraftTicketRef = useRef<string>('');
   const quoteDraftSessionKeyRef = useRef<string>('');
 
@@ -1955,6 +1989,9 @@ export function InboxView() {
     setShowQuoteComparisonPanel(false);
     setShowAdditiveReference(true);
     setQuoteEditorFocus(0);
+    setShowQuoteDirectorInterests(false);
+    setDirectorInterestedDraft('');
+    setDirectorInterestedEmails(mergeEmails(activeTicket.directorCcEmails || []));
   }, [showQuotesModal, activeTicketId, quoteRoundType]);
 
   useEffect(() => {
@@ -2407,6 +2444,21 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     setPendingCustomUnitByItem({});
   };
 
+  const addDirectorInterestedEmails = (input: string) => {
+    const parsed = parseEmailTokens(input);
+    if (parsed.invalid.length > 0) {
+      showToast(`E-mail inválido: ${parsed.invalid[0]}`, 3000);
+      return;
+    }
+    if (parsed.valid.length === 0) return;
+    setDirectorInterestedEmails(current => mergeEmails(current, parsed.valid));
+    setDirectorInterestedDraft('');
+  };
+
+  const removeDirectorInterestedEmail = (email: string) => {
+    setDirectorInterestedEmails(current => current.filter(item => item !== email));
+  };
+
   const applyFormatting = (type: 'bold' | 'italic' | 'list') => {
     if (!replyTextRef.current) return;
     const el = replyTextRef.current;
@@ -2545,6 +2597,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       };
       updateTicket(activeTicket.id, {
         status: TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+        directorCcEmails: directorInterestedEmails,
         history: [...activeTicket.history, historyItem],
       });
       setIsSending(false);
@@ -4234,7 +4287,89 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <ChevronDown size={12} className={`transition-transform ${showQuoteComparisonPanel ? 'rotate-180' : ''}`} />
                   Comparativo
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuoteDirectorInterests(current => !current)}
+                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
+                >
+                  <Plus size={12} />
+                  Adicionar interessados
+                  {directorInterestedEmails.length > 0 && (
+                    <span className="rounded-full bg-roman-primary px-1.5 py-0.5 text-[10px] text-white">
+                      {directorInterestedEmails.length}
+                    </span>
+                  )}
+                </button>
               </div>
+
+              {showQuoteDirectorInterests && (
+                <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                    <div className="flex-1">
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Interessados adicionais</label>
+                      <input
+                        type="text"
+                        value={directorInterestedDraft}
+                        onChange={event => setDirectorInterestedDraft(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            addDirectorInterestedEmails(directorInterestedDraft);
+                          }
+                        }}
+                        placeholder="email@dominio.com, outro@dominio.com"
+                        className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                      />
+                      <div className="mt-1 text-xs text-roman-text-sub">Separe por vírgula ou pressione Enter para adicionar.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addDirectorInterestedEmails(directorInterestedDraft)}
+                      className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+
+                  {directorEmailSuggestions.length > 0 && (
+                    <div className="mt-4">
+                      <div className="mb-2 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Sugestões desta sede</div>
+                      <div className="flex flex-wrap gap-2">
+                        {directorEmailSuggestions.slice(0, 8).map(email => (
+                          <button
+                            key={`director-suggestion-${email}`}
+                            type="button"
+                            onClick={() => setDirectorInterestedEmails(current => mergeEmails(current, [email]))}
+                            className="rounded-sm border border-roman-primary/30 bg-white px-2 py-1 text-xs text-roman-primary transition-colors hover:bg-roman-primary/10"
+                          >
+                            {email}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {directorInterestedEmails.length > 0 ? (
+                      directorInterestedEmails.map(email => (
+                        <span key={`director-interested-${email}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white px-2 py-1 text-xs text-roman-text-main">
+                          {email}
+                          <button
+                            type="button"
+                            onClick={() => removeDirectorInterestedEmail(email)}
+                            className="text-roman-text-sub hover:text-red-700"
+                            aria-label={`Remover ${email}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <div className="text-xs text-roman-text-sub">Sem interessados adicionais. A Diretoria configurada continua recebendo normalmente.</div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 {quoteRoundType === 'additive' && (

@@ -11,6 +11,12 @@ function resolveTicketEmail(ticket: Ticket): string | null {
   return null;
 }
 
+function resolveDirectorCcEmail(ticket: Ticket): string {
+  return Array.isArray(ticket.directorCcEmails)
+    ? [...new Set(ticket.directorCcEmails.map(email => String(email || '').trim().toLowerCase()).filter(Boolean))].join(', ')
+    : '';
+}
+
 function buildTrackingUrl(ticket: Ticket) {
   return `${window.location.origin}/?tracking=${encodeURIComponent(ticket.trackingToken)}`;
 }
@@ -679,6 +685,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
       trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
+      ccEmail: resolveDirectorCcEmail(ticket),
       attachments: directorAttachments,
       variables,
       templateData: {
@@ -779,6 +786,7 @@ export async function notifyTicketDirectorReply(
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     trigger,
+    ccEmail: resolveDirectorCcEmail(ticket),
     attachments: normalizeEmailAttachments(attachments),
     variables,
     templateData: {
@@ -816,6 +824,7 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     trigger: 'EMAIL-DIRETORIA-APROVACAO',
+    ccEmail: resolveDirectorCcEmail(ticket),
     variables,
     templateData: {
       title: `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} aguardando aprovação`,
