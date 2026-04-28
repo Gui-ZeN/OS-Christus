@@ -1118,6 +1118,8 @@ async function handleSend(req, res) {
       triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
     const isFinanceTrigger = triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
     const shouldUseRequesterThread = !internalCopy && !isDirectorTrigger && !isFinanceTrigger;
+    const shouldUseFinanceThread = !internalCopy && isFinanceTrigger;
+    const shouldUseManagedThread = shouldUseRequesterThread || isDirectorTrigger || shouldUseFinanceThread;
     const requestedBodyOverride = forceBodyFromTemplateData ? templateBodyText : '';
     const baseResolvedBody = requestedBodyOverride || repairMojibake(
       storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text
@@ -1138,7 +1140,8 @@ async function handleSend(req, res) {
       : templateSubject;
 
 
-    const threadRef = db.collection('emailThreads').doc(ticketId);
+    const threadDocId = isDirectorTrigger ? `${ticketId}__director` : shouldUseFinanceThread ? `${ticketId}__finance` : ticketId;
+    const threadRef = db.collection('emailThreads').doc(threadDocId);
     const threadSnap = await threadRef.get();
     const thread = threadSnap.exists ? threadSnap.data() : null;
     const ticketSnapForCopies = await db.collection('tickets').doc(ticketId).get();
@@ -1148,6 +1151,8 @@ async function handleSend(req, res) {
       : '';
     const canonicalSubject =
       requesterThreadSubject ||
+      (isDirectorTrigger && String(thread?.subject || '').trim() ? repairMojibake(String(thread.subject)) : '') ||
+      (shouldUseFinanceThread && String(thread?.subject || '').trim() ? repairMojibake(String(thread.subject)) : '') ||
       resolvedSubject;
 
     const explicitRecipients = parseEmailList(toEmailInput);
@@ -1191,15 +1196,15 @@ async function handleSend(req, res) {
     }
 
     const storedRootMessageId = normalizeMessageIdToken(thread?.rootMessageId);
-    const rootMessageId = storedRootMessageId || buildThreadRootMessageId(ticketId);
+    const rootMessageId = storedRootMessageId || buildThreadRootMessageId(threadDocId);
     const hasRequesterThreadContext = Boolean(storedRootMessageId || thread?.lastMessageId);
-    const reuseThread = shouldUseRequesterThread && Boolean(thread?.lastMessageId);
+    const reuseThread = shouldUseManagedThread && Boolean(thread?.lastMessageId);
     const priorMessageId =
-      shouldUseRequesterThread && hasRequesterThreadContext
+      shouldUseManagedThread && hasRequesterThreadContext
         ? storedRootMessageId || thread?.lastMessageId || null
         : null;
-    const references = shouldUseRequesterThread && Array.isArray(thread?.references) ? thread.references : [];
-    const nextReferences = shouldUseRequesterThread && hasRequesterThreadContext
+    const references = shouldUseManagedThread && Array.isArray(thread?.references) ? thread.references : [];
+    const nextReferences = shouldUseManagedThread && hasRequesterThreadContext
       ? [...new Set([...references, rootMessageId, priorMessageId].filter(Boolean))].slice(-20)
       : [];
 
@@ -1290,10 +1295,11 @@ async function handleSend(req, res) {
       ...(effectiveReferences.length > 0 ? { References: effectiveReferences.join(' ') } : {}),
     };
 
-    if (!skipThread && shouldUseRequesterThread) {
+    if (!skipThread && shouldUseManagedThread) {
       await threadRef.set(
         {
           ticketId,
+          threadScope: isDirectorTrigger ? 'director' : shouldUseFinanceThread ? 'finance' : 'requester',
           subject: canonicalSubject,
           toEmail,
           ...(ccEmail ? { ccEmail } : {}),
