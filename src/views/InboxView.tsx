@@ -236,11 +236,13 @@ function DateTimePicker({
   onChange,
   disabled,
   compact = false,
+  iconOnly = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   compact?: boolean;
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const parsedValue = parseInputDateTime(value);
@@ -274,11 +276,12 @@ function DateTimePicker({
         type="button"
         onClick={() => !disabled && setOpen(current => !current)}
         disabled={disabled}
-        className={`flex w-full items-center gap-2 rounded-sm border border-roman-border bg-roman-surface text-left font-medium text-roman-text-main outline-none transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-60 ${compact ? 'px-2 py-1 text-[11px]' : 'px-3 py-2 text-[13px]'}`}
-        title="Selecionar data e hora"
+        className={`flex items-center justify-center rounded-sm border border-roman-border bg-roman-surface font-medium text-roman-text-main outline-none transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-60 ${iconOnly ? (compact ? 'h-7 w-7' : 'h-9 w-9') : `w-full gap-2 text-left ${compact ? 'px-2 py-1 text-[11px]' : 'px-3 py-2 text-[13px]'}`}`}
+        title={`Selecionar data e hora: ${formatDateTimeDisplay(value)}`}
+        aria-label={`Selecionar data e hora: ${formatDateTimeDisplay(value)}`}
       >
         <Calendar size={compact ? 13 : 15} className="shrink-0 text-roman-primary" />
-        <span className="min-w-0 flex-1 truncate">{formatDateTimeDisplay(value)}</span>
+        {!iconOnly && <span className="min-w-0 flex-1 truncate">{formatDateTimeDisplay(value)}</span>}
       </button>
 
       {open && (
@@ -3172,11 +3175,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                               {formatDateTimeSafe(item.time)}
                             </div>
                             {canManageStatus && (
-                              <div className="w-[150px]">
+                              <div className="shrink-0">
                                 <DateTimePicker
                                   value={formatInputDateTime(item.time)}
                                   onChange={value => handleUpdateHistoryItemTime(originalIndex, value)}
                                   compact
+                                  iconOnly
                                   disabled={isSending}
                                 />
                               </div>
@@ -3197,11 +3201,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           para <span className="font-medium text-roman-text-main">{item.to}</span>
                           <span className="text-[10px] opacity-50">{formatDateTimeSafe(item.time)}</span>
                           {canManageStatus && (
-                            <div className="w-[150px]">
+                            <div className="shrink-0">
                               <DateTimePicker
                                 value={formatInputDateTime(item.time)}
                                 onChange={value => handleUpdateHistoryItemTime(originalIndex, value)}
                                 compact
+                                iconOnly
                                 disabled={isSending}
                               />
                             </div>
@@ -3243,11 +3248,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           </div>
                           {canManageStatus && (
                             <div className={`mb-2 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
-                              <div className="inline-block w-[170px]">
+                              <div className="inline-block">
                                 <DateTimePicker
                                   value={formatInputDateTime(item.time)}
                                   onChange={value => handleUpdateHistoryItemTime(originalIndex, value)}
                                   compact
+                                  iconOnly
                                   disabled={isSending}
                                 />
                               </div>

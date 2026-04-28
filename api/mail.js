@@ -1077,6 +1077,8 @@ async function handleSend(req, res) {
     const forceBodyFromTemplateData =
       isDirectorTrigger ||
       triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
+    const isFinanceTrigger = triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
+    const shouldUseRequesterThread = !internalCopy && !isDirectorTrigger && !isFinanceTrigger;
     const requestedBodyOverride = forceBodyFromTemplateData ? templateBodyText : '';
     const baseResolvedBody = requestedBodyOverride || repairMojibake(
       storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text
@@ -1147,15 +1149,16 @@ async function handleSend(req, res) {
       throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
     }
 
-    const rootMessageId = normalizeMessageIdToken(thread?.rootMessageId) || buildThreadRootMessageId(ticketId);
-    const reuseThread = !internalCopy && Boolean(thread?.lastMessageId);
-    const priorMessageId = internalCopy
-      ? null
-      : reuseThread
-        ? thread?.lastMessageId || rootMessageId
-        : rootMessageId;
-    const references = !internalCopy && Array.isArray(thread?.references) ? thread.references : [];
-    const nextReferences = !internalCopy
+    const storedRootMessageId = normalizeMessageIdToken(thread?.rootMessageId);
+    const rootMessageId = storedRootMessageId || buildThreadRootMessageId(ticketId);
+    const hasRequesterThreadContext = Boolean(storedRootMessageId || thread?.lastMessageId);
+    const reuseThread = shouldUseRequesterThread && Boolean(thread?.lastMessageId);
+    const priorMessageId =
+      shouldUseRequesterThread && hasRequesterThreadContext
+        ? storedRootMessageId || thread?.lastMessageId || null
+        : null;
+    const references = shouldUseRequesterThread && Array.isArray(thread?.references) ? thread.references : [];
+    const nextReferences = shouldUseRequesterThread && hasRequesterThreadContext
       ? [...new Set([...references, rootMessageId, priorMessageId].filter(Boolean))].slice(-20)
       : [];
 
@@ -1237,7 +1240,7 @@ async function handleSend(req, res) {
 
     const now = new Date();
     const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@os-christus>`;
-    const effectiveRootMessageId = recoveredThread ? messageId : rootMessageId;
+    const effectiveRootMessageId = storedRootMessageId || (recoveredThread ? messageId : rootMessageId);
     const mergedReferences = [...new Set([effectiveRootMessageId, ...effectiveReferences, messageId].filter(Boolean))].slice(-20);
     const persistedHeaders = {
       'X-OS-Ticket-ID': ticketId,
@@ -1246,7 +1249,7 @@ async function handleSend(req, res) {
       ...(effectiveReferences.length > 0 ? { References: effectiveReferences.join(' ') } : {}),
     };
 
-    if (!skipThread) {
+    if (!skipThread && shouldUseRequesterThread) {
       await threadRef.set(
         {
           ticketId,
@@ -1255,7 +1258,7 @@ async function handleSend(req, res) {
           ...(ccEmail ? { ccEmail } : {}),
           rootMessageId: effectiveRootMessageId,
           lastMessageId: messageId,
-          gmailThreadId: sendResult.threadId || (reuseThread ? thread?.gmailThreadId : null) || null,
+          gmailThreadId: (reuseThread ? thread?.gmailThreadId : null) || sendResult.threadId || null,
           references: mergedReferences,
           lastDirection: 'outbound',
           lastOutboundAt: now,
