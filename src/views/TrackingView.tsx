@@ -363,7 +363,18 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
     });
   }
 
-  const statusEntries: TimelineEntry[] = statusEvents.map((event, index) => {
+  const publicStatusEvents = statusEvents.reduce<Array<{ status: TicketStatus; time: Date | null; index: number }>>((events, event) => {
+    const stage = getStageForStatus(event.status);
+    const previous = events[events.length - 1];
+    if (previous && getStageForStatus(previous.status).id === stage.id) {
+      events[events.length - 1] = event;
+      return events;
+    }
+    events.push(event);
+    return events;
+  }, []);
+
+  const statusEntries: TimelineEntry[] = publicStatusEvents.map((event, index) => {
     const stage = getStageForStatus(event.status);
     const fallbackSortBase = baseMs + 10_000_000;
     const sortMs = event.time?.getTime() ?? (fallbackSortBase + index);
