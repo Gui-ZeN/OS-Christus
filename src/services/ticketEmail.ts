@@ -114,7 +114,7 @@ function resolveDirectorCancellationReason(ticket: Ticket): string | null {
     const item = historyItems[index];
     const text = String(item?.text || '').trim();
     if (!text) continue;
-    if (!/OS cancelada pela Diretoria\./i.test(text)) continue;
+    if (!/OS cancelada/i.test(text)) continue;
 
     const match = text.match(/Motivo:\s*(.+)$/i);
     if (match?.[1]?.trim()) {

@@ -389,6 +389,44 @@ function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   return repairMojibake(`${ticketId} - ${cleanSubject}`);
 }
 
+function buildReplySubject(subject) {
+  const cleanSubject = repairMojibake(String(subject || '').trim());
+  if (!cleanSubject) return '';
+  return /^(re|res|fw|fwd)\s*:/i.test(cleanSubject) ? cleanSubject : `Re: ${cleanSubject}`;
+}
+
+function isTicketConversationSubject(ticketId, subject) {
+  const normalizedTicketId = String(ticketId || '').trim().toUpperCase();
+  const normalizedSubject = String(subject || '').trim().toUpperCase();
+  return Boolean(normalizedTicketId && normalizedSubject.startsWith(`${normalizedTicketId} - `));
+}
+
+async function resolveRequesterThreadSubject(threadRef, thread, ticketId) {
+  const originalSubject = repairMojibake(String(thread?.originalSubject || '').trim());
+  if (originalSubject) return originalSubject;
+
+  const storedSubject = repairMojibake(String(thread?.subject || '').trim());
+  if (storedSubject && !isTicketConversationSubject(ticketId, storedSubject)) return storedSubject;
+
+  try {
+    const messagesSnap = await threadRef.collection('messages').where('direction', '==', 'inbound').limit(20).get();
+    const inboundMessages = messagesSnap.docs
+      .map(doc => doc.data() || {})
+      .filter(message => String(message.subject || '').trim())
+      .sort((a, b) => {
+        const aTime = typeof a.createdAt?.toMillis === 'function' ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+        const bTime = typeof b.createdAt?.toMillis === 'function' ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+        return aTime - bTime;
+      });
+    const inboundSubject = inboundMessages.find(message => !isTicketConversationSubject(ticketId, message.subject))?.subject;
+    if (inboundSubject) return repairMojibake(String(inboundSubject));
+  } catch {
+    // Mantém fallback abaixo quando não for possível ler o histórico.
+  }
+
+  return storedSubject;
+}
+
 function buildThreadRootMessageId(ticketId) {
   const normalizedTicketId = String(ticketId || 'ticket')
     .trim()
@@ -717,6 +755,7 @@ async function processGmailInboundMessage(db, msg, source) {
       {
         ticketId,
         ...(createdTicket && messageId ? { rootMessageId: messageId } : {}),
+        ...(createdTicket && msg.subject ? { originalSubject: repairMojibake(msg.subject), subject: repairMojibake(msg.subject) } : {}),
         lastMessageId: messageId,
         lastDirection: 'inbound',
         lastInboundAt: now,
@@ -1104,10 +1143,12 @@ async function handleSend(req, res) {
     const thread = threadSnap.exists ? threadSnap.data() : null;
     const ticketSnapForCopies = await db.collection('tickets').doc(ticketId).get();
     const ticketForCopies = ticketSnapForCopies.exists ? ticketSnapForCopies.data() || {} : {};
+    const requesterThreadSubject = shouldUseRequesterThread
+      ? buildReplySubject(await resolveRequesterThreadSubject(threadRef, thread, ticketId))
+      : '';
     const canonicalSubject =
-      ticketId && String(thread?.subject || '').trim()
-        ? repairMojibake(String(thread.subject))
-        : resolvedSubject;
+      requesterThreadSubject ||
+      resolvedSubject;
 
     const explicitRecipients = parseEmailList(toEmailInput);
     const templateRecipients = parseEmailList(storedTemplate?.recipients || '');
@@ -1763,6 +1804,7 @@ async function handleInbound(req, res) {
       {
         ticketId,
         ...(createdTicket && messageId ? { rootMessageId: messageId } : {}),
+        ...(createdTicket && subject ? { originalSubject: repairMojibake(subject), subject: repairMojibake(subject) } : {}),
         lastMessageId: messageId,
         lastDirection: 'inbound',
         lastInboundAt: now,

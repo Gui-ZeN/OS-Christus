@@ -5,6 +5,7 @@ import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ModalShell } from '../components/ui/ModalShell';
 import { FloatingToast } from '../components/ui/FloatingToast';
+import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { useApp } from '../context/AppContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useToast } from '../hooks/useToast';
@@ -1195,6 +1196,12 @@ export function InboxView() {
       return;
     }
 
+    if (nextStatus === TICKET_STATUS.CANCELED) {
+      setPendingCancelTicketUpdates(updates);
+      setShowCancelTicketModal(true);
+      return;
+    }
+
     setIsSending(true);
     try {
       updateTicket(activeTicket.id, {
@@ -1713,6 +1720,8 @@ export function InboxView() {
   const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showDeleteTicketModal, setShowDeleteTicketModal] = useState(false);
+  const [showCancelTicketModal, setShowCancelTicketModal] = useState(false);
+  const [pendingCancelTicketUpdates, setPendingCancelTicketUpdates] = useState<Partial<Ticket> | null>(null);
   const [isDeletingTicket, setIsDeletingTicket] = useState(false);
   const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>(
     Array.from({ length: INITIAL_MIN_QUOTE_SLOTS }, () => null)
@@ -1754,7 +1763,7 @@ export function InboxView() {
     }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
   const shouldLockBodyScroll =
-    isMobileOverlayOpen || showQuotesModal || showContractDispatchModal || showPrelimModal || showExecutionSetupModal || showProgressModal || showDeleteTicketModal;
+    isMobileOverlayOpen || showQuotesModal || showContractDispatchModal || showPrelimModal || showExecutionSetupModal || showProgressModal || showDeleteTicketModal || showCancelTicketModal;
 
   useEffect(() => {
     function handleEsc(event: KeyboardEvent) {
@@ -1766,16 +1775,19 @@ export function InboxView() {
       if (showProgressModal) setShowProgressModal(false);
       if (showActionsMenu) setShowActionsMenu(false);
       if (showDeleteTicketModal) setShowDeleteTicketModal(false);
+      if (showCancelTicketModal) setShowCancelTicketModal(false);
       if (showMobileTicketList) setShowMobileTicketList(false);
       if (showMobileContext) setShowMobileContext(false);
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [showQuotesModal, showContractDispatchModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showDeleteTicketModal, showMobileTicketList, showMobileContext]);
+  }, [showQuotesModal, showContractDispatchModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showDeleteTicketModal, showCancelTicketModal, showMobileTicketList, showMobileContext]);
 
   useEffect(() => {
     setShowActionsMenu(false);
     setShowDeleteTicketModal(false);
+    setShowCancelTicketModal(false);
+    setPendingCancelTicketUpdates(null);
     setShowMobileTicketList(false);
     setShowMobileContext(false);
   }, [activeTicketId]);
@@ -2747,7 +2759,18 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
   const handleCancelTicket = () => {
     if (activeTicket.status === TICKET_STATUS.CANCELED) return;
+    setPendingCancelTicketUpdates({ status: TICKET_STATUS.CANCELED });
+    setShowActionsMenu(false);
+    setShowCancelTicketModal(true);
+  };
+
+  const handleConfirmCancelTicket = (reason?: string) => {
+    if (activeTicket.status === TICKET_STATUS.CANCELED) return;
+    const reasonText = String(reason || '').trim();
+    if (!reasonText) return;
+    const updates = pendingCancelTicketUpdates || { status: TICKET_STATUS.CANCELED };
     updateTicket(activeTicket.id, {
+      ...updates,
       status: TICKET_STATUS.CANCELED,
       history: [
         ...activeTicket.history,
@@ -2756,10 +2779,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           type: 'system',
           sender: displayActorLabel,
           time: new Date(),
-          text: 'OS cancelada pelo gestor através do menu de ações.',
+          text: `OS cancelada por ${displayActorLabel}. Motivo: ${reasonText}.`,
         },
       ],
     });
+    setPendingCancelTicketUpdates(null);
+    setShowCancelTicketModal(false);
     setShowActionsMenu(false);
     showToast(`OS ${activeTicket.id} cancelada.`, 3000);
   };
@@ -4157,7 +4182,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         </ModalShell>
       )}
 
-      {/* Quotes Modal */}
+      <ConfirmModal
+        isOpen={showCancelTicketModal}
+        onClose={() => {
+          setShowCancelTicketModal(false);
+          setPendingCancelTicketUpdates(null);
+        }}
+        onConfirm={handleConfirmCancelTicket}
+        title={`Cancelar ${activeTicket.id}`}
+        description="Informe o motivo do cancelamento. Esse texto ficará registrado no histórico da OS e será usado na comunicação com o solicitante."
+        confirmText="Confirmar cancelamento"
+        isDestructive
+        requireReason
+        isLoading={isSending}
+      />
+
+      {/* Delete Modal */}
       {showDeleteTicketModal && (
         <ModalShell
           isOpen={showDeleteTicketModal}
