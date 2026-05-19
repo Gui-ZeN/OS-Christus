@@ -1183,9 +1183,12 @@ async function handleSend(req, res) {
       triggerKey !== 'EMAIL-FINANCEIRO-PAGAMENTO' &&
       triggerKey !== 'EMAIL-DIRETORIA-SOLUCAO' &&
       triggerKey !== 'EMAIL-DIRETORIA-APROVACAO';
+    const overrideConversationCopies = body.overrideConversationCopies === true;
     const ccRecipients = shouldUseConversationCopies
       ? filterCopyRecipients(
-          mergeEmailLists(body.ccEmail || body.cc || '', thread?.ccEmail || '', ticketCopyRecipients),
+          overrideConversationCopies
+            ? mergeEmailLists(body.ccEmail || body.cc || '')
+            : mergeEmailLists(body.ccEmail || body.cc || '', thread?.ccEmail || '', ticketCopyRecipients),
           recipients
         )
       : filterCopyRecipients(body.ccEmail || body.cc || '', recipients);

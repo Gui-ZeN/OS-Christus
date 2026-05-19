@@ -676,6 +676,8 @@ export function InboxView() {
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal' | 'director'>('internal');
   const [replyText, setReplyText] = useState('');
+  const [publicInterestedEmails, setPublicInterestedEmails] = useState<string[]>([]);
+  const [publicInterestedDraft, setPublicInterestedDraft] = useState('');
   const [techTeam, setTechTeam] = useState('');
   const [customEmail, setCustomEmail] = useState('');
   const [ticketPriority, setTicketPriority] = useState('');
@@ -786,6 +788,8 @@ export function InboxView() {
     setReplyText('');
     setTechTeam(activeTicket.assignedTeam || '');
     setCustomEmail(activeTicket.assignedEmail || '');
+    setPublicInterestedEmails(mergeEmails(activeTicket.requesterCcEmails || []));
+    setPublicInterestedDraft('');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setStatusDraft(activeTicket.status || '');
     setTicketDetailsForm(createTicketDetailsFormState(activeTicket));
@@ -1379,14 +1383,16 @@ export function InboxView() {
           visibility: 'public',
           attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
         };
+        const selectedInterestedEmails = mergeEmails(publicInterestedEmails);
         updateTicket(activeTicket.id, {
+          requesterCcEmails: selectedInterestedEmails,
           attachments:
             uploadedReplyAttachments.length > 0
               ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
-        void notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments);
+        void notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails);
       } else {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
           setIsSending(false);
@@ -2474,6 +2480,21 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     setDirectorInterestedEmails(current => current.filter(item => item !== email));
   };
 
+  const addPublicInterestedEmails = (input: string) => {
+    const parsed = parseEmailTokens(input);
+    if (parsed.invalid.length > 0) {
+      showToast(`E-mail inválido: ${parsed.invalid[0]}`, 3000);
+      return;
+    }
+    if (parsed.valid.length === 0) return;
+    setPublicInterestedEmails(current => mergeEmails(current, parsed.valid));
+    setPublicInterestedDraft('');
+  };
+
+  const removePublicInterestedEmail = (email: string) => {
+    setPublicInterestedEmails(current => current.filter(item => item !== email));
+  };
+
   const applyFormatting = (type: 'bold' | 'italic' | 'list') => {
     if (!replyTextRef.current) return;
     const el = replyTextRef.current;
@@ -3338,7 +3359,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     onClick={() => setReplyMode('public')}
                     className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
-                    Mensagem ao Solicitante
+                    Mensagem aos Interessados
                   </button>
                   {canMessageDirector && (
                     <button
@@ -3349,6 +3370,64 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </button>
                   )}
                 </div>
+
+                {replyMode === 'public' && (
+                  <div className="border-b border-roman-border/50 bg-white px-3 py-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cópias da mensagem</div>
+                        <div className="text-xs text-roman-text-sub">O solicitante recebe no destinatário principal. Os e-mails abaixo recebem em cópia nesta mesma corrente.</div>
+                      </div>
+                      <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">
+                        {publicInterestedEmails.length} em cópia
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="text"
+                        value={publicInterestedDraft}
+                        onChange={event => setPublicInterestedDraft(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            addPublicInterestedEmails(publicInterestedDraft);
+                          }
+                        }}
+                        placeholder="email@dominio.com, outro@dominio.com"
+                        className="min-w-0 flex-1 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                        disabled={isClosed}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addPublicInterestedEmails(publicInterestedDraft)}
+                        className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-50"
+                        disabled={isClosed || !publicInterestedDraft.trim()}
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {publicInterestedEmails.length > 0 ? (
+                        publicInterestedEmails.map(email => (
+                          <span key={`public-interested-${email}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-xs text-roman-text-main">
+                            {email}
+                            <button
+                              type="button"
+                              onClick={() => removePublicInterestedEmail(email)}
+                              className="text-roman-text-sub hover:text-red-700"
+                              aria-label={`Remover ${email}`}
+                              disabled={isClosed}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-roman-text-sub">Sem interessados em cópia.</span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Formatting Toolbar */}
                 <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -3388,7 +3467,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         ? internalPlaceholder
                         : replyMode === 'director'
                           ? 'Mensagem interna para Diretoria...'
-                          : 'Mensagem para o solicitante...'
+                          : 'Mensagem para solicitante e interessados...'
                   }
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
@@ -3415,7 +3494,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       ? internalActionText
                       : replyMode === 'director'
                         ? 'Ação: Notificar Diretoria por e-mail (conversa interna)'
-                        : 'Ação: Notificar solicitante por e-mail'}
+                        : 'Ação: Responder à corrente do solicitante com cópia para os interessados selecionados'}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -3442,7 +3521,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             ? internalButtonText
                             : replyMode === 'director'
                               ? 'Enviar à Diretoria'
-                              : 'Enviar Mensagem'}
+                              : 'Enviar aos Interessados'}
                       </button>
                     </div>
                   </div>

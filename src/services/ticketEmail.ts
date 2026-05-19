@@ -735,7 +735,8 @@ export async function notifyTicketPublicReply(
   ticket: Ticket,
   sender: string,
   message: string,
-  attachments: TicketAttachment[] = []
+  attachments: TicketAttachment[] = [],
+  ccEmails: string[] = []
 ) {
   const toEmail = resolveTicketEmail(ticket);
   const bodyText = appendAttachmentsToBody(message, attachments);
@@ -745,6 +746,8 @@ export async function notifyTicketPublicReply(
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     toEmail,
+    ccEmail: ccEmails.join(', '),
+    overrideConversationCopies: true,
     trigger: 'EMAIL-NOVA-MENSAGEM',
     variables: await buildVariables(ticket, {
       message: {
