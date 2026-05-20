@@ -3,7 +3,7 @@ import { ArrowRight, Landmark, Loader2, CheckCircle, Users, Activity } from 'luc
 import { TICKET_STATUS, type TicketStatus } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
-import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi } from '../services/ticketsApi';
+import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, postTrackingMessageInApi } from '../services/ticketsApi';
 import type { HistoryItem, Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
 import { repairMojibake, stripAttachmentLinksFromMessage } from '../utils/text';
@@ -431,6 +431,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmittingValidation, setIsSubmittingValidation] = useState(false);
+  const [publicMessage, setPublicMessage] = useState('');
+  const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
@@ -544,6 +546,31 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     }
   };
 
+  const handleRequesterMessage = async () => {
+    if (!ticket || isSubmittingMessage) return;
+    const message = publicMessage.trim();
+    if (!message) {
+      setFeedback('Escreva uma mensagem antes de enviar.');
+      window.setTimeout(() => setFeedback(null), 3500);
+      return;
+    }
+
+    setIsSubmittingMessage(true);
+    try {
+      await postTrackingMessageInApi(ticket.trackingToken, message);
+      const refreshed = await fetchTrackingDetailsFromApi(ticket.trackingToken);
+      setTicket(refreshed.ticket);
+      setPublicMessage('');
+      setFeedback('Mensagem enviada para a equipe interna.');
+      window.setTimeout(() => setFeedback(null), 4000);
+    } catch {
+      setFeedback('Não foi possível enviar a mensagem agora. Tente novamente em instantes.');
+      window.setTimeout(() => setFeedback(null), 5000);
+    } finally {
+      setIsSubmittingMessage(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center justify-center px-4">
@@ -653,6 +680,35 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED && (
+            <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
+              <div className="text-sm font-medium text-roman-text-main">Mensagem para a equipe</div>
+              <p className="mt-1 text-sm text-roman-text-sub">
+                Envie uma atualização ou dúvida diretamente pelo acompanhamento.
+              </p>
+              <textarea
+                value={publicMessage}
+                onChange={event => setPublicMessage(event.target.value)}
+                maxLength={3000}
+                className="mt-3 min-h-28 w-full resize-y rounded-xl border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                placeholder="Digite sua mensagem..."
+                disabled={isSubmittingMessage}
+              />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="text-xs text-roman-text-sub">{publicMessage.trim().length}/3000</span>
+                <button
+                  type="button"
+                  onClick={() => void handleRequesterMessage()}
+                  disabled={isSubmittingMessage || !publicMessage.trim()}
+                  className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-70"
+                >
+                  {isSubmittingMessage ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                  Enviar mensagem
+                </button>
+              </div>
             </div>
           )}
 

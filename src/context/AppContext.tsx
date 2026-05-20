@@ -144,7 +144,16 @@ function canUserAccessTicket(
 ) {
   if (!currentUserEmail) return true;
   if (!user) return false;
-  if (user.role === 'Admin' || user.role === 'Diretor') return true;
+  if (user.role === 'Admin' || user.role === 'Gestor') return true;
+  if (user.role === 'Diretor') {
+    const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
+    const directorEmails = Array.isArray(ticket.directorEmails) ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()) : [];
+    if (directorIds.length === 0 && directorEmails.length === 0) return true;
+    return (
+      directorIds.includes(user.id) ||
+      directorEmails.includes(String(user.email || currentUserEmail || '').trim().toLowerCase())
+    );
+  }
 
   const regionIds = user.regionIds || [];
   const siteIds = user.siteIds || [];

@@ -280,9 +280,10 @@ function FeedbackBanner({
 
 export function SettingsView() {
   const { currentUser } = useApp();
-  const canAccess = currentUser?.role === 'Admin';
+  const isGestor = currentUser?.role === 'Gestor';
+  const canAccess = currentUser?.role === 'Admin' || isGestor;
   const canEditSettings = canAccess;
-  const [section, setSection] = useState<SettingsSection>('access');
+  const [section, setSection] = useState<SettingsSection>(isGestor ? 'catalog' : 'access');
   const [loading, setLoading] = useState(true);
   const [templateSaved, setTemplateSaved] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
@@ -322,6 +323,12 @@ export function SettingsView() {
     id: string;
     label: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (isGestor && section !== 'catalog') {
+      setSection('catalog');
+    }
+  }, [isGestor, section]);
 
   useEffect(() => {
     let cancelled = false;
@@ -691,7 +698,7 @@ export function SettingsView() {
           <EmptyState
             icon={Mail}
             title="Acesso restrito"
-            description="As configurações do sistema estão disponíveis apenas para perfis Admin."
+            description="As configurações do sistema estão disponíveis para Admin; Gestor acessa apenas catálogo operacional."
           />
         </div>
       </div>
@@ -705,6 +712,8 @@ export function SettingsView() {
         { label: 'Notificações com time legado', value: legacyHealth.summary.notificationsLegacy },
       ]
     : [];
+  const visibleSections = (Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>)
+    .filter(([key]) => !isGestor || key === 'catalog');
   const sectionMeta = SECTION_META[section];
   const selectedTemplateLabel = useMemo(() => getTemplateTriggerLabel(template.trigger), [template.trigger]);
   const renderedTemplatePreview = useMemo(() => buildEmailPreviewHtml(template, SAMPLE_EMAIL_VARIABLES), [template]);
@@ -722,7 +731,7 @@ export function SettingsView() {
 
           <div className="-mx-1 mt-5 overflow-x-auto pb-1">
             <div className="flex min-w-max gap-2 px-1">
-              {(Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>).map(([key, meta]) => {
+              {visibleSections.map(([key, meta]) => {
                 const Icon = meta.icon;
                 const isActive = section === key;
                 return (

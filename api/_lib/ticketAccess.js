@@ -54,7 +54,19 @@ function resolveTicketRegionIds(ticket, regions, sites) {
 
 function canUserAccessTicket(user, ticket, regions, sites) {
   if (!user) return false;
-  if (user.role === 'Admin' || user.role === 'Diretor') return true;
+  if (user.role === 'Admin' || user.role === 'Gestor') return true;
+  if (user.role === 'Diretor') {
+    const directorIds = Array.isArray(ticket?.directorIds) ? ticket.directorIds.map(value => String(value || '').trim()).filter(Boolean) : [];
+    const directorEmails = Array.isArray(ticket?.directorEmails)
+      ? ticket.directorEmails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean)
+      : [];
+    const userId = String(user.id || '').trim();
+    const userEmail = String(user.email || '').trim().toLowerCase();
+    if (directorIds.length === 0 && directorEmails.length === 0) return true;
+    if (userId && directorIds.includes(userId)) return true;
+    if (userEmail && directorEmails.includes(userEmail)) return true;
+    return false;
+  }
 
   const regionIds = Array.isArray(user.regionIds) ? user.regionIds : [];
   const siteIds = Array.isArray(user.siteIds) ? user.siteIds : [];
@@ -151,9 +163,15 @@ async function queryTicketsByScope(db, scope) {
 
 async function readAccessibleTickets(db, user) {
   if (!user) return [];
-  if (user.role === 'Admin' || user.role === 'Diretor') {
+  if (user.role === 'Admin' || user.role === 'Gestor') {
     const snap = await db.collection('tickets').get();
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
+  if (user.role === 'Diretor') {
+    const snap = await db.collection('tickets').get();
+    return snap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(ticket => canUserAccessTicket(user, ticket, [], []));
   }
   const territory = await readTerritoryCatalog(db);
   const scope = buildAllowedScope(user, territory.regions, territory.sites);

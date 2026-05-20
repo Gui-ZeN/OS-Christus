@@ -94,6 +94,12 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     directorCcEmails: Array.isArray(ticket.directorCcEmails)
       ? ticket.directorCcEmails.map(email => repairMojibake(email || '')).filter(Boolean)
       : [],
+    directorIds: Array.isArray(ticket.directorIds)
+      ? ticket.directorIds.map(id => repairMojibake(id || '')).filter(Boolean)
+      : [],
+    directorEmails: Array.isArray(ticket.directorEmails)
+      ? ticket.directorEmails.map(email => repairMojibake(email || '')).filter(Boolean)
+      : [],
     type: repairMojibake(ticket.type),
     macroServiceName: repairMojibake(ticket.macroServiceName || ''),
     serviceCatalogName: repairMojibake(ticket.serviceCatalogName || ''),
@@ -278,6 +284,15 @@ export async function patchTrackingTicketInApi(trackingToken: string, updates: P
     body: JSON.stringify({ trackingToken, updates }),
   });
   await expectApiJson(response, 'Falha ao atualizar ticket por acompanhamento.');
+}
+
+export async function postTrackingMessageInApi(trackingToken: string, publicMessage: string) {
+  const response = await fetch('/api/tickets', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingToken, publicMessage }),
+  });
+  await expectApiJson(response, 'Falha ao enviar mensagem pelo acompanhamento.');
 }
 
 export async function deleteTicketInApi(id: string) {

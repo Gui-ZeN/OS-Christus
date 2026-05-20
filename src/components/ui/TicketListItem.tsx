@@ -12,6 +12,7 @@ interface TicketListItemProps {
   time: Date;
   status: string;
   priority?: string;
+  recurrentLocation?: boolean;
   active?: boolean;
   onClick: () => void;
 }
@@ -23,6 +24,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   time,
   status,
   priority,
+  recurrentLocation,
   active,
   onClick,
 }) => {
@@ -83,6 +85,12 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
       {isWaitingValidation && (
         <div className="mb-2 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] font-medium text-roman-primary">
           Aguardando validação do solicitante
+        </div>
+      )}
+
+      {recurrentLocation && (
+        <div className="mb-2 w-fit rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
+          Local recorrente
         </div>
       )}
     </button>

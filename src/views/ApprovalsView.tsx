@@ -232,6 +232,18 @@ export function ApprovalsView() {
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
   const directorActorName = String(currentUser?.name || '').trim() || 'Diretoria';
+  const canCurrentDirectorAccessTicket = (ticket: Ticket) => {
+    if (currentUser?.role !== 'Diretor') return true;
+    const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
+    const directorEmails = Array.isArray(ticket.directorEmails) ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()) : [];
+    if (directorIds.length === 0 && directorEmails.length === 0) return true;
+    const currentId = String(currentUser.id || '').trim();
+    const currentEmail = String(currentUser.email || '').trim().toLowerCase();
+    return Boolean(
+      (currentId && directorIds.includes(currentId)) ||
+      (currentEmail && directorEmails.includes(currentEmail))
+    );
+  };
   const [activeTab, setActiveTab] = useState<'solutions' | 'budgets' | 'contracts'>('solutions');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -719,6 +731,7 @@ export function ApprovalsView() {
     () =>
       tickets
         .filter(ticket => ticket.status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL)
+        .filter(canCurrentDirectorAccessTicket)
         .map(ticket => {
           const latestTechnicalEntry = [...ticket.history]
             .reverse()
@@ -734,12 +747,13 @@ export function ApprovalsView() {
               .filter(attachment => attachment?.url),
           };
         }),
-    [tickets]
+    [currentUser, tickets]
   );
 
   const budgets = useMemo(
     () =>
       tickets
+        .filter(canCurrentDirectorAccessTicket)
         .map(ticket => {
           const isBudgetStage =
             ticket.status === TICKET_STATUS.WAITING_BUDGET ||
@@ -797,7 +811,7 @@ export function ApprovalsView() {
           proposalHeader: QuoteProposalHeader;
           historySummary: ReturnType<typeof buildBudgetHistorySummary>;
         } => Boolean(value)),
-    [quotesByTicket, tickets]
+    [currentUser, quotesByTicket, tickets]
   );
 
   useEffect(() => {
@@ -908,6 +922,7 @@ export function ApprovalsView() {
     () =>
       tickets
         .filter(ticket => ticket.status === TICKET_STATUS.WAITING_CONTRACT_APPROVAL)
+        .filter(canCurrentDirectorAccessTicket)
         .map(ticket => ({
           id: ticket.id,
           subject: ticket.subject,
@@ -921,7 +936,7 @@ export function ApprovalsView() {
           signedFileUrl: contractsByTicket[ticket.id]?.signedFileUrl ?? null,
           items: contractsByTicket[ticket.id]?.items ?? [],
         })),
-    [contractsByTicket, tickets]
+    [contractsByTicket, currentUser, tickets]
   );
 
   const approvalSummary = useMemo(

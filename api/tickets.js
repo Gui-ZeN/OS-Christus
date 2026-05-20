@@ -4,7 +4,7 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
-import { readAccessibleTickets } from './_lib/ticketAccess.js';
+import { canUserAccessTicket, readAccessibleTickets } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 
 const STATUS_IN_PROGRESS = 'Em andamento';
@@ -201,6 +201,26 @@ function buildPublicTrackingPayload(beforeData, approved) {
       requesterApprovedAt: approved ? now : null,
     },
     history: nextHistory,
+    updatedAt: now,
+  };
+}
+
+function buildPublicRequesterMessagePayload(beforeData, message) {
+  const now = new Date();
+  const requesterLabel = String(beforeData?.requester || '').trim() || 'Solicitante';
+  return {
+    history: [
+      ...(Array.isArray(beforeData?.history) ? beforeData.history : []),
+      {
+        id: `public-message-${randomUUID()}`,
+        type: 'customer',
+        sender: requesterLabel,
+        time: now,
+        text: message,
+        visibility: 'public',
+        channel: 'public',
+      },
+    ],
     updatedAt: now,
   };
 }
@@ -568,7 +588,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const body = await readJsonBody(req);
-      if (!body?.updates) {
+      if (!body?.updates && !body?.publicMessage) {
         return sendJson(res, 400, { ok: false, error: 'updates são obrigatórios.' });
       }
 
@@ -585,6 +605,39 @@ export default async function handler(req, res) {
 
         const trackingDoc = trackingSnap.docs[0];
         const beforeData = trackingDoc.data() || {};
+        const publicMessage = String(body?.publicMessage || '').trim().slice(0, 3000);
+        if (publicMessage) {
+          const currentStatus = String(beforeData.status || '');
+          if (currentStatus === STATUS_CLOSED || currentStatus === STATUS_CANCELED) {
+            return sendJson(res, 409, { ok: false, error: 'Esta OS nao aceita novas mensagens pelo link.' });
+          }
+
+          const payload = buildPublicRequesterMessagePayload(beforeData, publicMessage);
+          await trackingDoc.ref.set(payload, { merge: true });
+          await db.collection('notifications').add({
+            type: 'requester-message',
+            ticketId: trackingDoc.id,
+            title: `Nova mensagem do solicitante - ${trackingDoc.id}`,
+            body: publicMessage,
+            audienceRoles: ['Admin', 'Gestor'],
+            read: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          await writeAuditLog({
+            actor: String(beforeData.requester || 'Solicitante'),
+            action: 'tickets.tracking.message',
+            entity: 'ticket',
+            entityId: trackingDoc.id,
+            before: beforeData,
+            after: {
+              ...beforeData,
+              ...payload,
+            },
+          });
+          return sendJson(res, 200, { ok: true });
+        }
+
         const approved = body?.updates?.closureChecklist?.requesterApproved;
         if (approved !== true && approved !== false) {
           return sendJson(res, 400, {
@@ -629,8 +682,8 @@ export default async function handler(req, res) {
       const user = await requireAuthenticatedUser(req);
       const actor = user.name || user.email || 'painel';
 
-      if (user.role !== 'Admin' && user.role !== 'Diretor') {
-        return sendJson(res, 403, { ok: false, error: 'Somente Admin ou Diretor podem atualizar tickets pelo painel.' });
+      if (user.role !== 'Admin' && user.role !== 'Gestor' && user.role !== 'Diretor') {
+        return sendJson(res, 403, { ok: false, error: 'Somente Admin, Gestor ou Diretor podem atualizar tickets pelo painel.' });
       }
 
       if (!body?.id) {
@@ -645,6 +698,9 @@ export default async function handler(req, res) {
       }
 
       const beforeData = beforeSnap.data() || {};
+      if (!canUserAccessTicket(user, { id: beforeSnap.id, ...beforeData }, [], [])) {
+        return sendJson(res, 403, { ok: false, error: 'Você não tem acesso a esta OS.' });
+      }
       const payload = { ...updates, updatedAt: new Date() };
 
       if (

@@ -14,7 +14,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
-import { DirectoryTeam, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
+import { DirectoryTeam, DirectoryUser, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { uploadContractAttachment, uploadMeasurementAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
@@ -77,7 +77,7 @@ const DEFAULT_QUOTE_UNIT_OPTIONS = [
 
 const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
 const INITIAL_MIN_QUOTE_SLOTS = 2;
-const INITIAL_MAX_QUOTE_SLOTS = 3;
+const INITIAL_MAX_QUOTE_SLOTS = 5;
 const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
 const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
 
@@ -115,6 +115,18 @@ function parseEmailTokens(input: string) {
 
 function mergeEmails(...groups: Array<string[] | undefined>) {
   return [...new Set(groups.flatMap(group => group || []).map(email => String(email || '').trim().toLowerCase()).filter(Boolean))];
+}
+
+function normalizeLocationPart(value?: string | null) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function isFinalizedTicketStatus(status?: string | null) {
+  return status === TICKET_STATUS.CLOSED || status === TICKET_STATUS.CANCELED;
 }
 
 const EMPTY_TICKET: Ticket = {
@@ -160,7 +172,7 @@ const ALL_INBOX_STATUS_OPTIONS = [
 ] as const;
 
 function resolveActorRole(role?: string | null): AppActorRole {
-  if (role === 'Admin' || role === 'Diretor') return role;
+  if (role === 'Admin' || role === 'Gestor' || role === 'Diretor') return role;
   return 'Usuario';
 }
 
@@ -689,7 +701,9 @@ export function InboxView() {
   });
   const [ticketDetailsForm, setTicketDetailsForm] = useState<TicketDetailsFormState>(createTicketDetailsFormState());
   const [teams, setTeams] = useState<DirectoryTeam[]>([]);
+  const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
   const [vendors, setVendors] = useState<DirectoryVendor[]>([]);
+  const [involvedDirectorIds, setInvolvedDirectorIds] = useState<string[]>([]);
   const [sharedThirdPartyTags, setSharedThirdPartyTags] = useState<string[]>([]);
   const [thirdPartyTag, setThirdPartyTag] = useState('');
   const [selectedThirdPartyIds, setSelectedThirdPartyIds] = useState<string[]>([]);
@@ -710,9 +724,9 @@ export function InboxView() {
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
-  const canManageStatus = currentUser?.role === 'Admin';
+  const canManageStatus = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const canDeleteTicket = currentUser?.role === 'Admin';
-  const canMessageDirector = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canMessageDirector = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor' || currentUser?.role === 'Diretor';
 
   const replyFileRef = useRef<HTMLInputElement>(null);
   const progressReportFileRef = useRef<HTMLInputElement>(null);
@@ -728,7 +742,7 @@ export function InboxView() {
       if (document.visibilityState !== 'visible') return;
       await refreshTickets({ silent: true });
 
-      const canRunMailSync = currentUser?.role === 'Admin';
+      const canRunMailSync = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
       if (!canRunMailSync) return;
 
       const now = Date.now();
@@ -765,6 +779,58 @@ export function InboxView() {
   // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
   const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET;
+  const recurrentLocationSummary = useMemo(() => {
+    if (!activeTicket.id) {
+      return {
+        relatedTickets: [] as Ticket[],
+        openCount: 0,
+        finalizedCount: 0,
+        latestTicket: null as Ticket | null,
+      };
+    }
+
+    const activeSiteKey = normalizeLocationPart(activeTicket.siteId || getTicketSiteLabel(activeTicket, catalogSites) || activeTicket.sede);
+    const activeSectorKey = normalizeLocationPart(activeTicket.sector);
+    if (!activeSiteKey || !activeSectorKey) {
+      return {
+        relatedTickets: [] as Ticket[],
+        openCount: 0,
+        finalizedCount: 0,
+        latestTicket: null as Ticket | null,
+      };
+    }
+
+    const relatedTickets = tickets.filter(ticket => {
+      if (ticket.id === activeTicket.id) return false;
+      const ticketSiteKey = normalizeLocationPart(ticket.siteId || getTicketSiteLabel(ticket, catalogSites) || ticket.sede);
+      const ticketSectorKey = normalizeLocationPart(ticket.sector);
+      return ticketSiteKey === activeSiteKey && ticketSectorKey === activeSectorKey;
+    });
+    const latestTicket = [...relatedTickets].sort((a, b) => b.time.getTime() - a.time.getTime())[0] || null;
+
+    return {
+      relatedTickets,
+      openCount: relatedTickets.filter(ticket => !isFinalizedTicketStatus(ticket.status)).length,
+      finalizedCount: relatedTickets.filter(ticket => isFinalizedTicketStatus(ticket.status)).length,
+      latestTicket,
+    };
+  }, [activeTicket, catalogSites, tickets]);
+  const recurrentTicketIds = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    tickets.forEach(ticket => {
+      const siteKey = normalizeLocationPart(ticket.siteId || getTicketSiteLabel(ticket, catalogSites) || ticket.sede);
+      const sectorKey = normalizeLocationPart(ticket.sector);
+      if (!siteKey || !sectorKey) return;
+      const key = `${siteKey}::${sectorKey}`;
+      groups.set(key, [...(groups.get(key) || []), ticket.id]);
+    });
+    const ids = new Set<string>();
+    groups.forEach(group => {
+      if (group.length <= 1) return;
+      group.forEach(id => ids.add(id));
+    });
+    return ids;
+  }, [catalogSites, tickets]);
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
   const actorRole = resolveActorRole(currentUser?.role);
@@ -789,6 +855,7 @@ export function InboxView() {
     setTechTeam(activeTicket.assignedTeam || '');
     setCustomEmail(activeTicket.assignedEmail || '');
     setPublicInterestedEmails(mergeEmails(activeTicket.requesterCcEmails || []));
+    setInvolvedDirectorIds(Array.isArray(activeTicket.directorIds) ? activeTicket.directorIds : []);
     setPublicInterestedDraft('');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setStatusDraft(activeTicket.status || '');
@@ -848,11 +915,13 @@ export function InboxView() {
         const directory = await fetchDirectory();
         if (!cancelled) {
           setTeams((directory.teams || []).filter(team => team.active !== false));
+          setDirectoryUsers(directory.users || []);
           setVendors((directory.vendors || []).filter(vendor => vendor.active !== false));
         }
       } catch {
         if (!cancelled) {
           setTeams([]);
+          setDirectoryUsers([]);
           setVendors([]);
         }
       }
@@ -1030,6 +1099,19 @@ export function InboxView() {
   };
 
   const selectedTeam = teams.find(team => team.name === techTeam);
+  const activeDirectors = useMemo(
+    () =>
+      directoryUsers.filter(user => {
+        const role = String(user.role || '').trim().toLowerCase();
+        const status = String(user.status || 'Ativo').trim().toLowerCase();
+        return role === 'diretor' && user.active !== false && status !== 'inativo';
+      }),
+    [directoryUsers]
+  );
+  const selectedDirectors = useMemo(
+    () => activeDirectors.filter(user => involvedDirectorIds.includes(user.id)),
+    [activeDirectors, involvedDirectorIds]
+  );
   const isExternalTeam = selectedTeam?.type === 'external';
   const selectedThirdParties = vendors.filter(vendor => selectedThirdPartyIds.includes(vendor.id));
   const selectedThirdPartyEmails = selectedThirdParties
@@ -1159,6 +1241,12 @@ export function InboxView() {
       return;
     }
 
+    const previousDirectorIds = Array.isArray(activeTicket.directorIds) ? activeTicket.directorIds : [];
+    const nextDirectorIds = selectedDirectors.map(director => director.id);
+    const directorsChanged =
+      previousDirectorIds.length !== nextDirectorIds.length ||
+      previousDirectorIds.some(id => !nextDirectorIds.includes(id));
+
     if ((techTeam || '') !== (activeTicket.assignedTeam || '')) {
       updates.assignedTeam = techTeam || '';
       changes.push('responsável técnico');
@@ -1185,9 +1273,22 @@ export function InboxView() {
       updates.serviceCatalogName = nextClassification.serviceCatalogName;
       changes.push('serviço');
     }
+    if (directorsChanged) {
+      updates.directorIds = nextDirectorIds;
+      updates.directorEmails = selectedDirectors.map(director => director.email).filter(Boolean);
+      changes.push('diretores envolvidos');
+    }
     if (nextStatus !== activeTicket.status) {
       if (!canTransitionStatus(actorRole, 'inbox', activeTicket.status, nextStatus)) {
         showToast(`Transição inválida de status: ${activeTicket.status} -> ${nextStatus}.`, 3500);
+        return;
+      }
+      if (activeTicket.status === TICKET_STATUS.NEW && nextStatus === TICKET_STATUS.WAITING_TECH_OPINION && selectedDirectors.length === 0) {
+        showToast('Selecione ao menos um Diretor envolvido antes de aceitar a OS.', 3000);
+        return;
+      }
+      if (activeTicket.status === TICKET_STATUS.NEW && nextStatus === TICKET_STATUS.WAITING_TECH_OPINION && (!techTeam || !ticketPriority)) {
+        showToast('Defina equipe responsável e urgência antes de aceitar a OS.', 3000);
         return;
       }
       Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
@@ -1266,6 +1367,11 @@ export function InboxView() {
       return;
     }
 
+    if (selectedDirectors.length === 0) {
+      showToast('Selecione ao menos um Diretor envolvido antes de aceitar a OS.', 3000);
+      return;
+    }
+
     const target = isExternalTeam
       ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || 'Terceiro selecionado')
       : techTeam;
@@ -1282,6 +1388,8 @@ export function InboxView() {
         macroServiceName: nextClassification.macroServiceName,
         serviceCatalogId: nextClassification.serviceCatalogId,
         serviceCatalogName: nextClassification.serviceCatalogName,
+        directorIds: selectedDirectors.map(director => director.id),
+        directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
         history: [
           ...activeTicket.history,
           {
@@ -3006,6 +3114,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 time={ticket.time}
                 status={ticket.status}
                 priority={ticket.priority}
+                recurrentLocation={recurrentTicketIds.has(ticket.id)}
                 active={activeTicketId === ticket.id}
                 onClick={() => {
                   setActiveTicketId(ticket.id);
@@ -3668,6 +3777,20 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                         {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
                           <button
+                            type="button"
+                            onClick={() => {
+                              setQuoteRoundType('additive');
+                              setQuoteAdditiveIndex((availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1);
+                              setShowQuotesModal(true);
+                            }}
+                            className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
+                          >
+                            <Plus size={14} /> Criar Aditivo
+                          </button>
+                        )}
+
+                        {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
+                          <button
                             onClick={handleSendForValidation}
                             className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2.5 rounded-sm font-medium transition-colors text-xs text-center leading-tight"
                           >
@@ -3729,7 +3852,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
                     >
                       <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                      Gerenciar Cotações ({quotes.filter(isQuoteDraftFilledForSubmission).length}/3)
+                      Gerenciar Cotações ({quotes.filter(isQuoteDraftFilledForSubmission).length}/5)
                     </button>
                     <button
                       onClick={() => {
@@ -3740,7 +3863,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
                     >
                       <Plus size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                      Gerenciar Aditivos
+                      Criar Aditivo
                     </button>
                     {(panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD || (panelStatus.includes('Anexo') && panelStatus.includes('Contrato'))) && (
                       <button
@@ -3924,6 +4047,46 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
                   )}
 
+                  <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Diretores envolvidos</label>
+                      <span className="rounded-sm border border-roman-border bg-white px-2 py-0.5 text-[11px] text-roman-text-sub">
+                        {selectedDirectors.length} selecionado(s)
+                      </span>
+                    </div>
+                    {activeDirectors.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {activeDirectors.map(director => {
+                          const selected = involvedDirectorIds.includes(director.id);
+                          return (
+                            <button
+                              key={`involved-director-${director.id}`}
+                              type="button"
+                              onClick={() =>
+                                setInvolvedDirectorIds(current =>
+                                  selected ? current.filter(id => id !== director.id) : [...current, director.id]
+                                )
+                              }
+                              className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
+                                selected
+                                  ? 'border-roman-primary bg-roman-primary text-white'
+                                  : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                              }`}
+                              disabled={isSending || !canEditQuickPanel}
+                            >
+                              {director.name || director.email}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-roman-text-sub">Cadastre usuários com perfil Diretor para liberar o aceite.</div>
+                    )}
+                    <div className="mt-2 text-[11px] text-roman-text-sub">
+                      Apenas os diretores selecionados recebem e visualizam aprovações desta OS.
+                    </div>
+                  </div>
+
                   {activeTicket.status === TICKET_STATUS.NEW ? (
                     <div className="grid grid-cols-1 gap-2">
                       <div className="grid grid-cols-2 gap-2">
@@ -4025,7 +4188,41 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
                       <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
                       <PropertyField label="Status atual" value={activeTicket.status} />
+                      <PropertyField
+                        label="Diretoria"
+                        value={
+                          Array.isArray(activeTicket.directorEmails) && activeTicket.directorEmails.length > 0
+                            ? activeTicket.directorEmails.join(', ')
+                            : 'Não definida'
+                        }
+                      />
                     </div>
+                    {recurrentLocationSummary.relatedTickets.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-950">
+                        <div className="font-serif text-[11px] font-semibold uppercase tracking-widest">Local recorrente</div>
+                        <div className="mt-2 space-y-1 text-amber-900">
+                          <div>{recurrentLocationSummary.openCount} OS abertas neste local</div>
+                          <div>{recurrentLocationSummary.finalizedCount} OS concluídas/encerradas neste local</div>
+                          {recurrentLocationSummary.latestTicket && (
+                            <div>
+                              Última ocorrência: {recurrentLocationSummary.latestTicket.id} em {formatDateTimeSafe(recurrentLocationSummary.latestTicket.time)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {recurrentLocationSummary.relatedTickets.slice(0, 8).map(ticket => (
+                            <button
+                              key={`related-location-${ticket.id}`}
+                              type="button"
+                              onClick={() => setActiveTicketId(ticket.id)}
+                              className="rounded-sm border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-950 transition-colors hover:border-amber-600"
+                            >
+                              {ticket.id}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </section>
@@ -4338,7 +4535,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <p className="text-sm text-roman-text-sub">
                   {quoteRoundType === 'additive'
                     ? 'Aditivo deve ser enviado com 1 cotação.'
-                    : 'Informe pelo menos 2 cotações para enviar à diretoria. A terceira continua opcional para comparação mais robusta.'}
+                    : 'Informe de 2 a 5 cotações para enviar à diretoria.'}
                 </p>
                 <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">
                   {quoteRoundType === 'initial' ? `Rodada ${quoteInitialRoundIndex} · Orçamento Inicial` : `Aditivo ${quoteAdditiveIndex}`}
@@ -4967,7 +5164,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </button>
                   {quotes.slice(1).map((_, offset) => {
                     const index = offset + 1;
-                    const label = index === 1 ? 'B' : index === 2 ? 'C' : String(index + 1);
+                    const label = index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
                     return (
                     <button
                       key={`quote-focus-${index}`}
@@ -5012,7 +5209,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div className="rounded-sm border border-roman-border bg-roman-surface px-4 py-3">
                     <div className="text-sm font-medium text-roman-text-main">Modo consolidado</div>
                     <div className="mt-1 text-xs text-roman-text-sub">
-                      Use esta visão para comparar os fornecedores. Para editar campos e itens, volte para A, B ou C.
+                      Use esta visão para comparar os fornecedores. Para editar campos e itens, volte para o fornecedor desejado.
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

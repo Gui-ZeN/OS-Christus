@@ -1,4 +1,4 @@
-import { requireAdminUser } from './_lib/authz.js';
+import { requireOperationalManager } from './_lib/authz.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
@@ -17,6 +17,15 @@ const ENTITY_COLLECTION_MAP = {
   serviceCatalog: 'serviceCatalog',
   materials: 'materials',
 };
+const GESTOR_MUTABLE_ENTITIES = new Set(['macroServices', 'serviceCatalog', 'materials']);
+
+function assertCatalogMutationAllowed(user, entity) {
+  if (user?.role !== 'Gestor') return;
+  if (GESTOR_MUTABLE_ENTITIES.has(entity)) return;
+  const error = new Error('Gestor pode alterar apenas macroservicos, servicos e materiais.');
+  error.statusCode = 403;
+  throw error;
+}
 
 function slugify(value) {
   return String(value || '')
@@ -390,11 +399,14 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const adminUser = await requireAdminUser(req);
+      const adminUser = await requireOperationalManager(req);
       const actor = adminUser.name || adminUser.email || 'admin';
       const body = await readJsonBody(req);
 
       if (body?.seedDefaults === true) {
+        if (adminUser.role === 'Gestor') {
+          return sendJson(res, 403, { ok: false, error: 'Gestor nao pode recriar o catalogo padrao.' });
+        }
         await seedDefaults(db);
         await writeAuditLog({
           actor,
@@ -408,6 +420,7 @@ export default async function handler(req, res) {
       }
 
       const entity = String(body?.entity || '').trim();
+      assertCatalogMutationAllowed(adminUser, entity);
       const { before, after } = await upsertCatalogEntry(db, entity, body?.record || {});
       await writeAuditLog({
         actor,
@@ -422,7 +435,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      const adminUser = await requireAdminUser(req);
+      const adminUser = await requireOperationalManager(req);
       const actor = adminUser.name || adminUser.email || 'admin';
       const body = await readJsonBody(req);
       const entity = String(body?.entity || '').trim();
@@ -430,6 +443,7 @@ export default async function handler(req, res) {
       if (!entity || !id) {
         return sendJson(res, 400, { ok: false, error: 'entity e id sao obrigatorios.' });
       }
+      assertCatalogMutationAllowed(adminUser, entity);
 
       const before = await deleteCatalogEntry(db, entity, id);
       await writeAuditLog({
@@ -447,7 +461,7 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'GET, POST, DELETE');
     return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
   } catch (error) {
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no catalogo.' });
+    return sendJson(res, error.statusCode || 400, { ok: false, error: error.message || 'Falha no catalogo.' });
   }
 }
 

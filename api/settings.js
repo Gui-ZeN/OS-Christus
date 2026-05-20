@@ -1,4 +1,4 @@
-import { requireAdminUser } from './_lib/authz.js';
+import { requireAdminUser, requireUserWithRoles } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
@@ -166,17 +166,26 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
-      await requireAdminUser(req);
+      const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
       let settings = await readSettings(db);
       if (!settings.emailTemplates?.length || !settings.sla) {
         await ensureDefaults(db);
         settings = await readSettings(db);
       }
+      if (user.role === 'Gestor') {
+        return sendJson(res, 200, {
+          ok: true,
+          emailTemplates: [],
+          dailyDigest: null,
+          sla: null,
+          thirdPartyTags: settings.thirdPartyTags,
+        });
+      }
       return sendJson(res, 200, { ok: true, ...settings });
     }
 
     if (req.method === 'POST') {
-      const admin = await requireAdminUser(req);
+      const admin = await requireUserWithRoles(req, ['Admin', 'Gestor']);
       const actor = admin.name || admin.email || 'painel';
       const body = await readJsonBody(req);
       const section = String(body?.section || '').trim();
@@ -188,6 +197,9 @@ export default async function handler(req, res) {
 
       if (!['emailTemplates', 'dailyDigest', 'sla', 'thirdPartyTags'].includes(section)) {
         return sendJson(res, 400, { ok: false, error: 'section inválida.' });
+      }
+      if (admin.role === 'Gestor' && section !== 'thirdPartyTags') {
+        return sendJson(res, 403, { ok: false, error: 'Gestor pode alterar apenas tags de terceiros.' });
       }
 
       const normalizedData =
@@ -237,4 +249,3 @@ export default async function handler(req, res) {
     return sendJson(res, statusCode, { ok: false, error: error.message || 'Falha em settings.' });
   }
 }
-

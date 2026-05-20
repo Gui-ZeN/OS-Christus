@@ -97,6 +97,8 @@ export interface Ticket {
   requesterEmail?: string;
   requesterCcEmails?: string[];
   directorCcEmails?: string[];
+  directorIds?: string[];
+  directorEmails?: string[];
   time: Date;
   status: TicketStatus;
   type: string;

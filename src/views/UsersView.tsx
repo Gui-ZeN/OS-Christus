@@ -7,7 +7,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ModalShell } from '../components/ui/ModalShell';
 
 type UserStatus = 'Ativo' | 'Inativo';
-type UserRole = 'Diretor' | 'Admin' | 'Usuario';
+type UserRole = 'Diretor' | 'Admin' | 'Gestor' | 'Usuario';
 
 type UserForm = {
   id?: string;
@@ -23,6 +23,7 @@ type UserForm = {
 const ROLE_OPTIONS: Array<{ value: UserRole; label: string; description: string }> = [
   { value: 'Diretor', label: 'Diretor', description: 'Acompanha e aprova demandas da sua estrutura.' },
   { value: 'Admin', label: 'Admin', description: 'Acesso administrativo amplo ao sistema.' },
+  { value: 'Gestor', label: 'Gestor', description: 'Gerencia OS e catálogo técnico, sem acessos administrativos sensíveis.' },
   { value: 'Usuario', label: 'Usuário', description: 'Acesso operacional restrito às sedes vinculadas.' },
 ];
 

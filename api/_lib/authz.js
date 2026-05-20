@@ -18,14 +18,21 @@ async function resolveAuthenticatedUser(req) {
   const decoded = await getAuth().verifyIdToken(token);
 
   let userDoc = null;
+  let userDocId = null;
   if (decoded.uid) {
     const byUid = await db.collection('users').where('authUid', '==', decoded.uid).limit(1).get();
-    if (!byUid.empty) userDoc = byUid.docs[0].data();
+    if (!byUid.empty) {
+      userDoc = byUid.docs[0].data();
+      userDocId = byUid.docs[0].id;
+    }
   }
 
   if (!userDoc && decoded.email) {
     const byEmail = await db.collection('users').where('email', '==', String(decoded.email).toLowerCase()).limit(1).get();
-    if (!byEmail.empty) userDoc = byEmail.docs[0].data();
+    if (!byEmail.empty) {
+      userDoc = byEmail.docs[0].data();
+      userDocId = byEmail.docs[0].id;
+    }
   }
 
   if (!userDoc) {
@@ -37,6 +44,7 @@ async function resolveAuthenticatedUser(req) {
   }
 
   return {
+    id: userDocId,
     uid: decoded.uid,
     email: decoded.email || null,
     name: userDoc.name || decoded.name || null,
@@ -65,4 +73,8 @@ export async function requireUserWithRoles(req, allowedRoles) {
 
 export async function requireAdminUser(req) {
   return requireUserWithRoles(req, ['Admin']);
+}
+
+export async function requireOperationalManager(req) {
+  return requireUserWithRoles(req, ['Admin', 'Gestor']);
 }
