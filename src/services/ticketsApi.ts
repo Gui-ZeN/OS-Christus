@@ -106,6 +106,7 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     region: repairMojibake(ticket.region),
     sede: repairMojibake(ticket.sede),
     sector: repairMojibake(ticket.sector),
+    location: repairMojibake(ticket.location || ''),
     priority: repairMojibake(ticket.priority),
     time: coerceDate(ticket.time),
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,

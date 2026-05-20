@@ -21,10 +21,19 @@ export async function generatePasswordResetUrl(email, req) {
   const auth = getAuth();
   const baseUrl = resolveBaseUrlFromRequest(req);
   const actionCodeSettings = {
-    url: `${baseUrl}/?view=login`,
+    url: `${baseUrl}/?view=password-reset`,
     handleCodeInApp: false,
   };
-  return auth.generatePasswordResetLink(email, actionCodeSettings);
+  const firebaseUrl = await auth.generatePasswordResetLink(email, actionCodeSettings);
+  const parsed = new URL(firebaseUrl);
+  const oobCode = parsed.searchParams.get('oobCode');
+  const mode = parsed.searchParams.get('mode') || 'resetPassword';
+  if (!oobCode) return firebaseUrl;
+  const appUrl = new URL(`${baseUrl}/`);
+  appUrl.searchParams.set('view', 'password-reset');
+  appUrl.searchParams.set('mode', mode);
+  appUrl.searchParams.set('oobCode', oobCode);
+  return appUrl.toString();
 }
 
 export async function sendPasswordAccessEmail({

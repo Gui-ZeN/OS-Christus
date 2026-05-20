@@ -73,12 +73,17 @@ function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
   const params = new URLSearchParams(window.location.search);
   const requestedView = params.get('view');
-  const queryAllowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs', 'users', 'email-health'];
+  const mode = params.get('mode');
+  const oobCode = params.get('oobCode');
+  if ((requestedView === 'password-reset' || mode === 'resetPassword') && oobCode) {
+    return 'password-reset';
+  }
+  const queryAllowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs', 'users', 'email-health'];
   if (queryAllowed.includes(requestedView as ViewState)) {
     return requestedView as ViewState;
   }
   const stored = window.localStorage.getItem('os-christus-current-view');
-  const allowed: ViewState[] = ['landing', 'login', 'public-form', 'home', 'inbox', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
+  const allowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
   return allowed.includes(stored as ViewState) ? (stored as ViewState) : 'landing';
 }
 
@@ -516,7 +521,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const requestedView = params.get('view');
-    const allowedViews: ViewState[] = ['public-form', 'login', 'home', 'inbox', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'];
+    const mode = params.get('mode');
+    const oobCode = params.get('oobCode');
+    if ((params.get('view') === 'password-reset' || mode === 'resetPassword') && oobCode) {
+      setCurrentView('password-reset');
+      return;
+    }
+
+    const allowedViews: ViewState[] = ['public-form', 'login', 'password-reset', 'home', 'inbox', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'];
     if (allowedViews.includes(requestedView as ViewState)) {
       setCurrentView(requestedView as ViewState);
       const requestedTicketId = params.get('ticketId');
@@ -655,7 +667,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       params.delete('view');
     } else {
       params.delete('tracking');
-      if (currentView === 'public-form' || currentView === 'login' || currentView === 'approvals') {
+      if (currentView === 'password-reset') {
+        params.set('view', currentView);
+      } else if (currentView === 'public-form' || currentView === 'login' || currentView === 'approvals') {
         params.set('view', currentView);
       } else {
         params.delete('view');

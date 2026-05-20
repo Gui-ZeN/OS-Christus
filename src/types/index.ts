@@ -1,7 +1,7 @@
 import type { TicketStatus } from '../constants/ticketStatus';
 export type { TicketStatus } from '../constants/ticketStatus';
 
-export type ViewState = 'landing' | 'login' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance' | 'email-health' | 'audit-logs';
+export type ViewState = 'landing' | 'login' | 'password-reset' | 'home' | 'inbox' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance' | 'email-health' | 'audit-logs';
 
 export interface InboxFilter {
   status: string[];
@@ -113,6 +113,7 @@ export interface Ticket {
   assignedTeam?: string;
   assignedEmail?: string;
   sector: string;
+  location?: string;
   priority: string;
   history: HistoryItem[];
   viewingBy?: { name: string; at: Date } | null;

@@ -63,6 +63,7 @@ const FinanceView = lazyWithAutoRecovery(async () => ({ default: (await import('
 const HomeView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/HomeView')).HomeView }));
 const InboxView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/InboxView')).InboxView }));
 const SplitLoginView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
+const PasswordResetView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PasswordResetView')).PasswordResetView }));
 const LandingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/LandingView')).LandingView }));
 const PublicFormView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
 const EmailHealthView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/EmailHealthView')).EmailHealthView }));
@@ -71,6 +72,7 @@ const AuditLogsView = lazyWithAutoRecovery(async () => ({ default: (await import
 export const VIEWS = {
   LANDING: 'landing',
   LOGIN: 'login',
+  PASSWORD_RESET: 'password-reset',
   PUBLIC_FORM: 'public-form',
   HOME: 'home',
   INBOX: 'inbox',
@@ -237,7 +239,7 @@ export default function App() {
   }, [currentView, navigateTo]);
 
   useEffect(() => {
-    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
+    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PASSWORD_RESET, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
     if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return;
     }
@@ -307,6 +309,14 @@ export default function App() {
           onBack={() => navigateTo(VIEWS.LANDING)}
           authEnabled={authEnabled}
         />
+      </Suspense>
+    );
+  }
+
+  if (currentView === VIEWS.PASSWORD_RESET) {
+    return (
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <PasswordResetView onBack={() => navigateTo(VIEWS.LOGIN)} />
       </Suspense>
     );
   }

@@ -224,13 +224,14 @@ Na triagem, deve preencher:
 
 - responsavel tecnico;
 - prioridade;
-- setor/local interno correto;
+- setor correto;
+- local exato;
 - macroservico;
 - servico;
 - terceiros, se for equipe externa;
 - Diretores envolvidos.
 
-Quando a OS vem por e-mail, o setor pode chegar como `Email`. Nesse caso, o Gestor deve corrigir o campo `Setor / local interno` antes de aceitar ou salvar a OS.
+Quando a OS vem por e-mail, o setor pode chegar como `Email`. Nesse caso, o Gestor deve corrigir o campo `Setor` e preencher o `Local exato` antes de aceitar ou salvar a OS.
 
 Importante: para aceitar uma OS, e obrigatorio selecionar pelo menos um Diretor envolvido.
 

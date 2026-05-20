@@ -628,7 +628,8 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           <div className="mb-6">
             <h2 className="text-xl font-serif text-roman-text-main mb-2">{ticket.subject}</h2>
             <p className="text-roman-text-sub">
-              Solicitado por: {ticket.requester} - Setor: {ticket.sector} ({siteLabel})
+              Solicitado por: {ticket.requester} - Setor: {ticket.sector}
+              {ticket.location ? ` - Local: ${ticket.location}` : ''} ({siteLabel})
             </p>
           </div>
 

@@ -82,6 +82,7 @@ export const SAMPLE_EMAIL_VARIABLES: Record<string, unknown> = {
     region: 'Região Aldeota',
     sede: 'SP',
     sector: 'Infraestrutura',
+    location: 'Bloco A, sala 12',
     macroService: 'Cobertas e fachadas',
     service: 'Reparo estrutural de coberta',
   },

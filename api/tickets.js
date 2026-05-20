@@ -243,6 +243,7 @@ function sanitizePublicTicketCreate(rawTicket) {
     siteId: rawTicket.siteId,
     sede: rawTicket.sede,
     sector: rawTicket.sector,
+    location: rawTicket.location,
     priority: rawTicket.priority || 'Trivial',
     attachments: Array.isArray(rawTicket.attachments) ? rawTicket.attachments : [],
     history: Array.isArray(rawTicket.history) ? rawTicket.history : [],

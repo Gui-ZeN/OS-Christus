@@ -53,6 +53,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     macroServiceId: '',
     serviceCatalogId: '',
     sector: '',
+    location: '',
     region: '',
     sede: '',
   });
@@ -126,6 +127,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!formData.description.trim()) newErrors.description = 'Descrição é obrigatória';
     if (!formData.type) newErrors.type = 'Selecione o tipo';
     if (!formData.sector.trim()) newErrors.sector = 'Setor é obrigatório';
+    if (!formData.location.trim()) newErrors.location = 'Local é obrigatório';
     if (!formData.region) newErrors.region = 'Selecione a região';
     if (!formData.sede) newErrors.sede = 'Selecione a sede';
     setErrors(newErrors);
@@ -161,6 +163,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         siteId: selectedSite?.id,
         sede: formData.sede,
         sector: formData.sector,
+        location: formData.location,
         priority: 'Trivial',
         history: [
           { id: crypto.randomUUID(), type: 'customer', sender: formData.name, time: now, text: formData.description },
@@ -183,6 +186,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         macroServiceId: '',
         serviceCatalogId: '',
         sector: '',
+        location: '',
         region: '',
         sede: '',
       });
@@ -412,17 +416,30 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   <span className="mt-1 block text-xs text-roman-text-sub">O administrador pode complementar essa informação depois.</span>
                 </div>
                 <div>
-                  <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor / Local exato</label>
+                  <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor</label>
                   <input
                     id="pf-sector"
                     type="text"
                     name="sector"
                     value={formData.sector}
                     onChange={handleInputChange}
-                    placeholder="Ex: Recepção principal"
+                    placeholder="Ex: Recepção, Infantil, Coordenação"
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.sector && <span className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
+                </div>
+                <div>
+                  <label htmlFor="pf-location" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Local exato</label>
+                  <input
+                    id="pf-location"
+                    type="text"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                    placeholder="Ex: Bloco A, sala 12, corredor"
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.location ? 'border-red-500' : 'border-roman-border'}`}
+                  />
+                  {errors.location && <span className="text-xs text-red-500 mt-1 block">{errors.location}</span>}
                 </div>
                 <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
                   A classificação operacional do chamado é validada pela triagem interna. Se não souber o macroserviço ou o serviço exato, deixe os campos em branco e descreva bem o problema.

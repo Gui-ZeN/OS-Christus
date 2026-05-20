@@ -1,6 +1,8 @@
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
   signInWithPopup,
   signInWithEmailAndPassword,
   signOut,
@@ -37,6 +39,34 @@ function mapFirebaseAuthError(error: unknown) {
       return 'Informe um e-mail valido para continuar.';
     default:
       return null;
+  }
+}
+
+export async function verifyPasswordResetActionCode(oobCode: string) {
+  const auth = await getFirebaseClientAuth();
+  if (!auth) {
+    throw new Error('Redefinição de senha indisponível neste ambiente.');
+  }
+  try {
+    return await verifyPasswordResetCode(auth, oobCode);
+  } catch {
+    throw new Error('Link de redefinição inválido ou expirado. Solicite um novo e-mail de senha.');
+  }
+}
+
+export async function confirmPasswordResetWithCode(oobCode: string, password: string) {
+  const auth = await getFirebaseClientAuth();
+  if (!auth) {
+    throw new Error('Redefinição de senha indisponível neste ambiente.');
+  }
+  try {
+    await confirmPasswordReset(auth, oobCode, password);
+  } catch (error) {
+    const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code || '') : '';
+    if (code === 'auth/weak-password') {
+      throw new Error('Use uma senha mais forte, com pelo menos 6 caracteres.');
+    }
+    throw new Error(mapFirebaseAuthError(error) || 'Não foi possível redefinir a senha. Solicite um novo link e tente novamente.');
   }
 }
 
