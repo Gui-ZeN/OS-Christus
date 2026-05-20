@@ -1259,6 +1259,11 @@ export function InboxView() {
       updates.priority = ticketPriority || '';
       changes.push('urgência');
     }
+    const nextSector = ticketDetailsForm.sector.trim();
+    if (nextSector && nextSector !== (activeTicket.sector || '')) {
+      updates.sector = nextSector;
+      changes.push(`setor: ${activeTicket.sector || 'Não informado'} -> ${nextSector}`);
+    }
     if (nextAssignedEmail !== (activeTicket.assignedEmail || '')) {
       updates.assignedEmail = nextAssignedEmail;
       changes.push('e-mail do terceiro');
@@ -1377,6 +1382,7 @@ export function InboxView() {
       : techTeam;
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
+    const nextSector = ticketDetailsForm.sector.trim() || activeTicket.sector || 'Email';
     setIsSending(true);
     try {
       updateTicket(activeTicket.id, {
@@ -1384,6 +1390,7 @@ export function InboxView() {
         priority: ticketPriority,
         assignedTeam: techTeam,
         assignedEmail: nextAssignedEmail,
+        sector: nextSector,
         macroServiceId: nextClassification.macroServiceId,
         macroServiceName: nextClassification.macroServiceName,
         serviceCatalogId: nextClassification.serviceCatalogId,
@@ -1397,7 +1404,7 @@ export function InboxView() {
             type: 'system',
             sender: displayActorLabel,
             time: new Date(),
-            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority} e encaminhada para ${target}.`,
+            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, setor ${nextSector} e encaminhada para ${target}.`,
           },
         ],
       });
@@ -3959,6 +3966,23 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <option value="Alta">Alta</option>
                         <option value="Trivial">Trivial</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Setor / local interno</label>
+                      <input
+                        type="text"
+                        value={ticketDetailsForm.sector}
+                        onChange={event => setTicketDetailsForm(current => ({ ...current, sector: event.target.value }))}
+                        placeholder="Ex.: Bloco A, Sala 12, Coordenação..."
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isSending || !canEditQuickPanel}
+                      />
+                      {activeTicket.sector === 'Email' && (
+                        <div className="mt-1 text-[11px] text-amber-700">
+                          Esta OS veio por e-mail. Ajuste o setor para o local correto antes de aceitar.
+                        </div>
+                      )}
                     </div>
 
                     <div>
