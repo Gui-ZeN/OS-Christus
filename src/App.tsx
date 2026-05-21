@@ -141,7 +141,7 @@ export default function App() {
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessAudit = currentRole === 'Admin';
-  const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor';
+  const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor' || currentRole === 'Usuario';
   const canAccessSettings = currentRole === 'Admin' || currentRole === 'Gestor';
   const restrictedViews = useMemo(
     () =>

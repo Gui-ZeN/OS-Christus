@@ -72,7 +72,7 @@ function resolveItemValue(
 
 export function KpiView() {
   const { currentUser, tickets } = useApp();
-  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor' || currentUser?.role === 'Usuario';
   const [period, setPeriod] = useState<'month' | 'semester' | 'custom'>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
@@ -668,7 +668,7 @@ export function KpiView() {
           <EmptyState
             icon={TrendingUp}
             title="Acesso restrito"
-            description="Os indicadores gerenciais estão disponíveis apenas para Diretor e Admin."
+            description="Os indicadores gerenciais estão disponíveis apenas para Usuário, Diretor e Admin."
           />
         </div>
       </div>
