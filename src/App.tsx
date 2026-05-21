@@ -132,6 +132,7 @@ export default function App() {
 
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showAllAttachmentNames, setShowAllAttachmentNames] = useState(false);
   const currentRole = currentUser?.role || '';
   const isRequesterRole = currentRole === 'Usuario';
   const canAccessInbox = !isRequesterRole;
@@ -202,6 +203,7 @@ export default function App() {
 
   useEffect(() => {
     if (!attachmentPreview) return;
+    setShowAllAttachmentNames(false);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -415,10 +417,16 @@ export default function App() {
       </main>
 
       {attachmentPreview && (() => {
-        const attachmentItems = attachmentPreview.items && attachmentPreview.items.length > 0
+        const rawAttachmentItems = attachmentPreview.items && attachmentPreview.items.length > 0
           ? attachmentPreview.items
           : [{ title: attachmentPreview.title, type: attachmentPreview.type, url: attachmentPreview.url || null }];
+        const attachmentItems = rawAttachmentItems.filter(item => {
+          const fileRef = `${String(item.title || '')} ${String(item.url || '')}`.toLowerCase();
+          return !fileRef.includes('.gif');
+        });
         const previewUrl = attachmentPreview.url || attachmentItems[0]?.url || null;
+        const visibleAttachmentNames = showAllAttachmentNames ? attachmentItems : attachmentItems.slice(0, 6);
+        const hasMoreAttachmentNames = attachmentItems.length > 6;
 
         return (
           <div
@@ -441,12 +449,23 @@ export default function App() {
                 </button>
               </div>
               {attachmentItems.length > 1 && (
-                <div className="px-4 py-3 border-b border-roman-border bg-roman-bg/60 flex flex-wrap gap-2">
-                  {attachmentItems.map((item, index) => (
+                <div className="px-4 py-3 border-b border-roman-border bg-roman-bg/60">
+                  <div className="flex flex-wrap gap-2">
+                    {visibleAttachmentNames.map((item, index) => (
                     <span key={`${item.title}-${index}`} className="px-3 py-1.5 rounded-sm border bg-roman-surface text-roman-text-main border-roman-border text-xs font-medium">
                       {item.title}
                     </span>
-                  ))}
+                    ))}
+                  </div>
+                  {hasMoreAttachmentNames && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllAttachmentNames(current => !current)}
+                      className="mt-2 text-xs font-medium text-roman-primary hover:underline"
+                    >
+                      {showAllAttachmentNames ? 'Mostrar menos' : `Ver todos (${attachmentItems.length})`}
+                    </button>
+                  )}
                 </div>
               )}
               <div className="flex-1 bg-roman-bg flex items-center justify-center p-8 overflow-auto">
