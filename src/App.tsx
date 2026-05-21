@@ -131,6 +131,7 @@ export default function App() {
   } = useApp();
 
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const attachmentContentRef = useRef<HTMLDivElement>(null);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showAllAttachmentNames, setShowAllAttachmentNames] = useState(false);
   const currentRole = currentUser?.role || '';
@@ -206,6 +207,12 @@ export default function App() {
     setShowAllAttachmentNames(false);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // Always start attachment modal at the top to avoid opening mid-scroll.
+    window.requestAnimationFrame(() => {
+      if (attachmentContentRef.current) {
+        attachmentContentRef.current.scrollTop = 0;
+      }
+    });
     return () => {
       document.body.style.overflow = previousOverflow;
     };
@@ -468,7 +475,7 @@ export default function App() {
                   )}
                 </div>
               )}
-              <div className="flex-1 bg-roman-bg flex items-center justify-center p-8 overflow-auto">
+              <div ref={attachmentContentRef} className="flex-1 bg-roman-bg flex items-center justify-center p-8 overflow-auto">
                 {attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     {attachmentItems.map((item, index) => (
