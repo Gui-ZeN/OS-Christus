@@ -475,7 +475,7 @@ export default function App() {
                   )}
                 </div>
               )}
-              <div ref={attachmentContentRef} className="flex-1 bg-roman-bg flex items-center justify-center p-8 overflow-auto">
+              <div ref={attachmentContentRef} className="flex-1 bg-roman-bg p-8 overflow-auto">
                 {attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     {attachmentItems.map((item, index) => (
