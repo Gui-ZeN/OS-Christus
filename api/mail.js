@@ -965,6 +965,102 @@ async function resolveSiteContext(db, siteCode) {
   return { site, region };
 }
 
+function isActiveUser(user) {
+  const status = normalizeKey(user?.status || 'ativo');
+  return user?.active !== false && (status === '' || status === 'ativo' || status === 'active');
+}
+
+function isGestorRole(role) {
+  const normalized = normalizeKey(role);
+  return normalized === 'gestor';
+}
+
+async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
+  const siteId = String(ticket?.siteId || '').trim();
+  const regionId = String(ticket?.regionId || '').trim();
+  if (!siteId && !regionId) return;
+
+  const copiedRecipients = new Set(
+    mergeEmailLists(message?.to, message?.cc)
+      .map(value => String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const usersSnap = await db.collection('users').get();
+  const gestores = usersSnap.docs
+    .map(doc => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter(user => isGestorRole(user.role))
+    .filter(user => isActiveUser(user))
+    .filter(user => {
+      const userSiteIds = Array.isArray(user.siteIds) ? user.siteIds.map(value => String(value || '').trim()).filter(Boolean) : [];
+      const userRegionIds = Array.isArray(user.regionIds) ? user.regionIds.map(value => String(value || '').trim()).filter(Boolean) : [];
+      const matchesSite = siteId && userSiteIds.includes(siteId);
+      const matchesRegion = regionId && userRegionIds.includes(regionId);
+      return Boolean(matchesSite || matchesRegion);
+    })
+    .filter(user => {
+      const email = firstEmail(user.email);
+      if (!email) return false;
+      return !copiedRecipients.has(email);
+    });
+
+  if (gestores.length === 0) return;
+
+  const provider = String(process.env.EMAIL_PROVIDER || 'sendgrid').trim().toLowerCase();
+  const ctaUrl = ticket?.trackingToken
+    ? `${process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://os-christus.vercel.app'}/?tracking=${encodeURIComponent(ticket.trackingToken)}`
+    : '';
+  const subject = `Nova OS recebida - ${ticket.id || 'Sem ID'}`;
+  const template = buildTicketEmailTemplate({
+    trigger: 'EMAIL-NOVA-OS-GESTOR',
+    title: `Nova solicitação recebida (${ticket.id || 'OS'})`,
+    intro: 'Uma nova solicitação de OS foi registrada por e-mail para sua estrutura.',
+    ticketId: ticket.id || '-',
+    status: ticket.status || 'Nova OS',
+    ctaUrl: ctaUrl || null,
+    ctaLabel: 'Acompanhar solicitação',
+    bodyText: [
+      `Assunto: ${ticket.subject || '-'}`,
+      `Solicitante: ${ticket.requester || '-'} (${ticket.requesterEmail || '-'})`,
+      `Sede: ${ticket.sede || '-'}`,
+      `Região: ${ticket.region || '-'}`,
+    ].join('\n'),
+  });
+
+  for (const gestor of gestores) {
+    const toEmail = firstEmail(gestor.email);
+    if (!toEmail) continue;
+    try {
+      if (provider === 'gmail') {
+        await gmailSend({
+          toEmail,
+          subject,
+          text: template.text,
+          html: template.html,
+          ticketId: ticket.id || 'new-ticket',
+          trackingToken: ticket.trackingToken || undefined,
+          inReplyTo: undefined,
+          references: [],
+          threadId: undefined,
+        });
+      } else {
+        await sendWithSendGrid({
+          toEmail,
+          subject,
+          text: template.text,
+          html: template.html,
+          templateId: null,
+          templateData: null,
+          headers: null,
+          replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+        });
+      }
+    } catch {
+      // Não bloqueia criação da OS se a notificação ao gestor falhar.
+    }
+  }
+}
+
 const MAX_ATTACHMENTS = 10;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB per file
 
@@ -1077,6 +1173,8 @@ async function createTicketFromInbound(db, message) {
     createdAt: now,
     updatedAt: now,
   });
+
+  await notifyScopedManagersNewInboundTicket(db, ticket, message).catch(() => undefined);
 
   return ticket;
 }
