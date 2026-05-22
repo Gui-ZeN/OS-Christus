@@ -190,7 +190,7 @@ export function HomeView() {
       <div className="max-w-7xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm">
           <div className="text-[10px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">Painel operacional</div>
-          <h1 className="mt-2 text-[2rem] font-serif font-medium text-roman-text-main">Olá, {greetingName}</h1>
+          <h1 className="mt-2 text-[1.65rem] font-serif font-medium text-roman-text-main md:text-[2rem]">Olá, {greetingName}</h1>
           <p className="mt-2 text-sm text-roman-text-sub font-serif italic">
             {isExecutive
               ? 'Visão operacional consolidada por região e sede, com foco em fluxo, decisão e acompanhamento das OS.'
@@ -266,7 +266,106 @@ export function HomeView() {
               requesterOpenTickets.length === 0 ? (
                 <p className="py-6 text-sm text-roman-text-sub font-serif italic">Nenhum ticket aberto para sua sede/região no momento.</p>
               ) : (
-                <div className="mt-4 overflow-x-auto">
+                <>
+                  <div className="mt-4 space-y-3 md:hidden">
+                    {requesterOpenTickets.map(ticket => (
+                      <div key={`open-mobile-${ticket.id}`} className="rounded-xl border border-roman-border bg-roman-bg p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-semibold text-roman-text-main">{ticket.id}</div>
+                            <div className="mt-1 text-sm text-roman-text-main">{ticket.subject || '-'}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => window.open(`/?tracking=${encodeURIComponent(ticket.trackingToken)}`, '_blank', 'noopener,noreferrer')}
+                            className="shrink-0 text-xs font-medium text-roman-primary hover:underline"
+                          >
+                            Timeline
+                          </button>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div><span className="text-roman-text-sub">Sede:</span> {getTicketSiteLabel(ticket, sites)}</div>
+                          <div><span className="text-roman-text-sub">Região:</span> {getTicketRegionLabel(ticket, regions, sites)}</div>
+                          <div><span className="text-roman-text-sub">Prioridade:</span> {ticket.priority || '-'}</div>
+                          <div><span className="text-roman-text-sub">Status:</span> {ticket.status}</div>
+                        </div>
+                        <div className="mt-2 text-xs text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 hidden overflow-x-auto md:block">
+                    <table className="w-full min-w-[880px] border-collapse text-left">
+                      <thead>
+                        <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
+                          <th className="px-3 py-2">Ticket</th>
+                          <th className="px-3 py-2">Assunto</th>
+                          <th className="px-3 py-2">Sede</th>
+                          <th className="px-3 py-2">Região</th>
+                          <th className="px-3 py-2">Solicitante</th>
+                          <th className="px-3 py-2">Prioridade</th>
+                          <th className="px-3 py-2">Status atual</th>
+                          <th className="px-3 py-2">Atualizado</th>
+                          <th className="px-3 py-2">Timeline</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {requesterOpenTickets.map(ticket => (
+                          <tr key={`open-${ticket.id}`} className="border-b border-roman-border/70 hover:bg-roman-bg/50">
+                            <td className="px-3 py-2 font-semibold text-roman-text-main">{ticket.id}</td>
+                            <td className="px-3 py-2 text-roman-text-main">{ticket.subject || '-'}</td>
+                            <td className="px-3 py-2 text-roman-text-sub">{getTicketSiteLabel(ticket, sites)}</td>
+                            <td className="px-3 py-2 text-roman-text-sub">{getTicketRegionLabel(ticket, regions, sites)}</td>
+                            <td className="px-3 py-2 text-roman-text-sub">{ticket.requester || '-'}</td>
+                            <td className="px-3 py-2 text-roman-text-sub">{ticket.priority || '-'}</td>
+                            <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
+                            <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => window.open(`/?tracking=${encodeURIComponent(ticket.trackingToken)}`, '_blank', 'noopener,noreferrer')}
+                                className="text-sm font-medium text-roman-primary hover:underline"
+                              >
+                                Ver timeline
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )
+            ) : requesterHistoryTickets.length === 0 ? (
+              <p className="py-6 text-sm text-roman-text-sub font-serif italic">Nenhum ticket encerrado/cancelado no histórico da sua estrutura.</p>
+            ) : (
+              <>
+                <div className="mt-4 space-y-3 md:hidden">
+                  {requesterHistoryTickets.map(ticket => (
+                    <div key={`history-mobile-${ticket.id}`} className="rounded-xl border border-roman-border bg-roman-bg p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold text-roman-text-main">{ticket.id}</div>
+                          <div className="mt-1 text-sm text-roman-text-main">{ticket.subject || '-'}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.open(`/?tracking=${encodeURIComponent(ticket.trackingToken)}`, '_blank', 'noopener,noreferrer')}
+                          className="shrink-0 text-xs font-medium text-roman-primary hover:underline"
+                        >
+                          Timeline
+                        </button>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div><span className="text-roman-text-sub">Sede:</span> {getTicketSiteLabel(ticket, sites)}</div>
+                        <div><span className="text-roman-text-sub">Região:</span> {getTicketRegionLabel(ticket, regions, sites)}</div>
+                        <div><span className="text-roman-text-sub">Solicitante:</span> {ticket.requester || '-'}</div>
+                        <div><span className="text-roman-text-sub">Status:</span> {ticket.status}</div>
+                      </div>
+                      <div className="mt-2 text-xs text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[880px] border-collapse text-left">
                     <thead>
                       <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
@@ -275,21 +374,19 @@ export function HomeView() {
                         <th className="px-3 py-2">Sede</th>
                         <th className="px-3 py-2">Região</th>
                         <th className="px-3 py-2">Solicitante</th>
-                        <th className="px-3 py-2">Prioridade</th>
-                        <th className="px-3 py-2">Status atual</th>
-                        <th className="px-3 py-2">Atualizado</th>
+                        <th className="px-3 py-2">Status final</th>
+                        <th className="px-3 py-2">Último registro</th>
                         <th className="px-3 py-2">Timeline</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {requesterOpenTickets.map(ticket => (
-                        <tr key={`open-${ticket.id}`} className="border-b border-roman-border/70 hover:bg-roman-bg/50">
+                      {requesterHistoryTickets.map(ticket => (
+                        <tr key={`history-${ticket.id}`} className="border-b border-roman-border/70 hover:bg-roman-bg/50">
                           <td className="px-3 py-2 font-semibold text-roman-text-main">{ticket.id}</td>
                           <td className="px-3 py-2 text-roman-text-main">{ticket.subject || '-'}</td>
                           <td className="px-3 py-2 text-roman-text-sub">{getTicketSiteLabel(ticket, sites)}</td>
                           <td className="px-3 py-2 text-roman-text-sub">{getTicketRegionLabel(ticket, regions, sites)}</td>
                           <td className="px-3 py-2 text-roman-text-sub">{ticket.requester || '-'}</td>
-                          <td className="px-3 py-2 text-roman-text-sub">{ticket.priority || '-'}</td>
                           <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
                           <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
                           <td className="px-3 py-2">
@@ -306,48 +403,7 @@ export function HomeView() {
                     </tbody>
                   </table>
                 </div>
-              )
-            ) : requesterHistoryTickets.length === 0 ? (
-              <p className="py-6 text-sm text-roman-text-sub font-serif italic">Nenhum ticket encerrado/cancelado no histórico da sua estrutura.</p>
-            ) : (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[880px] border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
-                      <th className="px-3 py-2">Ticket</th>
-                      <th className="px-3 py-2">Assunto</th>
-                      <th className="px-3 py-2">Sede</th>
-                      <th className="px-3 py-2">Região</th>
-                      <th className="px-3 py-2">Solicitante</th>
-                      <th className="px-3 py-2">Status final</th>
-                      <th className="px-3 py-2">Último registro</th>
-                      <th className="px-3 py-2">Timeline</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requesterHistoryTickets.map(ticket => (
-                      <tr key={`history-${ticket.id}`} className="border-b border-roman-border/70 hover:bg-roman-bg/50">
-                        <td className="px-3 py-2 font-semibold text-roman-text-main">{ticket.id}</td>
-                        <td className="px-3 py-2 text-roman-text-main">{ticket.subject || '-'}</td>
-                        <td className="px-3 py-2 text-roman-text-sub">{getTicketSiteLabel(ticket, sites)}</td>
-                        <td className="px-3 py-2 text-roman-text-sub">{getTicketRegionLabel(ticket, regions, sites)}</td>
-                        <td className="px-3 py-2 text-roman-text-sub">{ticket.requester || '-'}</td>
-                        <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
-                        <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => window.open(`/?tracking=${encodeURIComponent(ticket.trackingToken)}`, '_blank', 'noopener,noreferrer')}
-                            className="text-sm font-medium text-roman-primary hover:underline"
-                          >
-                            Ver timeline
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              </>
             )}
           </div>
         )}

@@ -935,9 +935,31 @@ async function resolveSiteContext(db, siteCode) {
 
   const sites = sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   const regions = regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const site = (() => {
+    if (!normalized) return null;
+    const exact = sites.find(item =>
+      [item.id, item.code, item.name].some(value => normalizeKey(value) === normalized)
+    );
+    if (exact) return exact;
 
-  const site =
-    sites.find(item => [item.id, item.code, item.name].some(value => normalizeKey(value) === normalized)) || null;
+    // Fallback para assuntos com nome de sede parcial/completo (ex.: "(aldeota)").
+    const ranked = sites
+      .map(item => {
+        const id = normalizeKey(item.id);
+        const code = normalizeKey(item.code);
+        const name = normalizeKey(item.name);
+        let score = 0;
+        if (code && normalized.includes(code)) score = Math.max(score, 95);
+        if (name && normalized.includes(name)) score = Math.max(score, 92);
+        if (name && name.includes(normalized)) score = Math.max(score, 90);
+        if (code && code.includes(normalized)) score = Math.max(score, 88);
+        if (id && (id === normalized || normalized.includes(id) || id.includes(normalized))) score = Math.max(score, 85);
+        return { item, score };
+      })
+      .filter(entry => entry.score > 0)
+      .sort((a, b) => b.score - a.score);
+    return ranked[0]?.item || null;
+  })();
   const region = site ? regions.find(item => item.id === site.regionId) || null : null;
 
   return { site, region };
