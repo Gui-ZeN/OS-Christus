@@ -236,7 +236,15 @@ export function HomeView() {
                 <h2 className="font-serif text-lg font-medium text-roman-text-main">Painel de Tickets da Minha Estrutura</h2>
                 <p className="mt-1 text-sm text-roman-text-sub">Lista de tickets por sede/região com status atual e histórico.</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigateTo('public-form')}
+                  className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-4 py-1.5 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                >
+                  <Plus size={14} className="text-roman-primary" />
+                  Nova Solicitação
+                </button>
                 <button
                   type="button"
                   onClick={() => setRequesterTab('open')}
@@ -270,6 +278,7 @@ export function HomeView() {
                         <th className="px-3 py-2">Prioridade</th>
                         <th className="px-3 py-2">Status atual</th>
                         <th className="px-3 py-2">Atualizado</th>
+                        <th className="px-3 py-2">Timeline</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -283,6 +292,15 @@ export function HomeView() {
                           <td className="px-3 py-2 text-roman-text-sub">{ticket.priority || '-'}</td>
                           <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
                           <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => window.open(`/?tracking=${encodeURIComponent(ticket.trackingToken)}`, '_blank', 'noopener,noreferrer')}
+                              className="text-sm font-medium text-roman-primary hover:underline"
+                            >
+                              Ver timeline
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -303,6 +321,7 @@ export function HomeView() {
                       <th className="px-3 py-2">Solicitante</th>
                       <th className="px-3 py-2">Status final</th>
                       <th className="px-3 py-2">Último registro</th>
+                      <th className="px-3 py-2">Timeline</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -315,6 +334,15 @@ export function HomeView() {
                         <td className="px-3 py-2 text-roman-text-sub">{ticket.requester || '-'}</td>
                         <td className="px-3 py-2 text-roman-text-main">{ticket.status}</td>
                         <td className="px-3 py-2 text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => window.open(`/?tracking=${encodeURIComponent(ticket.trackingToken)}`, '_blank', 'noopener,noreferrer')}
+                            className="text-sm font-medium text-roman-primary hover:underline"
+                          >
+                            Ver timeline
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

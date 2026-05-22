@@ -734,6 +734,7 @@ export function InboxView() {
   const progressReportFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
   const lastMailSyncAtRef = useRef(0);
+  const lastScheduledMailSyncKeyRef = useRef('');
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [progressReportFiles, setProgressReportFiles] = useState<File[]>([]);
 
@@ -748,6 +749,24 @@ export function InboxView() {
       if (!canRunMailSync) return;
 
       const now = Date.now();
+      const current = new Date(now);
+      const scheduleHours = new Set([8, 12, 16, 18]);
+      if (scheduleHours.has(current.getHours())) {
+        const scheduleKey = `${current.getFullYear()}-${current.getMonth() + 1}-${current.getDate()}-${current.getHours()}`;
+        if (lastScheduledMailSyncKeyRef.current !== scheduleKey) {
+          lastScheduledMailSyncKeyRef.current = scheduleKey;
+          lastMailSyncAtRef.current = now;
+          try {
+            await fetch('/api/mail?route=gmail-sync', {
+              method: 'POST',
+              headers: await getAuthenticatedActorHeaders(),
+            });
+          } catch {
+            // Sync programado de contingência.
+          }
+          return;
+        }
+      }
       const elapsed = now - lastMailSyncAtRef.current;
       if (elapsed < 60000) return;
       lastMailSyncAtRef.current = now;

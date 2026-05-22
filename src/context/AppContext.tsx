@@ -667,6 +667,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       params.delete('view');
     } else {
       params.delete('tracking');
+      params.delete('mode');
+      params.delete('oobCode');
+      params.delete('apiKey');
+      params.delete('lang');
       if (currentView === 'password-reset') {
         params.set('view', currentView);
       } else if (currentView === 'public-form' || currentView === 'login' || currentView === 'approvals') {
