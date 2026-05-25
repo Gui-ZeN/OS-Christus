@@ -3119,7 +3119,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 h-full w-[88vw] max-w-96 md:w-[15.5rem] lg:w-[16.5rem] xl:w-[17.5rem] min-[1500px]:w-[18.5rem] min-[1800px]:w-[20rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 h-full w-[86vw] max-w-[22rem] md:w-[14.5rem] lg:w-[15.5rem] xl:w-[16.5rem] min-[1500px]:w-[17.5rem] min-[1800px]:w-[19rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-b from-roman-bg to-roman-surface">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -3344,7 +3344,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           <div className="flex-1 min-h-0 bg-roman-bg overflow-hidden grid grid-rows-[auto_minmax(0,1fr)_auto]">
 
             {/* Ticket Header */}
-            <div className="bg-roman-surface px-4 py-4 md:px-5 md:py-5 border-b border-roman-border">
+            <div className="bg-roman-surface px-3 py-3 md:px-4 md:py-4 border-b border-roman-border">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -3366,8 +3366,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </span>
                     ) : null}
                   </div>
-                  <h1 className="text-[1.7rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.85rem] xl:text-[2rem]">{activeTicket.subject}</h1>
-                  <div className="mt-1 text-sm text-roman-text-sub">
+                  <h1 className="text-[1.35rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.5rem] xl:text-[1.65rem]">{activeTicket.subject}</h1>
+                  <div className="mt-1 text-[13px] text-roman-text-sub">
                     Solicitante: <span className="font-medium text-roman-text-main">{activeTicket.requester || 'Não informado'}</span>
                   </div>
                 </div>
@@ -3452,8 +3452,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
-            <div className="min-h-0 overflow-y-auto p-4 md:p-5">
-              <div className="space-y-5 pb-4">
+            <div className="min-h-0 overflow-y-auto p-3 md:p-4">
+              <div className="space-y-4 pb-3">
               {activeTicket.history
                 .map((item, originalIndex) => ({ item, originalIndex }))
                 .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
@@ -3538,7 +3538,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         </div>
                         <div className={`flex-1 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
                           <div className={`flex items-baseline gap-2 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                            <span className="font-semibold text-[13px]">{item.sender}</span>
+                            <span className="font-semibold text-[12px]">{item.sender}</span>
                             <span className="text-roman-text-sub text-[11px] font-serif italic">
                               {formatDateTimeSafe(item.time)}
                             </span>
@@ -3557,7 +3557,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                             </div>
                           )}
                           <div
-                            className={`rounded-sm p-4 text-[13px] leading-relaxed shadow-sm border ${
+                            className={`rounded-sm p-3 text-[12px] leading-relaxed shadow-sm border ${
                               isExternalMessage
                                 ? 'bg-roman-primary/5 border-roman-primary/20'
                                 : isInternalNote
@@ -3596,7 +3596,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
             </div>
 
             {/* Reply Box */}
-            <div className="border-t border-roman-border bg-roman-bg/95 px-4 pb-4 pt-3 backdrop-blur md:px-5">
+            <div className="border-t border-roman-border bg-roman-bg/95 px-3 pb-3 pt-2 backdrop-blur md:px-4">
               <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode !== 'public' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex overflow-x-auto border-b border-roman-border bg-roman-bg/50">
@@ -3741,7 +3741,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 {/* Textarea */}
                 <textarea
                   ref={replyTextRef}
-                  className="w-full h-20 p-4 outline-none resize-none bg-transparent font-sans md:h-24 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-16 p-3 outline-none resize-none bg-transparent text-[13px] font-sans md:h-20 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder={
                     isClosed
                       ? 'Esta OS está encerrada e não aceita novos comentários.'
@@ -3770,7 +3770,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
 
                 {/* Footer */}
-                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 p-3 backdrop-blur">
+                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 p-2.5 backdrop-blur">
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div className="text-xs text-roman-text-sub font-serif italic">
                     {replyMode === 'internal'
@@ -3827,13 +3827,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           {/* Context Panel (Right Sidebar) */}
           <aside
             id="context-drawer"
-            className={`fixed inset-y-0 right-0 z-40 h-full w-[88vw] max-w-96 md:w-[15rem] lg:w-[16rem] xl:w-[17.5rem] min-[1500px]:w-[18.5rem] min-[1800px]:w-[21rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${
+            className={`fixed inset-y-0 right-0 z-40 h-full w-[86vw] max-w-[22rem] md:w-[14rem] lg:w-[15rem] xl:w-[16.25rem] min-[1500px]:w-[17rem] min-[1800px]:w-[19.5rem] bg-roman-surface border-l border-roman-border flex min-h-0 flex-col transition-transform duration-200 ${
               isCompactInboxWorkspace
                 ? (showMobileContext ? 'translate-x-0' : 'translate-x-full')
                 : (showMobileContext ? 'translate-x-0' : 'translate-x-full md:translate-x-0')
             } ${isCompactInboxWorkspace ? '' : 'md:static'}`}
           >
-            <div className="h-11 border-b border-roman-border flex items-center justify-between px-4 font-serif text-sm tracking-widest uppercase font-semibold text-roman-text-main">
+            <div className="h-10 border-b border-roman-border flex items-center justify-between px-3 font-serif text-xs tracking-widest uppercase font-semibold text-roman-text-main">
               <span>Painel da OS</span>
               <button
                 onClick={(e) => {
@@ -3846,7 +3846,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 <X size={16} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2.5 space-y-2.5">
               {/* PUBLIC LINK BUTTON */}
               <div className="flex gap-2">
                 <button
