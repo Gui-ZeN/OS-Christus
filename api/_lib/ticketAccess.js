@@ -75,7 +75,10 @@ function canUserAccessTicket(user, ticket, regions, sites) {
   const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
   const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
 
-  if (siteIds.length > 0 && siteIds.some(siteId => ticketSiteIds.includes(siteId))) return true;
+  // Para perfil Usuario: se houver sedes vinculadas, restringe somente a essas sedes.
+  if (siteIds.length > 0) {
+    return siteIds.some(siteId => ticketSiteIds.includes(siteId));
+  }
   if (regionIds.length > 0 && regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
   return false;
 }
@@ -96,10 +99,11 @@ function buildAllowedScope(user, regions, sites) {
   const userSiteIds = Array.isArray(user?.siteIds) ? uniqueValues(user.siteIds) : [];
   const userRegionIds = Array.isArray(user?.regionIds) ? uniqueValues(user.regionIds) : [];
 
-  const allowedSiteIds = uniqueValues([
-    ...userSiteIds,
-    ...sites.filter(site => userRegionIds.includes(site.regionId)).map(site => site.id),
-  ]);
+  const allowedSiteIds = userSiteIds.length > 0
+    ? uniqueValues([...userSiteIds])
+    : uniqueValues([
+        ...sites.filter(site => userRegionIds.includes(site.regionId)).map(site => site.id),
+      ]);
 
   const allowedRegionIds = uniqueValues([
     ...userRegionIds,
