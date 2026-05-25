@@ -73,6 +73,12 @@ function displayNameFromEmail(raw) {
     .replace(/\b\w/g, char => char.toUpperCase());
 }
 
+function hasWaterIssueSignal(value) {
+  const normalized = normalizeKey(value);
+  if (!normalized) return false;
+  return normalized.includes('goteira') || normalized.includes('infiltracao') || normalized.includes('infiltra');
+}
+
 function normalizeKey(value) {
   return String(value || '')
     .normalize('NFD')
@@ -1233,6 +1239,7 @@ async function createTicketFromInbound(db, message) {
   const ccRecipients = filterCopyRecipients(mergeEmailLists(message.to, message.cc), [fromEmail]);
   const requester = displayNameFromEmail(message.from);
   const description = extractInboundMessageBody(String(message.text || '').trim(), message.html) || parsedSubject.subject;
+  const waterIssue = hasWaterIssueSignal(parsedSubject.subject) || hasWaterIssueSignal(description);
 
   const ticket = {
     id: ticketId,
@@ -1254,6 +1261,7 @@ async function createTicketFromInbound(db, message) {
     sede: site?.code || parsedSubject.siteCode,
     sector: 'E-mail',
     priority: 'Trivial',
+    waterIssue,
     attachments,
     history: [
       {

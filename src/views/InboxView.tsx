@@ -26,7 +26,7 @@ import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymen
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
-import { stripAttachmentLinksFromMessage } from '../utils/text';
+import { cleanForwardedMessageText } from '../utils/text';
 
 type QuoteDraft = {
   vendor: string;
@@ -712,6 +712,7 @@ export function InboxView() {
   const [customEmail, setCustomEmail] = useState('');
   const [ticketPriority, setTicketPriority] = useState('');
   const [statusDraft, setStatusDraft] = useState('');
+  const [waterIssueDraft, setWaterIssueDraft] = useState(false);
   const [sidebarSections, setSidebarSections] = useState({
     summary: true,
     classification: true,
@@ -899,6 +900,7 @@ export function InboxView() {
     setPublicInterestedDraft('');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setStatusDraft(activeTicket.status || '');
+    setWaterIssueDraft(Boolean(activeTicket.waterIssue));
     setTicketDetailsForm(createTicketDetailsFormState(activeTicket));
     setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
     setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
@@ -1315,7 +1317,6 @@ export function InboxView() {
       return;
     }
 
-    const nextStatus = (statusDraft || activeTicket.status) as Ticket['status'];
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
     const changes: string[] = [];
@@ -1374,26 +1375,9 @@ export function InboxView() {
       updates.directorEmails = selectedDirectors.map(director => director.email).filter(Boolean);
       changes.push('diretores envolvidos');
     }
-    if (nextStatus !== activeTicket.status) {
-      if (!canTransitionStatus(actorRole, 'inbox', activeTicket.status, nextStatus)) {
-        showToast(`Transição inválida de status: ${activeTicket.status} -> ${nextStatus}.`, 3500);
-        return;
-      }
-      if (activeTicket.status === TICKET_STATUS.NEW && nextStatus === TICKET_STATUS.WAITING_TECH_OPINION && (!techTeam || !ticketPriority)) {
-        showToast('Defina equipe responsável e urgência antes de aceitar a OS.', 3000);
-        return;
-      }
-      const statusReason = statusTransitionReason.trim();
-      if (!statusReason && nextStatus !== TICKET_STATUS.CANCELED) {
-        showToast('Informe o motivo da transição manual de status.', 3000);
-        return;
-      }
-      Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
-      updates.status = nextStatus;
-      changes.push(`status: ${activeTicket.status} -> ${nextStatus}`);
-      if (statusReason) {
-        changes.push(`motivo: ${statusReason}`);
-      }
+    if (Boolean(activeTicket.waterIssue) !== Boolean(waterIssueDraft)) {
+      updates.waterIssue = Boolean(waterIssueDraft);
+      changes.push(`goteira/infiltração: ${activeTicket.waterIssue ? 'marcado' : 'não marcado'} -> ${waterIssueDraft ? 'marcado' : 'não marcado'}`);
     }
 
     if (changes.length === 0) {
@@ -1401,15 +1385,8 @@ export function InboxView() {
       return;
     }
 
-    if (nextStatus === TICKET_STATUS.CANCELED) {
-      setPendingCancelTicketUpdates(updates);
-      setShowCancelTicketModal(true);
-      return;
-    }
-
     setIsSending(true);
     try {
-      const changedStatus = nextStatus !== activeTicket.status;
       updateTicket(activeTicket.id, {
         ...updates,
         history: [
@@ -1422,7 +1399,7 @@ export function InboxView() {
             text: `Painel da OS atualizado: ${changes.join(' · ')}.`,
           },
         ],
-      }, changedStatus ? { sendEmailUpdate: sendStatusEmailUpdate } : undefined);
+      }, undefined);
     } finally {
       window.setTimeout(() => setIsSending(false), 600);
     }
@@ -1536,8 +1513,31 @@ export function InboxView() {
       if (replyMode === 'internal') {
         const items: HistoryItem[] = [];
         let newStatus = activeTicket.status;
+        const requestedStatus = (statusDraft || activeTicket.status) as Ticket['status'];
+        const hasManualStatusTransition = requestedStatus !== activeTicket.status;
 
-        if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+        if (hasManualStatusTransition) {
+          if (!canTransitionStatus(actorRole, 'inbox', activeTicket.status, requestedStatus)) {
+            showToast(`Transição inválida de status: ${activeTicket.status} -> ${requestedStatus}.`, 3500);
+            setIsSending(false);
+            return;
+          }
+          const statusReason = statusTransitionReason.trim();
+          if (!statusReason) {
+            showToast('Informe o motivo da transição manual de status.', 3000);
+            setIsSending(false);
+            return;
+          }
+          newStatus = requestedStatus;
+          items.push({
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender,
+            time: now,
+            text: `Transição manual via chat: ${activeTicket.status} -> ${requestedStatus}. Motivo: ${statusReason}.`,
+            visibility: 'internal',
+          });
+        } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
           newStatus = hasInvolvedDirectors ? TICKET_STATUS.WAITING_SOLUTION_APPROVAL : TICKET_STATUS.WAITING_BUDGET;
           if (trimmedReply || uploadedReplyAttachments.length > 0) {
             items.push({
@@ -1583,7 +1583,7 @@ export function InboxView() {
                 ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
                 : activeTicket.attachments,
             history: [...activeTicket.history, ...items],
-          }, newStatus !== activeTicket.status ? { sendEmailUpdate: shouldSendMessageEmail } : undefined);
+          }, newStatus !== activeTicket.status ? { sendEmailUpdate: shouldSendMessageEmail || sendStatusEmailUpdate } : undefined);
         }
       } else if (replyMode === 'public') {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
@@ -1639,6 +1639,7 @@ export function InboxView() {
 
       setReplyText('');
       setReplyFiles([]);
+      setStatusTransitionReason('');
       if (replyFileRef.current) replyFileRef.current.value = '';
     } catch {
       showToast('Falha ao anexar arquivos nesta mensagem. Tente novamente.', 3000);
@@ -3359,6 +3360,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         {activeTicket.priority}
                       </span>
                     ) : null}
+                    {activeTicket.waterIssue ? (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-800">
+                        Goteira/Infiltração
+                      </span>
+                    ) : null}
                   </div>
                   <h1 className="text-[1.7rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.85rem] xl:text-[2rem]">{activeTicket.subject}</h1>
                   <div className="mt-1 text-sm text-roman-text-sub">
@@ -3452,7 +3458,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 .map((item, originalIndex) => ({ item, originalIndex }))
                 .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
                 .map(({ item, originalIndex }, index) => {
-                  const displayText = stripAttachmentLinksFromMessage(item.text);
+                  const displayText = cleanForwardedMessageText(item.text);
                   if (item.type === 'system') {
                     return (
                       <div key={`${item.id || 'system'}-${originalIndex}`} className="flex justify-center">
@@ -3670,6 +3676,37 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       ) : (
                         <span className="text-xs text-roman-text-sub">Sem interessados em cópia.</span>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {replyMode === 'internal' && canManageStatus && (
+                  <div className="border-b border-roman-border/50 bg-white px-3 py-3">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Pular/voltar etapa</label>
+                        <select
+                          value={statusDraft}
+                          onChange={event => setStatusDraft(event.target.value)}
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                          disabled={isClosed || isSending}
+                        >
+                          {statusOptions.map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Motivo da transição</label>
+                        <input
+                          type="text"
+                          value={statusTransitionReason}
+                          onChange={event => setStatusTransitionReason(event.target.value)}
+                          placeholder="Obrigatório ao mudar etapa"
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                          disabled={isClosed || isSending}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -4056,21 +4093,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   <div className="grid grid-cols-1 gap-3">
                     {canManageStatus && (
                       <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Status da OS</label>
-                      <select
-                        value={statusDraft}
-                        onChange={event => setStatusDraft(event.target.value)}
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                        disabled={isSending}
-                      >
-                        {statusOptions.map(status => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
-                      </div>
-                    )}
-                    {canManageStatus && (
-                      <div>
                         <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Data de abertura</label>
                         <DateTimePicker
                           value={ticketDetailsForm.time}
@@ -4092,6 +4114,19 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <option key={team.id} value={team.name}>{team.type === 'external' ? 'Terceiro' : team.name}</option>
                         ))}
                       </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Goteira / infiltração</label>
+                      <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-main">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
+                          checked={waterIssueDraft}
+                          onChange={event => setWaterIssueDraft(event.target.checked)}
+                          disabled={isSending || !canEditQuickPanel}
+                        />
+                        Marcar chamado com risco de goteira/infiltração
+                      </label>
                     </div>
 
                     <div>
@@ -4209,31 +4244,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
                   </div>
 
-                  {canManageStatus && (
-                    <div className="space-y-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
-                        Motivo da transição manual
-                      </label>
-                      <textarea
-                        value={statusTransitionReason}
-                        onChange={event => setStatusTransitionReason(event.target.value)}
-                        placeholder="Obrigatório quando houver mudança manual de status."
-                        className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                        rows={2}
-                        disabled={isSending}
-                      />
-                      <label className="inline-flex items-center gap-2 text-xs text-roman-text-main">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
-                          checked={sendStatusEmailUpdate}
-                          onChange={event => setSendStatusEmailUpdate(event.target.checked)}
-                          disabled={isSending}
-                        />
-                        Enviar e-mail de atualização de status
-                      </label>
-                    </div>
-                  )}
 
                   {isExternalTeam && (
                     <div className="space-y-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">

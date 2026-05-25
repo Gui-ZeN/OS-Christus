@@ -48,3 +48,26 @@ export function stripAttachmentLinksFromMessage(value: unknown): string {
 
   return text.slice(0, markerIndex).trim();
 }
+
+export function cleanForwardedMessageText(value: unknown): string {
+  const text = stripAttachmentLinksFromMessage(value);
+  if (!text) return '';
+
+  const lines = text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const cleaned = lines.filter(line => {
+    const normalized = line.toLowerCase();
+    if (normalized === 'forwarded message' || normalized === 'mensagem encaminhada') return false;
+    if (/^(from|de|to|para|subject|assunto|date|data|cc|cco|enviado)\s*:/i.test(line)) return false;
+    if (/^>+\s*$/.test(line)) return false;
+    if (/^\[image:.*\]$/i.test(line)) return false;
+    return true;
+  });
+
+  const compact = cleaned.join('\n').replace(/(?:\n\s*){3,}/g, '\n\n').trim();
+  return compact || text;
+}

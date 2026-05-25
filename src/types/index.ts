@@ -115,6 +115,7 @@ export interface Ticket {
   sector: string;
   location?: string;
   priority: string;
+  waterIssue?: boolean;
   history: HistoryItem[];
   viewingBy?: { name: string; at: Date } | null;
   preliminaryActions?: PreliminaryActions;
