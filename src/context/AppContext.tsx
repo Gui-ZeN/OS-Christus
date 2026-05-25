@@ -12,6 +12,12 @@ import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, pat
 import { requestPasswordResetInApi } from '../services/passwordResetApi';
 import { InboxFilter, Ticket, ViewState } from '../types';
 
+type AttachmentPreviewKind = 'image' | 'pdf' | 'file';
+
+interface TicketUpdateOptions {
+  sendEmailUpdate?: boolean;
+}
+
 interface AppContextType {
   currentView: ViewState;
   navigateTo: (view: ViewState) => void;
@@ -21,16 +27,16 @@ interface AppContextType {
   setTrackingTicketToken: (token: string | null) => void;
   attachmentPreview: {
     title: string;
-    type: 'image' | 'pdf';
+    type: AttachmentPreviewKind;
     url?: string | null;
-    items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+    items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
   } | null;
   openAttachment: (
     title: string,
-    type: 'image' | 'pdf',
+    type: AttachmentPreviewKind,
     options?: {
       url?: string | null;
-      items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+      items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
     }
   ) => void;
   closeAttachment: () => void;
@@ -39,7 +45,7 @@ interface AppContextType {
   tickets: Ticket[];
   ticketsLoading: boolean;
   refreshTickets: (options?: { silent?: boolean }) => Promise<void>;
-  updateTicket: (id: string, updates: Partial<Ticket>) => void;
+  updateTicket: (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions) => void;
   addTicket: (ticket: Ticket, files?: File[]) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
   currentUserEmail: string;
@@ -153,7 +159,7 @@ function canUserAccessTicket(
   if (user.role === 'Diretor') {
     const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
     const directorEmails = Array.isArray(ticket.directorEmails) ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()) : [];
-    if (directorIds.length === 0 && directorEmails.length === 0) return true;
+    if (directorIds.length === 0 && directorEmails.length === 0) return false;
     return (
       directorIds.includes(user.id) ||
       directorEmails.includes(String(user.email || currentUserEmail || '').trim().toLowerCase())
@@ -203,9 +209,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<{
     title: string;
-    type: 'image' | 'pdf';
+    type: AttachmentPreviewKind;
     url?: string | null;
-    items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+    items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
   } | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
@@ -472,7 +478,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [tickets, activeTicketId]);
 
-  const updateTicket = (id: string, updates: Partial<Ticket>) => {
+  const updateTicket = (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions) => {
     const previousTicket = allTickets.find(ticket => ticket.id === id);
     if (!previousTicket) return;
 
@@ -491,7 +497,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (updates.status && previousTicket.status !== nextTicket.status) {
+      const shouldSendEmailUpdate = options?.sendEmailUpdate !== false;
+      if (shouldSendEmailUpdate && updates.status && previousTicket.status !== nextTicket.status) {
         try {
           await notifyTicketStatusChange(nextTicket, previousTicket.status);
         } catch (error) {
@@ -571,10 +578,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const openAttachment = (
     title: string,
-    type: 'image' | 'pdf',
+    type: AttachmentPreviewKind,
     options?: {
       url?: string | null;
-      items?: Array<{ title: string; type: 'image' | 'pdf'; url?: string | null }>;
+      items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
     }
   ) => {
     setAttachmentPreview({
@@ -667,15 +674,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       params.delete('view');
     } else {
       params.delete('tracking');
-      params.delete('mode');
-      params.delete('oobCode');
-      params.delete('apiKey');
-      params.delete('lang');
       if (currentView === 'password-reset') {
         params.set('view', currentView);
       } else if (currentView === 'public-form' || currentView === 'login' || currentView === 'approvals') {
+        params.delete('mode');
+        params.delete('oobCode');
+        params.delete('apiKey');
+        params.delete('lang');
+        params.delete('issuedAt');
         params.set('view', currentView);
       } else {
+        params.delete('mode');
+        params.delete('oobCode');
+        params.delete('apiKey');
+        params.delete('lang');
+        params.delete('issuedAt');
         params.delete('view');
       }
     }

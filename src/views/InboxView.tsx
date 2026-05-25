@@ -13,7 +13,7 @@ import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRec
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
-import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog } from '../services/catalogApi';
+import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog, saveCatalogEntry } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryUser, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
@@ -123,6 +123,19 @@ function normalizeLocationPart(value?: string | null) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function resolveAttachmentPreviewType(contentType?: string | null, fileName?: string | null): 'image' | 'pdf' | 'file' {
+  const mime = String(contentType || '').toLowerCase();
+  const name = String(fileName || '').toLowerCase();
+  if (mime.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+  if (
+    mime.startsWith('image/') ||
+    /\.(png|jpe?g|webp|bmp|svg)$/.test(name)
+  ) {
+    return 'image';
+  }
+  return 'file';
 }
 
 function isFinalizedTicketStatus(status?: string | null) {
@@ -690,6 +703,9 @@ export function InboxView() {
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal' | 'director'>('internal');
   const [replyText, setReplyText] = useState('');
+  const [sendStatusEmailUpdate, setSendStatusEmailUpdate] = useState(false);
+  const [sendMessageEmailUpdate, setSendMessageEmailUpdate] = useState(false);
+  const [statusTransitionReason, setStatusTransitionReason] = useState('');
   const [publicInterestedEmails, setPublicInterestedEmails] = useState<string[]>([]);
   const [publicInterestedDraft, setPublicInterestedDraft] = useState('');
   const [techTeam, setTechTeam] = useState('');
@@ -724,6 +740,9 @@ export function InboxView() {
   const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
   const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
+  const [newMacroServiceName, setNewMacroServiceName] = useState('');
+  const [newServiceName, setNewServiceName] = useState('');
+  const [savingQuickCatalog, setSavingQuickCatalog] = useState(false);
   const displayActor = currentUser?.name || 'Gestor';
   const displayActorLabel = currentUser?.role ? `${displayActor} (${currentUser.role})` : displayActor;
   const canManageStatus = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
@@ -1133,6 +1152,7 @@ export function InboxView() {
     () => activeDirectors.filter(user => involvedDirectorIds.includes(user.id)),
     [activeDirectors, involvedDirectorIds]
   );
+  const hasInvolvedDirectors = selectedDirectors.length > 0;
   const isExternalTeam = selectedTeam?.type === 'external';
   const selectedThirdParties = vendors.filter(vendor => selectedThirdPartyIds.includes(vendor.id));
   const selectedThirdPartyEmails = selectedThirdParties
@@ -1198,6 +1218,51 @@ export function InboxView() {
     if (!canManageStatus) return;
     const nextServiceId = event.target.value;
     setTicketDetailsForm(prev => ({ ...prev, serviceCatalogId: nextServiceId }));
+  };
+
+  const handleQuickCreateMacroService = async () => {
+    const name = newMacroServiceName.trim();
+    if (!name || savingQuickCatalog || !canEditQuickPanel) return;
+    setSavingQuickCatalog(true);
+    try {
+      const catalog = await saveCatalogEntry('macroServices', { name });
+      setCatalogMacroServices(catalog.macroServices);
+      setServiceCatalog(catalog.serviceCatalog);
+      const created = [...catalog.macroServices]
+        .reverse()
+        .find(item => String(item.name || '').trim().toLowerCase() === name.toLowerCase());
+      if (created?.id) {
+        setTicketDetailsForm(prev => ({ ...prev, macroServiceId: created.id, serviceCatalogId: '' }));
+      }
+      setNewMacroServiceName('');
+    } finally {
+      setSavingQuickCatalog(false);
+    }
+  };
+
+  const handleQuickCreateService = async () => {
+    const name = newServiceName.trim();
+    const macroServiceId = String(ticketDetailsForm.macroServiceId || '').trim();
+    if (!name || !macroServiceId || savingQuickCatalog || !canEditQuickPanel) return;
+    setSavingQuickCatalog(true);
+    try {
+      const catalog = await saveCatalogEntry('serviceCatalog', { name, macroServiceId });
+      setCatalogMacroServices(catalog.macroServices);
+      setServiceCatalog(catalog.serviceCatalog);
+      const created = [...catalog.serviceCatalog]
+        .reverse()
+        .find(
+          item =>
+            String(item.name || '').trim().toLowerCase() === name.toLowerCase() &&
+            String(item.macroServiceId || '') === macroServiceId
+        );
+      if (created?.id) {
+        setTicketDetailsForm(prev => ({ ...prev, serviceCatalogId: created.id }));
+      }
+      setNewServiceName('');
+    } finally {
+      setSavingQuickCatalog(false);
+    }
   };
 
   const resolveClassificationSelection = () => {
@@ -1283,12 +1348,12 @@ export function InboxView() {
     const nextSector = ticketDetailsForm.sector.trim();
     if (nextSector && nextSector !== (activeTicket.sector || '')) {
       updates.sector = nextSector;
-      changes.push(`setor: ${activeTicket.sector || 'Não informado'} -> ${nextSector}`);
+      changes.push(`local: ${activeTicket.sector || 'Não informado'} -> ${nextSector}`);
     }
     const nextLocation = ticketDetailsForm.location.trim();
     if (nextLocation !== (activeTicket.location || '')) {
       updates.location = nextLocation;
-      changes.push(`local: ${activeTicket.location || 'Não informado'} -> ${nextLocation || 'Não informado'}`);
+      changes.push(`detalhe do local: ${activeTicket.location || 'Não informado'} -> ${nextLocation || 'Não informado'}`);
     }
     if (nextAssignedEmail !== (activeTicket.assignedEmail || '')) {
       updates.assignedEmail = nextAssignedEmail;
@@ -1314,17 +1379,21 @@ export function InboxView() {
         showToast(`Transição inválida de status: ${activeTicket.status} -> ${nextStatus}.`, 3500);
         return;
       }
-      if (activeTicket.status === TICKET_STATUS.NEW && nextStatus === TICKET_STATUS.WAITING_TECH_OPINION && selectedDirectors.length === 0) {
-        showToast('Selecione ao menos um Diretor envolvido antes de aceitar a OS.', 3000);
-        return;
-      }
       if (activeTicket.status === TICKET_STATUS.NEW && nextStatus === TICKET_STATUS.WAITING_TECH_OPINION && (!techTeam || !ticketPriority)) {
         showToast('Defina equipe responsável e urgência antes de aceitar a OS.', 3000);
+        return;
+      }
+      const statusReason = statusTransitionReason.trim();
+      if (!statusReason && nextStatus !== TICKET_STATUS.CANCELED) {
+        showToast('Informe o motivo da transição manual de status.', 3000);
         return;
       }
       Object.assign(updates, buildStatusSideEffects(nextStatus, new Date()));
       updates.status = nextStatus;
       changes.push(`status: ${activeTicket.status} -> ${nextStatus}`);
+      if (statusReason) {
+        changes.push(`motivo: ${statusReason}`);
+      }
     }
 
     if (changes.length === 0) {
@@ -1340,6 +1409,7 @@ export function InboxView() {
 
     setIsSending(true);
     try {
+      const changedStatus = nextStatus !== activeTicket.status;
       updateTicket(activeTicket.id, {
         ...updates,
         history: [
@@ -1352,7 +1422,7 @@ export function InboxView() {
             text: `Painel da OS atualizado: ${changes.join(' · ')}.`,
           },
         ],
-      });
+      }, changedStatus ? { sendEmailUpdate: sendStatusEmailUpdate } : undefined);
     } finally {
       window.setTimeout(() => setIsSending(false), 600);
     }
@@ -1398,14 +1468,14 @@ export function InboxView() {
       return;
     }
 
-    if (selectedDirectors.length === 0) {
-      showToast('Selecione ao menos um Diretor envolvido antes de aceitar a OS.', 3000);
-      return;
-    }
-
     const target = isExternalTeam
       ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || 'Terceiro selecionado')
       : techTeam;
+    const statusReason = statusTransitionReason.trim();
+    if (!statusReason) {
+      showToast('Informe o motivo para aceitar e mover a OS de status.', 3000);
+      return;
+    }
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
     const nextSector = ticketDetailsForm.sector.trim() || activeTicket.sector || 'Email';
@@ -1432,10 +1502,10 @@ export function InboxView() {
             type: 'system',
             sender: displayActorLabel,
             time: new Date(),
-            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, setor ${nextSector}${nextLocation ? `, local ${nextLocation}` : ''} e encaminhada para ${target}.`,
+            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, local ${nextSector}${nextLocation ? `, detalhe do local ${nextLocation}` : ''} e encaminhada para ${target}. Motivo da transição: ${statusReason}.`,
           },
         ],
-      });
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
 
       setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
       showToast('Triagem concluída e OS aceita.', 2500);
@@ -1461,13 +1531,14 @@ export function InboxView() {
       }
 
       const messageWithAttachments = trimmedReply;
+      const shouldSendMessageEmail = sendMessageEmailUpdate;
 
       if (replyMode === 'internal') {
         const items: HistoryItem[] = [];
         let newStatus = activeTicket.status;
 
         if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
-          newStatus = TICKET_STATUS.WAITING_SOLUTION_APPROVAL;
+          newStatus = hasInvolvedDirectors ? TICKET_STATUS.WAITING_SOLUTION_APPROVAL : TICKET_STATUS.WAITING_BUDGET;
           if (trimmedReply || uploadedReplyAttachments.length > 0) {
             items.push({
               id: crypto.randomUUID(),
@@ -1484,7 +1555,9 @@ export function InboxView() {
             type: 'system',
             sender,
             time: new Date(now.getTime() + 1),
-            text: 'Parecer consolidado e enviado para aprovação da Diretoria.',
+            text: hasInvolvedDirectors
+              ? 'Parecer consolidado e enviado para aprovação da Diretoria.'
+              : 'Parecer consolidado sem diretores envolvidos. Etapa de aprovação da Diretoria pulada e OS liberada para orçamento.',
             visibility: 'internal',
           });
         } else if (trimmedReply || uploadedReplyAttachments.length > 0) {
@@ -1510,7 +1583,7 @@ export function InboxView() {
                 ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
                 : activeTicket.attachments,
             history: [...activeTicket.history, ...items],
-          });
+          }, newStatus !== activeTicket.status ? { sendEmailUpdate: shouldSendMessageEmail } : undefined);
         }
       } else if (replyMode === 'public') {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
@@ -1535,7 +1608,9 @@ export function InboxView() {
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
-        void notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails);
+        if (shouldSendMessageEmail) {
+          void notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails);
+        }
       } else {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
           setIsSending(false);
@@ -1557,7 +1632,9 @@ export function InboxView() {
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
-        void notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments);
+        if (shouldSendMessageEmail) {
+          void notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments);
+        }
       }
 
       setReplyText('');
@@ -1683,7 +1760,7 @@ export function InboxView() {
               : 'Execução iniciada com fluxo financeiro por marcos de andamento.',
           },
         ],
-      });
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
 
       setShowExecutionSetupModal(false);
       showToast(`Execução iniciada. Fluxo ${paymentFlowParts}x registrado.`, 3000);
@@ -1828,7 +1905,7 @@ export function InboxView() {
             text: `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
           },
         ],
-      });
+      }, nextStatus !== activeTicket.status ? { sendEmailUpdate: sendStatusEmailUpdate } : undefined);
 
       setShowProgressModal(false);
       setProgressReportFiles([]);
@@ -1851,7 +1928,7 @@ export function InboxView() {
       status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
       closureChecklist: buildValidationClosureChecklist(activeTicket, now),
       history: [...activeTicket.history, item],
-    });
+    }, { sendEmailUpdate: sendStatusEmailUpdate });
     window.setTimeout(() => setIsSending(false), 500);
   };
 
@@ -1907,7 +1984,7 @@ export function InboxView() {
     .filter(attachment => attachment?.url)
     .map(attachment => ({
       title: attachment.name,
-      type: attachment.contentType?.includes('pdf') ? 'pdf' as const : 'image' as const,
+      type: resolveAttachmentPreviewType(attachment.contentType, attachment.name),
       url: attachment.url,
     }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
@@ -1939,6 +2016,9 @@ export function InboxView() {
     setPendingCancelTicketUpdates(null);
     setShowMobileTicketList(false);
     setShowMobileContext(false);
+    setStatusTransitionReason('');
+    setSendStatusEmailUpdate(false);
+    setSendMessageEmailUpdate(false);
   }, [activeTicketId]);
 
   useEffect(() => {
@@ -2771,20 +2851,26 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         time: new Date(),
         text:
           roundType === 'additive'
-            ? `Aditivo ${additiveIndex} consolidado e enviado para aprovação da Diretoria.`
-            : `Orçamentos da rodada ${initialRoundIndex} consolidados e enviados para aprovação da Diretoria.`,
+            ? (hasInvolvedDirectors
+              ? `Aditivo ${additiveIndex} consolidado e enviado para aprovação da Diretoria.`
+              : `Aditivo ${additiveIndex} consolidado sem diretores envolvidos. Aprovação da Diretoria pulada.`)
+            : (hasInvolvedDirectors
+              ? `Orçamentos da rodada ${initialRoundIndex} consolidados e enviados para aprovação da Diretoria.`
+              : `Orçamentos da rodada ${initialRoundIndex} consolidados sem diretores envolvidos. Aprovação da Diretoria pulada.`),
       };
       updateTicket(activeTicket.id, {
-        status: TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+        status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_BUDGET_APPROVAL : TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
         directorCcEmails: directorInterestedEmails,
         history: [...activeTicket.history, historyItem],
-      });
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
       setIsSending(false);
       setShowQuotesModal(false);
       showToast(
-        roundType === 'additive'
-          ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!`
-          : `Rodada ${initialRoundIndex} de orçamentos enviada para a Diretoria com sucesso!`,
+        hasInvolvedDirectors
+          ? (roundType === 'additive'
+            ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!`
+            : `Rodada ${initialRoundIndex} de orçamentos enviada para a Diretoria com sucesso!`)
+          : 'Sem diretores envolvidos: a etapa de aprovação da Diretoria foi pulada.',
         3000
       );
     }, 1500);
@@ -2834,7 +2920,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
     setContractsByTicket(prev => ({ ...prev, [activeTicket.id]: nextContract }));
     updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+      status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_CONTRACT_APPROVAL : TICKET_STATUS.WAITING_PRELIM_ACTIONS,
       history: [
         ...activeTicket.history,
         {
@@ -2842,15 +2928,22 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           type: 'system',
           sender: displayActorLabel,
           time: now,
-          text: `Contrato anexado pelo gestor (${contractDispatchFile.name}) e enviado para aprovação da Diretoria.`,
+          text: hasInvolvedDirectors
+            ? `Contrato anexado pelo gestor (${contractDispatchFile.name}) e enviado para aprovação da Diretoria.`
+            : `Contrato anexado pelo gestor (${contractDispatchFile.name}) sem diretores envolvidos. Aprovação da Diretoria pulada e OS liberada para ações preliminares.`,
         },
       ],
-    });
+    }, { sendEmailUpdate: sendStatusEmailUpdate });
 
     setContractDispatchFile(null);
     setShowContractDispatchModal(false);
     setIsSending(false);
-    showToast('Contrato enviado para aprovação da Diretoria.', 3000);
+    showToast(
+      hasInvolvedDirectors
+        ? 'Contrato enviado para aprovação da Diretoria.'
+        : 'Sem diretores envolvidos: contrato registrado e OS liberada para ações preliminares.',
+      3000
+    );
   };
 
   // Usa trackingToken (opaco) em vez do ID sequencial
@@ -2946,7 +3039,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           text: `OS cancelada por ${displayActorLabel}. Motivo: ${reasonText}.`,
         },
       ],
-    });
+    }, { sendEmailUpdate: sendStatusEmailUpdate });
     setPendingCancelTicketUpdates(null);
     setShowCancelTicketModal(false);
     setShowActionsMenu(false);
@@ -2956,6 +3049,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   const handleReopenTicket = () => {
     if (!([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED] as Ticket['status'][]).includes(activeTicket.status)) {
       showToast('Erro: apenas OS encerrada ou cancelada pode ser reaberta.', 3000);
+      return;
+    }
+    const statusReason = statusTransitionReason.trim();
+    if (!statusReason) {
+      showToast('Informe o motivo para reabrir a OS.', 3000);
       return;
     }
     const nextStatus = resolveReopenStatus();
@@ -2969,10 +3067,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
           type: 'system',
           sender: displayActorLabel,
           time: new Date(),
-          text: `OS reaberta pelo gestor para ${nextStatus}.`,
+          text: `OS reaberta pelo gestor para ${nextStatus}. Motivo da transição: ${statusReason}.`,
         },
       ],
-    });
+    }, { sendEmailUpdate: sendStatusEmailUpdate });
     setStatusDraft(nextStatus);
     setShowActionsMenu(false);
     showToast(`OS ${activeTicket.id} reaberta.`, 3000);
@@ -3263,6 +3361,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     ) : null}
                   </div>
                   <h1 className="text-[1.7rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.85rem] xl:text-[2rem]">{activeTicket.subject}</h1>
+                  <div className="mt-1 text-sm text-roman-text-sub">
+                    Solicitante: <span className="font-medium text-roman-text-main">{activeTicket.requester || 'Não informado'}</span>
+                  </div>
                 </div>
                 <div className="relative">
                   <button
@@ -3413,7 +3514,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     .filter(attachment => attachment?.url)
                     .map(attachment => ({
                       title: attachment.name,
-                      type: attachment.contentType?.includes('pdf') ? ('pdf' as const) : ('image' as const),
+                      type: resolveAttachmentPreviewType(attachment.contentType, attachment.name),
                       url: attachment.url,
                     }));
 
@@ -3603,7 +3704,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 {/* Textarea */}
                 <textarea
                   ref={replyTextRef}
-                  className="w-full h-24 p-4 outline-none resize-none bg-transparent font-sans disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-20 p-4 outline-none resize-none bg-transparent font-sans md:h-24 disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder={
                     isClosed
                       ? 'Esta OS está encerrada e não aceita novos comentários.'
@@ -3632,41 +3733,53 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
 
                 {/* Footer */}
-                <div className="p-3 border-t border-roman-border/50 flex justify-between items-center bg-roman-bg/60">
-                  <div className="text-xs text-roman-text-sub font-serif italic">
+                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 p-3 backdrop-blur">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="text-xs text-roman-text-sub font-serif italic">
                     {replyMode === 'internal'
                       ? internalActionText
                       : replyMode === 'director'
                         ? 'Ação: Notificar Diretoria por e-mail (conversa interna)'
                         : 'Ação: Responder à corrente do solicitante com cópia para os interessados selecionados'}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setReplyText('');
-                        setReplyFiles([]);
-                        if (replyFileRef.current) replyFileRef.current.value = '';
-                      }}
-                      className="px-4 py-1.5 text-roman-text-sub hover:bg-roman-bg rounded font-medium transition-colors disabled:opacity-50"
-                      disabled={isClosed}
-                    >
-                      Cancelar
-                    </button>
-                    <div className="flex rounded-sm overflow-hidden shadow-sm">
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <label className="mr-2 inline-flex items-center gap-2 text-xs text-roman-text-main">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
+                          checked={sendMessageEmailUpdate}
+                          onChange={event => setSendMessageEmailUpdate(event.target.checked)}
+                          disabled={isClosed || isSending}
+                        />
+                        Enviar e-mail de atualização
+                      </label>
                       <button
-                        onClick={handleSend}
-                        className="bg-roman-sidebar hover:bg-stone-900 text-white px-4 py-1.5 font-medium transition-colors tracking-wide flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={isClosed || isSending}
+                        onClick={() => {
+                          setReplyText('');
+                          setReplyFiles([]);
+                          if (replyFileRef.current) replyFileRef.current.value = '';
+                        }}
+                        className="rounded px-4 py-1.5 font-medium text-roman-text-sub transition-colors hover:bg-roman-bg disabled:opacity-50"
+                        disabled={isClosed}
                       >
-                        {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                        {isSending
-                          ? 'Enviando...'
-                          : replyMode === 'internal'
-                            ? internalButtonText
-                            : replyMode === 'director'
-                              ? 'Enviar à Diretoria'
-                              : 'Enviar aos Interessados'}
+                        Cancelar
                       </button>
+                      <div className="flex overflow-hidden rounded-sm shadow-sm">
+                        <button
+                          onClick={handleSend}
+                          className="flex items-center gap-2 bg-roman-sidebar px-4 py-1.5 font-medium tracking-wide text-white transition-colors hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isClosed || isSending}
+                        >
+                          {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                          {isSending
+                            ? 'Enviando...'
+                            : replyMode === 'internal'
+                              ? internalButtonText
+                              : replyMode === 'director'
+                                ? 'Enviar à Diretoria'
+                                : 'Enviar aos Interessados'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3997,7 +4110,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Setor</label>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Local</label>
                       <input
                         type="text"
                         value={ticketDetailsForm.sector}
@@ -4008,13 +4121,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       />
                       {activeTicket.sector === 'Email' && (
                         <div className="mt-1 text-[11px] text-amber-700">
-                          Esta OS veio por e-mail. Ajuste o setor correto antes de aceitar.
+                          Esta OS veio por e-mail. Ajuste o local correto antes de aceitar.
                         </div>
                       )}
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Local exato</label>
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Detalhe do local</label>
                       <input
                         type="text"
                         value={ticketDetailsForm.location}
@@ -4038,6 +4151,26 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <option key={`triage-macro-${item.id}`} value={item.id}>{item.name}</option>
                         ))}
                       </select>
+                      {canEditQuickPanel && (
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            type="text"
+                            value={newMacroServiceName}
+                            onChange={event => setNewMacroServiceName(event.target.value)}
+                            placeholder="Novo macroserviço"
+                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending || savingQuickCatalog}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleQuickCreateMacroService()}
+                            disabled={isSending || savingQuickCatalog || !newMacroServiceName.trim()}
+                            className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-50"
+                          >
+                            + Criar
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -4053,8 +4186,54 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           <option key={`triage-service-${item.id}`} value={item.id}>{item.name}</option>
                         ))}
                       </select>
+                      {canEditQuickPanel && (
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            type="text"
+                            value={newServiceName}
+                            onChange={event => setNewServiceName(event.target.value)}
+                            placeholder="Novo serviço"
+                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isSending || savingQuickCatalog || !ticketDetailsForm.macroServiceId}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleQuickCreateService()}
+                            disabled={isSending || savingQuickCatalog || !ticketDetailsForm.macroServiceId || !newServiceName.trim()}
+                            className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-50"
+                          >
+                            + Criar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {canManageStatus && (
+                    <div className="space-y-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
+                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                        Motivo da transição manual
+                      </label>
+                      <textarea
+                        value={statusTransitionReason}
+                        onChange={event => setStatusTransitionReason(event.target.value)}
+                        placeholder="Obrigatório quando houver mudança manual de status."
+                        className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                        rows={2}
+                        disabled={isSending}
+                      />
+                      <label className="inline-flex items-center gap-2 text-xs text-roman-text-main">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
+                          checked={sendStatusEmailUpdate}
+                          onChange={event => setSendStatusEmailUpdate(event.target.checked)}
+                          disabled={isSending}
+                        />
+                        Enviar e-mail de atualização de status
+                      </label>
+                    </div>
+                  )}
 
                   {isExternalTeam && (
                     <div className="space-y-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
@@ -4144,10 +4323,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         })}
                       </div>
                     ) : (
-                      <div className="text-xs text-roman-text-sub">Cadastre usuários com perfil Diretor para liberar o aceite.</div>
+                      <div className="text-xs text-roman-text-sub">Sem diretores ativos cadastrados no momento.</div>
                     )}
                     <div className="mt-2 text-[11px] text-roman-text-sub">
-                      Apenas os diretores selecionados recebem e visualizam aprovações desta OS.
+                      Quando houver diretores selecionados, apenas eles recebem e visualizam aprovações desta OS.
+                      Sem seleção, a OS segue sem notificações/fila da diretoria.
                     </div>
                   </div>
 
@@ -4233,24 +4413,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </button>
                 {sidebarSections.summary && (
                   <>
-                    <div className="mt-3 rounded-xl border border-roman-border bg-roman-bg px-3 py-3">
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Assunto</div>
-                      <div className="mt-1 text-[15px] font-serif text-roman-text-main leading-snug">{activeTicket.subject || 'Sem assunto definido'}</div>
-                    </div>
                     <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
                       <PropertyField label="Solicitante" value={activeTicket.requester} />
-                      <PropertyField label="E-mail" value={activeTicket.requesterEmail || 'Não informado'} />
-                      <PropertyField
-                        label="Interessados"
-                        value={
-                          Array.isArray(activeTicket.requesterCcEmails) && activeTicket.requesterCcEmails.length > 0
-                            ? activeTicket.requesterCcEmails.join(', ')
-                            : 'Não informado'
-                        }
-                      />
-                      <PropertyField label="Setor" value={activeTicket.sector} />
-                      <PropertyField label="Local" value={activeTicket.location || 'Não informado'} />
-                      <PropertyField label="Região" value={getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)} />
+                      <PropertyField label="Local" value={activeTicket.sector} />
+                      <PropertyField label="Detalhe do local" value={activeTicket.location || 'Não informado'} />
                       <PropertyField label="Sede" value={getTicketSiteLabel(activeTicket, catalogSites)} />
                       <PropertyField label="Status atual" value={activeTicket.status} />
                       <PropertyField

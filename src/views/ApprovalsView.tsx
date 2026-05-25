@@ -236,7 +236,7 @@ export function ApprovalsView() {
     if (currentUser?.role !== 'Diretor') return true;
     const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
     const directorEmails = Array.isArray(ticket.directorEmails) ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()) : [];
-    if (directorIds.length === 0 && directorEmails.length === 0) return true;
+    if (directorIds.length === 0 && directorEmails.length === 0) return false;
     const currentId = String(currentUser.id || '').trim();
     const currentEmail = String(currentUser.email || '').trim().toLowerCase();
     return Boolean(

@@ -448,7 +448,7 @@ export default function App() {
             <div className="bg-roman-surface w-full max-w-5xl h-[88vh] md:h-[82vh] rounded-sm shadow-2xl flex flex-col overflow-hidden border border-roman-border">
               <div className="flex justify-between items-center p-4 border-b border-roman-border bg-roman-sidebar text-white">
                 <div className="flex items-center gap-3">
-                  {attachmentPreview.type === 'pdf' ? <FileText size={20} className="text-roman-primary" /> : <ImageIcon size={20} className="text-roman-primary" />}
+                  {attachmentPreview.type === 'image' ? <ImageIcon size={20} className="text-roman-primary" /> : <FileText size={20} className="text-roman-primary" />}
                   <h3 className="font-serif text-lg font-medium">{attachmentPreview.title}</h3>
                 </div>
                 <button onClick={closeAttachment} className="text-white/70 hover:text-white transition-colors">

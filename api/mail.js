@@ -32,9 +32,20 @@ function parseTicketId(text) {
   return match ? match[0].toUpperCase() : null;
 }
 
+function stripReplyForwardPrefixes(text) {
+  let next = String(text || '').trim();
+  let previous = '';
+  while (next && previous !== next) {
+    previous = next;
+    next = next.replace(/^\s*(?:(?:re|fw|fwd)\s*:\s*)+/i, '').trim();
+  }
+  return next;
+}
+
 function parseNewTicketSubject(text) {
   if (!text) return null;
-  const match = String(text).match(/^\s*(?:(?:re|fw|fwd)\s*:\s*)*[\[\(\{]([^\]\)\}]+)[\]\)\}]\s*[-–—:]\s*(.+?)\s*$/i);
+  const normalizedSubject = stripReplyForwardPrefixes(text);
+  const match = normalizedSubject.match(/^\s*[\[\(\{]([^\]\)\}]+)[\]\)\}]\s*[-–—:]\s*(.+?)\s*$/i);
   if (!match) return null;
   return {
     siteCode: String(match[1] || '').trim(),
@@ -86,6 +97,90 @@ function stripHtml(value) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildSimpleHtmlEmail(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '<p></p>';
+  const blocks = text
+    .split(/\n{2,}/)
+    .map(block => block.trim())
+    .filter(Boolean);
+  return blocks
+    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+function isForwardHeaderLine(line) {
+  const normalized = String(line || '').trim();
+  if (!normalized) return false;
+  return /^(from|de|date|data|to|para|subject|assunto|cc|cco|enviado)\s*:/i.test(normalized);
+}
+
+function extractForwardedMessageBody(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+
+  const markerRegex = /^\s*(?:-+\s*)?(?:forwarded message|mensagem encaminhada)(?:\s*-+)?\s*$/im;
+  const marker = markerRegex.exec(text);
+  if (!marker) return '';
+
+  const preface = text.slice(0, marker.index).trim();
+  const forwardedRaw = text.slice(marker.index + marker[0].length).trim();
+  if (!forwardedRaw) return preface;
+
+  const lines = forwardedRaw.split('\n');
+  let pointer = 0;
+  while (pointer < lines.length && !lines[pointer].trim()) pointer += 1;
+
+  let headerLines = 0;
+  while (pointer < lines.length) {
+    const current = lines[pointer].trim();
+    if (!current) {
+      pointer += 1;
+      if (headerLines > 0) break;
+      continue;
+    }
+    if (isForwardHeaderLine(current) || /^-+$/.test(current)) {
+      headerLines += 1;
+      pointer += 1;
+      continue;
+    }
+    if (/^(on|em)\s.+(wrote|escreveu):\s*$/i.test(current)) {
+      pointer += 1;
+      continue;
+    }
+    break;
+  }
+
+  const forwardedBody = lines.slice(pointer).join('\n').trim();
+  if (!forwardedBody) return preface;
+  return [preface, forwardedBody].filter(Boolean).join('\n\n').trim();
+}
+
+function extractInboundMessageBody(textValue, htmlValue) {
+  const candidates = [String(textValue || '').trim(), stripHtml(htmlValue)].filter(Boolean);
+  for (const candidate of candidates) {
+    const forwarded = extractForwardedMessageBody(candidate);
+    if (forwarded) {
+      const cleanedForwarded = stripSignature(forwarded);
+      if (cleanedForwarded) return cleanedForwarded;
+      if (forwarded) return forwarded;
+    }
+    const stripped = stripSignature(stripQuotedReply(candidate));
+    if (stripped) return stripped;
+    const plain = stripSignature(candidate);
+    if (plain) return plain;
+  }
+  return '';
 }
 
 function stripQuotedReply(value) {
@@ -459,6 +554,16 @@ function isThreadReferenceMissingError(error) {
   return status === 404 || providerMessage.includes('requested entity was not found');
 }
 
+function isGenericPolicyBlock(error) {
+  const raw = String(
+    error?.response?.data?.error?.message ||
+      error?.response?.body ||
+      error?.message ||
+      ''
+  ).toLowerCase();
+  return raw.includes('message rejected') || raw.includes('answer/69585') || raw.includes('message blocked');
+}
+
 async function sendWithGmailThreadFallback({
   toEmail,
   ccEmail,
@@ -563,10 +668,8 @@ async function resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw) {
 
 function buildInboundHistoryEntry(message, options = {}) {
   const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
-  const text =
-    stripSignature(stripQuotedReply(message.text)) ||
-    stripSignature(stripQuotedReply(stripHtml(message.html))) ||
-    'Resposta recebida por e-mail.';
+  const text = extractInboundMessageBody(message.text, message.html) || 'Resposta recebida por e-mail.';
+  const attachments = Array.isArray(message.attachments) ? message.attachments.filter(item => item?.url) : [];
   return {
     id: buildInboundHistoryId(message.messageId || message.id, sender),
     type: options.type || 'customer',
@@ -574,6 +677,7 @@ function buildInboundHistoryEntry(message, options = {}) {
     time: message.internalDate || new Date(),
     text,
     visibility: options.visibility || 'public',
+    ...(attachments.length > 0 ? { attachments } : {}),
   };
 }
 
@@ -727,6 +831,9 @@ async function processGmailInboundMessage(db, msg, source) {
       await finalizeInboundMessageLock(lock.ref);
       return false;
     }
+    const inboundAttachments = createdTicket
+      ? (Array.isArray(createdTicket.attachments) ? createdTicket.attachments : [])
+      : await uploadInboundAttachments(ticketId, msg.attachments || []);
 
     let threadRef = db.collection('emailThreads').doc(ticketId);
     if (msg.threadId) {
@@ -792,7 +899,7 @@ async function processGmailInboundMessage(db, msg, source) {
       inReplyTo: msg.inReplyTo || null,
       references: mergedReferences,
       provider: 'gmail',
-      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+      attachments: inboundAttachments,
       createdAt: now,
     });
 
@@ -804,7 +911,7 @@ async function processGmailInboundMessage(db, msg, source) {
       text: msg.text || null,
       html: msg.html || null,
       messageId,
-      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+      attachments: inboundAttachments,
       createdAt: now,
       source,
     });
@@ -814,6 +921,7 @@ async function processGmailInboundMessage(db, msg, source) {
     if (!createdTicket) {
       await appendInboundMessageToTicketHistory(db, ticketId, {
         ...msg,
+        attachments: inboundAttachments,
         internalDate: now,
       });
     }
@@ -1124,10 +1232,7 @@ async function createTicketFromInbound(db, message) {
   const fromEmail = firstEmail(message.from);
   const ccRecipients = filterCopyRecipients(mergeEmailLists(message.to, message.cc), [fromEmail]);
   const requester = displayNameFromEmail(message.from);
-  const description =
-    stripSignature(stripQuotedReply(String(message.text || '').trim())) ||
-    stripSignature(stripQuotedReply(stripHtml(message.html))) ||
-    parsedSubject.subject;
+  const description = extractInboundMessageBody(String(message.text || '').trim(), message.html) || parsedSubject.subject;
 
   const ticket = {
     id: ticketId,
@@ -1235,7 +1340,8 @@ async function handleSend(req, res) {
     const templateBodyText = String(templateData.bodyText || '').trim();
     const forceBodyFromTemplateData =
       isDirectorTrigger ||
-      triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
+      triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO' ||
+      templateData.useBodyOnly === true;
     const isFinanceTrigger = triggerKey === 'EMAIL-FINANCEIRO-PAGAMENTO';
     const shouldUseRequesterThread = !internalCopy && !isDirectorTrigger && !isFinanceTrigger;
     const shouldUseFinanceThread = !internalCopy && isFinanceTrigger;
@@ -1344,6 +1450,10 @@ async function handleSend(req, res) {
     if (isDirectorTrigger && !internalCopy && !skipDirectorGreeting) {
       personalizedBody = normalizeDirectorGreeting(resolvedBody);
     }
+    const shouldUseMinimalConversationBody =
+      !internalCopy &&
+      triggerKey === 'EMAIL-NOVA-MENSAGEM' &&
+      templateData.useBodyOnly === true;
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
@@ -1367,7 +1477,9 @@ async function handleSend(req, res) {
     });
 
     const finalText = personalizedBody || text || fallbackTemplate.text;
-    const finalHtml = html || fallbackTemplate.html;
+    const finalHtml = shouldUseMinimalConversationBody
+      ? buildSimpleHtmlEmail(finalText)
+      : (html || fallbackTemplate.html);
 
     let sendResult;
     let effectiveInReplyTo = priorMessageId || null;
@@ -1375,23 +1487,54 @@ async function handleSend(req, res) {
     let recoveredThread = false;
 
     if (provider === 'gmail') {
-      const gmailSendResult = await sendWithGmailThreadFallback({
-        toEmail,
-        ccEmail,
-        subject: canonicalSubject,
-        text: finalText,
-        html: finalHtml,
-        inReplyTo: priorMessageId || undefined,
-        references: nextReferences,
-        ticketId,
-        trackingToken: trackingToken || undefined,
-        threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
-        attachments: outboundAttachments,
-      });
-      sendResult = gmailSendResult.result;
-      effectiveInReplyTo = gmailSendResult.inReplyTo;
-      effectiveReferences = gmailSendResult.references;
-      recoveredThread = gmailSendResult.recoveredThread;
+      try {
+        const gmailSendResult = await sendWithGmailThreadFallback({
+          toEmail,
+          ccEmail,
+          subject: canonicalSubject,
+          text: finalText,
+          html: finalHtml,
+          inReplyTo: priorMessageId || undefined,
+          references: nextReferences,
+          ticketId,
+          trackingToken: trackingToken || undefined,
+          threadId: reuseThread ? thread?.gmailThreadId || undefined : undefined,
+          attachments: outboundAttachments,
+        });
+        sendResult = gmailSendResult.result;
+        effectiveInReplyTo = gmailSendResult.inReplyTo;
+        effectiveReferences = gmailSendResult.references;
+        recoveredThread = gmailSendResult.recoveredThread;
+      } catch (error) {
+        const shouldBatchRetryFallback =
+          !internalCopy &&
+          triggerKey === 'EMAIL-NOVA-MENSAGEM' &&
+          ccRecipients.length > 0 &&
+          recipients.length === 1 &&
+          isGenericPolicyBlock(error);
+
+        if (!shouldBatchRetryFallback) throw error;
+
+        // Retry em lote, mantendo todos os destinatários, mas sem contexto de thread.
+        // Alguns filtros bloqueiam respostas em corrente com muitos participantes.
+        const retrySend = await sendWithGmailThreadFallback({
+          toEmail,
+          ccEmail,
+          subject: canonicalSubject,
+          text: finalText,
+          html: finalHtml,
+          inReplyTo: undefined,
+          references: [],
+          ticketId,
+          trackingToken: trackingToken || undefined,
+          threadId: undefined,
+          attachments: outboundAttachments,
+        });
+        sendResult = retrySend.result;
+        effectiveInReplyTo = retrySend.inReplyTo;
+        effectiveReferences = retrySend.references;
+        recoveredThread = retrySend.recoveredThread;
+      }
     } else {
       sendResult = await sendWithSendGrid({
         toEmail,
@@ -1608,6 +1751,185 @@ async function handleGmailSync(req, res) {
       error: error.message || 'Falha no sync do Gmail.',
     });
     return sendJson(res, 400, { ok: false, error: error.message || 'Falha no sync do Gmail.' });
+  }
+}
+
+function coerceDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === 'function') return value.toDate();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+async function reprocessInboundWindow(db, sinceDate) {
+  const counters = {
+    scanned: 0,
+    processed: 0,
+    ticketsUpdated: 0,
+    historyRecovered: 0,
+    threadRecovered: 0,
+  };
+
+  let query = db
+    .collection('ticketInbound')
+    .where('createdAt', '>=', sinceDate)
+    .orderBy('createdAt', 'asc')
+    .limit(200);
+
+  while (true) {
+    const snap = await query.get();
+    if (snap.empty) break;
+
+    for (const doc of snap.docs) {
+      counters.scanned += 1;
+      const inbound = doc.data() || {};
+      const ticketId = String(
+        inbound.ticketId ||
+        parseTicketId(inbound.subject) ||
+        parseTicketId(inbound.text) ||
+        ''
+      )
+        .trim()
+        .toUpperCase();
+      if (!ticketId) continue;
+
+      const ticketRef = db.collection('tickets').doc(ticketId);
+      const ticketSnap = await ticketRef.get();
+      if (!ticketSnap.exists) continue;
+
+      const ticketData = ticketSnap.data() || {};
+      const ticketPatch = {};
+      const parsedSubject = parseNewTicketSubject(inbound.subject || '');
+      if (parsedSubject?.siteCode) {
+        const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
+        if (site?.id && site.id !== ticketData.siteId) ticketPatch.siteId = site.id;
+        if (site?.code && site.code !== ticketData.sede) ticketPatch.sede = site.code;
+        if (region?.id && region.id !== ticketData.regionId) ticketPatch.regionId = region.id;
+        if (region?.name && region.name !== ticketData.region) ticketPatch.region = region.name;
+      }
+      if (Object.keys(ticketPatch).length > 0) {
+        ticketPatch.updatedAt = new Date();
+        await ticketRef.set(ticketPatch, { merge: true });
+        counters.ticketsUpdated += 1;
+      }
+
+      const threadRef = db.collection('emailThreads').doc(ticketId);
+      const createdAt = coerceDateValue(inbound.createdAt) || new Date();
+      await threadRef.set(
+        {
+          ticketId,
+          subject: repairMojibake(String(inbound.subject || ticketData.subject || '')),
+          updatedAt: new Date(),
+          lastInboundAt: createdAt,
+        },
+        { merge: true }
+      );
+
+      const messageId = String(inbound.messageId || '').trim();
+      if (messageId) {
+        const existingMessage = await threadRef
+          .collection('messages')
+          .where('messageId', '==', messageId)
+          .limit(1)
+          .get();
+        if (existingMessage.empty) {
+          await threadRef.collection('messages').add({
+            direction: 'inbound',
+            fromEmail: inbound.fromEmail || null,
+            toEmail: inbound.toEmail || null,
+            subject: inbound.subject || '',
+            text: inbound.text || null,
+            html: inbound.html || null,
+            messageId,
+            inReplyTo: inbound.inReplyTo || null,
+            references: Array.isArray(inbound.references) ? inbound.references : [],
+            provider: inbound.source && String(inbound.source).includes('gmail') ? 'gmail' : 'sendgrid',
+            attachments: Array.isArray(inbound.attachments) ? inbound.attachments : [],
+            createdAt,
+          });
+          counters.threadRecovered += 1;
+        }
+      }
+
+      const historyEntry = buildInboundHistoryEntry(
+        {
+          from: inbound.from || inbound.fromEmail || ticketData.requesterEmail || '',
+          text: inbound.text || '',
+          html: inbound.html || '',
+          messageId: inbound.messageId || doc.id,
+          internalDate: createdAt,
+        },
+        {}
+      );
+      const history = Array.isArray(ticketData.history) ? ticketData.history : [];
+      if (!history.some(item => item?.id === historyEntry.id)) {
+        await ticketRef.set(
+          {
+            history: [...history, historyEntry],
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
+        counters.historyRecovered += 1;
+      }
+
+      counters.processed += 1;
+    }
+
+    if (snap.size < 200) break;
+    const last = snap.docs[snap.docs.length - 1];
+    query = db
+      .collection('ticketInbound')
+      .where('createdAt', '>=', sinceDate)
+      .orderBy('createdAt', 'asc')
+      .startAfter(last)
+      .limit(200);
+  }
+
+  return counters;
+}
+
+async function handleReprocessInbound(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+
+    await requireUserWithRoles(req, ['Admin', 'Gestor', 'Diretor']);
+    const body = await readJsonBody(req);
+    const daysRaw = Number(body?.days || 30);
+    const days = Number.isFinite(daysRaw) ? Math.min(60, Math.max(1, Math.floor(daysRaw))) : 30;
+    const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const db = getAdminDb();
+
+    const result = await reprocessInboundWindow(db, sinceDate);
+    await logEmailEvent({
+      type: 'sync',
+      status: 'success',
+      provider: 'gmail',
+      action: 'reprocess-inbound',
+      processed: result.processed,
+      windowDays: days,
+    });
+
+    return sendJson(res, 200, {
+      ok: true,
+      idempotent: true,
+      windowDays: days,
+      since: sinceDate.toISOString(),
+      result,
+    });
+  } catch (error) {
+    await logEmailEvent({
+      type: 'sync',
+      status: 'error',
+      provider: 'gmail',
+      action: 'reprocess-inbound',
+      error: error.message || 'Falha no reprocessamento inbound.',
+    });
+    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no reprocessamento inbound.' });
   }
 }
 
@@ -1917,6 +2239,9 @@ async function handleInbound(req, res) {
       await finalizeInboundMessageLock(lock.ref);
       return sendJson(res, 422, { ok: false, error: 'Não foi possível identificar o ticket no inbound.' });
     }
+    const inboundAttachments = createdTicket
+      ? (Array.isArray(createdTicket.attachments) ? createdTicket.attachments : [])
+      : await uploadInboundAttachments(ticketId, attachments);
 
     const messageId = rawMessageId || `<inbound-${ticketId}-${Date.now()}@sendgrid>`;
     const references = String(referencesRaw)
@@ -1967,7 +2292,7 @@ async function handleInbound(req, res) {
       inReplyTo,
       references,
       headers,
-      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+      attachments: inboundAttachments,
       createdAt: now,
     });
 
@@ -1978,7 +2303,7 @@ async function handleInbound(req, res) {
       text: text || null,
       html: html || null,
       messageId,
-      attachments: Array.isArray(createdTicket?.attachments) ? createdTicket.attachments : [],
+      attachments: inboundAttachments,
       createdAt: now,
       source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
     });
@@ -1990,6 +2315,7 @@ async function handleInbound(req, res) {
         from: body.from,
         text,
         html,
+        attachments: inboundAttachments,
         messageId,
         internalDate: now,
       });
@@ -2024,6 +2350,7 @@ export default async function handler(req, res) {
   if (route === 'send') return handleSend(req, res);
   if (route === 'health') return handleHealth(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
+  if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
   if (route === 'gmail-watch') return handleGmailWatch(req, res);
   if (route === 'gmail-push') return handleGmailPush(req, res);
   if (route === 'inbound') return handleInbound(req, res);

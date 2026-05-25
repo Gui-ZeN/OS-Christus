@@ -126,8 +126,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!formData.subject.trim()) newErrors.subject = 'Assunto é obrigatório';
     if (!formData.description.trim()) newErrors.description = 'Descrição é obrigatória';
     if (!formData.type) newErrors.type = 'Selecione o tipo';
-    if (!formData.sector.trim()) newErrors.sector = 'Setor é obrigatório';
-    if (!formData.location.trim()) newErrors.location = 'Local é obrigatório';
+    if (!formData.sector.trim()) newErrors.sector = 'Local é obrigatório';
+    if (!formData.location.trim()) newErrors.location = 'Detalhe do local é obrigatório';
     if (!formData.region) newErrors.region = 'Selecione a região';
     if (!formData.sede) newErrors.sede = 'Selecione a sede';
     setErrors(newErrors);
@@ -416,7 +416,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   <span className="mt-1 block text-xs text-roman-text-sub">O administrador pode complementar essa informação depois.</span>
                 </div>
                 <div>
-                  <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Setor</label>
+                  <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Local</label>
                   <input
                     id="pf-sector"
                     type="text"
@@ -429,7 +429,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.sector && <span className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
                 </div>
                 <div>
-                  <label htmlFor="pf-location" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Local exato</label>
+                  <label htmlFor="pf-location" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Detalhe do local</label>
                   <input
                     id="pf-location"
                     type="text"

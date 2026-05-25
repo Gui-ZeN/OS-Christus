@@ -36,6 +36,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [reprocessLoading, setReprocessLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [data, setData] = useState<EmailHealthResponse | null>(null);
@@ -82,6 +83,32 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  const reprocessInbound = async () => {
+    setReprocessLoading(true);
+    setSyncMessage(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/mail?route=reprocess-inbound', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getAuthenticatedActorHeaders()) },
+        body: JSON.stringify({ days: 30 }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || 'Falha ao reprocessar inbound.');
+      }
+      const recovered = Number(json?.result?.historyRecovered || 0);
+      const processed = Number(json?.result?.processed || 0);
+      setSyncMessage(`Reprocessamento concluído (30 dias): ${processed} entrada(s), ${recovered} histórico(s) recuperado(s).`);
+      await refreshTickets();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha inesperada ao reprocessar inbound.');
+    } finally {
+      setReprocessLoading(false);
+    }
+  };
+
   useEffect(() => {
     void load();
   }, []);
@@ -112,7 +139,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
             <button
               onClick={() => void load()}
               className="flex w-full items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary sm:w-auto"
-              disabled={loading || syncLoading}
+              disabled={loading || syncLoading || reprocessLoading}
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
               Atualizar
@@ -120,10 +147,18 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
             <button
               onClick={() => void syncInbox()}
               className="flex w-full items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60 sm:w-auto"
-              disabled={loading || syncLoading}
+              disabled={loading || syncLoading || reprocessLoading}
             >
               <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
               Sincronizar e-mails
+            </button>
+            <button
+              onClick={() => void reprocessInbound()}
+              className="flex w-full items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60 sm:w-auto"
+              disabled={loading || syncLoading || reprocessLoading}
+            >
+              <RefreshCw size={16} className={reprocessLoading ? 'animate-spin' : ''} />
+              Reprocessar 30 dias
             </button>
           </div>
         </header>
@@ -139,7 +174,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
             <button
               onClick={() => void load()}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary sm:w-auto"
-              disabled={loading || syncLoading}
+              disabled={loading || syncLoading || reprocessLoading}
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
               Atualizar
@@ -147,10 +182,18 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
             <button
               onClick={() => void syncInbox()}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60 sm:w-auto"
-              disabled={loading || syncLoading}
+              disabled={loading || syncLoading || reprocessLoading}
             >
               <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
               Sincronizar e-mails
+            </button>
+            <button
+              onClick={() => void reprocessInbound()}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60 sm:w-auto"
+              disabled={loading || syncLoading || reprocessLoading}
+            >
+              <RefreshCw size={16} className={reprocessLoading ? 'animate-spin' : ''} />
+              Reprocessar 30 dias
             </button>
           </div>
         </div>

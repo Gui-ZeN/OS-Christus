@@ -17,6 +17,29 @@ export function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function resolveCodePayloadFromActionLink(firebaseUrl) {
+  const parsed = new URL(firebaseUrl);
+  let oobCode = parsed.searchParams.get('oobCode');
+  let mode = parsed.searchParams.get('mode') || 'resetPassword';
+  let apiKey = parsed.searchParams.get('apiKey') || '';
+  let lang = parsed.searchParams.get('lang') || '';
+
+  const nestedLink = parsed.searchParams.get('link');
+  if ((!oobCode || !mode) && nestedLink) {
+    try {
+      const nested = new URL(decodeURIComponent(nestedLink));
+      oobCode = oobCode || nested.searchParams.get('oobCode');
+      mode = mode || nested.searchParams.get('mode') || 'resetPassword';
+      apiKey = apiKey || nested.searchParams.get('apiKey') || '';
+      lang = lang || nested.searchParams.get('lang') || '';
+    } catch {
+      // mantém fallback externo
+    }
+  }
+
+  return { oobCode, mode, apiKey, lang };
+}
+
 export async function generatePasswordResetUrl(email, req) {
   const auth = getAuth();
   const baseUrl = resolveBaseUrlFromRequest(req);
@@ -25,14 +48,15 @@ export async function generatePasswordResetUrl(email, req) {
     handleCodeInApp: false,
   };
   const firebaseUrl = await auth.generatePasswordResetLink(email, actionCodeSettings);
-  const parsed = new URL(firebaseUrl);
-  const oobCode = parsed.searchParams.get('oobCode');
-  const mode = parsed.searchParams.get('mode') || 'resetPassword';
+  const { oobCode, mode, apiKey, lang } = resolveCodePayloadFromActionLink(firebaseUrl);
   if (!oobCode) return firebaseUrl;
   const appUrl = new URL(`${baseUrl}/`);
   appUrl.searchParams.set('view', 'password-reset');
   appUrl.searchParams.set('mode', mode);
   appUrl.searchParams.set('oobCode', oobCode);
+  if (apiKey) appUrl.searchParams.set('apiKey', apiKey);
+  if (lang) appUrl.searchParams.set('lang', lang);
+  appUrl.searchParams.set('issuedAt', String(Date.now()));
   return appUrl.toString();
 }
 

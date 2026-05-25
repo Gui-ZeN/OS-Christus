@@ -23,6 +23,14 @@ function resolveDirectorToEmail(ticket: Ticket): string {
     : '';
 }
 
+function hasInvolvedDirectors(ticket: Ticket): boolean {
+  const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds.filter(Boolean) : [];
+  const directorEmails = Array.isArray(ticket.directorEmails)
+    ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  return directorIds.length > 0 || directorEmails.length > 0;
+}
+
 function buildTrackingUrl(ticket: Ticket) {
   return `${window.location.origin}/?tracking=${encodeURIComponent(ticket.trackingToken)}`;
 }
@@ -139,8 +147,8 @@ function buildDirectorTicketSummary(ticket: Ticket): string {
   return [
     `- Assunto: ${ticket.subject || 'Não informado'}`,
     `- Solicitante: ${ticket.requester || 'Não informado'}`,
-    `- Setor: ${ticket.sector || 'Não informado'}`,
-    `- Local exato: ${ticket.location || 'Não informado'}`,
+    `- Local: ${ticket.sector || 'Não informado'}`,
+    `- Detalhe do local: ${ticket.location || 'Não informado'}`,
     `- Local: ${locationLabel}`,
     `- Tipo de manutenção: ${ticket.type || 'Não informado'}`,
     `- Classificação técnica: ${serviceLabel}`,
@@ -526,8 +534,9 @@ function resolveDirectorApprovalTab(status: string): 'solutions' | 'budgets' | '
 async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) {
   const trigger = String(payload?.trigger || '').trim().toUpperCase();
   let enrichedPayload = { ...payload };
+  const skipDirectorFallback = payload?.skipDirectorFallback === true;
 
-  if (!payload?.toEmail && trigger.startsWith('EMAIL-DIRETORIA-')) {
+  if (!payload?.toEmail && trigger.startsWith('EMAIL-DIRETORIA-') && !skipDirectorFallback) {
     try {
       const directory = await fetchDirectory();
       const directorRecipients = (directory.users || [])
@@ -556,6 +565,10 @@ async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) 
     } catch (error) {
       console.error('[ticketEmail] failed to resolve director recipients from directory', error);
     }
+  }
+
+  if (trigger.startsWith('EMAIL-DIRETORIA-') && skipDirectorFallback && !String(enrichedPayload?.toEmail || '').trim()) {
+    return false;
   }
 
   const sentToConfiguredRecipients = await postEmail({
@@ -662,7 +675,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     });
   }
 
-  if (DIRECTOR_FLOW_STATUSES.has(ticket.status)) {
+  if (DIRECTOR_FLOW_STATUSES.has(ticket.status) && hasInvolvedDirectors(ticket)) {
     const directorTab = resolveDirectorApprovalTab(ticket.status);
     const isApprovalStatus = directorTab !== 'solutions';
     const budgetContext = directorTab === 'budgets' ? await buildDirectorBudgetContext(ticket) : null;
@@ -695,6 +708,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
       toEmail: resolveDirectorToEmail(ticket) || undefined,
       ccEmail: resolveDirectorCcEmail(ticket),
+      skipDirectorFallback: true,
       attachments: directorAttachments,
       variables,
       templateData: {
@@ -766,10 +780,11 @@ export async function notifyTicketPublicReply(
     }),
     templateData: {
       title: 'Nova mensagem registrada',
-      intro: `${sender} enviou uma nova mensagem sobre o chamado ${ticket.subject}.`,
+      intro: '',
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
+      useBodyOnly: true,
       ctaUrl: buildTrackingUrl(ticket),
       ctaLabel: 'Ver mensagem',
     },
@@ -782,6 +797,7 @@ export async function notifyTicketDirectorReply(
   message: string,
   attachments: TicketAttachment[] = []
 ) {
+  if (!hasInvolvedDirectors(ticket)) return;
   const bodyText = appendAttachmentsToBody(message, attachments);
   if (!bodyText.trim()) return;
 
@@ -800,6 +816,7 @@ export async function notifyTicketDirectorReply(
     trigger,
     toEmail: resolveDirectorToEmail(ticket) || undefined,
     ccEmail: resolveDirectorCcEmail(ticket),
+    skipDirectorFallback: true,
     attachments: normalizeEmailAttachments(attachments),
     variables,
     templateData: {
@@ -816,6 +833,7 @@ export async function notifyTicketDirectorReply(
 }
 
 export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: number, additiveReason: string) {
+  if (!hasInvolvedDirectors(ticket)) return;
   const budgetContext = await buildDirectorBudgetContext(ticket);
   const summaryList = buildDirectorTicketSummary(ticket);
   const bodyText = [
@@ -839,6 +857,7 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
     trigger: 'EMAIL-DIRETORIA-APROVACAO',
     toEmail: resolveDirectorToEmail(ticket) || undefined,
     ccEmail: resolveDirectorCcEmail(ticket),
+    skipDirectorFallback: true,
     variables,
     templateData: {
       title: `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} aguardando aprovação`,

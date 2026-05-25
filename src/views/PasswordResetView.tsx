@@ -8,7 +8,21 @@ interface PasswordResetViewProps {
 
 export function PasswordResetView({ onBack }: PasswordResetViewProps) {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const oobCode = params.get('oobCode') || '';
+  const oobCode = useMemo(() => {
+    const direct = String(params.get('oobCode') || '').trim();
+    if (direct) return direct;
+
+    const nestedLink = String(params.get('link') || '').trim();
+    if (!nestedLink) return '';
+
+    try {
+      const decoded = decodeURIComponent(nestedLink);
+      const nestedUrl = new URL(decoded);
+      return String(nestedUrl.searchParams.get('oobCode') || '').trim();
+    } catch {
+      return '';
+    }
+  }, [params]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
