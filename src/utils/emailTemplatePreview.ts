@@ -87,7 +87,7 @@ export const SAMPLE_EMAIL_VARIABLES: Record<string, unknown> = {
     service: 'Reparo estrutural de coberta',
   },
   tracking: {
-    url: 'https://os-christus.vercel.app/?tracking=trk_demo_0051',
+    url: 'https://serv3.vercel.app/?tracking=trk_demo_0051',
   },
   guarantee: {
     summary: '12 meses - até 06/03/2027',
@@ -122,7 +122,7 @@ export function buildEmailPreviewHtml(template: EmailTemplateSettings, variables
   <body style="margin:0;padding:20px;background:#efe8de;font-family:Georgia,'Times New Roman',serif;color:#2d241d;">
     <div style="max-width:680px;margin:0 auto;border:1px solid #d7cbb7;background:#fffdf9;box-shadow:0 18px 42px rgba(34,27,21,0.08);">
       <div style="padding:22px 28px;background:#1f1a15;color:#f8f2e9;">
-        <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">OS Christus</div>
+        <div style="font-size:11px;letter-spacing:2.4px;text-transform:uppercase;opacity:0.72;">Serv3</div>
         <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <div>
             <div style="display:inline-block;padding:5px 10px;border:1px solid rgba(255,255,255,0.16);border-radius:999px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;">${esc(stage.eyebrow)}</div>
@@ -189,9 +189,10 @@ export function buildEmailPreviewHtml(template: EmailTemplateSettings, variables
         </div>
       </div>
       <div style="padding:16px 28px;border-top:1px solid #e9dfd0;background:#faf6ef;color:#7d6b56;font-size:12px;line-height:1.7;">
-        Prévia visual do e-mail institucional enviado pelo OS Christus.
+        Prévia visual do e-mail institucional enviado pelo Serv3.
       </div>
     </div>
   </body>
 </html>`;
 }
+

@@ -23,11 +23,11 @@
 
 ## Variáveis importantes
 - `GOOGLE_APPLICATION_CREDENTIALS=.secrets/firebase-admin.json`
-- `FIREBASE_PROJECT_ID=os-christus`
-- `FIREBASE_STORAGE_BUCKET=os-christus-attachments`
+- `FIREBASE_PROJECT_ID=serv3`
+- `FIREBASE_STORAGE_BUCKET=serv3-attachments`
 - `FIREBASE_ALLOW_BUCKET_CREATE=true|false`
 - `FIREBASE_BUCKET_LOCATION=us-central1`
-- `FIREBASE_CORS_ORIGINS=http://localhost:3000,https://os-christus.vercel.app`
+- `FIREBASE_CORS_ORIGINS=http://localhost:3000,https://serv3.vercel.app`
 - `FIREBASE_SKIP_STORAGE=true|false`
 - `FIREBASE_SKIP_FIRESTORE=true|false`
 
@@ -74,10 +74,11 @@ Teste rápido de envio:
 ```powershell
 $env:SENDGRID_API_KEY="SG.xxxxx"
 $env:SENDGRID_FROM_EMAIL="no-reply@seudominio.com.br"
-$env:SENDGRID_FROM_NAME="OS Christus"
+$env:SENDGRID_FROM_NAME="Serv3"
 $env:SENDGRID_TO_EMAIL_TEST="voce@dominio.com"
 npm run infra:sendgrid:test
 ```
 
 ## Regras
 - `firestore.rules` e `storage.rules` já foram criados no repositório.
+

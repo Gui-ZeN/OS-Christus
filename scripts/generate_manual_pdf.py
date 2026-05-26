@@ -21,8 +21,8 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "docs" / "manual-didatico-os-christus.md"
-OUTPUT = ROOT / "docs" / "Guia_Treinamento_OS_Christus.pdf"
+SOURCE = ROOT / "docs" / "manual-didatico-serv3.md"
+OUTPUT = ROOT / "docs" / "Guia_Treinamento_Serv3.pdf"
 
 
 def clean_inline(text: str) -> str:
@@ -135,7 +135,7 @@ def footer(canvas, doc):
     width, _height = A4
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(colors.HexColor("#827568"))
-    canvas.drawString(1.6 * cm, 1.05 * cm, "OS Christus - Manual didatico")
+    canvas.drawString(1.6 * cm, 1.05 * cm, "Serv3 - Manual didatico")
     canvas.drawRightString(width - 1.6 * cm, 1.05 * cm, f"Pagina {doc.page}")
     canvas.restoreState()
 
@@ -228,8 +228,8 @@ def main():
         rightMargin=1.6 * cm,
         topMargin=1.6 * cm,
         bottomMargin=1.6 * cm,
-        title="Manual Didatico do Sistema OS Christus",
-        author="OS Christus",
+        title="Manual Didatico do Sistema Serv3",
+        author="Serv3",
     )
     story = build_story(markdown)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
@@ -238,3 +238,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

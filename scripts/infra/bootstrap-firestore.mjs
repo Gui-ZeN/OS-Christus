@@ -60,8 +60,8 @@ const DEFAULT_NOTIFICATIONS = [];
 const DEFAULT_SETTINGS = {
   emailTemplates: {
     default: {
-      fromName: 'OS Christus',
-      signature: 'Sistema interno OS Christus',
+      fromName: 'Serv3',
+      signature: 'Sistema interno Serv3',
       replyToMode: 'thread',
     },
   },
@@ -142,9 +142,9 @@ async function seedDirectory(db, adminUid, authUsersByEmail = {}) {
   }
 
   batch.set(
-    db.collection('users').doc('admin-os-christus'),
+    db.collection('users').doc('admin-serv3'),
     {
-      id: 'admin-os-christus',
+      id: 'admin-serv3',
       name: ADMIN_NAME,
       role: 'Admin',
       email: ADMIN_EMAIL,
@@ -370,3 +370,4 @@ main().catch(error => {
   console.error(JSON.stringify({ ok: false, error: error.message, stack: error.stack }, null, 2));
   process.exit(1);
 });
+

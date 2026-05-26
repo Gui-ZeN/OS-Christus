@@ -10,12 +10,12 @@ async function main() {
   const apiKey = getEnv('SENDGRID_API_KEY');
   const fromEmail = getEnv('SENDGRID_FROM_EMAIL');
   const toEmail = process.env.SENDGRID_TO_EMAIL_TEST?.trim() || fromEmail;
-  const fromName = process.env.SENDGRID_FROM_NAME?.trim() || 'OS Christus';
+  const fromName = process.env.SENDGRID_FROM_NAME?.trim() || 'Serv3';
 
   const payload = {
     personalizations: [{ to: [{ email: toEmail }] }],
     from: { email: fromEmail, name: fromName },
-    subject: 'OS Christus - teste de integração SendGrid',
+    subject: 'Serv3 - teste de integração SendGrid',
     content: [
       {
         type: 'text/plain',
@@ -49,3 +49,4 @@ main().catch(error => {
   console.error('Erro no teste SendGrid:', error.message);
   process.exitCode = 1;
 });
+

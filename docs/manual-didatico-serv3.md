@@ -1,4 +1,4 @@
-# Manual Didatico do Sistema OS Christus
+# Manual Didatico do Sistema Serv3
 
 Atualizado em: 20/05/2026
 
@@ -6,7 +6,7 @@ Este manual explica, de forma simples, o que e o sistema, quem usa, como cada te
 
 ## 1. O que e o sistema
 
-O OS Christus e o sistema usado para controlar solicitacoes de manutencao, obras, servicos e acompanhamentos internos.
+O Serv3 e o sistema usado para controlar solicitacoes de manutencao, obras, servicos e acompanhamentos internos.
 
 Ele centraliza:
 
@@ -611,3 +611,4 @@ Em andamento
 - Evite criar nova OS se o assunto ja pertence a uma OS existente.
 - Use o historico de local recorrente para investigar problema cronico.
 - Mantenha catalogos padronizados para melhorar filtros e relatorios.
+

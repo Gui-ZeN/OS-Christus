@@ -1,10 +1,10 @@
-# Guia de Treinamento Operacional - OS Christus
+# Guia de Treinamento Operacional - Serv3
 
 Atualizado em: 15/04/2026
 
 ## 1) O que o sistema faz
 
-O OS Christus controla o ciclo completo da Ordem de Serviço, da abertura ao encerramento, com registro de histórico, anexos, aprovações, execução, financeiro e acompanhamento do solicitante.
+O Serv3 controla o ciclo completo da Ordem de Serviço, da abertura ao encerramento, com registro de histórico, anexos, aprovações, execução, financeiro e acompanhamento do solicitante.
 
 Objetivos principais:
 
@@ -529,3 +529,4 @@ O link não mostra:
 
 - O usuário comum vê todos os módulos?
   - Não. Ele vê apenas o painel simplificado da sua estrutura.
+

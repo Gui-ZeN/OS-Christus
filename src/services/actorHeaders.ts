@@ -2,12 +2,12 @@ import { getCurrentIdToken } from './authClient';
 
 function readStoredEmail() {
   if (typeof window === 'undefined') return '';
-  return (window.localStorage.getItem('os-christus-user-email') || '').trim().toLowerCase();
+  return (window.localStorage.getItem('serv3-user-email') || '').trim().toLowerCase();
 }
 
 function readStoredName() {
   if (typeof window === 'undefined') return '';
-  return (window.localStorage.getItem('os-christus-user-name') || '').trim();
+  return (window.localStorage.getItem('serv3-user-name') || '').trim();
 }
 
 function normalizeNameFromEmail(email: string) {
@@ -38,3 +38,4 @@ export async function getAuthenticatedActorHeaders(): Promise<Record<string, str
     Authorization: `Bearer ${token}`,
   };
 }
+

@@ -1,4 +1,4 @@
-ï»¿import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { APP_THEMES, AppThemeId, AppThemeOption, DEFAULT_APP_THEME } from '../constants/themes';
 import {
@@ -88,7 +88,7 @@ function getInitialView(): ViewState {
   if (queryAllowed.includes(requestedView as ViewState)) {
     return requestedView as ViewState;
   }
-  const stored = window.localStorage.getItem('os-christus-current-view');
+  const stored = window.localStorage.getItem('serv3-current-view');
   const allowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
   return allowed.includes(stored as ViewState) ? (stored as ViewState) : 'landing';
 }
@@ -137,12 +137,12 @@ function resolveTicketRegionIds(ticket: Ticket, regions: CatalogRegion[], sites:
 
 function getInitialUserEmail() {
   if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem('os-christus-user-email') || '';
+  return window.localStorage.getItem('serv3-user-email') || '';
 }
 
 function getInitialTheme(): AppThemeId {
   if (typeof window === 'undefined') return DEFAULT_APP_THEME;
-  const stored = String(window.localStorage.getItem('os-christus-theme') || '').trim() as AppThemeId;
+  const stored = String(window.localStorage.getItem('serv3-theme') || '').trim() as AppThemeId;
   return APP_THEMES.some(theme => theme.id === stored) ? stored : DEFAULT_APP_THEME;
 }
 
@@ -189,11 +189,11 @@ async function resolveAuthorizedUser(email: string) {
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
 
   if (!found) {
-    throw new Error('Acesso nÃ£o autorizado. Seu e-mail ainda nÃ£o foi liberado no sistema. Solicite o cadastro ao administrador.');
+    throw new Error('Acesso não autorizado. Seu e-mail ainda não foi liberado no sistema. Solicite o cadastro ao administrador.');
   }
 
   if (found.status !== 'Ativo' || found.active === false) {
-    throw new Error('Acesso indisponÃ­vel. Seu usuÃ¡rio estÃ¡ inativo no sistema. Procure o administrador para reativaÃ§Ã£o.');
+    throw new Error('Acesso indisponível. Seu usuário está inativo no sistema. Procure o administrador para reativação.');
   }
 
   return found;
@@ -439,9 +439,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (currentUserEmail) {
-      window.localStorage.setItem('os-christus-user-email', currentUserEmail);
+      window.localStorage.setItem('serv3-user-email', currentUserEmail);
     } else {
-      window.localStorage.removeItem('os-christus-user-email');
+      window.localStorage.removeItem('serv3-user-email');
     }
   }, [currentUserEmail]);
 
@@ -449,22 +449,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return;
     const userName = String(currentUser?.name || '').trim();
     if (userName) {
-      window.localStorage.setItem('os-christus-user-name', userName);
+      window.localStorage.setItem('serv3-user-name', userName);
     } else if (!currentUserEmail) {
-      window.localStorage.removeItem('os-christus-user-name');
+      window.localStorage.removeItem('serv3-user-name');
     }
   }, [currentUser?.name, currentUserEmail]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem('os-christus-current-view', currentView);
+    window.localStorage.setItem('serv3-current-view', currentView);
   }, [currentView]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.setAttribute('data-theme', theme);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('os-christus-theme', theme);
+      window.localStorage.setItem('serv3-theme', theme);
     }
   }, [theme]);
 
@@ -495,7 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         clearPendingTicketUpdate(id);
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
-        console.error('[updateTicket] Failed to persist update for ticket', id, 'â€” reverted optimistic update.', error);
+        console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.', error);
         return;
       }
 
@@ -618,7 +618,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentUser(authorizedUser);
       } catch (error) {
         if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
-          throw new Error('NÃ£o foi possÃ­vel validar seu acesso agora. Tente novamente em instantes.');
+          throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
         }
         await logoutFirebaseAuth().catch(() => undefined);
         setCurrentUserEmail('');
@@ -626,13 +626,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     } else {
-      throw new Error('NÃ£o foi possÃ­vel concluir o login neste ambiente. A autenticaÃ§Ã£o do sistema ainda nÃ£o foi configurada no frontend. Verifique as variÃ¡veis VITE_FIREBASE_* da aplicaÃ§Ã£o e publique um novo deploy.');
+      throw new Error('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
     }
   };
 
   const loginWithGoogleAccount = async () => {
     if (!authEnabled) {
-      throw new Error('Login com Google indisponÃ­vel neste ambiente. A autenticaÃ§Ã£o Firebase ainda nÃ£o foi configurada no frontend.');
+      throw new Error('Login com Google indisponível neste ambiente. A autenticação Firebase ainda não foi configurada no frontend.');
     }
 
     try {
@@ -640,14 +640,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await credential.user.getIdToken(true);
       const email = credential.user.email?.trim().toLowerCase();
       if (!email) {
-        throw new Error('NÃ£o foi possÃ­vel identificar o e-mail da conta Google utilizada.');
+        throw new Error('Não foi possível identificar o e-mail da conta Google utilizada.');
       }
       const authorizedUser = await resolveAuthorizedUser(email);
       setCurrentUserEmail(email);
       setCurrentUser(authorizedUser);
     } catch (error) {
       if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
-        throw new Error('NÃ£o foi possÃ­vel validar seu acesso agora. Tente novamente em instantes.');
+        throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
       }
       await logoutFirebaseAuth().catch(() => undefined);
       setCurrentUserEmail('');
@@ -748,6 +748,7 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
+
 
 
 

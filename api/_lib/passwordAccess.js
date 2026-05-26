@@ -8,7 +8,7 @@ function resolveBaseUrlFromRequest(req) {
   if (explicit) return explicit.replace(/\/$/, '');
 
   const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '').trim();
-  if (!host) return 'https://os-christus.vercel.app';
+  if (!host) return 'https://serv3.vercel.app';
   const proto = String(req?.headers?.['x-forwarded-proto'] || 'https').trim();
   return `${proto}://${host}`.replace(/\/$/, '');
 }
@@ -68,8 +68,8 @@ export async function sendPasswordAccessEmail({
 }) {
   const subject =
     mode === 'invite'
-      ? 'OS Christus - Defina sua senha de acesso'
-      : 'OS Christus - Recuperacao de senha';
+      ? 'Serv3 - Defina sua senha de acesso'
+      : 'Serv3 - Recuperacao de senha';
   const intro =
     mode === 'invite'
       ? 'Seu acesso foi criado. Clique no botao abaixo para definir sua senha inicial.'
@@ -111,3 +111,4 @@ export async function sendPasswordAccessEmail({
   });
   return { provider: 'sendgrid' };
 }
+

@@ -34,7 +34,7 @@ export async function sendWithSendGrid({
 }) {
   const apiKey = requiredEnv('SENDGRID_API_KEY');
   const fromEmail = requiredEnv('SENDGRID_FROM_EMAIL');
-  const fromName = process.env.SENDGRID_FROM_NAME || 'OS Christus';
+  const fromName = process.env.SENDGRID_FROM_NAME || 'Serv3';
 
   const recipients = [...new Set(parseRecipientList(toEmail))];
   const ccRecipients = [...new Set(parseRecipientList(ccEmail))]
@@ -94,3 +94,4 @@ export async function sendWithSendGrid({
     messageId: response.headers.get('x-message-id') || null,
   };
 }
+

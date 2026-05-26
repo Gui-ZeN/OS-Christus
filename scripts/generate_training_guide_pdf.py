@@ -13,8 +13,8 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 ROOT = Path(__file__).resolve().parents[1]
-INPUT_MD = ROOT / 'docs' / 'guia-treinamento-operacional-os-christus.md'
-OUTPUT_PDF = ROOT / 'docs' / 'Guia_Treinamento_OS_Christus.pdf'
+INPUT_MD = ROOT / 'docs' / 'guia-treinamento-operacional-serv3.md'
+OUTPUT_PDF = ROOT / 'docs' / 'Guia_Treinamento_Serv3.pdf'
 
 PAGE_BG = colors.HexColor('#F5F1EA')
 HEADER_BG = colors.HexColor('#211A14')
@@ -35,7 +35,7 @@ def on_page(canvas, doc):
 
     canvas.setFillColor(SUBTLE)
     canvas.setFont('Helvetica', 8)
-    canvas.drawString(doc.leftMargin, 8 * mm, 'OS Christus · Guia de Treinamento')
+    canvas.drawString(doc.leftMargin, 8 * mm, 'Serv3 - Guia de Treinamento')
     canvas.drawRightString(width - doc.rightMargin, 8 * mm, f'Página {doc.page}')
     canvas.restoreState()
 
@@ -142,7 +142,7 @@ def parse_markdown_to_story(lines, styles):
 
     # cover
     cover_data = [[
-        Paragraph('OS CHRISTUS', styles['cover_brand']),
+        Paragraph('Serv3', styles['cover_brand']),
         Paragraph('Guia de Treinamento Operacional', styles['cover_title']),
         Paragraph(
             f'Fluxo completo da OS, e-mails por etapa, assuntos padrão e operação por perfil.<br/>Gerado em {datetime.now().strftime("%d/%m/%Y %H:%M")}.',
@@ -225,8 +225,8 @@ def main():
         rightMargin=20 * mm,
         topMargin=22 * mm,
         bottomMargin=15 * mm,
-        title='Guia de Treinamento Operacional - OS Christus',
-        author='OS Christus',
+        title='Guia de Treinamento Operacional - Serv3',
+        author='Serv3',
         subject='Manual operacional e fluxo de e-mails',
     )
 
@@ -236,3 +236,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+

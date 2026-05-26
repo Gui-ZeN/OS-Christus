@@ -1,4 +1,4 @@
-Ôªøimport React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, Mail, PlusCircle, Trash2, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -53,7 +53,7 @@ interface PaymentEmailModalState {
   sendFeedbackMessage: string;
 }
 
-const FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY = 'os-christus-finance-payment-recipients';
+const FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY = 'serv3-finance-payment-recipients';
 
 function parseCurrency(value: string) {
   const normalized = String(value || '')
@@ -141,11 +141,11 @@ function calculateProgressPercentFromGross(grossAmount: number, baselineValue: n
 }
 
 function getBudgetSourceLabel(source: 'initial' | 'additive' | null | undefined) {
-  return source === 'additive' ? 'Aditivo' : 'Or√ßamento inicial';
+  return source === 'additive' ? 'Aditivo' : 'OrÁamento inicial';
 }
 
 function formatDateLabel(date?: Date | null) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'N√£o definido';
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'N„o definido';
   return date.toLocaleDateString('pt-BR');
 }
 
@@ -212,7 +212,7 @@ function buildDynamicPaymentsFromMeasurements(
     .filter(measurement => parseCurrency(measurement.grossValue || '') > 0)
     .map((measurement, index) => {
       const installmentNumber = index + 1;
-      const label = `Lan√ßamento ${installmentNumber}`;
+      const label = `LanÁamento ${installmentNumber}`;
       const dueAt = measurement.requestedAt || measurement.approvedAt || new Date(Date.now() + index * 7 * 24 * 60 * 60 * 1000);
       return {
         id: `measurement-payment-${measurement.id}`,
@@ -287,13 +287,13 @@ function isTicketInGuarantee(guarantee?: GuaranteeInfo | null) {
 }
 
 function getFinanceNextActionLabel(ticket: Ticket) {
-  if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir a√ß√µes preliminares e liberar o in√≠cio da execu√ß√£o.';
-  if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os pr√≥ximos marcos.';
-  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar valida√ß√£o do solicitante para seguir o fechamento financeiro.';
-  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir lan√ßamentos pendentes e finalizar o encerramento.';
-  if (ticket.status === TICKET_STATUS.CLOSED) return 'Fluxo financeiro conclu√≠do.';
-  if (ticket.status === TICKET_STATUS.CANCELED) return 'OS cancelada; manter apenas consulta hist√≥rica.';
-  return 'Acompanhar evolu√ß√£o da OS e pr√≥ximos marcos financeiros.';
+  if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir aÁıes preliminares e liberar o inÌcio da execuÁ„o.';
+  if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os prÛximos marcos.';
+  if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar validaÁ„o do solicitante para seguir o fechamento financeiro.';
+  if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir lanÁamentos pendentes e finalizar o encerramento.';
+  if (ticket.status === TICKET_STATUS.CLOSED) return 'Fluxo financeiro concluÌdo.';
+  if (ticket.status === TICKET_STATUS.CANCELED) return 'OS cancelada; manter apenas consulta histÛrica.';
+  return 'Acompanhar evoluÁ„o da OS e prÛximos marcos financeiros.';
 }
 
 type FinanceTab = 'execution' | 'financial' | 'guarantee' | 'documents';
@@ -349,7 +349,7 @@ function buildClosureExportHtml(
   const regionLabel = getTicketRegionLabel(ticket, regions, sites);
 
   const measurementRows = measurements.length === 0
-    ? '<tr><td colspan="4">Nenhuma medi√ß√£o registrada.</td></tr>'
+    ? '<tr><td colspan="4">Nenhuma mediÁ„o registrada.</td></tr>'
     : measurements
         .map(
           measurement => `
@@ -364,12 +364,12 @@ function buildClosureExportHtml(
         .join('');
 
   const paymentRows = payments.length === 0
-    ? '<tr><td colspan="5">Nenhum lan√ßamento registrado.</td></tr>'
+    ? '<tr><td colspan="5">Nenhum lanÁamento registrado.</td></tr>'
     : payments
         .map(
           payment => `
             <tr>
-              <td>${escapeHtml(payment.label || `Lan√ßamento ${payment.installmentNumber || '-'}`)}</td>
+              <td>${escapeHtml(payment.label || `LanÁamento ${payment.installmentNumber || '-'}`)}</td>
               <td>${escapeHtml(payment.value)}</td>
               <td>${payment.releasedPercent || 0}%</td>
               <td>${payment.status === 'paid' ? 'Pago' : payment.status === 'approved' ? 'Liberada' : 'Pendente'}</td>
@@ -380,12 +380,12 @@ function buildClosureExportHtml(
         .join('');
 
   const contractRows = contractItems.length === 0
-    ? '<tr><td colspan="4">Escopo contratado n√£o informado.</td></tr>'
+    ? '<tr><td colspan="4">Escopo contratado n„o informado.</td></tr>'
     : contractItems
         .map(
           item => `
             <tr>
-              <td>${escapeHtml(item.description || item.materialName || 'Item sem descri√ß√£o')}</td>
+              <td>${escapeHtml(item.description || item.materialName || 'Item sem descriÁ„o')}</td>
               <td>${escapeHtml(String(item.quantity ?? '-'))} ${escapeHtml(item.unit || '')}</td>
               <td>${escapeHtml(item.costUnitPrice || item.unitPrice || '-')}</td>
               <td>${escapeHtml(item.totalPrice || '-')}</td>
@@ -429,44 +429,44 @@ function buildClosureExportHtml(
       </style>
     </head>
     <body>
-      <h1>Encerramento da Ordem de Servi√ßo ${escapeHtml(ticket.id)}</h1>
+      <h1>Encerramento da Ordem de ServiÁo ${escapeHtml(ticket.id)}</h1>
       <div class="meta">
         <div><strong>Assunto:</strong> ${escapeHtml(ticket.subject)}</div>
         <div><strong>Status:</strong> ${escapeHtml(ticket.status)}</div>
         <div><strong>Solicitante:</strong> ${escapeHtml(ticket.requester)}</div>
         <div><strong>Sede:</strong> ${escapeHtml(siteLabel)}</div>
-        <div><strong>Regi√£o:</strong> ${escapeHtml(regionLabel)}</div>
-        <div><strong>Classifica√ß√£o:</strong> ${escapeHtml(ticket.serviceCatalogName || ticket.macroServiceName || 'N√£o definida')}</div>
+        <div><strong>Regi„o:</strong> ${escapeHtml(regionLabel)}</div>
+        <div><strong>ClassificaÁ„o:</strong> ${escapeHtml(ticket.serviceCatalogName || ticket.macroServiceName || 'N„o definida')}</div>
       </div>
 
       <div class="grid">
-        <div class="card"><strong>Fornecedor</strong><br />${escapeHtml(contract?.vendor || payments[0]?.vendor || 'N√£o definido')}</div>
+        <div class="card"><strong>Fornecedor</strong><br />${escapeHtml(contract?.vendor || payments[0]?.vendor || 'N„o definido')}</div>
         <div class="card"><strong>Previsto</strong><br />${escapeHtml(formatCurrency(plannedValue))}</div>
         <div class="card"><strong>Pago</strong><br />${escapeHtml(formatCurrency(paidValue))}</div>
       </div>
 
       <h2>Encerramento e garantia</h2>
       <div class="meta">
-        <div><strong>In√≠cio do servi√ßo:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceStartedAt))}</div>
-        <div><strong>T√©rmino do servi√ßo:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceCompletedAt))}</div>
-        <div><strong>Aprova√ß√£o t√©cnica 1:</strong> ${ticket.closureChecklist?.infrastructureApprovalPrimary ? 'Sim' : 'N√£o'}</div>
-        <div><strong>Aprova√ß√£o t√©cnica 2:</strong> ${ticket.closureChecklist?.infrastructureApprovalSecondary ? 'Sim' : 'N√£o'}</div>
-        <div><strong>Garantia:</strong> ${escapeHtml(formatDateLabel(ticket.guarantee?.startAt))} at√© ${escapeHtml(formatDateLabel(ticket.guarantee?.endAt))}</div>
+        <div><strong>InÌcio do serviÁo:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceStartedAt))}</div>
+        <div><strong>TÈrmino do serviÁo:</strong> ${escapeHtml(formatDateLabel(ticket.closureChecklist?.serviceCompletedAt))}</div>
+        <div><strong>AprovaÁ„o tÈcnica 1:</strong> ${ticket.closureChecklist?.infrastructureApprovalPrimary ? 'Sim' : 'N„o'}</div>
+        <div><strong>AprovaÁ„o tÈcnica 2:</strong> ${ticket.closureChecklist?.infrastructureApprovalSecondary ? 'Sim' : 'N„o'}</div>
+        <div><strong>Garantia:</strong> ${escapeHtml(formatDateLabel(ticket.guarantee?.startAt))} atÈ ${escapeHtml(formatDateLabel(ticket.guarantee?.endAt))}</div>
       </div>
-      <div class="card"><strong>Observa√ß√µes finais</strong><br /><span class="muted">${escapeHtml(ticket.closureChecklist?.closureNotes || 'Sem observa√ß√µes registradas.')}</span></div>
+      <div class="card"><strong>ObservaÁıes finais</strong><br /><span class="muted">${escapeHtml(ticket.closureChecklist?.closureNotes || 'Sem observaÁıes registradas.')}</span></div>
 
       <h2>Escopo contratado</h2>
       <table>
         <thead>
-          <tr><th>Item</th><th>Quantidade</th><th>Custo unit√°rio</th><th>Valor total</th></tr>
+          <tr><th>Item</th><th>Quantidade</th><th>Custo unit·rio</th><th>Valor total</th></tr>
         </thead>
         <tbody>${contractRows}</tbody>
       </table>
 
-      <h2>Medi√ß√µes</h2>
+      <h2>MediÁıes</h2>
       <table>
         <thead>
-          <tr><th>Descri√ß√£o</th><th>% executado</th><th>% liberado</th><th>Data</th></tr>
+          <tr><th>DescriÁ„o</th><th>% executado</th><th>% liberado</th><th>Data</th></tr>
         </thead>
         <tbody>${measurementRows}</tbody>
       </table>
@@ -474,7 +474,7 @@ function buildClosureExportHtml(
       <h2>Pagamentos</h2>
       <table>
         <thead>
-          <tr><th>Lan√ßamento</th><th>Valor</th><th>% liberado</th><th>Status</th><th>Data</th></tr>
+          <tr><th>LanÁamento</th><th>Valor</th><th>% liberado</th><th>Status</th><th>Data</th></tr>
         </thead>
         <tbody>${paymentRows}</tbody>
       </table>
@@ -503,22 +503,22 @@ function getFinalInstallmentBlockingReasons(ticket: Ticket, closureDraft: Closur
   }
 
   if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) {
-    reasons.push('Valida√ß√£o do solicitante pendente');
+    reasons.push('ValidaÁ„o do solicitante pendente');
     return reasons;
   }
 
   if (ticket.status !== TICKET_STATUS.WAITING_PAYMENT && ticket.status !== TICKET_STATUS.CLOSED) {
-    reasons.push('A OS ainda n√£o entrou na etapa final de pagamento');
+    reasons.push('A OS ainda n„o entrou na etapa final de pagamento');
     return reasons;
   }
 
   const guaranteeMonths = Number(closureDraft.guaranteeMonths || 0);
 
-  if (!closureDraft.infrastructureApprovalPrimary) reasons.push('Aprova√ß√£o t√©cnica 1 pendente');
-  if (!closureDraft.infrastructureApprovalSecondary) reasons.push('Aprova√ß√£o t√©cnica 2 pendente');
-  if (!closureDraft.serviceStartedAt) reasons.push('In√≠cio do servi√ßo n√£o informado');
-  if (!closureDraft.serviceCompletedAt) reasons.push('T√©rmino do servi√ßo n√£o informado');
-  if (!Number.isFinite(guaranteeMonths) || guaranteeMonths <= 0) reasons.push('Garantia inv√°lida');
+  if (!closureDraft.infrastructureApprovalPrimary) reasons.push('AprovaÁ„o tÈcnica 1 pendente');
+  if (!closureDraft.infrastructureApprovalSecondary) reasons.push('AprovaÁ„o tÈcnica 2 pendente');
+  if (!closureDraft.serviceStartedAt) reasons.push('InÌcio do serviÁo n„o informado');
+  if (!closureDraft.serviceCompletedAt) reasons.push('TÈrmino do serviÁo n„o informado');
+  if (!Number.isFinite(guaranteeMonths) || guaranteeMonths <= 0) reasons.push('Garantia inv·lida');
 
   return reasons;
 }
@@ -596,7 +596,7 @@ export function FinanceView() {
           setContractsByTicket(data.contractsByTicket);
         }
       } catch {
-        // Mant√©m o estado atual quando a sincroniza√ß√£o silenciosa falhar.
+        // MantÈm o estado atual quando a sincronizaÁ„o silenciosa falhar.
       }
     };
 
@@ -661,7 +661,7 @@ export function FinanceView() {
           const measurements = measurementsByTicket[ticket.id] || [];
           const contract = contractsByTicket[ticket.id];
           const flowParts = Number(ticket.executionProgress?.paymentFlowParts || 0);
-          const vendor = contract?.vendor || rawPayments[0]?.vendor || ticket.assignedTeam || 'Fornecedor n√£o definido';
+          const vendor = contract?.vendor || rawPayments[0]?.vendor || ticket.assignedTeam || 'Fornecedor n„o definido';
           const payments = getEffectiveDynamicPayments(rawPayments, measurements, vendor, flowParts);
           const expectedBaselineValue = resolveExpectedBaselineValue(contract, payments);
           const totalValue = parseCurrency(contract?.realizedValue || contract?.value || payments[0]?.value || '0');
@@ -1019,7 +1019,7 @@ export function FinanceView() {
     const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue, regions, sites);
     const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
     if (!printWindow) {
-      showToast('Erro: n√£o foi poss√≠vel abrir a janela de impress√£o.', 3000);
+      showToast('Erro: n„o foi possÌvel abrir a janela de impress„o.', 3000);
       return;
     }
 
@@ -1041,7 +1041,7 @@ export function FinanceView() {
     const budgetSource = draft.budgetSource === 'additive' ? 'additive' : 'initial';
     const budgetSourceLabel = getBudgetSourceLabel(budgetSource);
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      showToast('Erro: informe o valor bruto do lan√ßamento/etapa.', 3000);
+      showToast('Erro: informe o valor bruto do lanÁamento/etapa.', 3000);
       return;
     }
 
@@ -1049,7 +1049,7 @@ export function FinanceView() {
     const existingMeasurements = measurementsByTicket[ticketId] || [];
     const baselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], rawPayments);
     if (baselineValue <= 0) {
-      showToast('Erro: valor previsto da obra n√£o encontrado para calcular o andamento.', 3000);
+      showToast('Erro: valor previsto da obra n„o encontrado para calcular o andamento.', 3000);
       return;
     }
 
@@ -1058,7 +1058,7 @@ export function FinanceView() {
     const accumulatedGross = currentAccumulatedGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
     if (!targetTicket.executionProgress?.paymentFlowParts) {
-      showToast('Erro: inicie a execu√ß√£o e defina o fluxo de pagamento antes de registrar o andamento.', 3000);
+      showToast('Erro: inicie a execuÁ„o e defina o fluxo de pagamento antes de registrar o andamento.', 3000);
       return;
     }
 
@@ -1066,7 +1066,7 @@ export function FinanceView() {
       contractsByTicket[ticketId]?.vendor ||
       rawPayments[0]?.vendor ||
       targetTicket.assignedTeam ||
-      'Fornecedor n√£o definido';
+      'Fornecedor n„o definido';
     const effectiveExistingPayments = getEffectiveDynamicPayments(
       rawPayments,
       existingMeasurements,
@@ -1074,7 +1074,7 @@ export function FinanceView() {
       Number(targetTicket.executionProgress?.paymentFlowParts || 0)
     );
     if (progressPercent < currentProgress) {
-      showToast('Erro: o andamento informado √© menor do que o percentual j√° registrado.', 3000);
+      showToast('Erro: o andamento informado È menor do que o percentual j· registrado.', 3000);
       return;
     }
 
@@ -1086,7 +1086,7 @@ export function FinanceView() {
     const nextInstallmentNumber = effectiveExistingPayments.length + 1;
     const configuredFlowParts = Number(targetTicket.executionProgress.paymentFlowParts || 0);
     const formattedGrossAmount = formatCurrency(grossAmount);
-    const paymentLabel = `Lan√ßamento ${nextInstallmentNumber}`;
+    const paymentLabel = `LanÁamento ${nextInstallmentNumber}`;
     const measurementId = `measurement-${Date.now()}`;
     const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
     const nextPayment: PaymentRecord = {
@@ -1130,7 +1130,7 @@ export function FinanceView() {
     const reportFiles: File[] = Array.isArray(draft.reportFiles)
       ? draft.reportFiles.filter((file): file is File => file instanceof File)
       : [];
-    const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relat√≥rio.` : '';
+    const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relatÛrio.` : '';
 
     setProcessingId(ticketId);
     try {
@@ -1171,7 +1171,7 @@ export function FinanceView() {
             type: 'system',
             sender: actorLabel,
             time: now,
-            text: `Andamento atualizado para ${measurement.progressPercent}% com lan√ßamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`,
+            text: `Andamento atualizado para ${measurement.progressPercent}% com lanÁamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`,
           },
         ],
       });
@@ -1206,9 +1206,9 @@ export function FinanceView() {
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
-      showToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lan√ßamento'}.`, 3000);
+      showToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lanÁamento'}.`, 3000);
     } catch (error) {
-      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos do lan√ßamento.'}`, 4000);
+      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos do lanÁamento.'}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
     }
@@ -1237,9 +1237,9 @@ export function FinanceView() {
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
       }));
-      showToast(`Anexo removido de ${payment.label || 'lan√ßamento'}.`, 3000);
+      showToast(`Anexo removido de ${payment.label || 'lanÁamento'}.`, 3000);
     } catch (error) {
-      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lan√ßamento.'}`, 4000);
+      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lanÁamento.'}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
     }
@@ -1250,7 +1250,7 @@ export function FinanceView() {
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
     if (!targetTicket) return;
     if (payment.status !== 'approved') {
-      showToast('Erro: o lan√ßamento ainda n√£o foi liberado pelo andamento da obra.', 3000);
+      showToast('Erro: o lanÁamento ainda n„o foi liberado pelo andamento da obra.', 3000);
       return;
     }
 
@@ -1258,15 +1258,15 @@ export function FinanceView() {
     const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || '');
     const taxAmount = parseCurrency(settlementDraft.taxValue || payment.taxValue || '0');
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      showToast('Erro: informe o valor bruto do lan√ßamento antes de confirmar o pagamento.', 3000);
+      showToast('Erro: informe o valor bruto do lanÁamento antes de confirmar o pagamento.', 3000);
       return;
     }
     if (!Number.isFinite(taxAmount) || taxAmount < 0) {
-      showToast('Erro: informe um valor de imposto v√°lido.', 3000);
+      showToast('Erro: informe um valor de imposto v·lido.', 3000);
       return;
     }
     if (taxAmount > grossAmount) {
-      showToast('Erro: o imposto n√£o pode ser maior do que o valor bruto.', 3000);
+      showToast('Erro: o imposto n„o pode ser maior do que o valor bruto.', 3000);
       return;
     }
     const netAmount = Math.max(0, grossAmount - taxAmount);
@@ -1277,7 +1277,7 @@ export function FinanceView() {
       contractsByTicket[ticketId]?.vendor ||
       payment.vendor ||
       targetTicket.assignedTeam ||
-      'Fornecedor n√£o definido';
+      'Fornecedor n„o definido';
     const existingPayments = getEffectiveDynamicPayments(
       rawPayments,
       existingMeasurements,
@@ -1292,7 +1292,7 @@ export function FinanceView() {
       : [];
 
     if (finalInstallmentBlockingReasons.length > 0) {
-      showToast(`Erro: √∫ltimo lan√ßamento bloqueado. ${finalInstallmentBlockingReasons.join(' | ')}`, 4000);
+      showToast(`Erro: ˙ltimo lanÁamento bloqueado. ${finalInstallmentBlockingReasons.join(' | ')}`, 4000);
       return;
     }
 
@@ -1330,7 +1330,7 @@ export function FinanceView() {
     if (!paymentEmailModal) return;
     const { ticketId, payment, grossAmount, taxAmount, netAmount, recipients } = paymentEmailModal;
     if (recipients.length === 0) {
-      showToast('Erro: adicione pelo menos um destinat√°rio antes de enviar.', 3000);
+      showToast('Erro: adicione pelo menos um destinat·rio antes de enviar.', 3000);
       return;
     }
 
@@ -1343,7 +1343,7 @@ export function FinanceView() {
       contractsByTicket[ticketId]?.vendor ||
       payment.vendor ||
       targetTicket.assignedTeam ||
-      'Fornecedor n√£o definido';
+      'Fornecedor n„o definido';
     const existingPayments = getEffectiveDynamicPayments(
       rawPayments,
       existingMeasurements,
@@ -1420,10 +1420,10 @@ export function FinanceView() {
               sender: actorLabel,
               time: new Date(),
               text: canCloseTicket
-                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e l√≠quido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lan√ßamentos foram quitados, checklist conclu√≠do e garantia iniciada.`
+                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e lÌquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lanÁamentos foram quitados, checklist concluÌdo e garantia iniciada.`
                 : remainingPendingPayments > 0
-                  ? `${payment.label || 'Pagamento'} confirmado com l√≠quido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Restam ${remainingPendingPayments} lan√ßamento(s) pendente(s).`
-                  : `${payment.label || 'Pagamento'} confirmado com l√≠quido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lan√ßamentos atuais foram quitados.`,
+                  ? `${payment.label || 'Pagamento'} confirmado com lÌquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Restam ${remainingPendingPayments} lanÁamento(s) pendente(s).`
+                  : `${payment.label || 'Pagamento'} confirmado com lÌquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lanÁamentos atuais foram quitados.`,
             },
           ],
         });
@@ -1446,7 +1446,7 @@ export function FinanceView() {
       showToast(
         canCloseTicket
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
-          : `${payment.label || 'Lan√ßamento'} confirmado e email disparado.`
+          : `${payment.label || 'LanÁamento'} confirmado e email disparado.`
       , 3000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'falha desconhecida.';
@@ -1486,7 +1486,7 @@ export function FinanceView() {
       <div className="max-w-6xl mx-auto">
         <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
-          <p className="text-sm text-roman-text-sub font-serif italic">Medi√ß√µes, libera√ß√£o de lan√ßamentos e confirma√ß√£o de pagamentos das ordens de servi√ßo em execu√ß√£o e fechamento.</p>
+          <p className="text-sm text-roman-text-sub font-serif italic">MediÁıes, liberaÁ„o de lanÁamentos e confirmaÁ„o de pagamentos das ordens de serviÁo em execuÁ„o e fechamento.</p>
         </header>
 
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
@@ -1496,7 +1496,7 @@ export function FinanceView() {
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
               <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Em aberto: {openFinanceTickets.length}</div>
               <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Quitadas: {historicalFinanceTickets.length}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Pend√™ncias: {financeSummary.remaining > 0 ? 'Sim' : 'N√£o'}</div>
+              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">PendÍncias: {financeSummary.remaining > 0 ? 'Sim' : 'N„o'}</div>
             </div>
           </div>
           <div className="rounded-2xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
@@ -1505,7 +1505,7 @@ export function FinanceView() {
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
               <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
               <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Pago: {formatCurrency(financeSummary.paid)}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">A√ß√£o: liberar ou quitar lan√ßamentos</div>
+              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">AÁ„o: liberar ou quitar lanÁamentos</div>
             </div>
           </div>
         </div>
@@ -1526,13 +1526,13 @@ export function FinanceView() {
                 onClick={() => setFinanceSection('history')}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${financeSection === 'history' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
               >
-                Hist√≥rico ({historicalFinanceTickets.length})
+                HistÛrico ({historicalFinanceTickets.length})
               </button>
             </div>
             <div className="text-xs text-roman-text-sub">
               {financeSection === 'open'
-                ? 'OS com lan√ßamentos pendentes, libera√ß√µes em andamento ou checklist final aberto.'
-                : 'OS quitadas para consulta hist√≥rica.'}
+                ? 'OS com lanÁamentos pendentes, liberaÁıes em andamento ou checklist final aberto.'
+                : 'OS quitadas para consulta histÛrica.'}
             </div>
             {financeSection === 'history' && (
               <div className="w-full flex flex-wrap gap-2 pt-2 border-t border-roman-border/60">
@@ -1590,9 +1590,9 @@ export function FinanceView() {
             const guaranteeDaysRemaining = getGuaranteeDaysRemaining(ticket.guarantee);
             const guaranteeBadgeLabel =
               guaranteeDaysRemaining == null
-                ? 'Garantia n√£o informada'
+                ? 'Garantia n„o informada'
                 : guaranteeDaysRemaining < 0
-                  ? `Garantia expirada h√° ${Math.abs(guaranteeDaysRemaining)} dia(s)`
+                  ? `Garantia expirada h· ${Math.abs(guaranteeDaysRemaining)} dia(s)`
                   : `Garantia: ${guaranteeDaysRemaining} dia(s) restantes`;
             return (
               <div
@@ -1635,7 +1635,7 @@ export function FinanceView() {
                     </div>
                     <div className="mt-1 text-sm font-medium text-roman-text-main">{ticket.subject}</div>
                     <p className="mt-1 text-xs text-roman-text-sub">
-                      Fornecedor: {vendor} | Pr√≥xima a√ß√£o: {getFinanceNextActionLabel(ticket)}
+                      Fornecedor: {vendor} | PrÛxima aÁ„o: {getFinanceNextActionLabel(ticket)}
                     </p>
                     {ticket.executionProgress?.measurementSheetUrl && (
                       <a
@@ -1644,7 +1644,7 @@ export function FinanceView() {
                         rel="noreferrer"
                         className="mt-1 inline-flex text-xs text-roman-primary hover:underline"
                       >
-                        Planilha de medi√ß√£o
+                        Planilha de mediÁ„o
                       </a>
                     )}
                   </div>
@@ -1665,13 +1665,13 @@ export function FinanceView() {
                   <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-xs text-roman-text-sub">
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Classifica√ß√£o</div>
-                        <div className="mt-1 font-medium text-roman-text-main">{ticket.serviceCatalogName || ticket.macroServiceName || 'N√£o definida'}</div>
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">ClassificaÁ„o</div>
+                        <div className="mt-1 font-medium text-roman-text-main">{ticket.serviceCatalogName || ticket.macroServiceName || 'N„o definida'}</div>
                       </div>
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                         <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Fluxo</div>
                         <div className="mt-1 font-medium text-roman-text-main">
-                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'N√£o definido'}
+                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'N„o definido'}
                         </div>
                       </div>
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
@@ -1689,7 +1689,7 @@ export function FinanceView() {
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex flex-wrap gap-2">
                           {([
-                            ['execution', 'Execu√ß√£o'],
+                            ['execution', 'ExecuÁ„o'],
                             ['financial', 'Financeiro'],
                             ['guarantee', 'Garantia'],
                             ['documents', 'Documentos'],
@@ -1747,19 +1747,19 @@ export function FinanceView() {
                       <>
                     <FinanceSection
                       title="Andamento da obra"
-                      description="Execu√ß√£o acumulada e marcos liberados."
+                      description="ExecuÁ„o acumulada e marcos liberados."
                       icon={<ClipboardList size={15} />}
                     >
                       <div className="mb-3 flex items-center justify-between text-xs text-roman-text-sub">
                         <span>Fluxo definido</span>
                         <strong className="text-roman-text-main">
-                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'N√£o definido'}
+                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'N„o definido'}
                         </strong>
                       </div>
 
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
                         <div className="flex items-center justify-between text-sm text-roman-text-main mb-2">
-                          <span>Execu√ß√£o acumulada</span>
+                          <span>ExecuÁ„o acumulada</span>
                           <span className="font-semibold">{progressPercent}%</span>
                         </div>
                         <div className="h-2 rounded-full bg-roman-border-light overflow-hidden">
@@ -1771,7 +1771,7 @@ export function FinanceView() {
                         <div className="mt-3 flex flex-wrap gap-3 text-xs text-roman-text-sub">
                           <span>Marcos liberados: {totalReleased}%</span>
                           <span>
-                            Pr√≥ximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'Todos liberados'}
+                            PrÛximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'Todos liberados'}
                           </span>
                           {ticket.executionProgress?.measurementSheetUrl && (
                             <span>
@@ -1787,15 +1787,15 @@ export function FinanceView() {
                             </span>
                           )}
                           <span>
-                            √öltima atualiza√ß√£o: {formatDateTimeSafe(ticket.executionProgress?.lastUpdatedAt || ticket.time)}
+                            ⁄ltima atualizaÁ„o: {formatDateTimeSafe(ticket.executionProgress?.lastUpdatedAt || ticket.time)}
                           </span>
                         </div>
                       </div>
                     </FinanceSection>
 
                     <FinanceSection
-                      title="Atualiza√ß√µes de andamento"
-                      description="Cada avan√ßo registra um novo lan√ßamento para o financeiro."
+                      title="AtualizaÁıes de andamento"
+                      description="Cada avanÁo registra um novo lanÁamento para o financeiro."
                       icon={<PlusCircle size={15} />}
                     >
                       <div className="mb-3 flex items-center justify-end">
@@ -1803,14 +1803,14 @@ export function FinanceView() {
                           onClick={() => setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }))}
                           className="text-xs font-medium text-roman-primary hover:underline flex items-center gap-1"
                         >
-                          <PlusCircle size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar atualiza√ß√£o' : 'Atualizar andamento'}
+                          <PlusCircle size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar atualizaÁ„o' : 'Atualizar andamento'}
                         </button>
                       </div>
 
                       {measurementFormOpen[ticket.id] && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border border-roman-border rounded-sm p-3 bg-roman-surface">
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descri√ß√£o da atualiza√ß√£o</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">DescriÁ„o da atualizaÁ„o</label>
                             <input
                               type="text"
                               value={measurementDraft.label}
@@ -1820,7 +1820,7 @@ export function FinanceView() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lan√ßamento/etapa</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lanÁamento/etapa</label>
                             <input
                               type="text"
                               inputMode="decimal"
@@ -1837,7 +1837,7 @@ export function FinanceView() {
                                 onChange={event => setMeasurementDraft(ticket.id, { budgetSource: event.target.value === 'additive' ? 'additive' : 'initial' })}
                                 className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               >
-                                <option value="initial">Or√ßamento inicial</option>
+                                <option value="initial">OrÁamento inicial</option>
                                 <option value="additive">Aditivo</option>
                               </select>
                             </div>
@@ -1878,7 +1878,7 @@ export function FinanceView() {
                           </div>
                           )}
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualiza√ß√£o</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualizaÁ„o</label>
                             <input
                               type="text"
                               value={`${releasePreview.releasePercent}%`}
@@ -1887,16 +1887,16 @@ export function FinanceView() {
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observa√ß√µes</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">ObservaÁıes</label>
                             <textarea
                               value={measurementDraft.notes}
                               onChange={e => setMeasurementDraft(ticket.id, { notes: e.target.value })}
                               className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                              placeholder="Ex: relat√≥rio com fotos enviado para libera√ß√£o."
+                              placeholder="Ex: relatÛrio com fotos enviado para liberaÁ„o."
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relat√≥rio (opcional)</label>
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatÛrio (opcional)</label>
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <label className="inline-flex cursor-pointer items-center justify-center rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary">
@@ -1945,11 +1945,11 @@ export function FinanceView() {
                           </div>
                           <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
                             <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
-                            <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'n√£o definido'}</div>
-                            <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'n√£o definido'}</div>
+                            <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'n„o definido'}</div>
+                            <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'n„o definido'}</div>
                             <div>Bruto acumulado atual: {formatCurrency(currentAccumulatedGross)}</div>
                             <div>Andamento atual salvo: {progressPercent}%</div>
-                            <div>Pr√≥ximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
+                            <div>PrÛximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
                           </div>
                           <div className="md:col-span-2 flex justify-end">
                             <button
@@ -1964,7 +1964,7 @@ export function FinanceView() {
 
                       <div className="space-y-2">
                         {measurements.length === 0 ? (
-                          <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma medi√ß√£o registrada.</p>
+                          <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma mediÁ„o registrada.</p>
                         ) : (
                           measurements.map(measurement => (
                             <div key={measurement.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
@@ -2005,16 +2005,16 @@ export function FinanceView() {
                     {contract?.items && contract.items.length > 0 && (
                       <FinanceSection
                         title="Escopo contratado"
-                        description="Itens aprovados na cota√ß√£o vencedora."
+                        description="Itens aprovados na cotaÁ„o vencedora."
                         icon={<FileText size={15} />}
                       >
                         <div className="space-y-2">
                           {contract.items.map(item => (
                             <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                               <div>
-                                <div className="text-sm font-medium text-roman-text-main">{item.description || item.materialName || 'Item sem descri√ß√£o'}</div>
+                                <div className="text-sm font-medium text-roman-text-main">{item.description || item.materialName || 'Item sem descriÁ„o'}</div>
                                 <div className="text-xs text-roman-text-sub">
-                                  {(item.quantity ?? '-')}{item.unit ? ` ${item.unit}` : ''} | custo unit√°rio {item.costUnitPrice || item.unitPrice || '-'}
+                                  {(item.quantity ?? '-')}{item.unit ? ` ${item.unit}` : ''} | custo unit·rio {item.costUnitPrice || item.unitPrice || '-'}
                                 </div>
                               </div>
                               <div className="text-sm font-serif text-roman-text-main">{item.totalPrice || '-'}</div>
@@ -2030,7 +2030,7 @@ export function FinanceView() {
                       <>
                     <FinanceSection
                       title="Previsto x pago"
-                      description="Concilia√ß√£o entre contrato, plano e pagamentos."
+                      description="ConciliaÁ„o entre contrato, plano e pagamentos."
                       icon={<DollarSign size={15} />}
                     >
                       <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${
@@ -2046,7 +2046,7 @@ export function FinanceView() {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto inicial</div>
-                          <div className="text-lg font-serif text-roman-text-main">{expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'N√£o informado'}</div>
+                          <div className="text-lg font-serif text-roman-text-main">{expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'N„o informado'}</div>
                         </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
                           <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Realizado (previsto + aditivos)</div>
@@ -2057,7 +2057,7 @@ export function FinanceView() {
                           <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
                         </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Ader√™ncia ao contrato</div>
+                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">AderÍncia ao contrato</div>
                           <div className="text-lg font-serif text-roman-text-main">
                             {plannedValue > 0 ? `${roundProgressPercent((paidValue / plannedValue) * 100)}%` : '0%'}
                           </div>
@@ -2071,18 +2071,18 @@ export function FinanceView() {
                     </FinanceSection>
                     <FinanceSection
                       title="Fluxo de pagamento"
-                      description="Os lan√ßamentos surgem conforme os registros de valor bruto no andamento."
+                      description="Os lanÁamentos surgem conforme os registros de valor bruto no andamento."
                       icon={<DollarSign size={15} />}
                     >
                       <div className="mb-3 text-xs text-roman-text-sub">
-                        O financeiro recebe um novo lan√ßamento toda vez que o gestor registra valor bruto no andamento da obra.
+                        O financeiro recebe um novo lanÁamento toda vez que o gestor registra valor bruto no andamento da obra.
                       </div>
 
                       {payments.length === 0 ? (
                         <div className="text-sm text-roman-text-sub font-serif italic">
                           {ticket.executionProgress?.paymentFlowParts
-                            ? `Fluxo definido em ${ticket.executionProgress.paymentFlowParts}x. Registre andamento para criar os lan√ßamentos dinamicamente.`
-                            : 'Nenhum lan√ßamento registrado ainda. Atualize o andamento para criar o primeiro lan√ßamento.'}
+                            ? `Fluxo definido em ${ticket.executionProgress.paymentFlowParts}x. Registre andamento para criar os lanÁamentos dinamicamente.`
+                            : 'Nenhum lanÁamento registrado ainda. Atualize o andamento para criar o primeiro lanÁamento.'}
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -2120,15 +2120,15 @@ export function FinanceView() {
                                     </button>
                                   </div>
                                   <div className="text-xs text-roman-text-sub">
-                                    Exibindo {selectedTab === 'paid' ? 'lan√ßamentos pagos' : 'lan√ßamentos pendentes'}
+                                    Exibindo {selectedTab === 'paid' ? 'lanÁamentos pagos' : 'lanÁamentos pendentes'}
                                   </div>
                                 </div>
 
                                 {visiblePayments.length === 0 && (
                                   <div className="rounded-sm border border-dashed border-roman-border bg-roman-bg px-3 py-3 text-sm text-roman-text-sub font-serif italic">
                                     {selectedTab === 'paid'
-                                      ? 'Nenhum lan√ßamento pago ainda.'
-                                      : 'Nenhum lan√ßamento pendente no momento.'}
+                                      ? 'Nenhum lanÁamento pago ainda.'
+                                      : 'Nenhum lanÁamento pendente no momento.'}
                                   </div>
                                 )}
 
@@ -2153,14 +2153,14 @@ export function FinanceView() {
                               return (
                             <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 space-y-3">
                               <div className="flex-1">
-                                <div className="text-sm font-medium text-roman-text-main">{payment.label || `Lan√ßamento ${payment.installmentNumber || 1}`}</div>
+                                <div className="text-sm font-medium text-roman-text-main">{payment.label || `LanÁamento ${payment.installmentNumber || 1}`}</div>
                                 <div className="text-xs text-roman-text-sub">
-                                  Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Origem: {getBudgetSourceLabel(payment.budgetSource)} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | L√≠quido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
+                                  Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Origem: {getBudgetSourceLabel(payment.budgetSource)} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | LÌquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
                                 {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
                                 {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
                                   <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
-                                    <div className="font-medium">√öltimo lan√ßamento bloqueado at√© concluir o encerramento:</div>
+                                    <div className="font-medium">⁄ltimo lanÁamento bloqueado atÈ concluir o encerramento:</div>
                                     {finalInstallmentBlockingReasons.map(reason => (
                                       <div key={reason}>- {reason}</div>
                                     ))}
@@ -2196,14 +2196,14 @@ export function FinanceView() {
                                   />
                                 </div>
                                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">L√≠quido calculado</div>
+                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">LÌquido calculado</div>
                                   <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(netPreview)}</div>
                                 </div>
                               </div>
 
                                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                  <div className="text-xs text-roman-text-sub">Anexos do lan√ßamento (Excel, CSV, PDF, Word e imagens).</div>
+                                  <div className="text-xs text-roman-text-sub">Anexos do lanÁamento (Excel, CSV, PDF, Word e imagens).</div>
                                   <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
                                     {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
                                     <input
@@ -2270,13 +2270,13 @@ export function FinanceView() {
                                   ) : payment.status === 'paid' ? (
                                     <><CheckCircle size={15} /> Pago</>
                                   ) : payment.status !== 'approved' ? (
-                                    <><DollarSign size={15} /> Aguardando avan√ßo</>
+                                    <><DollarSign size={15} /> Aguardando avanÁo</>
                                   ) : canConfirmPayment ? (
                                     <><Mail size={15} /> Disparar Email</>
                                   ) : isFinalInstallment && ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ? (
                                     <><DollarSign size={15} /> Aguardando solicitante</>
                                   ) : isFinalInstallment && ticket.status === TICKET_STATUS.IN_PROGRESS ? (
-                                    <><DollarSign size={15} /> Aguardando conclus√£o</>
+                                    <><DollarSign size={15} /> Aguardando conclus„o</>
                                   ) : (
                                     <><DollarSign size={15} /> Preencher checklist</>
                                   )}
@@ -2298,7 +2298,7 @@ export function FinanceView() {
                     {activeTab === 'guarantee' && (
                     <FinanceSection
                       title="Encerramento e garantia"
-                      description="Checklist final, laudos e per√≠odo de garantia."
+                      description="Checklist final, laudos e perÌodo de garantia."
                       icon={<CheckCircle size={15} />}
                     >
 
@@ -2309,7 +2309,7 @@ export function FinanceView() {
                             checked={closureDraft.infrastructureApprovalPrimary}
                             onChange={e => setClosureDraft(ticket.id, { infrastructureApprovalPrimary: e.target.checked })}
                           />
-                          Aprova√ß√£o de infraestrutura 1
+                          AprovaÁ„o de infraestrutura 1
                         </label>
                         <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovalSecondary ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
                           <input
@@ -2317,13 +2317,13 @@ export function FinanceView() {
                             checked={closureDraft.infrastructureApprovalSecondary}
                             onChange={e => setClosureDraft(ticket.id, { infrastructureApprovalSecondary: e.target.checked })}
                           />
-                          Aprova√ß√£o de infraestrutura 2
+                          AprovaÁ„o de infraestrutura 2
                         </label>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">In√≠cio do servi√ßo</label>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">InÌcio do serviÁo</label>
                           <input
                             type="date"
                             value={closureDraft.serviceStartedAt}
@@ -2332,7 +2332,7 @@ export function FinanceView() {
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">T√©rmino do servi√ßo</label>
+                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">TÈrmino do serviÁo</label>
                           <input
                             type="date"
                             value={closureDraft.serviceCompletedAt}
@@ -2354,12 +2354,12 @@ export function FinanceView() {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observa√ß√µes de encerramento</label>
+                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">ObservaÁıes de encerramento</label>
                         <textarea
                           value={closureDraft.closureNotes}
                           onChange={e => setClosureDraft(ticket.id, { closureNotes: e.target.value })}
                           className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                          placeholder="Ex: laudo final anexado, dire√ß√£o comunicada, garantia de 12 meses para estrutura."
+                          placeholder="Ex: laudo final anexado, direÁ„o comunicada, garantia de 12 meses para estrutura."
                         />
                       </div>
 
@@ -2367,7 +2367,7 @@ export function FinanceView() {
                         <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
                           <div className="font-medium text-roman-text-main mb-1">Garantia atual</div>
                           <div>Status: {ticket.guarantee.status === 'active' ? 'Ativa' : ticket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
-                          <div>In√≠cio: {formatDateLabel(ticket.guarantee.startAt)}</div>
+                          <div>InÌcio: {formatDateLabel(ticket.guarantee.startAt)}</div>
                           <div>Fim: {formatDateLabel(ticket.guarantee.endAt)}</div>
                         </div>
                       )}
@@ -2377,7 +2377,7 @@ export function FinanceView() {
                     {activeTab === 'documents' && (
                       <FinanceSection
                         title="Documentos do encerramento"
-                        description="Laudos, evid√™ncias e anexos da OS."
+                        description="Laudos, evidÍncias e anexos da OS."
                         icon={<FileText size={15} />}
                       >
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-4">
@@ -2411,7 +2411,7 @@ export function FinanceView() {
                                   <div>
                                     <div className="text-sm font-medium text-roman-text-main">{document.name}</div>
                                     <div className="text-xs text-roman-text-sub">
-                                      {document.category === 'closure_report' ? 'Laudo / PDF' : 'Evid√™ncia'} | {document.size ? `${Math.round(document.size / 1024)} KB` : 'tamanho n√£o informado'}
+                                      {document.category === 'closure_report' ? 'Laudo / PDF' : 'EvidÍncia'} | {document.size ? `${Math.round(document.size / 1024)} KB` : 'tamanho n„o informado'}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-3">
@@ -2453,7 +2453,7 @@ export function FinanceView() {
                 {financeSection === 'open'
                   ? 'Nenhum fluxo financeiro pendente no momento.'
                   : historyGuaranteeFilter === 'all'
-                    ? 'Nenhuma OS quitada no hist√≥rico financeiro.'
+                    ? 'Nenhuma OS quitada no histÛrico financeiro.'
                     : historyGuaranteeFilter === 'in_guarantee'
                       ? 'Nenhuma OS quitada com garantia ativa no momento.'
                       : 'Nenhuma OS quitada com garantia vencendo em 30 dias.'}
@@ -2467,7 +2467,7 @@ export function FinanceView() {
         isOpen={paymentEmailModal !== null}
         onClose={() => { if (!paymentEmailModal?.isSending) setPaymentEmailModal(null); }}
         title="Disparar Email de Pagamento"
-        description={paymentEmailModal ? `${paymentEmailModal.ticketId} - Pagamento - ${paymentEmailModal.payment.label || `Lan√ßamento ${paymentEmailModal.payment.installmentNumber || 1}`}` : ''}
+        description={paymentEmailModal ? `${paymentEmailModal.ticketId} - Pagamento - ${paymentEmailModal.payment.label || `LanÁamento ${paymentEmailModal.payment.installmentNumber || 1}`}` : ''}
         maxWidthClass="max-w-lg"
         footer={
           paymentEmailModal && (
@@ -2521,14 +2521,14 @@ export function FinanceView() {
                 <span className="font-medium text-roman-text-main">{formatCurrency(paymentEmailModal.taxAmount)}</span>
               </div>
               <div className="flex justify-between border-t border-roman-border pt-1 mt-1">
-                <span className="text-roman-text-sub font-medium">Valor a pagar (l√≠quido)</span>
+                <span className="text-roman-text-sub font-medium">Valor a pagar (lÌquido)</span>
                 <span className="font-semibold text-roman-text-main">{formatCurrency(paymentEmailModal.netAmount)}</span>
               </div>
               {(paymentEmailModal.payment.attachments || []).length > 0 && (
                 <div className="border-t border-roman-border pt-2 mt-1">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Anexos inclu√≠dos</div>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Anexos incluÌdos</div>
                   {(paymentEmailModal.payment.attachments || []).map(attachment => (
-                    <div key={attachment.id} className="text-xs text-roman-text-sub truncate">‚Ä¢ {attachment.name}</div>
+                    <div key={attachment.id} className="text-xs text-roman-text-sub truncate">ï {attachment.name}</div>
                   ))}
                 </div>
               )}
@@ -2536,11 +2536,11 @@ export function FinanceView() {
 
             <div>
               <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">
-                Destinat√°rios
+                Destinat·rios
               </label>
-              <p className="mb-2 text-[11px] text-roman-text-sub">Pr√©-carrega os e-mails configurados e os √∫ltimos usados no financeiro.</p>
+              <p className="mb-2 text-[11px] text-roman-text-sub">PrÈ-carrega os e-mails configurados e os ˙ltimos usados no financeiro.</p>
               {paymentEmailModal.recipients.length === 0 && (
-                <p className="text-xs text-amber-700 mb-2">Nenhum destinat√°rio configurado. Adicione ao menos um email.</p>
+                <p className="text-xs text-amber-700 mb-2">Nenhum destinat·rio configurado. Adicione ao menos um email.</p>
               )}
               <div className="space-y-1.5 mb-3">
                 {paymentEmailModal.recipients.map((email, index) => (
@@ -2615,3 +2615,4 @@ export function FinanceView() {
     </div>
   );
 }
+

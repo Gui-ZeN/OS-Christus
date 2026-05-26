@@ -83,7 +83,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
             <div>
               <div className="flex items-center gap-3 text-roman-primary">
                 <Landmark size={28} />
-                <span className="font-serif text-xl">OS Christus</span>
+                <span className="font-serif text-xl">Serv3</span>
               </div>
               <h1 className="mt-12 font-serif text-5xl leading-tight">Defina sua senha de acesso</h1>
               <p className="mt-6 max-w-sm text-lg leading-relaxed text-white/60">
@@ -108,7 +108,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
               <p className="text-[11px] uppercase tracking-[0.22em] text-roman-text-sub">Acesso ao sistema</p>
               <h2 className="mt-3 font-serif text-4xl text-roman-text-main">Criar ou redefinir senha</h2>
               <p className="mt-3 text-base leading-relaxed text-roman-text-sub">
-                Informe uma nova senha para continuar usando o OS Christus.
+                Informe uma nova senha para continuar usando o Serv3.
               </p>
             </div>
 
@@ -189,3 +189,4 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
     </div>
   );
 }
+
