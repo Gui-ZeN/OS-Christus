@@ -94,8 +94,10 @@ function canUserAccessTicket(user, ticket, regions, sites) {
     return false;
   }
 
+  const hasExplicitSiteScope = Array.isArray(user?.siteIds) && user.siteIds.some(value => String(value || '').trim());
   const siteIds = resolveUserSiteIds(user, sites);
   const regionIds = resolveUserRegionIds(user, regions);
+  if (hasExplicitSiteScope && siteIds.length === 0) return false;
   if (regionIds.length === 0 && siteIds.length === 0) return false;
 
   const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
@@ -122,10 +124,13 @@ async function readTerritoryCatalog(db) {
 }
 
 function buildAllowedScope(user, regions, sites) {
+  const hasExplicitSiteScope = Array.isArray(user?.siteIds) && user.siteIds.some(value => String(value || '').trim());
   const userSiteIds = resolveUserSiteIds(user, sites);
   const userRegionIds = resolveUserRegionIds(user, regions);
 
-  const allowedSiteIds = userSiteIds.length > 0
+  const allowedSiteIds = hasExplicitSiteScope
+    ? uniqueValues([...userSiteIds])
+    : userSiteIds.length > 0
     ? uniqueValues([...userSiteIds])
     : uniqueValues([
         ...sites.filter(site => userRegionIds.includes(site.regionId)).map(site => site.id),

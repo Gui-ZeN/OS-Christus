@@ -188,8 +188,10 @@ function canUserAccessTicket(
     );
   }
 
-  const regionIds = user.regionIds || [];
-  const siteIds = user.siteIds || [];
+  const hasExplicitSiteScope = Array.isArray(user?.siteIds) && user.siteIds.some(value => String(value || '').trim());
+  const siteIds = resolveUserSiteIds(user, sites);
+  const regionIds = resolveUserRegionIds(user, regions);
+  if (hasExplicitSiteScope && siteIds.length === 0) return false;
   if (regionIds.length === 0 && siteIds.length === 0) return false;
   const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
   const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
@@ -770,6 +772,7 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
+
 
 
 
