@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
+ï»¿import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { APP_THEMES, AppThemeId, AppThemeOption, DEFAULT_APP_THEME } from '../constants/themes';
 import {
@@ -114,6 +114,28 @@ function resolveTicketSiteIds(ticket: Ticket, sites: CatalogSite[]) {
   return matches;
 }
 
+function resolveUserSiteIds(user: DirectoryUser | null, sites: CatalogSite[]) {
+  const rawValues = Array.isArray(user?.siteIds) ? user.siteIds : [];
+  if (rawValues.length === 0) return [];
+  const normalizedValues = rawValues.map(value => normalizeKey(value)).filter(Boolean);
+  return [...new Set(
+    sites
+      .filter(site => normalizedValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value)))
+      .map(site => site.id)
+  )];
+}
+
+function resolveUserRegionIds(user: DirectoryUser | null, regions: CatalogRegion[]) {
+  const rawValues = Array.isArray(user?.regionIds) ? user.regionIds : [];
+  if (rawValues.length === 0) return [];
+  const normalizedValues = rawValues.map(value => normalizeKey(value)).filter(Boolean);
+  return [...new Set(
+    regions
+      .filter(region => normalizedValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value)))
+      .map(region => region.id)
+  )];
+}
+
 function resolveTicketRegionIds(ticket: Ticket, regions: CatalogRegion[], sites: CatalogSite[]) {
   const rawValues = [ticket.regionId, ticket.region].map(value => normalizeKey(value)).filter(Boolean);
   const matches = regions
@@ -189,11 +211,11 @@ async function resolveAuthorizedUser(email: string) {
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
 
   if (!found) {
-    throw new Error('Acesso não autorizado. Seu e-mail ainda não foi liberado no sistema. Solicite o cadastro ao administrador.');
+    throw new Error('Acesso nÃ£o autorizado. Seu e-mail ainda nÃ£o foi liberado no sistema. Solicite o cadastro ao administrador.');
   }
 
   if (found.status !== 'Ativo' || found.active === false) {
-    throw new Error('Acesso indisponível. Seu usuário está inativo no sistema. Procure o administrador para reativação.');
+    throw new Error('Acesso indisponÃ­vel. Seu usuÃ¡rio estÃ¡ inativo no sistema. Procure o administrador para reativaÃ§Ã£o.');
   }
 
   return found;
@@ -495,7 +517,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         clearPendingTicketUpdate(id);
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
-        console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.', error);
+        console.error('[updateTicket] Failed to persist update for ticket', id, 'â€” reverted optimistic update.', error);
         return;
       }
 
@@ -618,7 +640,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentUser(authorizedUser);
       } catch (error) {
         if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
-          throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
+          throw new Error('NÃ£o foi possÃ­vel validar seu acesso agora. Tente novamente em instantes.');
         }
         await logoutFirebaseAuth().catch(() => undefined);
         setCurrentUserEmail('');
@@ -626,13 +648,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     } else {
-      throw new Error('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
+      throw new Error('NÃ£o foi possÃ­vel concluir o login neste ambiente. A autenticaÃ§Ã£o do sistema ainda nÃ£o foi configurada no frontend. Verifique as variÃ¡veis VITE_FIREBASE_* da aplicaÃ§Ã£o e publique um novo deploy.');
     }
   };
 
   const loginWithGoogleAccount = async () => {
     if (!authEnabled) {
-      throw new Error('Login com Google indisponível neste ambiente. A autenticação Firebase ainda não foi configurada no frontend.');
+      throw new Error('Login com Google indisponÃ­vel neste ambiente. A autenticaÃ§Ã£o Firebase ainda nÃ£o foi configurada no frontend.');
     }
 
     try {
@@ -640,14 +662,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await credential.user.getIdToken(true);
       const email = credential.user.email?.trim().toLowerCase();
       if (!email) {
-        throw new Error('Não foi possível identificar o e-mail da conta Google utilizada.');
+        throw new Error('NÃ£o foi possÃ­vel identificar o e-mail da conta Google utilizada.');
       }
       const authorizedUser = await resolveAuthorizedUser(email);
       setCurrentUserEmail(email);
       setCurrentUser(authorizedUser);
     } catch (error) {
       if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
-        throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
+        throw new Error('NÃ£o foi possÃ­vel validar seu acesso agora. Tente novamente em instantes.');
       }
       await logoutFirebaseAuth().catch(() => undefined);
       setCurrentUserEmail('');
@@ -748,6 +770,7 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
+
 
 
 

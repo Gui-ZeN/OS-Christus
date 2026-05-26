@@ -31,6 +31,32 @@ function resolveTicketSiteIds(ticket, sites) {
   return matches;
 }
 
+function resolveUserSiteIds(user, sites) {
+  const rawValues = Array.isArray(user?.siteIds) ? uniqueValues(user.siteIds) : [];
+  if (rawValues.length === 0) return [];
+  const normalizedValues = rawValues.map(normalizeKey).filter(Boolean);
+  return uniqueValues(
+    sites
+      .filter(site =>
+        normalizedValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value))
+      )
+      .map(site => site.id)
+  );
+}
+
+function resolveUserRegionIds(user, regions) {
+  const rawValues = Array.isArray(user?.regionIds) ? uniqueValues(user.regionIds) : [];
+  if (rawValues.length === 0) return [];
+  const normalizedValues = rawValues.map(normalizeKey).filter(Boolean);
+  return uniqueValues(
+    regions
+      .filter(region =>
+        normalizedValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value))
+      )
+      .map(region => region.id)
+  );
+}
+
 function resolveTicketRegionIds(ticket, regions, sites) {
   const rawValues = [ticket?.regionId, ticket?.region].map(value => normalizeKey(value)).filter(Boolean);
   const matches = regions
@@ -68,8 +94,8 @@ function canUserAccessTicket(user, ticket, regions, sites) {
     return false;
   }
 
-  const regionIds = Array.isArray(user.regionIds) ? user.regionIds : [];
-  const siteIds = Array.isArray(user.siteIds) ? user.siteIds : [];
+  const siteIds = resolveUserSiteIds(user, sites);
+  const regionIds = resolveUserRegionIds(user, regions);
   if (regionIds.length === 0 && siteIds.length === 0) return false;
 
   const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
@@ -96,8 +122,8 @@ async function readTerritoryCatalog(db) {
 }
 
 function buildAllowedScope(user, regions, sites) {
-  const userSiteIds = Array.isArray(user?.siteIds) ? uniqueValues(user.siteIds) : [];
-  const userRegionIds = Array.isArray(user?.regionIds) ? uniqueValues(user.regionIds) : [];
+  const userSiteIds = resolveUserSiteIds(user, sites);
+  const userRegionIds = resolveUserRegionIds(user, regions);
 
   const allowedSiteIds = userSiteIds.length > 0
     ? uniqueValues([...userSiteIds])
