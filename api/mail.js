@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+Ôªøimport { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
@@ -22,7 +22,7 @@ import { sendWithSendGrid } from './_lib/sendgrid.js';
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 
 function required(input, name) {
-  if (!input || String(input).trim() === '') throw new Error(`Campo obrigatÛrio: ${name}`);
+  if (!input || String(input).trim() === '') throw new Error(`Campo obrigat√≥rio: ${name}`);
   return String(input).trim();
 }
 
@@ -45,7 +45,7 @@ function stripReplyForwardPrefixes(text) {
 function parseNewTicketSubject(text) {
   if (!text) return null;
   const normalizedSubject = stripReplyForwardPrefixes(text);
-  const match = normalizedSubject.match(/^\s*[\[\(\{]([^\]\)\}]+)[\]\)\}]\s*[-ñó:]\s*(.+?)\s*$/i);
+  const match = normalizedSubject.match(/^\s*[\[\(\{]([^\]\)\}]+)[\]\)\}]\s*[-‚Äì‚Äî:]\s*(.+?)\s*$/i);
   if (!match) return null;
   return {
     siteCode: String(match[1] || '').trim(),
@@ -313,8 +313,8 @@ function renderTemplateString(template, variables) {
   });
 }
 
-const LIKELY_MOJIBAKE_REGEX = /(?:√.|¬.|‚.|.|ÔøΩ|?)/g;
-const LIKELY_MOJIBAKE_TEST_REGEX = /(?:√.|¬.|‚.|.|ÔøΩ|?)/;
+const LIKELY_MOJIBAKE_REGEX = /(?:√É.|√Ç.|√¢.|√∞.|√Ø¬ø¬Ω|\uFFFD)/g;
+const LIKELY_MOJIBAKE_TEST_REGEX = /(?:√É.|√Ç.|√¢.|√∞.|√Ø¬ø¬Ω|\uFFFD)/;
 
 function mojibakeScore(input) {
   const matches = String(input || '').match(LIKELY_MOJIBAKE_REGEX);
@@ -457,7 +457,7 @@ async function resolveFlowFallbackRecipients(db, trigger) {
 
 function normalizeDirectorGreeting(body) {
   const text = String(body || '');
-  if (!text.trim()) return 'Ol·,';
+  if (!text.trim()) return 'Ol√°,';
 
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const normalized = [];
@@ -465,9 +465,9 @@ function normalizeDirectorGreeting(body) {
 
   for (const line of lines) {
     const trimmed = String(line || '').trim();
-    if (/^Ol[·a]\b/i.test(trimmed)) {
+    if (/^Ol[√°a]\b/i.test(trimmed)) {
       if (greetingFound) continue;
-      normalized.push('Ol·,');
+      normalized.push('Ol√°,');
       greetingFound = true;
       continue;
     }
@@ -475,15 +475,15 @@ function normalizeDirectorGreeting(body) {
   }
 
   const compacted = normalized.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  const withoutRepeatedGreeting = compacted.replace(/^(?:Ol[·a],?\s*){2,}/i, 'Ol·,\n\n');
+  const withoutRepeatedGreeting = compacted.replace(/^(?:Ol[√°a],?\s*){2,}/i, 'Ol√°,\n\n');
   if (greetingFound) return withoutRepeatedGreeting;
-  return `Ol·,\n\n${withoutRepeatedGreeting}`;
+  return `Ol√°,\n\n${withoutRepeatedGreeting}`;
 }
 
 function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
-  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'AtualizaÁ„o da OS');
-  if (!cleanSubject) return `${ticketId} - AtualizaÁ„o da OS`;
+  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualiza√ß√£o da OS');
+  if (!cleanSubject) return `${ticketId} - Atualiza√ß√£o da OS`;
   if (cleanSubject.toUpperCase().startsWith(`${ticketId.toUpperCase()} - `)) {
     return repairMojibake(cleanSubject);
   }
@@ -522,7 +522,7 @@ async function resolveRequesterThreadSubject(threadRef, thread, ticketId) {
     const inboundSubject = inboundMessages.find(message => !isTicketConversationSubject(ticketId, message.subject))?.subject;
     if (inboundSubject) return repairMojibake(String(inboundSubject));
   } catch {
-    // MantÈm fallback abaixo quando n„o for possÌvel ler o histÛrico.
+    // Mant√©m fallback abaixo quando n√£o for poss√≠vel ler o hist√≥rico.
   }
 
   return storedSubject;
@@ -782,7 +782,7 @@ async function authorizeGmailAutomation(req) {
     await requireUserWithRoles(req, ['Admin']);
     return;
   } catch {
-    // Segue para validaÁ„o por segredo abaixo.
+    // Segue para valida√ß√£o por segredo abaixo.
   }
 
   if (validSecrets.length === 0) {
@@ -791,7 +791,7 @@ async function authorizeGmailAutomation(req) {
   }
 
   if (!provided || !validSecrets.includes(provided)) {
-    throw new Error('Segredo inv·lido.');
+    throw new Error('Segredo inv√°lido.');
   }
 }
 
@@ -805,7 +805,7 @@ async function processGmailInboundMessage(db, msg, source) {
       fromEmail: firstEmail(msg.from),
       subject: msg.subject || '',
       messageId: msg.messageId || msg.id || null,
-      error: 'Mensagem autom·tica ou enviada pelo prÛprio sistema ignorada.',
+      error: 'Mensagem autom√°tica ou enviada pelo pr√≥prio sistema ignorada.',
     });
     return false;
   }
@@ -1127,17 +1127,17 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
   const subject = `Nova OS recebida - ${ticket.id || 'Sem ID'}`;
   const template = buildTicketEmailTemplate({
     trigger: 'EMAIL-NOVA-OS-GESTOR',
-    title: `Nova solicitaÁ„o recebida (${ticket.id || 'OS'})`,
-    intro: 'Uma nova solicitaÁ„o de OS foi registrada por e-mail para sua estrutura.',
+    title: `Nova solicita√ß√£o recebida (${ticket.id || 'OS'})`,
+    intro: 'Uma nova solicita√ß√£o de OS foi registrada por e-mail para sua estrutura.',
     ticketId: ticket.id || '-',
     status: ticket.status || 'Nova OS',
     ctaUrl: ctaUrl || null,
-    ctaLabel: 'Acompanhar solicitaÁ„o',
+    ctaLabel: 'Acompanhar solicita√ß√£o',
     bodyText: [
       `Assunto: ${ticket.subject || '-'}`,
       `Solicitante: ${ticket.requester || '-'} (${ticket.requesterEmail || '-'})`,
       `Sede: ${ticket.sede || '-'}`,
-      `Regi„o: ${ticket.region || '-'}`,
+      `Regi√£o: ${ticket.region || '-'}`,
     ].join('\n'),
   });
 
@@ -1170,7 +1170,7 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
         });
       }
     } catch {
-      // N„o bloqueia criaÁ„o da OS se a notificaÁ„o ao gestor falhar.
+      // N√£o bloqueia cria√ß√£o da OS se a notifica√ß√£o ao gestor falhar.
     }
   }
 }
@@ -1250,13 +1250,13 @@ async function createTicketFromInbound(db, message) {
     requesterCcEmails: ccRecipients,
     time: now,
     status: 'Nova OS',
-    type: 'ManutenÁ„o Predial Estrutural',
+    type: 'Manuten√ß√£o Predial Estrutural',
     macroServiceId: null,
     macroServiceName: null,
     serviceCatalogId: null,
     serviceCatalogName: null,
     regionId: region?.id || null,
-    region: region?.name || 'N„o definida',
+    region: region?.name || 'N√£o definida',
     siteId: site?.id || null,
     sede: site?.code || parsedSubject.siteCode,
     sector: 'E-mail',
@@ -1300,7 +1300,7 @@ async function handleSend(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     const body = await readJsonBody(req);
@@ -1308,7 +1308,7 @@ async function handleSend(req, res) {
     ticketIdForLog = ticketId;
 
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
-    const subject = body.subject ? String(body.subject) : `AtualizaÁ„o da OS ${ticketId}`;
+    const subject = body.subject ? String(body.subject) : `Atualiza√ß√£o da OS ${ticketId}`;
     const text = body.text ? String(body.text) : '';
     const html = body.html ? String(body.html) : '';
     const templateId = body.templateId ? String(body.templateId) : null;
@@ -1370,7 +1370,7 @@ async function handleSend(req, res) {
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
     const resolvedSubject = ticketId
-      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, 'AtualizaÁ„o da OS')
+      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, 'Atualiza√ß√£o da OS')
       : templateSubject;
 
 
@@ -1429,7 +1429,7 @@ async function handleSend(req, res) {
     const ccEmail = ccRecipients.join(', ');
     toEmailForLog = toEmail;
     if (!toEmail || recipients.length === 0) {
-      throw new Error('Campo obrigatÛrio: toEmail (ou thread existente com destinat·rio).');
+      throw new Error('Campo obrigat√≥rio: toEmail (ou thread existente com destinat√°rio).');
     }
 
     const storedRootMessageId = normalizeMessageIdToken(thread?.rootMessageId);
@@ -1465,10 +1465,10 @@ async function handleSend(req, res) {
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
-      title: templateData.title || `AtualizaÁ„o da OS ${ticketId}`,
+      title: templateData.title || `Atualiza√ß√£o da OS ${ticketId}`,
       intro:
         templateData.intro ||
-        'Sua solicitaÁ„o recebeu uma nova atualizaÁ„o. VocÍ pode responder este e-mail para continuar a conversa no sistema.',
+        'Sua solicita√ß√£o recebeu uma nova atualiza√ß√£o. Voc√™ pode responder este e-mail para continuar a conversa no sistema.',
       ticketId,
       subject: templateData.ticketSubject || resolvedSubject,
       status: templateData.status || 'Atualizada',
@@ -1523,7 +1523,7 @@ async function handleSend(req, res) {
 
         if (!shouldBatchRetryFallback) throw error;
 
-        // Retry em lote, mantendo todos os destinat·rios, mas sem contexto de thread.
+        // Retry em lote, mantendo todos os destinat√°rios, mas sem contexto de thread.
         // Alguns filtros bloqueiam respostas em corrente com muitos participantes.
         const retrySend = await sendWithGmailThreadFallback({
           toEmail,
@@ -1652,7 +1652,7 @@ async function handleHealth(req, res) {
   try {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     await requireUserWithRoles(req, ['Admin', 'Diretor']);
@@ -1700,11 +1700,11 @@ async function handleHealth(req, res) {
           provider: event.provider || null,
           type: event.type || null,
           ticketId: event.ticketId || null,
-          error: event.error || 'Erro n„o detalhado',
+          error: event.error || 'Erro n√£o detalhado',
         })),
     });
   } catch (error) {
-    return sendJson(res, 500, { ok: false, error: error.message || 'Falha ao ler sa˙de de e-mail.' });
+    return sendJson(res, 500, { ok: false, error: error.message || 'Falha ao ler sa√∫de de e-mail.' });
   }
 }
 
@@ -1712,7 +1712,7 @@ async function handleGmailSync(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -1902,7 +1902,7 @@ async function handleReprocessInbound(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     await requireUserWithRoles(req, ['Admin', 'Gestor', 'Diretor']);
@@ -1994,7 +1994,7 @@ async function handleGmailWatch(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -2044,7 +2044,7 @@ async function handleGmailPush(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     await authorizeGmailAutomation(req);
@@ -2151,14 +2151,14 @@ async function handleInbound(req, res) {
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+      return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
     }
 
     const configuredSecret = process.env.SENDGRID_INBOUND_SECRET;
     if (configuredSecret) {
       const provided = req.query?.secret || req.headers['x-os-secret'] || req.headers['x-inbound-secret'] || null;
       if (provided !== configuredSecret) {
-        return sendJson(res, 401, { ok: false, error: 'Segredo inv·lido no inbound.' });
+        return sendJson(res, 401, { ok: false, error: 'Segredo inv√°lido no inbound.' });
       }
     }
 
@@ -2192,7 +2192,7 @@ async function handleInbound(req, res) {
         fromEmail: fromEmail || null,
         subject,
         messageId: body['message-id'] || headers['message-id'] || null,
-        error: 'Mensagem autom·tica ou enviada pelo prÛprio sistema ignorada.',
+        error: 'Mensagem autom√°tica ou enviada pelo pr√≥prio sistema ignorada.',
       });
       return sendJson(res, 200, { ok: true, skipped: true });
     }
@@ -2245,7 +2245,7 @@ async function handleInbound(req, res) {
 
     if (!ticketId) {
       await finalizeInboundMessageLock(lock.ref);
-      return sendJson(res, 422, { ok: false, error: 'N„o foi possÌvel identificar o ticket no inbound.' });
+      return sendJson(res, 422, { ok: false, error: 'N√£o foi poss√≠vel identificar o ticket no inbound.' });
     }
     const inboundAttachments = createdTicket
       ? (Array.isArray(createdTicket.attachments) ? createdTicket.attachments : [])
@@ -2364,8 +2364,10 @@ export default async function handler(req, res) {
   if (route === 'inbound') return handleInbound(req, res);
 
   res.setHeader('Allow', 'GET, POST');
-  return sendJson(res, 404, { ok: false, error: 'Rota de mail inv·lida.' });
+  return sendJson(res, 404, { ok: false, error: 'Rota de mail inv√°lida.' });
 }
+
+
 
 
 
