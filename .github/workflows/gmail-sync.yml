@@ -16,6 +16,8 @@ jobs:
           SYNC_URL: ${{ secrets.SYNC_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          printf 'SYNC_URL=<%s>\n' "$SYNC_URL"
+          printf 'CRON_SECRET_LEN=%s\n' "${#CRON_SECRET}"
           if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "Missing required secrets: SYNC_URL or CRON_SECRET"
             exit 1
