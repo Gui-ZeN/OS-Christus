@@ -1,6 +1,8 @@
 export async function readApiJson<T = unknown>(response: Response): Promise<T | null> {
+  const raw = await response.text().catch(() => '');
+  if (!raw) return null;
   try {
-    return (await response.json()) as T;
+    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
@@ -26,6 +28,9 @@ export async function expectApiJson<T = unknown>(
   const payload = await readApiJson<T & { error?: string }>(response);
   if (!response.ok) {
     throw new Error(resolveApiError(payload, fallbackMessage));
+  }
+  if (!payload) {
+    throw new Error(`${fallbackMessage} (resposta inválida do servidor)`);
   }
   return payload as T;
 }

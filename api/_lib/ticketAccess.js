@@ -158,6 +158,7 @@ function buildAllowedScope(user, regions, sites) {
   );
 
   return {
+    hasExplicitSiteScope,
     allowedSiteIds,
     allowedRegionIds,
     siteMatchers,
@@ -174,16 +175,20 @@ async function queryTicketsByScope(db, scope) {
     queries.push(db.collection('tickets').where('siteId', 'in', chunk).get());
   }
 
-  for (const chunk of chunkValues(scope.allowedRegionIds)) {
-    queries.push(db.collection('tickets').where('regionId', 'in', chunk).get());
+  if (!scope.hasExplicitSiteScope) {
+    for (const chunk of chunkValues(scope.allowedRegionIds)) {
+      queries.push(db.collection('tickets').where('regionId', 'in', chunk).get());
+    }
   }
 
   for (const chunk of chunkValues(scope.siteMatchers)) {
     queries.push(db.collection('tickets').where('sede', 'in', chunk).get());
   }
 
-  for (const chunk of chunkValues(scope.regionMatchers)) {
-    queries.push(db.collection('tickets').where('region', 'in', chunk).get());
+  if (!scope.hasExplicitSiteScope) {
+    for (const chunk of chunkValues(scope.regionMatchers)) {
+      queries.push(db.collection('tickets').where('region', 'in', chunk).get());
+    }
   }
 
   const snapshots = await Promise.all(queries);
@@ -210,7 +215,8 @@ async function readAccessibleTickets(db, user) {
   }
   const territory = await readTerritoryCatalog(db);
   const scope = buildAllowedScope(user, territory.regions, territory.sites);
-  return queryTicketsByScope(db, scope);
+  const scopedTickets = await queryTicketsByScope(db, scope);
+  return scopedTickets.filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites));
 }
 
 export {
