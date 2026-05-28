@@ -3,8 +3,8 @@ function decodeLikelyLatin1AsUtf8(input: string) {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
-const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/g;
-const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/;
+const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/g;
+const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/;
 
 function mojibakeScore(input: string): number {
   const matches = input.match(LIKELY_MOJIBAKE_REGEX);

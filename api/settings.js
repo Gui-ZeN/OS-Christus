@@ -5,8 +5,8 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 
 const FIXED_TICKET_EMAIL_SUBJECT = '{{ticket.id}} - {{ticket.subject}}';
-const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/g;
-const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|�)/;
+const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/g;
+const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/;
 
 function mojibakeScore(input) {
   const matches = String(input || '').match(LIKELY_MOJIBAKE_REGEX);

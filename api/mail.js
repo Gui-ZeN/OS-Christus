@@ -419,6 +419,18 @@ function getSystemMailboxEmails() {
     .filter(Boolean);
 }
 
+function resolveConfiguredEmailProvider() {
+  const explicit = String(process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
+  if (explicit === 'gmail' || explicit === 'sendgrid') return explicit;
+  if (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN) {
+    return 'gmail';
+  }
+  if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL) {
+    return 'sendgrid';
+  }
+  return 'sendgrid';
+}
+
 async function resolveFlowFallbackRecipients(db, trigger) {
   const normalizedTrigger = String(trigger || '').trim().toUpperCase();
   if (!normalizedTrigger.startsWith('EMAIL-DIRETORIA-')) return [];
@@ -1120,7 +1132,7 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
 
   if (gestores.length === 0) return;
 
-  const provider = String(process.env.EMAIL_PROVIDER || 'sendgrid').trim().toLowerCase();
+  const provider = resolveConfiguredEmailProvider();
   const ctaUrl = ticket?.trackingToken
     ? `${process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://serv3.vercel.app'}/?tracking=${encodeURIComponent(ticket.trackingToken)}`
     : '';
@@ -1295,7 +1307,7 @@ async function createTicketFromInbound(db, message) {
 async function handleSend(req, res) {
   let ticketIdForLog = null;
   let toEmailForLog = null;
-  const providerForLog = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+  const providerForLog = resolveConfiguredEmailProvider();
 
   try {
     if (req.method !== 'POST') {
@@ -1358,7 +1370,7 @@ async function handleSend(req, res) {
     const baseResolvedBody = requestedBodyOverride || repairMojibake(
       storedTemplate?.body ? renderTemplateString(storedTemplate.body, variables) : text
     );
-    const directorSummary = String(templateData.directorSummary || '').trim();
+    const directorSummary = repairMojibake(String(templateData.directorSummary || '').trim());
     const resolvedBody =
       isDirectorTrigger && !requestedBodyOverride && directorSummary
         ? (baseResolvedBody
@@ -1370,7 +1382,7 @@ async function handleSend(req, res) {
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
     const resolvedSubject = ticketId
-      ? buildConversationSubject(ticketId, templateData.ticketSubject || resolvedTicket.subject, 'Atualização da OS')
+      ? buildConversationSubject(ticketId, repairMojibake(templateData.ticketSubject || resolvedTicket.subject), 'Atualização da OS')
       : templateSubject;
 
 
@@ -1465,26 +1477,26 @@ async function handleSend(req, res) {
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
-      title: templateData.title || `Atualização da OS ${ticketId}`,
+      title: repairMojibake(templateData.title || '') || `Atualização da OS ${ticketId}`,
       intro:
-        templateData.intro ||
+        repairMojibake(templateData.intro || '') ||
         'Sua solicitação recebeu uma nova atualização. Você pode responder este e-mail para continuar a conversa no sistema.',
       ticketId,
-      subject: templateData.ticketSubject || resolvedSubject,
-      status: templateData.status || 'Atualizada',
-      region: templateData.region || resolvedTicket.region || null,
-      site: templateData.site || resolvedTicket.sede || null,
-      sector: templateData.sector || resolvedTicket.sector || null,
-      service: templateData.service || resolvedTicket.service || resolvedTicket.macroService || null,
-      guaranteeSummary: templateData.guaranteeSummary || resolvedGuarantee.summary || null,
+      subject: repairMojibake(templateData.ticketSubject || resolvedSubject),
+      status: repairMojibake(templateData.status || 'Atualizada'),
+      region: repairMojibake(templateData.region || resolvedTicket.region || '') || null,
+      site: repairMojibake(templateData.site || resolvedTicket.sede || '') || null,
+      sector: repairMojibake(templateData.sector || resolvedTicket.sector || '') || null,
+      service: repairMojibake(templateData.service || resolvedTicket.service || resolvedTicket.macroService || '') || null,
+      guaranteeSummary: repairMojibake(templateData.guaranteeSummary || resolvedGuarantee.summary || '') || null,
       ctaUrl: templateData.ctaUrl || null,
-      ctaLabel: templateData.ctaLabel || 'Acompanhar OS',
-      bodyText: personalizedBody || templateData.bodyText || '',
+      ctaLabel: repairMojibake(templateData.ctaLabel || 'Acompanhar OS'),
+      bodyText: repairMojibake(personalizedBody || templateData.bodyText || ''),
       metricRows: Array.isArray(templateData.metricRows) ? templateData.metricRows : [],
       detailCards: Array.isArray(templateData.detailCards) ? templateData.detailCards : [],
     });
 
-    const finalText = personalizedBody || text || fallbackTemplate.text;
+    const finalText = repairMojibake(personalizedBody || text || fallbackTemplate.text);
     const finalHtml = shouldUseMinimalConversationBody
       ? buildSimpleHtmlEmail(finalText)
       : (html || fallbackTemplate.html);
