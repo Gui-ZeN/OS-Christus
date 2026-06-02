@@ -26,6 +26,9 @@ export async function expectApiJson<T = unknown>(
   fallbackMessage: string
 ): Promise<T> {
   const payload = await readApiJson<T & { error?: string }>(response);
+  if (response.status === 413) {
+    throw new Error('O anexo enviado é muito grande. Envie uma imagem menor ou tente registrar a solicitação sem foto.');
+  }
   if (!response.ok) {
     throw new Error(resolveApiError(payload, fallbackMessage));
   }

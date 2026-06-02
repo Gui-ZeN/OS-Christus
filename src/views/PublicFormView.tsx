@@ -35,6 +35,15 @@ function parseEmailList(input: string) {
   return { valid, invalid };
 }
 
+function getPublicFormSubmitError(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  if (!message) return 'Não foi possível registrar a OS agora. Tente novamente em alguns minutos.';
+  if (message === 'Falha ao criar ticket na API.') {
+    return 'Não foi possível registrar a solicitação. Se houver foto anexada, tente enviar uma imagem menor ou registre sem foto e envie a imagem depois.';
+  }
+  return message;
+}
+
 export function PublicFormView({ onBack }: PublicFormViewProps) {
   const { addTicket } = useApp();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -192,7 +201,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       });
       setFiles([]);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Não foi possível registrar a OS agora.');
+      setSubmitError(getPublicFormSubmitError(error));
       setIsSubmitting(false);
     }
   };

@@ -330,7 +330,12 @@ async function uploadTicketAttachments(ticketId, attachments) {
     throw new HttpError(400, `Máximo de ${MAX_ATTACHMENTS} anexos por ticket.`);
   }
 
-  const bucket = getStorage().bucket();
+  let bucket;
+  try {
+    bucket = getStorage().bucket();
+  } catch {
+    throw new HttpError(500, 'Nao foi possivel acessar o armazenamento de anexos. Registre a solicitacao sem foto ou tente novamente mais tarde.');
+  }
   const uploadedAt = new Date();
   const results = [];
 
@@ -349,18 +354,23 @@ async function uploadTicketAttachments(ticketId, attachments) {
     const path = `${baseFolder}/${ticketId}/public-${Date.now()}-${index + 1}-${filename}`;
     const file = bucket.file(path);
 
-    await file.save(attachment.buffer, {
-      resumable: false,
-      contentType: attachment.mimeType || 'application/octet-stream',
-      metadata: {
+    let url;
+    try {
+      await file.save(attachment.buffer, {
+        resumable: false,
         contentType: attachment.mimeType || 'application/octet-stream',
-      },
-    });
+        metadata: {
+          contentType: attachment.mimeType || 'application/octet-stream',
+        },
+      });
 
-    const [url] = await file.getSignedUrl({
-      action: 'read',
-      expires: '2035-01-01',
-    });
+      [url] = await file.getSignedUrl({
+        action: 'read',
+        expires: '2035-01-01',
+      });
+    } catch {
+      throw new HttpError(500, `Nao foi possivel salvar o anexo "${attachment.filename || `anexo-${index + 1}`}". Tente com uma imagem menor ou registre a solicitacao sem foto.`);
+    }
 
     results.push({
       id: randomUUID(),
