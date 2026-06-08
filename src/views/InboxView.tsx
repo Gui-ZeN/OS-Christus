@@ -730,8 +730,9 @@ export function InboxView() {
   const [showStageControls, setShowStageControls] = useState(false);
   const [waterIssueDraft, setWaterIssueDraft] = useState(false);
   const [sidebarSections, setSidebarSections] = useState({
-    summary: true,
-    classification: true,
+    // Detalhes read-only começam recolhidos para destacar o formulário de triagem.
+    summary: false,
+    classification: false,
     execution: true,
   });
   const [ticketDetailsForm, setTicketDetailsForm] = useState<TicketDetailsFormState>(createTicketDetailsFormState());
@@ -951,8 +952,8 @@ export function InboxView() {
 
   useEffect(() => {
     setSidebarSections({
-      summary: true,
-      classification: true,
+      summary: false,
+      classification: false,
       execution: ([
         TICKET_STATUS.WAITING_PRELIM_ACTIONS,
         TICKET_STATUS.IN_PROGRESS,
