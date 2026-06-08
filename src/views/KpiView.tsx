@@ -8,15 +8,7 @@ import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
-
-function parseCurrency(value: string) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+import { parseCurrency } from '../utils/currency';
 
 function formatCurrencyBRL(value: number) {
   return `R$ ${value.toLocaleString('pt-BR')}`;

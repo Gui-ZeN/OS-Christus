@@ -1,6 +1,7 @@
 import { subMonths } from 'date-fns';
 import type { Quote, QuoteItem, Ticket } from '../types';
 import { coerceDate } from './date';
+import { normalizeText } from './text';
 
 type QuoteMap = Record<string, Quote[]>;
 type BudgetHistoryVendor = {
@@ -64,13 +65,6 @@ export interface BudgetHistorySummary {
   latestComparableDate: Date | null;
   preferredVendor: BudgetHistoryPreferredVendor | null;
   itemReferences: BudgetHistoryItemReference[];
-}
-
-function normalizeText(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
 }
 
 function dedupeTerms(terms: string[]) {

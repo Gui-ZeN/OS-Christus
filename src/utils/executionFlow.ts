@@ -1,4 +1,5 @@
 import type { PaymentRecord } from '../types';
+import { parseCurrency as parseCurrencyValue } from './currency';
 
 function clampMilestonePercent(value: number) {
   if (!Number.isFinite(value)) return 0;
@@ -8,17 +9,6 @@ function clampMilestonePercent(value: number) {
 function normalizeProgressPercent(value: number) {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Number(value));
-}
-
-function parseCurrencyValue(raw?: string | null) {
-  if (!raw) return 0;
-  const normalized = Number(
-    String(raw)
-      .replace(/[^\d,.-]/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.')
-  );
-  return Number.isFinite(normalized) ? normalized : 0;
 }
 
 export function createExecutionPaymentPlan(_totalValue: number, vendor: string, parts: number) {

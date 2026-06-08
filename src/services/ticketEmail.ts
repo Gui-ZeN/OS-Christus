@@ -5,6 +5,7 @@ import { fetchCatalog } from './catalogApi';
 import { fetchDirectory } from './directoryApi';
 import { fetchProcurementData } from './procurementApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
+import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
 
 function resolveTicketEmail(ticket: Ticket): string | null {
   if (ticket.requesterEmail?.trim()) return ticket.requesterEmail.trim();
@@ -177,23 +178,6 @@ function normalizeRoundCategory(value: unknown): 'initial' | 'additive' {
 
 function normalizeQuoteStatus(value: unknown): string {
   return String(value || '').trim().toLowerCase();
-}
-
-function parseCurrencyInput(value: string) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(value);
 }
 
 function resolveQuoteDisplayValue(quote: Quote) {
