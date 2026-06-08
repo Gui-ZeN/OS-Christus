@@ -1,4 +1,4 @@
-﻿import { createHash, randomUUID } from 'node:crypto';
+﻿import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
@@ -17,6 +17,7 @@ import {
   gmailStartWatch,
 } from './_lib/gmail.js';
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
+import { isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { sendWithSendGrid } from './_lib/sendgrid.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
@@ -720,7 +721,6 @@ async function appendInboundMessageToTicketHistory(db, ticketId, message) {
   if (!ticketSnap.exists) return;
 
   const ticket = ticketSnap.data() || {};
-  const history = Array.isArray(ticket.history) ? ticket.history : [];
   const fromEmail = firstEmail(message.from);
   const requesterEmail = firstEmail(ticket.requesterEmail);
 
@@ -751,15 +751,23 @@ async function appendInboundMessageToTicketHistory(db, ticketId, message) {
     type,
     visibility,
   });
-  if (history.some(item => item?.id === nextEntry.id)) return;
 
-  await ticketRef.set(
-    {
-      history: [...history, nextEntry],
-      updatedAt: new Date(),
-    },
-    { merge: true }
-  );
+  // Transação: relê o histórico fresco e anexa apenas se a entrada ainda não
+  // existir, preservando entradas concorrentes (ex.: edição no painel).
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ticketRef);
+    if (!snap.exists) return;
+    const freshHistory = Array.isArray(snap.data()?.history) ? snap.data().history : [];
+    if (freshHistory.some(item => item?.id === nextEntry.id)) return;
+    tx.set(
+      ticketRef,
+      {
+        history: [...freshHistory, nextEntry],
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+  });
 }
 
 function getGmailStateRef(db) {
@@ -777,6 +785,18 @@ function decodePubSubPayload(input) {
   return safeJsonParse(decoded);
 }
 
+// Comparação em tempo constante para evitar timing oracle na verificação de segredos.
+function secretsMatch(provided, expected) {
+  if (!provided || !expected) return false;
+  const providedHash = createHash('sha256').update(String(provided)).digest();
+  const expectedHash = createHash('sha256').update(String(expected)).digest();
+  return timingSafeEqual(providedHash, expectedHash);
+}
+
+function matchesAnySecret(provided, secrets) {
+  return secrets.some(secret => secretsMatch(provided, secret));
+}
+
 async function authorizeGmailAutomation(req) {
   const watchSecret = process.env.GMAIL_PUSH_SECRET;
   const syncSecret = process.env.GMAIL_SYNC_SECRET;
@@ -786,7 +806,7 @@ async function authorizeGmailAutomation(req) {
   const provided = req.query?.secret || req.headers['x-sync-secret'] || req.headers['x-gmail-push-secret'] || bearer;
   const validSecrets = [watchSecret, syncSecret, cronSecret].filter(Boolean);
 
-  if (provided && validSecrets.includes(provided)) {
+  if (provided && matchesAnySecret(provided, validSecrets)) {
     return;
   }
 
@@ -802,7 +822,7 @@ async function authorizeGmailAutomation(req) {
     return;
   }
 
-  if (!provided || !validSecrets.includes(provided)) {
+  if (!provided || !matchesAnySecret(provided, validSecrets)) {
     throw new Error('Segredo inválido.');
   }
 }
@@ -1206,15 +1226,20 @@ async function uploadInboundAttachments(ticketId, attachments) {
     const fileSize = Number(attachment.size || attachment.buffer.length || 0);
     if (fileSize > MAX_ATTACHMENT_SIZE) continue;
 
+    // Allow-list de MIME: anexos não permitidos (SVG/HTML/executáveis) são
+    // ignorados sem interromper o processamento do e-mail inbound.
+    if (!isAllowedAttachmentMime(attachment.mimeType)) continue;
+    const contentType = normalizeMimeType(attachment.mimeType);
+
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`);
     const path = `attachments/tickets/inbound/${ticketId}/${Date.now()}-${index + 1}-${filename}`;
     const file = bucket.file(path);
 
     await file.save(attachment.buffer, {
       resumable: false,
-      contentType: attachment.mimeType || 'application/octet-stream',
+      contentType,
       metadata: {
-        contentType: attachment.mimeType || 'application/octet-stream',
+        contentType,
       },
     });
 
@@ -1228,7 +1253,7 @@ async function uploadInboundAttachments(ticketId, attachments) {
       name: attachment.filename || filename,
       path,
       url,
-      contentType: attachment.mimeType || 'application/octet-stream',
+      contentType,
       size: Number(attachment.size || attachment.buffer.length || 0),
       uploadedAt,
       category: 'attachment',
@@ -2166,12 +2191,18 @@ async function handleInbound(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
+    // Fail-closed: sem segredo configurado, recusamos o webhook em vez de
+    // aceitar mensagens forjadas que criam/atualizam OS.
     const configuredSecret = process.env.SENDGRID_INBOUND_SECRET;
-    if (configuredSecret) {
-      const provided = req.query?.secret || req.headers['x-os-secret'] || req.headers['x-inbound-secret'] || null;
-      if (provided !== configuredSecret) {
-        return sendJson(res, 401, { ok: false, error: 'Segredo inválido no inbound.' });
-      }
+    if (!configuredSecret) {
+      return sendJson(res, 503, {
+        ok: false,
+        error: 'Webhook de inbound não configurado (SENDGRID_INBOUND_SECRET ausente).',
+      });
+    }
+    const provided = req.query?.secret || req.headers['x-os-secret'] || req.headers['x-inbound-secret'] || null;
+    if (!secretsMatch(provided, configuredSecret)) {
+      return sendJson(res, 401, { ok: false, error: 'Segredo inválido no inbound.' });
     }
 
     const body = await parseInboundBody(req);

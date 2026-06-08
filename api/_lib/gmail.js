@@ -83,20 +83,37 @@ function foldBase64(input) {
   return String(input || '').replace(/.{1,76}/g, '$&\r\n').trim();
 }
 
+// Remove CR/LF e caracteres de controle para impedir injeção de cabeçalhos MIME
+// (ex.: Bcc oculto, Reply-To forjado) via valores controlados pelo usuário.
+function sanitizeHeaderValue(value) {
+  return String(value ?? '')
+    .replace(/[\r\n]+/g, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .trim();
+}
+
 function buildRawMessage({ from, to, cc, subject, text, html, inReplyTo, references, extraHeaders = {}, attachments = [] }) {
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
   const mixedBoundary = `oschristus_mixed_${Math.random().toString(16).slice(2)}`;
   const alternativeBoundary = `oschristus_alt_${Math.random().toString(16).slice(2)}`;
+  const safeCc = sanitizeHeaderValue(cc);
+  const safeInReplyTo = sanitizeHeaderValue(inReplyTo);
+  const safeReferences = Array.isArray(references)
+    ? references.map(sanitizeHeaderValue).filter(Boolean)
+    : [];
   const headers = [
-    `From: ${from}`,
-    `To: ${to}`,
-    ...(cc ? [`Cc: ${cc}`] : []),
+    `From: ${sanitizeHeaderValue(from)}`,
+    `To: ${sanitizeHeaderValue(to)}`,
+    ...(safeCc ? [`Cc: ${safeCc}`] : []),
     `Subject: ${encodeMimeHeader(subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: ${hasAttachments ? `multipart/mixed; boundary="${mixedBoundary}"` : `multipart/alternative; boundary="${alternativeBoundary}"`}`,
-    ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`] : []),
-    ...(references && references.length > 0 ? [`References: ${references.join(' ')}`] : []),
-    ...Object.entries(extraHeaders).map(([key, value]) => `${key}: ${value}`),
+    ...(safeInReplyTo ? [`In-Reply-To: ${safeInReplyTo}`] : []),
+    ...(safeReferences.length > 0 ? [`References: ${safeReferences.join(' ')}`] : []),
+    ...Object.entries(extraHeaders).map(
+      ([key, value]) => `${sanitizeHeaderValue(key)}: ${sanitizeHeaderValue(value)}`
+    ),
     '',
   ];
 

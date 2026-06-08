@@ -86,12 +86,16 @@ function canUserAccessTicket(user, ticket, regions, sites) {
     const directorEmails = Array.isArray(ticket?.directorEmails)
       ? ticket.directorEmails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean)
       : [];
-    const userId = String(user.id || '').trim();
-    const userEmail = String(user.email || '').trim().toLowerCase();
-    if (directorIds.length === 0 && directorEmails.length === 0) return true;
-    if (userId && directorIds.includes(userId)) return true;
-    if (userEmail && directorEmails.includes(userEmail)) return true;
-    return false;
+    // OS com diretores designados: somente eles têm acesso (mesmo fora do território).
+    if (directorIds.length > 0 || directorEmails.length > 0) {
+      const userId = String(user.id || '').trim();
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      if (userId && directorIds.includes(userId)) return true;
+      if (userEmail && directorEmails.includes(userEmail)) return true;
+      return false;
+    }
+    // OS sem diretor designado: cai no escopo territorial (regionIds/siteIds),
+    // tratada pelo bloco genérico abaixo. Fail-closed se o diretor não tiver escopo.
   }
 
   const hasExplicitSiteScope = Array.isArray(user?.siteIds) && user.siteIds.some(value => String(value || '').trim());
@@ -201,20 +205,46 @@ async function queryTicketsByScope(db, scope) {
   return [...docs.values()];
 }
 
+async function queryDirectorAssignedTickets(db, user) {
+  const userId = String(user?.id || '').trim();
+  const userEmail = String(user?.email || '').trim().toLowerCase();
+  const queries = [];
+  if (userId) queries.push(db.collection('tickets').where('directorIds', 'array-contains', userId).get());
+  if (userEmail) queries.push(db.collection('tickets').where('directorEmails', 'array-contains', userEmail).get());
+  if (queries.length === 0) return [];
+
+  const docs = new Map();
+  const snapshots = await Promise.all(queries);
+  snapshots.forEach(snapshot => {
+    snapshot.docs.forEach(doc => docs.set(doc.id, { id: doc.id, ...doc.data() }));
+  });
+  return [...docs.values()];
+}
+
 async function readAccessibleTickets(db, user) {
   if (!user) return [];
   if (user.role === 'Admin' || user.role === 'Gestor') {
     const snap = await db.collection('tickets').get();
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
-  if (user.role === 'Diretor') {
-    const snap = await db.collection('tickets').get();
-    return snap.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(ticket => canUserAccessTicket(user, ticket, [], []));
-  }
+
   const territory = await readTerritoryCatalog(db);
   const scope = buildAllowedScope(user, territory.regions, territory.sites);
+
+  if (user.role === 'Diretor') {
+    // Diretor vê: OS explicitamente atribuídas a ele (mesmo fora do território)
+    // + OS sem diretor designado dentro do seu escopo territorial.
+    const [assignedTickets, scopedTickets] = await Promise.all([
+      queryDirectorAssignedTickets(db, user),
+      queryTicketsByScope(db, scope),
+    ]);
+    const docs = new Map();
+    for (const ticket of [...assignedTickets, ...scopedTickets]) docs.set(ticket.id, ticket);
+    return [...docs.values()].filter(ticket =>
+      canUserAccessTicket(user, ticket, territory.regions, territory.sites)
+    );
+  }
+
   const scopedTickets = await queryTicketsByScope(db, scope);
   return scopedTickets.filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites));
 }

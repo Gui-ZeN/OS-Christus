@@ -6,6 +6,8 @@ import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readAccessibleTickets } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
+import { enforceRateLimit } from './_lib/rateLimit.js';
+import { assertAllowedAttachmentMime } from './_lib/attachments.js';
 
 const STATUS_IN_PROGRESS = 'Em andamento';
 const STATUS_WAITING_MAINTENANCE_APPROVAL = 'Aguardando aprovação da manutenção';
@@ -127,36 +129,78 @@ function isPublicTrackingHistoryEntry(item) {
   return hasPublicMarker;
 }
 
+// Campos permitidos em cada entrada de histórico pública (sem anexos/URLs assinadas).
+function sanitizePublicHistoryEntry(item) {
+  if (!item || typeof item !== 'object') return item;
+  return {
+    id: item.id ?? null,
+    type: item.type ?? null,
+    sender: item.sender ?? null,
+    time: item.time ?? null,
+    text: item.text ?? null,
+    visibility: item.visibility ?? null,
+    channel: item.channel ?? null,
+    field: item.field ?? null,
+    to: item.to ?? null,
+  };
+}
+
+// Allow-list: monta o payload público apenas com campos seguros, evitando vazar
+// PII (e-mails de solicitante/diretores), anexos e demais dados internos.
 function sanitizeTicketForPublicTracking(ticket) {
   if (!ticket || typeof ticket !== 'object') return ticket;
-  const nextTicket = { ...ticket };
-  delete nextTicket.viewingBy;
-  delete nextTicket.sla;
-  delete nextTicket.attachments;
 
-  if (Array.isArray(nextTicket.history)) {
-    nextTicket.history = nextTicket.history.filter(isPublicTrackingHistoryEntry);
-  } else {
-    nextTicket.history = [];
+  const history = Array.isArray(ticket.history)
+    ? ticket.history.filter(isPublicTrackingHistoryEntry).map(sanitizePublicHistoryEntry)
+    : [];
+
+  let closureChecklist = null;
+  if (ticket.closureChecklist && typeof ticket.closureChecklist === 'object') {
+    closureChecklist = { ...ticket.closureChecklist };
+    delete closureChecklist.infrastructureApprovalPrimary;
+    delete closureChecklist.infrastructureApprovalSecondary;
+    delete closureChecklist.infrastructureApprovedByRafael;
+    delete closureChecklist.infrastructureApprovedByFernando;
+    delete closureChecklist.documents;
   }
 
-  if (nextTicket.executionProgress && typeof nextTicket.executionProgress === 'object') {
-    const nextExecution = { ...nextTicket.executionProgress };
-    delete nextExecution.measurementSheetUrl;
-    nextTicket.executionProgress = nextExecution;
+  let executionProgress = null;
+  if (ticket.executionProgress && typeof ticket.executionProgress === 'object') {
+    executionProgress = { ...ticket.executionProgress };
+    delete executionProgress.measurementSheetUrl;
   }
 
-  if (nextTicket.closureChecklist && typeof nextTicket.closureChecklist === 'object') {
-    const nextClosure = { ...nextTicket.closureChecklist };
-    delete nextClosure.infrastructureApprovalPrimary;
-    delete nextClosure.infrastructureApprovalSecondary;
-    delete nextClosure.infrastructureApprovedByRafael;
-    delete nextClosure.infrastructureApprovedByFernando;
-    delete nextClosure.documents;
-    nextTicket.closureChecklist = nextClosure;
+  // Apenas as datas consumidas pelo rastreio; nunca blockerNotes/outros campos internos.
+  let preliminaryActions = null;
+  if (ticket.preliminaryActions && typeof ticket.preliminaryActions === 'object') {
+    preliminaryActions = {
+      updatedAt: ticket.preliminaryActions.updatedAt ?? null,
+      plannedStartAt: ticket.preliminaryActions.plannedStartAt ?? null,
+      actualStartAt: ticket.preliminaryActions.actualStartAt ?? null,
+    };
   }
 
-  return nextTicket;
+  return {
+    id: ticket.id ?? null,
+    subject: ticket.subject ?? null,
+    status: ticket.status ?? null,
+    time: ticket.time ?? null,
+    requester: ticket.requester ?? null,
+    type: ticket.type ?? null,
+    priority: ticket.priority ?? null,
+    region: ticket.region ?? null,
+    sede: ticket.sede ?? null,
+    sector: ticket.sector ?? null,
+    location: ticket.location ?? null,
+    macroServiceName: ticket.macroServiceName ?? null,
+    serviceCatalogName: ticket.serviceCatalogName ?? null,
+    // O solicitante já possui o token (está na URL de acompanhamento).
+    trackingToken: ticket.trackingToken ?? null,
+    preliminaryActions,
+    closureChecklist,
+    executionProgress,
+    history,
+  };
 }
 
 function parseEmailList(input) {
@@ -225,28 +269,128 @@ function buildPublicRequesterMessagePayload(beforeData, message) {
   };
 }
 
-function sanitizePublicTicketCreate(rawTicket) {
+const PUBLIC_TEXT_LIMITS = {
+  subject: 200,
+  requester: 120,
+  type: 60,
+  catalogId: 80,
+  serviceName: 200,
+  region: 160,
+  sede: 60,
+  sector: 160,
+  location: 240,
+  description: 5000,
+};
+
+function clampText(value, max) {
+  return String(value ?? '').trim().slice(0, max);
+}
+
+// O formulário público envia a descrição do solicitante embutida no primeiro
+// item de histórico. Extraímos apenas o texto; o restante do array é descartado
+// e reconstruído pelo servidor para impedir injeção de entradas system/tech.
+function extractPublicDescription(rawTicket) {
+  if (Array.isArray(rawTicket?.history)) {
+    const customerEntry = rawTicket.history.find(
+      item =>
+        item &&
+        typeof item === 'object' &&
+        String(item.type || '').toLowerCase() === 'customer' &&
+        String(item.text || '').trim()
+    );
+    if (customerEntry) return String(customerEntry.text || '').trim();
+    const anyEntry = rawTicket.history.find(item => item && String(item?.text || '').trim());
+    if (anyEntry) return String(anyEntry.text || '').trim();
+  }
+  return String(rawTicket?.description || '').trim();
+}
+
+async function preparePublicTicketCreate(db, rawTicket) {
+  const requesterEmail = parseEmailList(rawTicket.requesterEmail || '')[0] || '';
+  if (!requesterEmail) {
+    throw new HttpError(400, 'E-mail do solicitante inválido.');
+  }
+
+  const subject = clampText(rawTicket.subject, PUBLIC_TEXT_LIMITS.subject);
+  if (!subject) {
+    throw new HttpError(400, 'Assunto é obrigatório.');
+  }
+
+  const description = clampText(extractPublicDescription(rawTicket), PUBLIC_TEXT_LIMITS.description);
+  if (!description) {
+    throw new HttpError(400, 'Descrição é obrigatória.');
+  }
+
+  const regionId = String(rawTicket.regionId || '').trim();
+  const siteId = String(rawTicket.siteId || '').trim();
+  if (!regionId || !siteId) {
+    throw new HttpError(400, 'Região e sede são obrigatórias.');
+  }
+
+  const [regionSnap, siteSnap] = await Promise.all([
+    db.collection('regions').doc(regionId).get(),
+    db.collection('sites').doc(siteId).get(),
+  ]);
+  if (!regionSnap.exists || regionSnap.data()?.active === false) {
+    throw new HttpError(400, 'Região inválida.');
+  }
+  if (!siteSnap.exists || siteSnap.data()?.active === false) {
+    throw new HttpError(400, 'Sede inválida.');
+  }
+  const regionData = regionSnap.data() || {};
+  const siteData = siteSnap.data() || {};
+  if (String(siteData.regionId || '').trim() !== regionId) {
+    throw new HttpError(400, 'Sede não pertence à região informada.');
+  }
+
+  const requesterName = clampText(rawTicket.requester, PUBLIC_TEXT_LIMITS.requester) || 'Solicitante';
+  const now = new Date();
+
+  // Histórico reconstruído pelo servidor: o cliente só influencia o texto da
+  // própria descrição (entrada 'customer'); tipo/visibilidade são fixos.
+  const history = [
+    {
+      id: `customer-${randomUUID()}`,
+      type: 'customer',
+      sender: requesterName,
+      time: now,
+      text: description,
+      visibility: 'public',
+    },
+    {
+      id: `status-${randomUUID()}`,
+      type: 'system',
+      sender: 'Sistema',
+      time: now,
+      text: 'Solicitação registrada via formulário público. Aguardando triagem.',
+      visibility: 'public',
+    },
+  ];
+
   const allowed = {
-    subject: rawTicket.subject,
-    requester: rawTicket.requester,
-    requesterEmail: rawTicket.requesterEmail,
+    subject,
+    requester: requesterName,
+    requesterEmail,
     requesterCcEmails: parseEmailList(rawTicket.requesterCcEmails || rawTicket.requesterCcEmail || ''),
-    time: rawTicket.time,
+    time: now,
     status: 'Nova OS',
-    type: rawTicket.type,
-    macroServiceId: rawTicket.macroServiceId,
-    macroServiceName: rawTicket.macroServiceName,
-    serviceCatalogId: rawTicket.serviceCatalogId,
-    serviceCatalogName: rawTicket.serviceCatalogName,
-    regionId: rawTicket.regionId,
-    region: rawTicket.region,
-    siteId: rawTicket.siteId,
-    sede: rawTicket.sede,
-    sector: rawTicket.sector,
-    location: rawTicket.location,
-    priority: rawTicket.priority || 'Trivial',
-    attachments: Array.isArray(rawTicket.attachments) ? rawTicket.attachments : [],
-    history: Array.isArray(rawTicket.history) ? rawTicket.history : [],
+    type: clampText(rawTicket.type, PUBLIC_TEXT_LIMITS.type),
+    macroServiceId: clampText(rawTicket.macroServiceId, PUBLIC_TEXT_LIMITS.catalogId),
+    macroServiceName: clampText(rawTicket.macroServiceName, PUBLIC_TEXT_LIMITS.serviceName),
+    serviceCatalogId: clampText(rawTicket.serviceCatalogId, PUBLIC_TEXT_LIMITS.catalogId),
+    serviceCatalogName: clampText(rawTicket.serviceCatalogName, PUBLIC_TEXT_LIMITS.serviceName),
+    regionId,
+    // Nomes canônicos vêm do catálogo, não do cliente.
+    region: clampText(regionData.name || rawTicket.region, PUBLIC_TEXT_LIMITS.region),
+    siteId,
+    sede: clampText(siteData.code || rawTicket.sede, PUBLIC_TEXT_LIMITS.sede),
+    sector: clampText(rawTicket.sector, PUBLIC_TEXT_LIMITS.sector),
+    location: clampText(rawTicket.location, PUBLIC_TEXT_LIMITS.location),
+    // Prioridade é definida na triagem; o solicitante não escolhe.
+    priority: 'Trivial',
+    // Anexos JSON do cliente são descartados; arquivos reais sobem por upload.
+    attachments: [],
+    history,
   };
 
   return normalizeTicketForStorage(allowed);
@@ -348,8 +492,11 @@ async function uploadTicketAttachments(ticketId, attachments) {
       throw new HttpError(400, `Arquivo "${attachment.filename || `anexo-${index + 1}`}" excede o tamanho máximo de 10 MB.`);
     }
 
+    // Allow-list de MIME: rejeita SVG/HTML/executáveis (XSS armazenado).
+    const contentType = assertAllowedAttachmentMime(attachment.mimeType, attachment.filename || `anexo-${index + 1}`);
+
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`) || `anexo-${Date.now()}-${index + 1}`;
-    const isPdf = String(attachment.mimeType || '').toLowerCase() === 'application/pdf';
+    const isPdf = contentType === 'application/pdf';
     const baseFolder = isPdf ? 'attachments/tickets/pdfs' : 'attachments/tickets/images';
     const path = `${baseFolder}/${ticketId}/public-${Date.now()}-${index + 1}-${filename}`;
     const file = bucket.file(path);
@@ -358,9 +505,9 @@ async function uploadTicketAttachments(ticketId, attachments) {
     try {
       await file.save(attachment.buffer, {
         resumable: false,
-        contentType: attachment.mimeType || 'application/octet-stream',
+        contentType,
         metadata: {
-          contentType: attachment.mimeType || 'application/octet-stream',
+          contentType,
         },
       });
 
@@ -368,7 +515,8 @@ async function uploadTicketAttachments(ticketId, attachments) {
         action: 'read',
         expires: '2035-01-01',
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
       throw new HttpError(500, `Nao foi possivel salvar o anexo "${attachment.filename || `anexo-${index + 1}`}". Tente com uma imagem menor ou registre a solicitacao sem foto.`);
     }
 
@@ -377,7 +525,7 @@ async function uploadTicketAttachments(ticketId, attachments) {
       name: attachment.filename || filename,
       path,
       url,
-      contentType: attachment.mimeType || 'application/octet-stream',
+      contentType,
       size: Number(attachment.size || attachment.buffer.length || 0),
       uploadedAt,
       category: 'attachment',
@@ -561,10 +709,17 @@ export default async function handler(req, res) {
       if (hasAuthHeader) {
         user = await requireAuthenticatedUser(req);
       } else {
+        // Criação pública (sem autenticação): limita abuso/spam por IP.
+        await enforceRateLimit(req, {
+          bucket: 'ticket-create',
+          limit: 5,
+          windowMs: 10 * 60 * 1000,
+          message: 'Muitas solicitações enviadas. Aguarde alguns minutos e tente novamente.',
+        });
         user = null;
       }
 
-      const ticket = user ? normalizeTicketForStorage(ticketPayload) : sanitizePublicTicketCreate(ticketPayload);
+      const ticket = user ? normalizeTicketForStorage(ticketPayload) : await preparePublicTicketCreate(db, ticketPayload);
       const now = new Date();
       const ticketId = await reserveNextTicketId(db);
       const trackingToken =
@@ -609,6 +764,13 @@ export default async function handler(req, res) {
           return sendJson(res, 400, { ok: false, error: 'trackingToken inválido.' });
         }
 
+        // Ações públicas via link (aprovação/mensagem): limita abuso por IP.
+        await enforceRateLimit(req, {
+          bucket: 'ticket-tracking-patch',
+          limit: 30,
+          windowMs: 10 * 60 * 1000,
+        });
+
         const trackingSnap = await col.where('trackingToken', '==', trackingToken).limit(1).get();
         if (trackingSnap.empty) {
           return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
@@ -623,8 +785,23 @@ export default async function handler(req, res) {
             return sendJson(res, 409, { ok: false, error: 'Esta OS nao aceita novas mensagens pelo link.' });
           }
 
-          const payload = buildPublicRequesterMessagePayload(beforeData, publicMessage);
-          await trackingDoc.ref.set(payload, { merge: true });
+          // Transação: relê o estado fresco antes de anexar a mensagem ao histórico.
+          const msgResult = await db.runTransaction(async tx => {
+            const snap = await tx.get(trackingDoc.ref);
+            const data = snap.data() || {};
+            const status = String(data.status || '');
+            if (status === STATUS_CLOSED || status === STATUS_CANCELED) {
+              return { blocked: true };
+            }
+            const payload = buildPublicRequesterMessagePayload(data, publicMessage);
+            tx.set(trackingDoc.ref, payload, { merge: true });
+            return { before: data, payload };
+          });
+
+          if (msgResult.blocked) {
+            return sendJson(res, 409, { ok: false, error: 'Esta OS nao aceita novas mensagens pelo link.' });
+          }
+          const payload = msgResult.payload;
           await db.collection('notifications').add({
             type: 'requester-message',
             ticketId: trackingDoc.id,
@@ -657,23 +834,37 @@ export default async function handler(req, res) {
           });
         }
 
-        const isAllowedStatus = new Set([
+        const ALLOWED_TRACKING_STATUSES = new Set([
           STATUS_IN_PROGRESS,
           STATUS_WAITING_MAINTENANCE_APPROVAL,
           STATUS_WAITING_PAYMENT,
           STATUS_CLOSED,
           STATUS_CANCELED,
-        ]).has(String(beforeData.status || ''));
-        if (!isAllowedStatus) {
+        ]);
+
+        // Transação: revalida status e idempotência sobre o estado fresco e
+        // anexa a entrada de histórico atomicamente.
+        const approvalResult = await db.runTransaction(async tx => {
+          const snap = await tx.get(trackingDoc.ref);
+          const data = snap.data() || {};
+          if (!ALLOWED_TRACKING_STATUSES.has(String(data.status || ''))) {
+            return { notAllowed: true };
+          }
+          if (approved && data?.closureChecklist?.requesterApproved) {
+            return { alreadyApproved: true };
+          }
+          const payload = buildPublicTrackingPayload(data, approved);
+          tx.set(trackingDoc.ref, payload, { merge: true });
+          return { before: data, payload };
+        });
+
+        if (approvalResult.notAllowed) {
           return sendJson(res, 409, { ok: false, error: 'Status atual não permite validação pública.' });
         }
-
-        if (approved && beforeData?.closureChecklist?.requesterApproved) {
+        if (approvalResult.alreadyApproved) {
           return sendJson(res, 200, { ok: true, alreadyApproved: true });
         }
-
-        const payload = buildPublicTrackingPayload(beforeData, approved);
-        await trackingDoc.ref.set(payload, { merge: true });
+        const payload = approvalResult.payload;
 
         await writeAuditLog({
           actor: String(beforeData.requester || 'Solicitante'),
@@ -703,33 +894,52 @@ export default async function handler(req, res) {
 
       const updates = normalizeTicketForStorage(body.updates);
       const docRef = col.doc(body.id);
-      const beforeSnap = await docRef.get();
-      if (!beforeSnap.exists) {
+
+      // Transação: relê o documento e remonta o histórico a partir do estado
+      // fresco, evitando que edições concorrentes (ex.: inbound) sejam perdidas.
+      const txResult = await db.runTransaction(async tx => {
+        const snap = await tx.get(docRef);
+        if (!snap.exists) return { notFound: true };
+
+        const data = snap.data() || {};
+        if (!canUserAccessTicket(user, { id: snap.id, ...data }, [], [])) {
+          return { forbidden: true };
+        }
+
+        const freshHistory = Array.isArray(data.history) ? data.history : [];
+        const payload = { ...updates, updatedAt: new Date() };
+        const statusChanged = updates.status && updates.status !== data.status;
+
+        if (Array.isArray(updates.history)) {
+          // Cliente enviou histórico (ex.: nova mensagem). Mescla apenas entradas
+          // novas (por id) sobre o histórico fresco, preservando as concorrentes.
+          const existingIds = new Set(freshHistory.map(item => item?.id).filter(Boolean));
+          const appended = updates.history.filter(item => item?.id && !existingIds.has(item.id));
+          const statusEntry =
+            statusChanged && shouldAppendAutomaticHistory(data.history, updates.history)
+              ? [buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status)]
+              : [];
+          payload.history = [...freshHistory, ...appended, ...statusEntry];
+        } else if (statusChanged) {
+          payload.history = [
+            ...freshHistory,
+            buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status),
+          ];
+        }
+
+        tx.set(docRef, payload, { merge: true });
+        return { before: data, payload };
+      });
+
+      if (txResult.notFound) {
         return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
       }
-
-      const beforeData = beforeSnap.data() || {};
-      if (!canUserAccessTicket(user, { id: beforeSnap.id, ...beforeData }, [], [])) {
+      if (txResult.forbidden) {
         return sendJson(res, 403, { ok: false, error: 'Você não tem acesso a esta OS.' });
       }
-      const payload = { ...updates, updatedAt: new Date() };
 
-      if (
-        updates.status &&
-        updates.status !== beforeData.status &&
-        shouldAppendAutomaticHistory(beforeData.history, updates.history)
-      ) {
-        payload.history = [
-          ...(Array.isArray(beforeData.history) ? beforeData.history : []),
-          buildAutomaticStatusHistoryEntry(
-            buildActorLabel(user, actor),
-            beforeData.status || 'Sem status',
-            updates.status
-          ),
-        ];
-      }
-
-      await docRef.set(payload, { merge: true });
+      const beforeData = txResult.before;
+      const payload = txResult.payload;
 
       const auditAction =
         updates.status && updates.status !== beforeData.status
@@ -740,7 +950,7 @@ export default async function handler(req, res) {
         actor: buildActorLabel(user, actor),
         action: auditAction,
         entity: 'ticket',
-        entityId: beforeSnap.id,
+        entityId: body.id,
         before: beforeData,
         after: {
           ...beforeData,

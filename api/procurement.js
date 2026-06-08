@@ -3,7 +3,7 @@ import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js'
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readProcurement, readProcurementForTicketIds, seedProcurementDefaults } from './_lib/procurement.js';
-import { readAccessibleTickets } from './_lib/ticketAccess.js';
+import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 
 const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
@@ -369,7 +369,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const user = await requireAuthenticatedUser(req);
       const data =
-        user.role === 'Admin' || user.role === 'Diretor'
+        user.role === 'Admin'
           ? await readProcurement(db)
           : await readProcurementForTicketIds(
               db,
@@ -389,6 +389,21 @@ export default async function handler(req, res) {
 
       if (!ticketId || !type) {
         return sendJson(res, 400, { ok: false, error: 'ticketId e type são obrigatórios.' });
+      }
+
+      // Garante que o ator pode acessar a OS-alvo antes de gravar dados de compras.
+      if (type !== 'seedDefaults') {
+        const ticketSnap = await db.collection('tickets').doc(ticketId).get();
+        if (!ticketSnap.exists) {
+          return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
+        }
+        if (user.role !== 'Admin') {
+          const territory = await readTerritoryCatalog(db);
+          const targetTicket = { id: ticketSnap.id, ...ticketSnap.data() };
+          if (!canUserAccessTicket(user, targetTicket, territory.regions, territory.sites)) {
+            return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente para esta OS.' });
+          }
+        }
       }
 
       if (type === 'quotes') {

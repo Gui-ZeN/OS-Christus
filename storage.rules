@@ -12,7 +12,9 @@ service firebase.storage {
     function isValidImage() {
       return request.resource != null
         && request.resource.size < 8 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.contentType.matches('image/.*')
+        // SVG pode carregar script — bloqueado (risco de XSS armazenado).
+        && request.resource.contentType != 'image/svg+xml';
     }
 
     function isValidPdf() {
@@ -24,6 +26,7 @@ service firebase.storage {
     function isValidAttachmentDocument() {
       return request.resource != null
         && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType != 'image/svg+xml'
         && (
           request.resource.contentType.matches('image/.*')
           || request.resource.contentType == 'application/pdf'

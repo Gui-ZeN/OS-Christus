@@ -35,10 +35,21 @@ async function ensureDefaults(db) {
   await batch.commit();
 }
 
-async function readNotifications(db) {
+// Notificação sem audienceRoles é geral (visível a todos). Com audienceRoles,
+// só é visível a usuários cujo papel esteja na lista.
+function canUserSeeNotification(user, notification) {
+  const audience = Array.isArray(notification?.audienceRoles)
+    ? notification.audienceRoles.map(role => String(role || '').trim()).filter(Boolean)
+    : [];
+  if (audience.length === 0) return true;
+  return audience.includes(user?.role);
+}
+
+async function readNotifications(db, user) {
   const snap = await db.collection('notifications').get();
   return snap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(notification => canUserSeeNotification(user, notification))
     .sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
 }
 
@@ -47,11 +58,11 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
-      await requireAuthenticatedUser(req);
-      let notifications = await readNotifications(db);
+      const user = await requireAuthenticatedUser(req);
+      let notifications = await readNotifications(db, user);
       if (notifications.length === 0) {
         await ensureDefaults(db);
-        notifications = await readNotifications(db);
+        notifications = await readNotifications(db, user);
       }
       return sendJson(res, 200, { ok: true, notifications });
     }
@@ -65,14 +76,26 @@ export default async function handler(req, res) {
       if (action === 'markRead') {
         const id = String(body?.id || '').trim();
         if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
-        await db.collection('notifications').doc(id).set({ read: true, updatedAt: new Date() }, { merge: true });
+        const ref = db.collection('notifications').doc(id);
+        const snap = await ref.get();
+        if (!snap.exists) return sendJson(res, 404, { ok: false, error: 'Notificação não encontrada.' });
+        if (!canUserSeeNotification(user, snap.data())) {
+          return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
+        }
+        await ref.set({ read: true, updatedAt: new Date() }, { merge: true });
         return sendJson(res, 200, { ok: true });
       }
 
       if (action === 'dismiss') {
         const id = String(body?.id || '').trim();
         if (!id) return sendJson(res, 400, { ok: false, error: 'id obrigatório.' });
-        await db.collection('notifications').doc(id).delete();
+        const ref = db.collection('notifications').doc(id);
+        const snap = await ref.get();
+        if (!snap.exists) return sendJson(res, 404, { ok: false, error: 'Notificação não encontrada.' });
+        if (!canUserSeeNotification(user, snap.data())) {
+          return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
+        }
+        await ref.delete();
         await writeAuditLog({
           actor,
           action: 'notifications.dismiss',
@@ -83,7 +106,8 @@ export default async function handler(req, res) {
       }
 
       if (action === 'markAllRead') {
-        const notifications = await readNotifications(db);
+        // Marca apenas as notificações visíveis ao usuário.
+        const notifications = await readNotifications(db, user);
         const batch = db.batch();
         for (const item of notifications) {
           batch.set(db.collection('notifications').doc(item.id), { read: true, updatedAt: new Date() }, { merge: true });

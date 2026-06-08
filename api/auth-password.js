@@ -1,6 +1,7 @@
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { generatePasswordResetUrl, normalizeEmail, sendPasswordAccessEmail } from './_lib/passwordAccess.js';
+import { enforceRateLimit } from './_lib/rateLimit.js';
 
 const SUCCESS_MESSAGE = 'Se o e-mail estiver cadastrado, voce recebera instrucoes para redefinir sua senha.';
 
@@ -14,6 +15,14 @@ export default async function handler(req, res) {
       res.setHeader('Allow', 'POST');
       return sendJson(res, 405, { ok: false, error: 'Metodo nao permitido.' });
     }
+
+    // Limita tentativas por IP (anti email-bombing / enumeração).
+    await enforceRateLimit(req, {
+      bucket: 'password-reset',
+      limit: 5,
+      windowMs: 15 * 60 * 1000,
+      message: 'Muitas tentativas de recuperação. Aguarde alguns minutos e tente novamente.',
+    });
 
     const body = await readJsonBody(req);
     const email = normalizeEmail(body?.email);
@@ -32,13 +41,19 @@ export default async function handler(req, res) {
       return sendJson(res, 200, { ok: true, message: SUCCESS_MESSAGE });
     }
 
-    const resetUrl = await generatePasswordResetUrl(email, req);
-    await sendPasswordAccessEmail({
-      email,
-      name: String(user.name || '').trim(),
-      mode: 'forgot',
-      resetUrl,
-    });
+    // Falhas no envio não devem revelar a existência da conta nem retornar 500:
+    // a resposta é sempre o mesmo SUCCESS_MESSAGE.
+    try {
+      const resetUrl = await generatePasswordResetUrl(email, req);
+      await sendPasswordAccessEmail({
+        email,
+        name: String(user.name || '').trim(),
+        mode: 'forgot',
+        resetUrl,
+      });
+    } catch (mailError) {
+      console.error('Falha ao enviar e-mail de recuperação:', mailError);
+    }
 
     return sendJson(res, 200, { ok: true, message: SUCCESS_MESSAGE });
   } catch (error) {

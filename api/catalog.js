@@ -1,4 +1,4 @@
-import { requireOperationalManager } from './_lib/authz.js';
+import { requireAuthenticatedUser, requireOperationalManager } from './_lib/authz.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
@@ -384,17 +384,42 @@ export default async function handler(req, res) {
     const db = getAdminDb();
 
     if (req.method === 'GET') {
+      // Auth opcional: o formulário público consome o catálogo sem login.
+      let user = null;
+      if (String(req.headers.authorization || '').trim()) {
+        try {
+          user = await requireAuthenticatedUser(req);
+        } catch {
+          user = null;
+        }
+      }
+
       let catalog = await readCatalog(db);
-      if (
+      const isEmpty =
         catalog.regions.length === 0 ||
         catalog.sites.length === 0 ||
         catalog.macroServices.length === 0 ||
         catalog.serviceCatalog.length === 0 ||
-        catalog.materials.length === 0
-      ) {
+        catalog.materials.length === 0;
+      // Seed só por usuário autenticado: anônimo não dispara escrita no catálogo.
+      if (isEmpty && user) {
         await seedDefaults(db);
         catalog = await readCatalog(db);
       }
+
+      if (!user) {
+        // Anônimo: apenas o necessário para os dropdowns do formulário público.
+        return sendJson(res, 200, {
+          ok: true,
+          regions: catalog.regions,
+          sites: catalog.sites,
+          macroServices: catalog.macroServices,
+          serviceCatalog: catalog.serviceCatalog,
+          materials: [],
+          vendorPreferences: [],
+        });
+      }
+
       return sendJson(res, 200, { ok: true, ...catalog });
     }
 

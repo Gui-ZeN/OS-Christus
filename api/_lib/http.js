@@ -37,7 +37,11 @@ export async function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   const raw = await readRawBody(req);
   if (!raw) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new HttpError(400, 'Corpo da requisição não é um JSON válido.');
+  }
 }
 
 const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024; // 10 MB

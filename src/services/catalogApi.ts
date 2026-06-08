@@ -63,7 +63,10 @@ export interface CatalogVendorPreference {
 }
 
 export async function fetchCatalog() {
-  const response = await fetch('/api/catalog');
+  // Envia headers de auth quando o usuário está logado (assim recebe materiais e
+  // preferências de fornecedor). No formulário público segue anônimo.
+  const authHeaders = await getAuthenticatedActorHeaders().catch(() => ({}));
+  const response = await fetch('/api/catalog', { headers: { ...authHeaders } });
   const json = await expectApiJson<any>(response, 'Falha ao buscar catálogo operacional.');
   if (!json.ok || !Array.isArray(json.regions) || !Array.isArray(json.sites)) {
     throw new Error('Resposta inválida do catálogo.');
