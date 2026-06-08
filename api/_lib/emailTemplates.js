@@ -18,43 +18,43 @@ function getStageMeta(trigger, status) {
   const token = normalizeToken(trigger || status);
 
   if (token.includes('nova-os') || token.includes('nova os')) {
-    return { eyebrow: 'Recebimento', label: 'Nova solicitaÁ„o', accent: '#9a6b33' };
+    return { eyebrow: 'Recebimento', label: 'Nova solicita√ß√£o', accent: '#9a6b33' };
   }
   if (token.includes('triagem')) {
     return { eyebrow: 'Andamento', label: 'Triagem em andamento', accent: '#8c6239' };
   }
   if (token.includes('parecer')) {
-    return { eyebrow: 'Andamento', label: 'Parecer tÈcnico', accent: '#6d5a95' };
+    return { eyebrow: 'Andamento', label: 'Parecer t√©cnico', accent: '#6d5a95' };
   }
   if (token.includes('orcamento') || token.includes('cotacao')) {
-    return { eyebrow: 'Comercial', label: 'OrÁamentaÁ„o', accent: '#c07a2f' };
+    return { eyebrow: 'Comercial', label: 'Or√ßamenta√ß√£o', accent: '#c07a2f' };
   }
   if (token.includes('aprovacao')) {
-    return { eyebrow: 'GovernanÁa', label: 'Em aprovaÁ„o', accent: '#8f5f2a' };
+    return { eyebrow: 'Governan√ßa', label: 'Em aprova√ß√£o', accent: '#8f5f2a' };
   }
   if (token.includes('preliminar')) {
-    return { eyebrow: 'Planejamento', label: 'AÁıes preliminares', accent: '#5f6f8f' };
+    return { eyebrow: 'Planejamento', label: 'A√ß√µes preliminares', accent: '#5f6f8f' };
   }
   if (token.includes('execucao') || token.includes('andamento')) {
-    return { eyebrow: 'OperaÁ„o', label: 'ExecuÁ„o iniciada', accent: '#7c4f8f' };
+    return { eyebrow: 'Opera√ß√£o', label: 'Execu√ß√£o iniciada', accent: '#7c4f8f' };
   }
   if (token.includes('validacao')) {
-    return { eyebrow: 'ValidaÁ„o', label: 'ConfirmaÁ„o do solicitante', accent: '#8f6a3c' };
+    return { eyebrow: 'Valida√ß√£o', label: 'Confirma√ß√£o do solicitante', accent: '#8f6a3c' };
   }
   if (token.includes('pagamento')) {
     return { eyebrow: 'Financeiro', label: 'Aguardando pagamento', accent: '#8f5a2b' };
   }
   if (token.includes('encerrada')) {
-    return { eyebrow: 'Conclus„o', label: 'OS encerrada', accent: '#2e6b47' };
+    return { eyebrow: 'Conclus√£o', label: 'OS encerrada', accent: '#2e6b47' };
   }
   if (token.includes('cancelada')) {
-    return { eyebrow: 'AtenÁ„o', label: 'OS cancelada', accent: '#8a2f2f' };
+    return { eyebrow: 'Aten√ß√£o', label: 'OS cancelada', accent: '#8a2f2f' };
   }
   if (token.includes('mensagem')) {
-    return { eyebrow: 'ComunicaÁ„o', label: 'Nova mensagem registrada', accent: '#4e5f7f' };
+    return { eyebrow: 'Comunica√ß√£o', label: 'Nova mensagem registrada', accent: '#4e5f7f' };
   }
 
-  return { eyebrow: 'AtualizaÁ„o', label: 'AtualizaÁ„o da OS', accent: '#6f4f1e' };
+  return { eyebrow: 'Atualiza√ß√£o', label: 'Atualiza√ß√£o da OS', accent: '#6f4f1e' };
 }
 
 function stripSignature(value) {
@@ -107,11 +107,11 @@ function renderBodyText(text) {
         .split('\n')
         .map(line => line.trim())
         .filter(Boolean);
-      const isList = lines.length > 1 && lines.every(line => line.startsWith('- ') || line.startsWith('ï '));
+      const isList = lines.length > 1 && lines.every(line => line.startsWith('- ') || line.startsWith('‚Ä¢ '));
 
       if (isList) {
         const items = lines
-          .map(line => line.replace(/^[-ï]\s*/, '').trim())
+          .map(line => line.replace(/^[-‚Ä¢]\s*/, '').trim())
           .filter(Boolean)
           .map(item => `<li style="margin:0 0 8px;">${esc(item)}</li>`)
           .join('');
@@ -269,7 +269,7 @@ export function buildTicketEmailTemplate({
                 <div style="padding:20px;border:1px solid #e5dac8;border-radius:18px;background:#ffffff;">
                   ${metricsHtml}
                   ${detailCardsHtml}
-                  ${messageHtml || `<p style="margin:0;color:#544b41;font-size:14px;line-height:1.8;">AtualizaÁ„o registrada na OS.</p>`}
+                  ${messageHtml || `<p style="margin:0;color:#544b41;font-size:14px;line-height:1.8;">Atualiza√ß√£o registrada na OS.</p>`}
                 </div>
 
                 ${
@@ -288,7 +288,7 @@ export function buildTicketEmailTemplate({
             </tr>
             <tr>
               <td style="padding:16px 28px;border-top:1px solid #e9dfd0;background:#faf6ef;color:#7d6b56;font-size:12px;line-height:1.7;">
-                Este È um comunicado autom·tico do sistema Serv3.
+                Este √© um comunicado autom√°tico do sistema Serv3.
               </td>
             </tr>
           </table>
@@ -345,8 +345,8 @@ export function buildAccessEmailTemplate({
   ctaLabel = 'Criar senha',
 }) {
   const safeTitle = esc(title || 'Defina sua senha de acesso');
-  const safeIntro = esc(intro || 'Use o bot„o abaixo para definir sua senha de acesso ao sistema.');
-  const greeting = recipientName ? `Ol· ${esc(recipientName)},` : 'Ol·,';
+  const safeIntro = esc(intro || 'Use o bot√£o abaixo para definir sua senha de acesso ao sistema.');
+  const greeting = recipientName ? `Ol√° ${esc(recipientName)},` : 'Ol√°,';
   const safeUrl = esc(ctaUrl || '');
   const safeLabel = esc(ctaLabel);
 
@@ -370,7 +370,7 @@ export function buildAccessEmailTemplate({
                   <p style="margin:0 0 14px;color:#544b41;font-size:14px;line-height:1.8;">${greeting}</p>
                   <p style="margin:0 0 14px;color:#544b41;font-size:14px;line-height:1.8;">${safeIntro}</p>
                   <p style="margin:0;color:#544b41;font-size:13px;line-height:1.8;">
-                    Por seguranÁa, este link expira automaticamente apÛs um perÌodo.
+                    Por seguran√ßa, este link expira automaticamente ap√≥s um per√≠odo.
                   </p>
                 </div>
                 ${
@@ -389,7 +389,7 @@ export function buildAccessEmailTemplate({
             </tr>
             <tr>
               <td style="padding:16px 28px;border-top:1px solid #e9dfd0;background:#faf6ef;color:#7d6b56;font-size:12px;line-height:1.7;">
-                Este È um comunicado autom·tico do sistema Serv3.
+                Este √© um comunicado autom√°tico do sistema Serv3.
               </td>
             </tr>
           </table>
@@ -402,8 +402,8 @@ export function buildAccessEmailTemplate({
   const text = [
     title || 'Defina sua senha de acesso',
     '',
-    recipientName ? `Ol· ${recipientName},` : 'Ol·,',
-    intro || 'Use o bot„o abaixo para definir sua senha de acesso ao sistema.',
+    recipientName ? `Ol√° ${recipientName},` : 'Ol√°,',
+    intro || 'Use o bot√£o abaixo para definir sua senha de acesso ao sistema.',
     '',
     ctaUrl ? `Link para criar senha: ${ctaUrl}` : '',
   ]

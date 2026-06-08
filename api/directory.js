@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       await requireAdminUser(req);
       const body = await readJsonBody(req);
       if (body?.seedDefaults !== true) {
-        return sendJson(res, 400, { ok: false, error: 'Envie { seedDefaults: true } para popular o diretÛrio.' });
+        return sendJson(res, 400, { ok: false, error: 'Envie { seedDefaults: true } para popular o diret√≥rio.' });
       }
       await seedDirectoryDefaults(db);
       const directory = await readDirectory(db);
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
       const vendor = body?.vendor || {};
       const vendorName = String(vendor.name || '').trim();
       if (!vendorName) {
-        return sendJson(res, 400, { ok: false, error: 'Nome do terceiro È obrigatÛrio.' });
+        return sendJson(res, 400, { ok: false, error: 'Nome do terceiro √© obrigat√≥rio.' });
       }
 
       const id = String(vendor.id || slugify(vendorName) || `terceiro-${Date.now()}`);
@@ -87,9 +87,9 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Allow', 'GET, POST, PATCH');
-    return sendJson(res, 405, { ok: false, error: 'MÈtodo n„o permitido.' });
+    return sendJson(res, 405, { ok: false, error: 'M√©todo n√£o permitido.' });
   } catch (error) {
-    return sendError(res, error, 'Falha no diretÛrio.');
+    return sendError(res, error, 'Falha no diret√≥rio.');
   }
 }
 

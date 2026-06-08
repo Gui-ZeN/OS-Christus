@@ -6,38 +6,38 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { formatDateTimeSafe } from '../utils/date';
 
 const ENTITY_LABELS: Record<string, string> = {
-  regions: 'Regiões',
+  regions: 'RegiÃµes',
   sites: 'Sedes',
-  users: 'Usuários',
-  user: 'Usuário',
+  users: 'UsuÃ¡rios',
+  user: 'UsuÃ¡rio',
   ticket: 'OS',
   tickets: 'OS',
-  settings: 'Configurações',
-  catalog: 'Catálogo',
-  notifications: 'Notificações',
-  procurement: 'Financeiro e execução',
+  settings: 'ConfiguraÃ§Ãµes',
+  catalog: 'CatÃ¡logo',
+  notifications: 'NotificaÃ§Ãµes',
+  procurement: 'Financeiro e execuÃ§Ã£o',
   finance: 'Financeiro',
   email: 'E-mail',
   'firestore.legacy': 'Legado do Firestore',
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  'catalog.delete': 'Exclusão de item do catálogo',
-  'catalog.upsert': 'Atualização de item do catálogo',
-  'users.create': 'Criação de usuário',
-  'users.update': 'Atualização de usuário',
-  'users.delete': 'Exclusão de usuário',
-  'tickets.create': 'Criação de OS',
-  'tickets.update': 'Atualização de OS',
-  'tickets.delete': 'Exclusão de OS',
-  'tickets.status.change': 'Mudança de status da OS',
-  'settings.update': 'Atualização de configurações',
-  'procurement.quotes.save': 'Atualização de cotações',
-  'procurement.contract.save': 'Atualização de contrato',
-  'procurement.payment.save': 'Atualização de lançamento',
-  'procurement.measurement.save': 'Registro de medição',
-  'procurement.update': 'Atualização de orçamento/contrato',
-  'notifications.dismiss': 'Notificação dispensada',
+  'catalog.delete': 'ExclusÃ£o de item do catÃ¡logo',
+  'catalog.upsert': 'AtualizaÃ§Ã£o de item do catÃ¡logo',
+  'users.create': 'CriaÃ§Ã£o de usuÃ¡rio',
+  'users.update': 'AtualizaÃ§Ã£o de usuÃ¡rio',
+  'users.delete': 'ExclusÃ£o de usuÃ¡rio',
+  'tickets.create': 'CriaÃ§Ã£o de OS',
+  'tickets.update': 'AtualizaÃ§Ã£o de OS',
+  'tickets.delete': 'ExclusÃ£o de OS',
+  'tickets.status.change': 'MudanÃ§a de status da OS',
+  'settings.update': 'AtualizaÃ§Ã£o de configuraÃ§Ãµes',
+  'procurement.quotes.save': 'AtualizaÃ§Ã£o de cotaÃ§Ãµes',
+  'procurement.contract.save': 'AtualizaÃ§Ã£o de contrato',
+  'procurement.payment.save': 'AtualizaÃ§Ã£o de lanÃ§amento',
+  'procurement.measurement.save': 'Registro de mediÃ§Ã£o',
+  'procurement.update': 'AtualizaÃ§Ã£o de orÃ§amento/contrato',
+  'notifications.dismiss': 'NotificaÃ§Ã£o dispensada',
 };
 
 type AuditCategory = 'status' | 'financeiro' | 'aprovacao' | 'cadastro' | 'exclusao' | 'configuracao' | 'outros';
@@ -45,10 +45,10 @@ type AuditCategory = 'status' | 'financeiro' | 'aprovacao' | 'cadastro' | 'exclu
 const CATEGORY_LABELS: Record<AuditCategory, string> = {
   status: 'Status',
   financeiro: 'Financeiro',
-  aprovacao: 'Aprovação',
+  aprovacao: 'AprovaÃ§Ã£o',
   cadastro: 'Cadastro',
-  exclusao: 'Exclusão',
-  configuracao: 'Configuração',
+  exclusao: 'ExclusÃ£o',
+  configuracao: 'ConfiguraÃ§Ã£o',
   outros: 'Outros',
 };
 
@@ -142,24 +142,24 @@ function extractSummary(log: AuditLogEntry) {
 
   switch (log.action) {
     case 'procurement.measurement.save': {
-      const label = typeof source?.label === 'string' ? source.label : 'Medição registrada';
+      const label = typeof source?.label === 'string' ? source.label : 'MediÃ§Ã£o registrada';
       const progress = source?.progressPercent != null ? `${source.progressPercent}%` : null;
-      return [label, progress ? `andamento em ${progress}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
+      return [label, progress ? `andamento em ${progress}` : null, service ? `serviÃ§o: ${service}` : null].filter(Boolean).join(' Â· ');
     }
     case 'procurement.payment.save': {
-      const label = typeof source?.label === 'string' ? source.label : 'Lançamento atualizado';
+      const label = typeof source?.label === 'string' ? source.label : 'LanÃ§amento atualizado';
       const status = typeof source?.status === 'string' ? source.status : null;
-      return [label, status ? `status: ${status}` : null, service ? `serviço: ${service}` : null].filter(Boolean).join(' · ');
+      return [label, status ? `status: ${status}` : null, service ? `serviÃ§o: ${service}` : null].filter(Boolean).join(' Â· ');
     }
     case 'tickets.status.change': {
       const previousStatus = typeof before?.status === 'string' ? before.status : null;
       const nextStatus = typeof after?.status === 'string' ? after.status : null;
-      return [subject, previousStatus && nextStatus ? `${previousStatus} ? ${nextStatus}` : nextStatus].filter(Boolean).join(' · ');
+      return [subject, previousStatus && nextStatus ? `${previousStatus} ? ${nextStatus}` : nextStatus].filter(Boolean).join(' Â· ');
     }
     case 'tickets.create':
     case 'tickets.update':
     case 'tickets.delete':
-      return [subject, region, site].filter(Boolean).join(' · ');
+      return [subject, region, site].filter(Boolean).join(' Â· ');
     case 'catalog.delete':
       return `${prettyEntity(log.entity)} removido(a): ${objectDisplayName(log) || log.entityId || 'item sem nome'}`;
     case 'catalog.upsert':
@@ -167,11 +167,11 @@ function extractSummary(log: AuditLogEntry) {
     case 'users.create':
     case 'users.update':
     case 'users.delete':
-      return objectDisplayName(log) || log.entityId || 'Usuário';
+      return objectDisplayName(log) || log.entityId || 'UsuÃ¡rio';
     default: {
       const label = objectDisplayName(log);
       const created = after && isRecord(after.createdAt) ? normalizeTimestampObject(after.createdAt) : null;
-      return [label, created ? formatDateTimeSafe(created) : null].filter(Boolean).join(' · ');
+      return [label, created ? formatDateTimeSafe(created) : null].filter(Boolean).join(' Â· ');
     }
   }
 }
@@ -240,7 +240,7 @@ export function AuditLogsView() {
           <EmptyState
             icon={History}
             title="Acesso restrito"
-            description="Os logs de auditoria estão disponíveis apenas para perfis Admin."
+            description="Os logs de auditoria estÃ£o disponÃ­veis apenas para perfis Admin."
           />
         </div>
       </div>
@@ -253,7 +253,7 @@ export function AuditLogsView() {
         <header className="mb-8 flex flex-col gap-4 border-b border-roman-border pb-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">Auditoria do Sistema</h1>
-            <p className="text-roman-text-sub font-serif italic">Registro central das ações da OS e das principais alterações persistidas no sistema.</p>
+            <p className="text-roman-text-sub font-serif italic">Registro central das aÃ§Ãµes da OS e das principais alteraÃ§Ãµes persistidas no sistema.</p>
           </div>
           <button
             onClick={() => void load()}
@@ -274,7 +274,7 @@ export function AuditLogsView() {
                 id="audit-search"
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder="Buscar por OS, ação, ator ou entidade..."
+                placeholder="Buscar por OS, aÃ§Ã£o, ator ou entidade..."
                 className="w-full border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
               />
             </div>
@@ -315,7 +315,7 @@ export function AuditLogsView() {
                 checked={includeSystem}
                 onChange={event => setIncludeSystem(event.target.checked)}
               />
-              Exibir logs técnicos
+              Exibir logs tÃ©cnicos
             </label>
             <div className="text-xs text-roman-text-sub font-serif italic">
               {loading ? 'Carregando logs...' : `${filteredLogs.length} registro(s) exibido(s)`}
@@ -335,7 +335,7 @@ export function AuditLogsView() {
             <EmptyState
               icon={History}
               title="Nenhum log encontrado"
-              description="Não há registros correspondentes ao filtro aplicado."
+              description="NÃ£o hÃ¡ registros correspondentes ao filtro aplicado."
             />
           )}
 
@@ -354,11 +354,11 @@ export function AuditLogsView() {
                         {CATEGORY_LABELS[category]}
                       </span>
                       <span className="text-[10px] uppercase tracking-widest text-roman-text-sub font-serif">
-                        {ticketRef || 'Ação geral do sistema'}
+                        {ticketRef || 'AÃ§Ã£o geral do sistema'}
                       </span>
                     </div>
                     <div className="text-base font-serif text-roman-text-main">{prettyAction(log.action)}</div>
-                    <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponível.'}</div>
+                    <div className="text-sm text-roman-text-sub">{extractSummary(log) || 'Sem resumo disponÃ­vel.'}</div>
                   </div>
                   <div className="text-xs text-roman-text-sub md:text-right shrink-0">
                     <div>{prettyActor(log.actor)}</div>

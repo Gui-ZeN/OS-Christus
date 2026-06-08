@@ -53,8 +53,8 @@ function buildFinanceReviewUrl(ticket: Ticket) {
 }
 
 function guaranteeSummary(ticket: Ticket) {
-  if (!ticket.guarantee?.startAt || !ticket.guarantee?.endAt) return 'Não informada';
-  return `${ticket.guarantee.months} mês(es) - até ${ticket.guarantee.endAt.toLocaleDateString('pt-BR')}`;
+  if (!ticket.guarantee?.startAt || !ticket.guarantee?.endAt) return 'NÃ£o informada';
+  return `${ticket.guarantee.months} mÃªs(es) - atÃ© ${ticket.guarantee.endAt.toLocaleDateString('pt-BR')}`;
 }
 
 async function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {}) {
@@ -66,7 +66,7 @@ async function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {
     regionLabel = getTicketRegionLabel(ticket, catalog.regions, catalog.sites);
     siteLabel = getTicketSiteLabel(ticket, catalog.sites);
   } catch {
-    // Mantém fallback com os dados atuais do ticket.
+    // MantÃ©m fallback com os dados atuais do ticket.
   }
 
   return {
@@ -141,29 +141,29 @@ function resolveDirectorCancellationReason(ticket: Ticket): string | null {
 }
 
 function buildDirectorTicketSummary(ticket: Ticket): string {
-  const serviceLabel = ticket.serviceCatalogName || ticket.macroServiceName || 'Não informado';
-  const locationLabel = `${ticket.region || 'Não informada'} / ${ticket.sede || 'Não informada'}`;
+  const serviceLabel = ticket.serviceCatalogName || ticket.macroServiceName || 'NÃ£o informado';
+  const locationLabel = `${ticket.region || 'NÃ£o informada'} / ${ticket.sede || 'NÃ£o informada'}`;
 
   return [
-    `- Assunto: ${ticket.subject || 'Não informado'}`,
-    `- Solicitante: ${ticket.requester || 'Não informado'}`,
-    `- Local: ${ticket.sector || 'Não informado'}`,
-    `- Detalhe do local: ${ticket.location || 'Não informado'}`,
+    `- Assunto: ${ticket.subject || 'NÃ£o informado'}`,
+    `- Solicitante: ${ticket.requester || 'NÃ£o informado'}`,
+    `- Local: ${ticket.sector || 'NÃ£o informado'}`,
+    `- Detalhe do local: ${ticket.location || 'NÃ£o informado'}`,
     `- Local: ${locationLabel}`,
-    `- Tipo de manutenção: ${ticket.type || 'Não informado'}`,
-    `- Classificação técnica: ${serviceLabel}`,
-    `- Status atual: ${ticket.status || 'Não informado'}`,
+    `- Tipo de manutenÃ§Ã£o: ${ticket.type || 'NÃ£o informado'}`,
+    `- ClassificaÃ§Ã£o tÃ©cnica: ${serviceLabel}`,
+    `- Status atual: ${ticket.status || 'NÃ£o informado'}`,
   ].join('\n');
 }
 
 function buildDirectorEmailBody(ticket: Ticket, isApprovalStatus: boolean, summaryList: string): string {
   const intro = isApprovalStatus
-    ? `A OS ${ticket.id} está em aprovação e aguarda decisão.`
-    : `A OS ${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`;
+    ? `A OS ${ticket.id} estÃ¡ em aprovaÃ§Ã£o e aguarda decisÃ£o.`
+    : `A OS ${ticket.id} entrou na etapa de soluÃ§Ã£o e requer acompanhamento da Diretoria.`;
 
   return [
     intro,
-    `Status atual: ${ticket.status || 'Não informado'}`,
+    `Status atual: ${ticket.status || 'NÃ£o informado'}`,
     '',
     'Resumo da OS:',
     '',
@@ -206,12 +206,12 @@ function resolveQuoteDisplayValue(quote: Quote) {
 async function buildDirectorBudgetContext(ticket: Ticket) {
   const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
   const buildQuoteCard = (quote: Quote, index: number) => ({
-    title: `Cotação ${index + 1}`,
+    title: `CotaÃ§Ã£o ${index + 1}`,
     rows: [
-      { label: 'Fornecedor', value: quote.vendor || 'Fornecedor não informado' },
+      { label: 'Fornecedor', value: quote.vendor || 'Fornecedor nÃ£o informado' },
       { label: 'Valor total', value: resolveQuoteDisplayValue(quote) },
       { label: 'Material', value: quote.materialValue || '-' },
-      { label: 'Mão de obra', value: quote.laborValue || '-' },
+      { label: 'MÃ£o de obra', value: quote.laborValue || '-' },
     ],
   });
   try {
@@ -219,7 +219,7 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
     const allQuotes = Array.isArray(procurement.quotesByTicket?.[ticket.id]) ? procurement.quotesByTicket[ticket.id] : [];
     if (allQuotes.length === 0) {
       return {
-        roundTypeLabel: 'Orçamento inicial - rodada 1',
+        roundTypeLabel: 'OrÃ§amento inicial - rodada 1',
         additiveReason: null as string | null,
         quoteBlocks: [] as string[],
         quoteCards: [] as Array<{ title: string; rows: Array<{ label: string; value: string }> }>,
@@ -241,11 +241,11 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
       const quoteBlocks = roundQuotes.map((quote, index) => {
         const normalized = quote as Quote;
         return [
-          `- Cotação ${index + 1}`,
-          `- Fornecedor: ${normalized.vendor || 'Fornecedor não informado'}`,
+          `- CotaÃ§Ã£o ${index + 1}`,
+          `- Fornecedor: ${normalized.vendor || 'Fornecedor nÃ£o informado'}`,
           `- Valor total: ${resolveQuoteDisplayValue(normalized)}`,
           `- Material: ${normalized.materialValue || '-'}`,
-          `- Mão de obra: ${normalized.laborValue || '-'}`,
+          `- MÃ£o de obra: ${normalized.laborValue || '-'}`,
         ].join('\n');
       });
       return {
@@ -266,15 +266,15 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
     const quoteBlocks = roundQuotes.map((quote, index) => {
       const normalized = quote as Quote;
       return [
-        `- Cotação ${index + 1}`,
-        `- Fornecedor: ${normalized.vendor || 'Fornecedor não informado'}`,
+        `- CotaÃ§Ã£o ${index + 1}`,
+        `- Fornecedor: ${normalized.vendor || 'Fornecedor nÃ£o informado'}`,
         `- Valor total: ${resolveQuoteDisplayValue(normalized)}`,
         `- Material: ${normalized.materialValue || '-'}`,
-        `- Mão de obra: ${normalized.laborValue || '-'}`,
+        `- MÃ£o de obra: ${normalized.laborValue || '-'}`,
       ].join('\n');
     });
     return {
-      roundTypeLabel: `Orçamento inicial - rodada ${initialRoundIndex}`,
+      roundTypeLabel: `OrÃ§amento inicial - rodada ${initialRoundIndex}`,
       additiveReason: null as string | null,
       quoteBlocks,
       quoteCards: roundQuotes.map((quote, index) => buildQuoteCard(quote as Quote, index)),
@@ -282,7 +282,7 @@ async function buildDirectorBudgetContext(ticket: Ticket) {
     };
   } catch {
     return {
-      roundTypeLabel: 'Orçamento inicial - rodada 1',
+      roundTypeLabel: 'OrÃ§amento inicial - rodada 1',
       additiveReason: null as string | null,
       quoteBlocks: [] as string[],
       quoteCards: [] as Array<{ title: string; rows: Array<{ label: string; value: string }> }>,
@@ -318,10 +318,10 @@ async function buildDirectorContractContext(ticket: Ticket) {
 
     return {
       contractBlock: [
-        'Contrato em aprovação:',
-        `- Fornecedor: ${contract.vendor || 'Não informado'}`,
-        `- Valor do contrato: ${contract.value || 'Não informado'}`,
-        `- Arquivo anexado: ${contract.signedFileName || 'Não informado'}`,
+        'Contrato em aprovaÃ§Ã£o:',
+        `- Fornecedor: ${contract.vendor || 'NÃ£o informado'}`,
+        `- Valor do contrato: ${contract.value || 'NÃ£o informado'}`,
+        `- Arquivo anexado: ${contract.signedFileName || 'NÃ£o informado'}`,
       ].join('\n'),
       attachments: normalizeEmailAttachments(attachmentSource),
     };
@@ -419,30 +419,30 @@ function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previous
 function buildRequesterStatusLabel(status: string) {
   switch (status) {
     case TICKET_STATUS.NEW:
-      return 'Solicitação registrada';
+      return 'SolicitaÃ§Ã£o registrada';
     case TICKET_STATUS.WAITING_TECH_OPINION:
-      return 'Solicitação aceita para atendimento';
+      return 'SolicitaÃ§Ã£o aceita para atendimento';
     case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
-      return 'Plano técnico em avaliação';
+      return 'Plano tÃ©cnico em avaliaÃ§Ã£o';
     case TICKET_STATUS.WAITING_BUDGET:
     case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
     case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
     case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
       return 'Planejamento administrativo em andamento';
     case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
-      return 'Obra em preparação';
+      return 'Obra em preparaÃ§Ã£o';
     case TICKET_STATUS.IN_PROGRESS:
-      return 'Execução iniciada';
+      return 'ExecuÃ§Ã£o iniciada';
     case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
-      return 'Execução concluída';
+      return 'ExecuÃ§Ã£o concluÃ­da';
     case TICKET_STATUS.WAITING_PAYMENT:
       return 'Entrega validada';
     case TICKET_STATUS.CLOSED:
-      return 'Obra concluída';
+      return 'Obra concluÃ­da';
     case TICKET_STATUS.CANCELED:
-      return 'Solicitação encerrada';
+      return 'SolicitaÃ§Ã£o encerrada';
     default:
-      return status || 'Atualização da solicitação';
+      return status || 'AtualizaÃ§Ã£o da solicitaÃ§Ã£o';
   }
 }
 
@@ -450,15 +450,15 @@ function buildRequesterUpdateCopy(status: string, messageBody: string, cancellat
   switch (status) {
     case TICKET_STATUS.WAITING_TECH_OPINION:
       return {
-        title: 'Solicitação aceita para atendimento',
-        intro: 'Sua solicitação foi aceita pela equipe e seguirá para o plano técnico.',
-        ctaLabel: 'Acompanhar solicitação',
+        title: 'SolicitaÃ§Ã£o aceita para atendimento',
+        intro: 'Sua solicitaÃ§Ã£o foi aceita pela equipe e seguirÃ¡ para o plano tÃ©cnico.',
+        ctaLabel: 'Acompanhar solicitaÃ§Ã£o',
       };
     case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
       return {
-        title: 'Plano técnico em avaliação',
-        intro: 'O parecer técnico foi consolidado e está em avaliação da diretoria.',
-        ctaLabel: 'Acompanhar solicitação',
+        title: 'Plano tÃ©cnico em avaliaÃ§Ã£o',
+        intro: 'O parecer tÃ©cnico foi consolidado e estÃ¡ em avaliaÃ§Ã£o da diretoria.',
+        ctaLabel: 'Acompanhar solicitaÃ§Ã£o',
       };
     case TICKET_STATUS.WAITING_BUDGET:
     case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
@@ -466,44 +466,44 @@ function buildRequesterUpdateCopy(status: string, messageBody: string, cancellat
     case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
       return {
         title: 'Planejamento administrativo em andamento',
-        intro: 'Sua OS está em preparação administrativa para execução.',
-        ctaLabel: 'Acompanhar solicitação',
+        intro: 'Sua OS estÃ¡ em preparaÃ§Ã£o administrativa para execuÃ§Ã£o.',
+        ctaLabel: 'Acompanhar solicitaÃ§Ã£o',
       };
     case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
       return {
-        title: 'Obra em preparação',
-        intro: 'A equipe está concluindo as preparações para iniciar a execução.',
-        ctaLabel: 'Acompanhar solicitação',
+        title: 'Obra em preparaÃ§Ã£o',
+        intro: 'A equipe estÃ¡ concluindo as preparaÃ§Ãµes para iniciar a execuÃ§Ã£o.',
+        ctaLabel: 'Acompanhar solicitaÃ§Ã£o',
       };
     case TICKET_STATUS.IN_PROGRESS:
       return {
-        title: 'Execução da obra iniciada',
-        intro: 'A obra foi iniciada pela equipe técnica.',
-        ctaLabel: 'Acompanhar execução',
+        title: 'ExecuÃ§Ã£o da obra iniciada',
+        intro: 'A obra foi iniciada pela equipe tÃ©cnica.',
+        ctaLabel: 'Acompanhar execuÃ§Ã£o',
       };
     case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
       return {
-        title: 'Execução concluída',
-        intro: 'A obra foi concluída. Confirme a entrega no link para seguir com o encerramento.',
+        title: 'ExecuÃ§Ã£o concluÃ­da',
+        intro: 'A obra foi concluÃ­da. Confirme a entrega no link para seguir com o encerramento.',
         ctaLabel: 'Avaliar e confirmar entrega',
       };
     case TICKET_STATUS.CLOSED:
       return {
-        title: 'Obra concluída e encerrada',
-        intro: 'Sua solicitação foi concluída com sucesso.',
+        title: 'Obra concluÃ­da e encerrada',
+        intro: 'Sua solicitaÃ§Ã£o foi concluÃ­da com sucesso.',
         ctaLabel: 'Ver encerramento',
       };
     case TICKET_STATUS.CANCELED:
       return {
-        title: 'Solicitação encerrada',
+        title: 'SolicitaÃ§Ã£o encerrada',
         intro: cancellationReason || messageBody,
-        ctaLabel: 'Ver atualização',
+        ctaLabel: 'Ver atualizaÃ§Ã£o',
       };
     default:
       return {
-        title: 'Atualização da solicitação',
+        title: 'AtualizaÃ§Ã£o da solicitaÃ§Ã£o',
         intro: messageBody,
-        ctaLabel: 'Ver atualização',
+        ctaLabel: 'Ver atualizaÃ§Ã£o',
       };
   }
 }
@@ -607,12 +607,12 @@ export async function notifyTicketCreated(ticket: Ticket) {
     trigger: 'EMAIL-NOVA-OS',
     variables,
     templateData: {
-      title: 'Nova solicitação registrada',
-      intro: 'Recebemos sua solicitação e ela já está em análise pela equipe.',
+      title: 'Nova solicitaÃ§Ã£o registrada',
+      intro: 'Recebemos sua solicitaÃ§Ã£o e ela jÃ¡ estÃ¡ em anÃ¡lise pela equipe.',
       ticketSubject: ticket.subject,
       status: ticket.status,
       ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Ver atualização',
+      ctaLabel: 'Ver atualizaÃ§Ã£o',
     },
   });
 
@@ -625,11 +625,11 @@ export async function notifyTicketCreated(ticket: Ticket) {
     variables,
     templateData: {
       title: 'Nova OS na fila de triagem',
-      intro: `${ticket.id} foi registrada e já pode ser triada pela equipe.`,
+      intro: `${ticket.id} foi registrada e jÃ¡ pode ser triada pela equipe.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Ver atualização',
+      ctaLabel: 'Ver atualizaÃ§Ã£o',
     },
   });
 }
@@ -683,12 +683,12 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
     const latestInternalTechEntry = resolveLatestInternalTechEntry(ticket);
     const latestAttachments = Array.isArray(latestInternalTechEntry?.attachments) ? latestInternalTechEntry.attachments : [];
     const technicalBlock = directorTab === 'solutions' && latestInternalTechEntry?.text
-      ? `Parecer técnico:\n${latestInternalTechEntry.text}`
+      ? `Parecer tÃ©cnico:\n${latestInternalTechEntry.text}`
       : '';
     const budgetBlock =
       budgetContext
         ? [
-            budgetContext.measurementSheetUrl ? `Planilha de medição: ${budgetContext.measurementSheetUrl}` : null,
+            budgetContext.measurementSheetUrl ? `Planilha de mediÃ§Ã£o: ${budgetContext.measurementSheetUrl}` : null,
           ]
             .flat()
             .filter(Boolean)
@@ -713,13 +713,13 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       variables,
       templateData: {
         title: isApprovalStatus
-          ? (budgetContext ? `${budgetContext.roundTypeLabel} em aprovação da Diretoria` : 'Etapa em aprovação da Diretoria')
-          : 'Nova demanda para avaliação da Diretoria',
+          ? (budgetContext ? `${budgetContext.roundTypeLabel} em aprovaÃ§Ã£o da Diretoria` : 'Etapa em aprovaÃ§Ã£o da Diretoria')
+          : 'Nova demanda para avaliaÃ§Ã£o da Diretoria',
         intro: isApprovalStatus
           ? (budgetContext
-            ? `${ticket.id} está em ${budgetContext.roundTypeLabel.toLowerCase()} e requer aprovação da Diretoria.`
-            : `${ticket.id} já está pronta para revisão da Diretoria.`)
-          : `${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`,
+            ? `${ticket.id} estÃ¡ em ${budgetContext.roundTypeLabel.toLowerCase()} e requer aprovaÃ§Ã£o da Diretoria.`
+            : `${ticket.id} jÃ¡ estÃ¡ pronta para revisÃ£o da Diretoria.`)
+          : `${ticket.id} entrou na etapa de soluÃ§Ã£o e requer acompanhamento da Diretoria.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
         bodyText: directorBody,
@@ -731,7 +731,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
           : [],
         detailCards: budgetContext?.quoteCards || [],
         ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
-        ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Abrir painel da Diretoria',
+        ctaLabel: isApprovalStatus ? 'Abrir aprovaÃ§Ã£o' : 'Abrir painel da Diretoria',
       },
     });
   }
@@ -821,7 +821,7 @@ export async function notifyTicketDirectorReply(
     variables,
     templateData: {
       title: 'Nova mensagem para a Diretoria',
-      intro: `${sender} enviou uma atualização interna para a Diretoria.`,
+      intro: `${sender} enviou uma atualizaÃ§Ã£o interna para a Diretoria.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
@@ -837,9 +837,9 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
   const budgetContext = await buildDirectorBudgetContext(ticket);
   const summaryList = buildDirectorTicketSummary(ticket);
   const bodyText = [
-    `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} criado na etapa de execução e aguarda aprovação da Diretoria.`,
-    `Motivo do aditivo: ${additiveReason || budgetContext.additiveReason || 'Não informado'}`,
-    ...(budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : []),
+    `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} criado na etapa de execuÃ§Ã£o e aguarda aprovaÃ§Ã£o da Diretoria.`,
+    `Motivo do aditivo: ${additiveReason || budgetContext.additiveReason || 'NÃ£o informado'}`,
+    ...(budgetContext.measurementSheetUrl ? ['', `Planilha de mediÃ§Ã£o: ${budgetContext.measurementSheetUrl}`] : []),
     '',
     'Resumo da OS:',
     '',
@@ -860,18 +860,18 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
     skipDirectorFallback: true,
     variables,
     templateData: {
-      title: `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} aguardando aprovação`,
-      intro: `${ticket.id} possui ${budgetContext.roundTypeLabel?.toLowerCase() || `aditivo ${additiveIndex}`} em andamento e requer aprovação da Diretoria.`,
+      title: `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} aguardando aprovaÃ§Ã£o`,
+      intro: `${ticket.id} possui ${budgetContext.roundTypeLabel?.toLowerCase() || `aditivo ${additiveIndex}`} em andamento e requer aprovaÃ§Ã£o da Diretoria.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
       metricRows: [
         { label: 'Rodada', value: budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}` },
-        { label: 'Motivo do aditivo', value: additiveReason || budgetContext.additiveReason || 'Não informado' },
+        { label: 'Motivo do aditivo', value: additiveReason || budgetContext.additiveReason || 'NÃ£o informado' },
       ],
       detailCards: budgetContext.quoteCards || [],
       ctaUrl: buildDirectorReviewUrl(ticket, 'budgets'),
-      ctaLabel: 'Abrir aprovação do aditivo',
+      ctaLabel: 'Abrir aprovaÃ§Ã£o do aditivo',
     },
   });
 }
@@ -886,7 +886,7 @@ export async function notifyPaymentDispatch(
 ) {
   if (recipients.length === 0) return;
 
-  const lancamentoLabel = payment.label || `Lançamento ${payment.installmentNumber || 1}`;
+  const lancamentoLabel = payment.label || `LanÃ§amento ${payment.installmentNumber || 1}`;
   const subject = `${ticket.id} - Pagamento - ${lancamentoLabel}`;
   const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
   const summaryList = buildDirectorTicketSummary(ticket);
@@ -894,17 +894,17 @@ export async function notifyPaymentDispatch(
   const formatMoney = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   const bodyLines = [
-    `Segue o lançamento de pagamento referente à OS ${ticket.id}.`,
+    `Segue o lanÃ§amento de pagamento referente Ã  OS ${ticket.id}.`,
     '',
     'Resumo da OS:',
     '',
     summaryList,
   ];
   if (measurementSheetUrl) {
-    bodyLines.push('', `Planilha de medição: ${measurementSheetUrl}`);
+    bodyLines.push('', `Planilha de mediÃ§Ã£o: ${measurementSheetUrl}`);
   }
   if (normalizedAttachments.length > 0) {
-    bodyLines.push('', `Anexos do lançamento: ${normalizedAttachments.map(item => item.name || 'Arquivo').join(', ')}`);
+    bodyLines.push('', `Anexos do lanÃ§amento: ${normalizedAttachments.map(item => item.name || 'Arquivo').join(', ')}`);
   }
   const bodyText = bodyLines.join('\n');
 
@@ -922,12 +922,12 @@ export async function notifyPaymentDispatch(
     variables,
     templateData: {
       title: subject,
-      intro: `Lançamento de pagamento para a OS ${ticket.id}.`,
+      intro: `LanÃ§amento de pagamento para a OS ${ticket.id}.`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
       metricRows: [
-        { label: 'Lançamento', value: lancamentoLabel },
+        { label: 'LanÃ§amento', value: lancamentoLabel },
         { label: 'Valor bruto', value: formatMoney(grossAmount) },
         { label: 'Imposto', value: formatMoney(taxAmount) },
         { label: 'Valor a pagar', value: formatMoney(netAmount) },
