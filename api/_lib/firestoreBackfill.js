@@ -1,5 +1,6 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { writeAuditLog } from './auditLogs.js';
+import { normalizeKey } from './text.js';
 
 const LEGACY_ROLE_MAP = {
   'Gestor de OS': 'Usuario',
@@ -8,14 +9,6 @@ const LEGACY_ROLE_MAP = {
   'Técnico (Interno)': 'Usuario',
   Terceirizado: 'Usuario',
 };
-
-function normalizeKey(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
 
 function toDate(value) {
   if (!value) return null;

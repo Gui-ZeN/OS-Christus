@@ -72,8 +72,7 @@ async function checkFirebaseAdmin() {
 
 async function checkAuth() {
   try {
-    const db = getAdminDb();
-    void db;
+    getAdminDb(); // garante a inicialização do app admin
     const app = getApps()[0];
     const auth = getAuth(app);
     const page = await auth.listUsers(1);
@@ -98,8 +97,7 @@ async function checkAuth() {
 
 async function checkStorage() {
   try {
-    const db = getAdminDb();
-    void db;
+    getAdminDb(); // garante a inicialização do app admin
     const app = getApps()[0];
     const bucketName = app?.options?.storageBucket || process.env.FIREBASE_STORAGE_BUCKET || null;
     if (!bucketName) {

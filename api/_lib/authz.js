@@ -78,3 +78,13 @@ export async function requireAdminUser(req) {
 export async function requireOperationalManager(req) {
   return requireUserWithRoles(req, ['Admin', 'Gestor']);
 }
+
+/** Rótulo do ator para audit logs, a partir do usuário autenticado. */
+export function resolveActor(user, fallback = 'painel') {
+  return user?.name || user?.email || fallback;
+}
+
+/** True se o papel do usuário está na lista informada. */
+export function hasRole(user, roles) {
+  return Array.isArray(roles) && roles.includes(user?.role);
+}

@@ -1,21 +1,13 @@
 ﻿import { randomUUID } from 'node:crypto';
-import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
+import { requireAuthenticatedUser, requireUserWithRoles , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readProcurement, readProcurementForTicketIds, seedProcurementDefaults } from './_lib/procurement.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
+import { normalizeKey, slugify } from './_lib/text.js';
 
 const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
-
-function slugify(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 function parseCurrency(value) {
   const normalized = String(value || '')
@@ -24,14 +16,6 @@ function parseCurrency(value) {
     .replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function normalizeKey(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
 }
 
 function isReviewActive(review) {
@@ -381,7 +365,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const user = await requireUserWithRoles(req, ['Admin', 'Diretor']);
-      const actor = user.name || user.email || 'painel';
+      const actor = resolveActor(user);
       const body = await readJsonBody(req);
       const ticketId = String(body?.ticketId || '').trim();
       const type = String(body?.type || '').trim();

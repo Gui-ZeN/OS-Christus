@@ -1,4 +1,5 @@
-import { requireAuthenticatedUser, requireOperationalManager } from './_lib/authz.js';
+import { requireAuthenticatedUser, requireOperationalManager , resolveActor } from './_lib/authz.js';
+import { slugify } from './_lib/text.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
@@ -25,15 +26,6 @@ function assertCatalogMutationAllowed(user, entity) {
   const error = new Error('Gestor pode alterar apenas macroservicos, servicos e materiais.');
   error.statusCode = 403;
   throw error;
-}
-
-function slugify(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 async function readCatalog(db) {
@@ -425,7 +417,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const adminUser = await requireOperationalManager(req);
-      const actor = adminUser.name || adminUser.email || 'admin';
+      const actor = resolveActor(adminUser, 'admin');
       const body = await readJsonBody(req);
 
       if (body?.seedDefaults === true) {
@@ -461,7 +453,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const adminUser = await requireOperationalManager(req);
-      const actor = adminUser.name || adminUser.email || 'admin';
+      const actor = resolveActor(adminUser, 'admin');
       const body = await readJsonBody(req);
       const entity = String(body?.entity || '').trim();
       const id = String(body?.id || '').trim();

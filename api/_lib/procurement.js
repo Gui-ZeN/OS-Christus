@@ -1,4 +1,5 @@
 import { DEFAULT_CONTRACTS, DEFAULT_MEASUREMENTS, DEFAULT_PAYMENTS, DEFAULT_QUOTES } from './procurementDefaults.js';
+import { chunkValues } from './text.js';
 
 function toList(group) {
   return Object.entries(group).map(([ticketId, payload]) => ({ ticketId, payload }));
@@ -6,14 +7,6 @@ function toList(group) {
 
 function toArray(payload) {
   return Array.isArray(payload) ? payload : payload ? [payload] : [];
-}
-
-function chunkValues(values, size = 10) {
-  const chunks = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
 }
 
 export async function seedProcurementDefaults(db) {

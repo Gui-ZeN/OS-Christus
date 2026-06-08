@@ -1,13 +1,15 @@
 ﻿import { randomUUID } from 'node:crypto';
 import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
-import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readAccessibleTickets } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentMime } from './_lib/attachments.js';
+import { slugFilename } from './_lib/text.js';
+import { parseEmailList } from './_lib/email.js';
 
 const STATUS_IN_PROGRESS = 'Em andamento';
 const STATUS_WAITING_MAINTENANCE_APPROVAL = 'Aguardando aprovação da manutenção';
@@ -203,19 +205,6 @@ function sanitizeTicketForPublicTracking(ticket) {
   };
 }
 
-function parseEmailList(input) {
-  if (!input) return [];
-  const values = Array.isArray(input) ? input : String(input).split(/[;,\s]+/);
-  const emails = values
-    .map(value => String(value || '').trim().toLowerCase())
-    .map(value => {
-      const match = value.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
-      return match ? match[0].toLowerCase() : '';
-    })
-    .filter(Boolean);
-  return [...new Set(emails)];
-}
-
 function buildPublicTrackingPayload(beforeData, approved) {
   const now = new Date();
   const previousChecklist = beforeData?.closureChecklist || {};
@@ -306,7 +295,7 @@ function extractPublicDescription(rawTicket) {
 }
 
 async function preparePublicTicketCreate(db, rawTicket) {
-  const requesterEmail = parseEmailList(rawTicket.requesterEmail || '')[0] || '';
+  const requesterEmail = parseEmailList(rawTicket.requesterEmail || '', { splitWhitespace: true })[0] || '';
   if (!requesterEmail) {
     throw new HttpError(400, 'E-mail do solicitante inválido.');
   }
@@ -371,7 +360,7 @@ async function preparePublicTicketCreate(db, rawTicket) {
     subject,
     requester: requesterName,
     requesterEmail,
-    requesterCcEmails: parseEmailList(rawTicket.requesterCcEmails || rawTicket.requesterCcEmail || ''),
+    requesterCcEmails: parseEmailList(rawTicket.requesterCcEmails || rawTicket.requesterCcEmail || '', { splitWhitespace: true }),
     time: now,
     status: 'Nova OS',
     type: clampText(rawTicket.type, PUBLIC_TEXT_LIMITS.type),
@@ -453,15 +442,6 @@ async function deleteStoragePaths(paths) {
   }
 
   return deleted;
-}
-
-function slugFilename(value) {
-  return String(value || 'arquivo')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 const MAX_ATTACHMENTS = 10;
@@ -882,7 +862,7 @@ export default async function handler(req, res) {
       }
 
       const user = await requireAuthenticatedUser(req);
-      const actor = user.name || user.email || 'painel';
+      const actor = resolveActor(user);
 
       if (user.role !== 'Admin' && user.role !== 'Gestor' && user.role !== 'Diretor') {
         return sendJson(res, 403, { ok: false, error: 'Somente Admin, Gestor ou Diretor podem atualizar tickets pelo painel.' });
@@ -963,7 +943,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const admin = await requireAdminUser(req);
-      const actor = admin.name || admin.email || 'painel';
+      const actor = resolveActor(admin);
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       if (!id) {

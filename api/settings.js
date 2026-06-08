@@ -1,46 +1,11 @@
-import { requireAdminUser, requireUserWithRoles } from './_lib/authz.js';
+import { requireAdminUser, requireUserWithRoles , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
+import { repairMojibake } from './_lib/text.js';
 
 const FIXED_TICKET_EMAIL_SUBJECT = '{{ticket.id}} - {{ticket.subject}}';
-const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/g;
-const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/;
-
-function mojibakeScore(input) {
-  const matches = String(input || '').match(LIKELY_MOJIBAKE_REGEX);
-  return matches ? matches.length : 0;
-}
-
-function repairMojibake(value) {
-  const input = String(value || '');
-  if (!input || !LIKELY_MOJIBAKE_TEST_REGEX.test(input)) {
-    return input;
-  }
-
-  try {
-    let current = input;
-    let currentScore = mojibakeScore(current);
-
-    for (let index = 0; index < 3; index += 1) {
-      const repaired = Buffer.from(current, 'latin1').toString('utf8');
-      if (!repaired || repaired.includes('\uFFFD')) break;
-
-      const repairedScore = mojibakeScore(repaired);
-      if (repairedScore >= currentScore) break;
-
-      current = repaired;
-      currentScore = repairedScore;
-      if (currentScore === 0) break;
-    }
-
-    return current;
-  } catch {
-    return input;
-  }
-}
-
 function normalizeEmailTemplate(data, fallback = null) {
   const source = data && typeof data === 'object' ? data : {};
   const fallbackTemplate = fallback && typeof fallback === 'object' ? fallback : {};
@@ -186,7 +151,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const admin = await requireUserWithRoles(req, ['Admin', 'Gestor']);
-      const actor = admin.name || admin.email || 'painel';
+      const actor = resolveActor(admin);
       const body = await readJsonBody(req);
       const section = String(body?.section || '').trim();
       const data = body?.data;

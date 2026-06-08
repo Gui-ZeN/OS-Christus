@@ -18,6 +18,8 @@ import {
 } from './_lib/gmail.js';
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
 import { isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
+import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
+import { firstEmail, parseEmailList } from './_lib/email.js';
 import { sendWithSendGrid } from './_lib/sendgrid.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
@@ -78,23 +80,6 @@ function hasWaterIssueSignal(value) {
   const normalized = normalizeKey(value);
   if (!normalized) return false;
   return normalized.includes('goteira') || normalized.includes('infiltracao') || normalized.includes('infiltra');
-}
-
-function normalizeKey(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function slugFilename(value) {
-  return String(value || 'arquivo')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 function stripHtml(value) {
@@ -276,12 +261,6 @@ function stripSignature(value) {
     .trim();
 }
 
-function firstEmail(raw) {
-  if (!raw) return null;
-  const match = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  return match ? match[0].toLowerCase() : null;
-}
-
 function safeJsonParse(value) {
   try {
     return JSON.parse(value);
@@ -314,42 +293,6 @@ function renderTemplateString(template, variables) {
   });
 }
 
-const LIKELY_MOJIBAKE_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/g;
-const LIKELY_MOJIBAKE_TEST_REGEX = /(?:Ã.|Â.|â.|ð.|ï¿½|\uFFFD)/;
-
-function mojibakeScore(input) {
-  const matches = String(input || '').match(LIKELY_MOJIBAKE_REGEX);
-  return matches ? matches.length : 0;
-}
-
-function repairMojibake(value) {
-  const input = String(value || '');
-  if (!input || !LIKELY_MOJIBAKE_TEST_REGEX.test(input)) {
-    return input;
-  }
-
-  try {
-    let current = input;
-    let currentScore = mojibakeScore(current);
-
-    for (let index = 0; index < 3; index += 1) {
-      const repaired = Buffer.from(current, 'latin1').toString('utf8');
-      if (!repaired || repaired.includes('\uFFFD')) break;
-
-      const repairedScore = mojibakeScore(repaired);
-      if (repairedScore >= currentScore) break;
-
-      current = repaired;
-      currentScore = repairedScore;
-      if (currentScore === 0) break;
-    }
-
-    return current;
-  } catch {
-    return input;
-  }
-}
-
 function normalizeResolvedTemplate(template) {
   if (!template || typeof template !== 'object') return null;
   return {
@@ -358,15 +301,6 @@ function normalizeResolvedTemplate(template) {
     body: repairMojibake(template.body),
     recipients: repairMojibake(template.recipients || ''),
   };
-}
-
-function parseEmailList(input) {
-  if (!input) return [];
-  const values = Array.isArray(input) ? input : String(input).split(/[;,]+/);
-  const emails = values
-    .map(value => firstEmail(value))
-    .filter(Boolean);
-  return [...new Set(emails)];
 }
 
 function filterCopyRecipients(input, excluded = []) {

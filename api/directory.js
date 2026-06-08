@@ -1,16 +1,8 @@
-import { requireAdminUser, requireAuthenticatedUser, requireOperationalManager } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser, requireOperationalManager , hasRole } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
-
-function slugify(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+import { slugify } from './_lib/text.js';
 
 export default async function handler(req, res) {
   try {
@@ -20,7 +12,7 @@ export default async function handler(req, res) {
       const currentUser = await requireAuthenticatedUser(req);
       const directory = await readDirectory(db);
       const users =
-        currentUser.role === 'Admin' || currentUser.role === 'Gestor' || currentUser.role === 'Diretor'
+        hasRole(currentUser, ['Admin', 'Gestor', 'Diretor'])
           ? directory.users
           : directory.users.filter(user => String(user.email || '').toLowerCase() === String(currentUser.email || '').toLowerCase());
       return sendJson(res, 200, {

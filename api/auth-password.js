@@ -2,12 +2,9 @@ import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { generatePasswordResetUrl, normalizeEmail, sendPasswordAccessEmail } from './_lib/passwordAccess.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
+import { isValidEmail } from './_lib/email.js';
 
 const SUCCESS_MESSAGE = 'Se o e-mail estiver cadastrado, voce recebera instrucoes para redefinir sua senha.';
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
 
 export default async function handler(req, res) {
   try {

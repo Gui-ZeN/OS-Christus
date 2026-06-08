@@ -1,21 +1,7 @@
-function normalizeKey(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
+import { chunkValues, normalizeKey } from './text.js';
 
 function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))];
-}
-
-function chunkValues(values, size = 10) {
-  const chunks = [];
-  for (let index = 0; index < values.length; index += size) {
-    chunks.push(values.slice(index, index + size));
-  }
-  return chunks;
 }
 
 function resolveTicketSiteIds(ticket, sites) {

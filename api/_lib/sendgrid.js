@@ -1,3 +1,5 @@
+import { parseEmailList as parseRecipientList } from './email.js';
+
 function requiredEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Variável obrigatória ausente: ${name}`);
@@ -6,18 +8,6 @@ function requiredEnv(name) {
 
 function compact(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null));
-}
-
-function parseRecipientList(input) {
-  return String(input || '')
-    .split(/[;,]+/)
-    .map(value => String(value || '').trim().toLowerCase())
-    .filter(Boolean)
-    .map(value => {
-      const match = value.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
-      return match ? match[0].toLowerCase() : '';
-    })
-    .filter(Boolean);
 }
 
 export async function sendWithSendGrid({

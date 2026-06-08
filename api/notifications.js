@@ -1,4 +1,4 @@
-import { requireAuthenticatedUser } from './_lib/authz.js';
+import { requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const user = await requireAuthenticatedUser(req);
-      const actor = user.name || user.email || 'painel';
+      const actor = resolveActor(user);
       const body = await readJsonBody(req);
       const action = String(body?.action || '').trim();
 

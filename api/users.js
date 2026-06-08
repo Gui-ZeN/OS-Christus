@@ -1,10 +1,11 @@
-import { requireAdminUser, requireAuthenticatedUser } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser , resolveActor , hasRole } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { getAuth } from 'firebase-admin/auth';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readDirectory } from './_lib/directory.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { generatePasswordResetUrl, sendPasswordAccessEmail } from './_lib/passwordAccess.js';
+import { isValidEmail as isDeliverableEmail } from './_lib/email.js';
 
 function normalizeUser(input) {
   const regionIds = Array.isArray(input?.regionIds)
@@ -23,10 +24,6 @@ function normalizeUser(input) {
     siteIds,
     active: input?.active !== false,
   };
-}
-
-function isDeliverableEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
 }
 
 function describePasswordEmailError(error) {
@@ -144,7 +141,7 @@ export default async function handler(req, res) {
       const currentUser = await requireAuthenticatedUser(req);
       const directory = await readDirectory(db);
       const users =
-        currentUser.role === 'Admin' || currentUser.role === 'Gestor' || currentUser.role === 'Diretor'
+        hasRole(currentUser, ['Admin', 'Gestor', 'Diretor'])
           ? directory.users
           : directory.users.filter(user => String(user.email || '').toLowerCase() === String(currentUser.email || '').toLowerCase());
       return sendJson(res, 200, { ok: true, users });
@@ -152,7 +149,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const admin = await requireAdminUser(req);
-      const actor = admin.name || admin.email || 'painel';
+      const actor = resolveActor(admin);
       const body = await readJsonBody(req);
       const user = normalizeUser(body?.user);
       const password = String(body?.password || '').trim();
@@ -217,7 +214,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const admin = await requireAdminUser(req);
-      const actor = admin.name || admin.email || 'painel';
+      const actor = resolveActor(admin);
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       const user = normalizeUser(body?.updates);
@@ -252,7 +249,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const admin = await requireAdminUser(req);
-      const actor = admin.name || admin.email || 'painel';
+      const actor = resolveActor(admin);
       const body = await readJsonBody(req);
       const id = String(body?.id || '').trim();
       if (!id) {
