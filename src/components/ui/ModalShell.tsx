@@ -11,6 +11,9 @@ interface ModalShellProps {
   footer?: React.ReactNode;
 }
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function ModalShell({
   isOpen,
   onClose,
@@ -20,6 +23,67 @@ export function ModalShell({
   children,
   footer,
 }: ModalShellProps) {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = React.useRef<HTMLElement | null>(null);
+
+  // Move o foco para dentro do modal ao abrir e o restaura ao fechar.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const node = dialogRef.current;
+    if (node) {
+      const focusable = node.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (focusable || node).focus();
+    }
+    return () => {
+      previouslyFocusedRef.current?.focus?.();
+    };
+  }, [isOpen]);
+
+  // Trava o scroll do body enquanto o modal está aberto.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
+  // Escape fecha; Tab fica preso dentro do modal (focus trap).
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const node = dialogRef.current as HTMLElement | null;
+      if (!node) return;
+      const focusable = (Array.from(node.querySelectorAll(FOCUSABLE_SELECTOR)) as HTMLElement[]).filter(
+        el => el.offsetParent !== null || el === document.activeElement
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        node.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === node)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -28,11 +92,13 @@ export function ModalShell({
       onClick={event => {
         if (event.target === event.currentTarget) onClose();
       }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         className={`flex w-full ${maxWidthClass} max-h-[92vh] flex-col overflow-hidden rounded-sm border border-roman-border bg-roman-surface shadow-xl`}
       >
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-roman-border bg-roman-bg px-4 py-4 sm:px-5">

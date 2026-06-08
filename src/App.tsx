@@ -1,4 +1,4 @@
-﻿import React, { lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+﻿import React, { Component, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BarChart2,
   DollarSign,
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 
 import { SidebarIcon } from './components/ui/SidebarIcon';
+import { WhatsNewModal } from './components/WhatsNewModal';
+import { CURRENT_RELEASE, hasSeenRelease, markReleaseSeen } from './constants/releaseNotes';
 import { useApp } from './context/AppContext';
 import { ViewState } from './types';
 
@@ -86,8 +88,58 @@ export const VIEWS = {
   AUDIT_LOGS: 'audit-logs',
 } as const;
 
-function ErrorBoundary({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  /** Quando muda, o boundary tenta renderizar de novo (ex.: ao trocar de view). */
+  resetKey?: unknown;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown, info: unknown) {
+    // eslint-disable-next-line no-console
+    console.error('Erro não tratado na view:', error, info);
+  }
+
+  componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
+          <p className="text-roman-text-main font-serif text-lg">Algo deu errado ao carregar esta tela.</p>
+          <p className="text-roman-text-sub text-sm max-w-md">
+            Tente recarregar a página. Se o problema persistir, contate o suporte.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-roman-primary hover:bg-roman-primary-hover text-white text-sm font-medium transition-colors"
+          >
+            Recarregar
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
@@ -143,6 +195,20 @@ export default function App() {
   const canAccessAudit = currentRole === 'Admin';
   const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor' || currentRole === 'Usuario';
   const canAccessSettings = currentRole === 'Admin' || currentRole === 'Gestor';
+  const isManagerOrAdmin = currentRole === 'Admin' || currentRole === 'Gestor';
+
+  // Novidades (patch notes): aparece uma vez por versão, só para Admin/Gestor.
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  useEffect(() => {
+    if (isManagerOrAdmin && !hasSeenRelease(CURRENT_RELEASE.version)) {
+      setShowWhatsNew(true);
+    }
+  }, [isManagerOrAdmin]);
+  const closeWhatsNew = () => {
+    markReleaseSeen(CURRENT_RELEASE.version);
+    setShowWhatsNew(false);
+  };
+
   const restrictedViews = useMemo(
     () =>
       new Set<ViewState>(
@@ -409,7 +475,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
-        <ErrorBoundary>
+        <ErrorBoundary resetKey={currentView}>
           <Suspense fallback={<ViewLoader />}>
             {currentView === VIEWS.HOME && <HomeView />}
             {currentView === VIEWS.INBOX && canAccessInbox && <InboxView />}
@@ -422,6 +488,8 @@ export default function App() {
           </Suspense>
         </ErrorBoundary>
       </main>
+
+      <WhatsNewModal isOpen={showWhatsNew} onClose={closeWhatsNew} />
 
       {attachmentPreview && (() => {
         const rawAttachmentItems = attachmentPreview.items && attachmentPreview.items.length > 0

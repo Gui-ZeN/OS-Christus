@@ -12,6 +12,7 @@ import { fetchProcurementData, saveContract, savePayment, saveQuotes } from '../
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
+import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
 import { stripAttachmentLinksFromMessage } from '../utils/text';
 
 const REVIEW_ACTIVE_WINDOW_MS = 2 * 60 * 1000;
@@ -34,17 +35,9 @@ function getQuoteSectionLabel(section?: string | null) {
   return QUOTE_SECTION_LABELS[section] || section;
 }
 
-function parseCurrencyInput(value: string | null | undefined) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
+// Mantém o clamp em 0 do comportamento original, delegando a formatação ao util.
 function formatCurrencyValue(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(0, value || 0));
+  return formatCurrency(Math.max(0, value || 0));
 }
 
 function createEmptyProposalHeader(): QuoteProposalHeader {
@@ -1039,7 +1032,7 @@ export function ApprovalsView() {
           </div>
         </header>
 
-        <div className="mb-5 grid gap-3 md:grid-cols-3">
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {approvalSummary.map(item => (
             <button
               key={item.label}

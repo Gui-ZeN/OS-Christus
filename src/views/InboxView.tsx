@@ -27,6 +27,12 @@ import { buildProcurementClassification } from '../utils/procurementClassificati
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { cleanForwardedMessageText } from '../utils/text';
+import {
+  formatCurrency as formatCurrencyInput,
+  normalizeCurrencyInput,
+  parseCurrency as parseCurrencyInput,
+  sanitizeCurrencyTypingInput,
+} from '../utils/currency';
 
 type QuoteDraft = {
   vendor: string;
@@ -494,21 +500,39 @@ function getQuoteSectionLabel(section: string) {
   return QUOTE_SECTION_OPTIONS.find(option => option.value === section)?.label || section;
 }
 
-function parseCurrencyInput(value: string) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatCurrencyInput(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(value);
+// Orientação por etapa: o que o gestor deve fazer agora (ou aguardar).
+// `waiting` = a bola está com outra pessoa (diretoria/solicitante/encerrada).
+function getStageGuidance(status: string): { text: string; waiting: boolean } | null {
+  switch (status) {
+    case TICKET_STATUS.NEW:
+      return { text: 'Faça a triagem: defina equipe responsável, urgência e aceite ou cancele a OS.', waiting: false };
+    case TICKET_STATUS.WAITING_TECH_OPINION:
+      return { text: 'Registre o parecer técnico e envie para aprovação da diretoria.', waiting: false };
+    case TICKET_STATUS.WAITING_SOLUTION_APPROVAL:
+      return { text: 'Aguardando a diretoria aprovar a solução técnica.', waiting: true };
+    case TICKET_STATUS.WAITING_BUDGET:
+      return { text: 'Lance as cotações dos fornecedores para esta OS.', waiting: false };
+    case TICKET_STATUS.WAITING_BUDGET_APPROVAL:
+      return { text: 'Aguardando a diretoria aprovar o orçamento.', waiting: true };
+    case TICKET_STATUS.WAITING_CONTRACT_UPLOAD:
+      return { text: 'Anexe o contrato assinado do fornecedor.', waiting: false };
+    case TICKET_STATUS.WAITING_CONTRACT_APPROVAL:
+      return { text: 'Aguardando a diretoria aprovar o contrato.', waiting: true };
+    case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
+      return { text: 'Confirme materiais, equipe e agenda antes de iniciar a execução.', waiting: false };
+    case TICKET_STATUS.IN_PROGRESS:
+      return { text: 'Acompanhe a execução e registre o andamento no diário de obra.', waiting: false };
+    case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:
+      return { text: 'Aguardando o solicitante validar a entrega do serviço.', waiting: true };
+    case TICKET_STATUS.WAITING_PAYMENT:
+      return { text: 'Libere as medições e confirme os pagamentos.', waiting: false };
+    case TICKET_STATUS.CLOSED:
+      return { text: 'OS encerrada.', waiting: true };
+    case TICKET_STATUS.CANCELED:
+      return { text: 'OS cancelada.', waiting: true };
+    default:
+      return null;
+  }
 }
 
 function isLegacyFlowPlaceholderPayment(payment: PaymentRecord) {
@@ -525,15 +549,6 @@ function isLegacyFlowPlaceholderPayment(payment: PaymentRecord) {
 
 function stripLegacyFlowPlaceholders(payments: PaymentRecord[]) {
   return payments.filter(payment => !isLegacyFlowPlaceholderPayment(payment));
-}
-
-function normalizeCurrencyInput(value: string) {
-  const parsed = parseCurrencyInput(value);
-  return parsed > 0 ? formatCurrencyInput(parsed) : '';
-}
-
-function sanitizeCurrencyTypingInput(value: string) {
-  return String(value || '').replace(/[^\d,.-]/g, '');
 }
 
 function normalizeTagValue(value?: string | null) {
@@ -712,6 +727,7 @@ export function InboxView() {
   const [customEmail, setCustomEmail] = useState('');
   const [ticketPriority, setTicketPriority] = useState('');
   const [statusDraft, setStatusDraft] = useState('');
+  const [showStageControls, setShowStageControls] = useState(false);
   const [waterIssueDraft, setWaterIssueDraft] = useState(false);
   const [sidebarSections, setSidebarSections] = useState({
     summary: true,
@@ -900,6 +916,7 @@ export function InboxView() {
     setPublicInterestedDraft('');
     setTicketPriority(activeTicket.status === TICKET_STATUS.NEW ? '' : activeTicket.priority || '');
     setStatusDraft(activeTicket.status || '');
+    setShowStageControls(false);
     setWaterIssueDraft(Boolean(activeTicket.waterIssue));
     setTicketDetailsForm(createTicketDetailsFormState(activeTicket));
     setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
@@ -3119,7 +3136,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {/* Ticket List Pane */}
-      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-0 z-40 h-full w-[86vw] max-w-[22rem] md:w-[14.5rem] lg:w-[15.5rem] xl:w-[16.5rem] min-[1500px]:w-[17.5rem] min-[1800px]:w-[19rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div id="ticket-list-drawer" className={`fixed md:static inset-y-0 left-14 md:left-auto z-40 h-full w-[calc(100vw-3.5rem)] max-w-[22rem] md:w-[14.5rem] lg:w-[15.5rem] xl:w-[16.5rem] min-[1500px]:w-[17.5rem] min-[1800px]:w-[19rem] bg-roman-surface border-r border-roman-border flex flex-col shadow-[1px_0_5px_rgba(0,0,0,0.02)] transition-transform duration-200 ${showMobileTicketList ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="border-b border-roman-border px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-b from-roman-bg to-roman-surface">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -3330,9 +3347,12 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 Painel da OS
               </button>
             )}
-            <div className="hidden md:flex items-center gap-2 mr-4 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs text-roman-text-sub">
+            <div
+              className="hidden md:flex items-center gap-1.5 mr-3 text-xs text-roman-text-sub"
+              title={`Visualizando como: ${displayActorLabel}`}
+            >
               <User size={14} />
-              <span>Visualizando como: <strong>{displayActorLabel}</strong></span>
+              <span className="max-w-[150px] truncate">{displayActorLabel}</span>
             </div>
           </div>
         </header>
@@ -3341,25 +3361,15 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
         <div className="flex h-full flex-1 min-h-0 overflow-hidden">
 
           {/* Conversation Thread */}
-          <div className="flex-1 min-h-0 bg-roman-bg overflow-hidden grid grid-rows-[auto_minmax(0,1fr)_auto]">
+          <div className="flex-1 min-h-0 min-w-0 bg-roman-bg overflow-hidden grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto]">
 
             {/* Ticket Header */}
-            <div className="bg-roman-surface px-3 py-3 md:px-4 md:py-4 border-b border-roman-border">
+            <div className="min-w-0 bg-roman-surface px-3 py-3 md:px-4 md:py-4 border-b border-roman-border">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
+                <div className="min-w-0">
+                  {/* Etapa atual em destaque (informação principal) */}
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-roman-border bg-roman-bg px-2.5 py-1 text-[10px] font-medium text-roman-text-sub">
-                      {activeTicket.id}
-                    </span>
                     <StatusBadge status={activeTicket.status} />
-                    <span className="rounded-full border border-roman-border bg-roman-bg px-2.5 py-1 text-[10px] text-roman-text-sub">
-                      {getTicketSiteLabel(activeTicket, catalogSites)}
-                    </span>
-                    {activeTicket.priority ? (
-                      <span className="rounded-full border border-roman-border bg-roman-bg px-2.5 py-1 text-[10px] text-roman-text-sub">
-                        {activeTicket.priority}
-                      </span>
-                    ) : null}
                     {activeTicket.waterIssue ? (
                       <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-800">
                         Goteira/Infiltração
@@ -3367,8 +3377,36 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     ) : null}
                   </div>
                   <h1 className="text-[1.35rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.5rem] xl:text-[1.65rem]">{activeTicket.subject}</h1>
-                  <div className="mt-1 text-[13px] text-roman-text-sub">
-                    Solicitante: <span className="font-medium text-roman-text-main">{activeTicket.requester || 'Não informado'}</span>
+                  {/* Identidade + escopo + data, consolidados numa única linha */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-roman-text-sub">
+                    <span className="font-medium text-roman-text-main">{activeTicket.id}</span>
+                    <span className="text-roman-border">·</span>
+                    <span>Solic.: <span className="font-medium text-roman-text-main">{activeTicket.requester || 'Não informado'}</span></span>
+                    <span className="text-roman-border">·</span>
+                    <span>{getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)}</span>
+                    <span className="text-roman-border">·</span>
+                    <span>{getTicketSiteLabel(activeTicket, catalogSites)}</span>
+                    {activeTicket.priority ? (
+                      <>
+                        <span className="text-roman-border">·</span>
+                        <span>{activeTicket.priority}</span>
+                      </>
+                    ) : null}
+                    <span className="text-roman-border">·</span>
+                    <span className="font-serif italic">{formatDateTimeSafe(activeTicket.time)}</span>
+                    <button
+                      onClick={() => {
+                        if (ticketAttachmentItems.length === 0) return;
+                        openAttachment(`Anexos: ${activeTicket.subject}`, ticketAttachmentItems[0].type, {
+                          url: ticketAttachmentItems[0].url,
+                          items: ticketAttachmentItems,
+                        });
+                      }}
+                      disabled={ticketAttachmentItems.length === 0}
+                      className="ml-auto shrink-0 whitespace-nowrap flex items-center gap-1 font-medium text-xs text-roman-primary hover:underline disabled:text-roman-text-sub disabled:no-underline disabled:cursor-not-allowed"
+                    >
+                      <ImageIcon size={14} /> {ticketAttachmentItems.length > 0 ? 'Ver Anexos' : 'Sem anexos'}
+                    </button>
                   </div>
                 </div>
                 <div className="relative">
@@ -3417,24 +3455,28 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-roman-text-sub font-serif italic text-[13px]">
-                <span>via Formulário do Sistema</span>
-                <span>{formatDateTimeSafe(activeTicket.time)}</span>
-                <span>{getTicketRegionLabel(activeTicket, catalogRegions, catalogSites)}</span>
-                <button
-                  onClick={() => {
-                    if (ticketAttachmentItems.length === 0) return;
-                    openAttachment(`Anexos: ${activeTicket.subject}`, ticketAttachmentItems[0].type, {
-                      url: ticketAttachmentItems[0].url,
-                      items: ticketAttachmentItems,
-                    });
-                  }}
-                  disabled={ticketAttachmentItems.length === 0}
-                  className="ml-auto text-roman-primary hover:underline flex items-center gap-1 not-italic font-medium text-xs disabled:text-roman-text-sub disabled:no-underline disabled:cursor-not-allowed"
-                >
-                  <ImageIcon size={14} /> {ticketAttachmentItems.length > 0 ? 'Ver Anexos' : 'Sem anexos'}
-                </button>
-              </div>
+              {(() => {
+                const guidance = getStageGuidance(activeTicket.status);
+                if (!guidance) return null;
+                return (
+                  <div
+                    className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
+                      guidance.waiting
+                        ? 'border-roman-border bg-roman-bg text-roman-text-sub'
+                        : 'border-roman-primary/30 bg-roman-primary/8 text-roman-text-main'
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 shrink-0 font-serif text-[10px] font-semibold uppercase tracking-widest ${
+                        guidance.waiting ? 'text-roman-text-sub' : 'text-roman-primary'
+                      }`}
+                    >
+                      {guidance.waiting ? 'Aguardando' : 'Próximo passo'}
+                    </span>
+                    <span className="min-w-0">{guidance.text}</span>
+                  </div>
+                );
+              })()}
 
               {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
                 <div className="mt-4 rounded-sm border border-roman-primary/30 bg-roman-primary/8 px-4 py-3 text-roman-text-main">
@@ -3680,36 +3722,65 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                   </div>
                 )}
 
-                {replyMode === 'internal' && canManageStatus && (
-                  <div className="border-b border-roman-border/50 bg-white px-3 py-3">
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Pular/voltar etapa</label>
-                        <select
-                          value={statusDraft}
-                          onChange={event => setStatusDraft(event.target.value)}
-                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                {replyMode === 'internal' && canManageStatus && (() => {
+                  const hasStageChange = Boolean(statusDraft) && statusDraft !== activeTicket.status;
+                  const stageControlsVisible = showStageControls || hasStageChange;
+                  return (
+                    <div className="border-b border-roman-border/50 bg-white px-3 py-2.5">
+                      {!stageControlsVisible ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowStageControls(true)}
                           disabled={isClosed || isSending}
+                          className="flex w-full items-center justify-between gap-2 text-left text-xs text-roman-text-sub transition-colors hover:text-roman-text-main disabled:opacity-50"
                         >
-                          {statusOptions.map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Motivo da transição</label>
-                        <input
-                          type="text"
-                          value={statusTransitionReason}
-                          onChange={event => setStatusTransitionReason(event.target.value)}
-                          placeholder="Obrigatório ao mudar etapa"
-                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                          disabled={isClosed || isSending}
-                        />
-                      </div>
+                          <span className="truncate">
+                            Etapa atual: <span className="font-medium text-roman-text-main">{activeTicket.status}</span>
+                          </span>
+                          <span className="inline-flex shrink-0 items-center gap-1 font-medium text-roman-primary">
+                            <RefreshCw size={12} /> Alterar etapa
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Pular/voltar etapa</label>
+                            {!hasStageChange && (
+                              <button
+                                type="button"
+                                onClick={() => setShowStageControls(false)}
+                                className="text-[11px] text-roman-text-sub transition-colors hover:text-roman-text-main"
+                              >
+                                Fechar
+                              </button>
+                            )}
+                          </div>
+                          <select
+                            value={statusDraft}
+                            onChange={event => setStatusDraft(event.target.value)}
+                            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                            disabled={isClosed || isSending}
+                          >
+                            {statusOptions.map(status => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
+                          {hasStageChange && (
+                            <input
+                              type="text"
+                              value={statusTransitionReason}
+                              onChange={event => setStatusTransitionReason(event.target.value)}
+                              placeholder="Motivo da transição (obrigatório)"
+                              className="w-full rounded-sm border border-amber-300 bg-amber-50/40 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                              disabled={isClosed || isSending}
+                              autoFocus
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Formatting Toolbar */}
                 <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -3770,17 +3841,17 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 )}
 
                 {/* Footer */}
-                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 p-2.5 backdrop-blur">
-                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="text-xs text-roman-text-sub font-serif italic">
+                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 px-3 py-2 backdrop-blur">
+                  <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="hidden truncate text-[11px] text-roman-text-sub font-serif italic sm:block">
                     {replyMode === 'internal'
                       ? internalActionText
                       : replyMode === 'director'
-                        ? 'Ação: Notificar Diretoria por e-mail (conversa interna)'
-                        : 'Ação: Responder à corrente do solicitante com cópia para os interessados selecionados'}
+                        ? 'Notifica a Diretoria por e-mail (conversa interna)'
+                        : 'Responde ao solicitante com cópia aos interessados'}
                     </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <label className="mr-2 inline-flex items-center gap-2 text-xs text-roman-text-main">
+                    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-2">
+                      <label className="mr-auto inline-flex items-center gap-2 text-xs text-roman-text-main lg:mr-2">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
@@ -3811,7 +3882,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           {isSending
                             ? 'Enviando...'
                             : replyMode === 'internal'
-                              ? internalButtonText
+                              ? (statusDraft && statusDraft !== activeTicket.status
+                                  ? `Salvar e mover para “${statusDraft}”`
+                                  : internalButtonText)
                               : replyMode === 'director'
                                 ? 'Enviar à Diretoria'
                                 : 'Enviar aos Interessados'}

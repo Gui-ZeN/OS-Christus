@@ -743,7 +743,7 @@ export function KpiView() {
           </div>
         </header>
 
-        <div className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <select
             value={selectedRegion}
             onChange={event => {
