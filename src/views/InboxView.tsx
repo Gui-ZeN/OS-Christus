@@ -27,6 +27,8 @@ import { buildProcurementClassification } from '../utils/procurementClassificati
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { cleanForwardedMessageText } from '../utils/text';
+import { getAvailableAdditiveRounds, getAvailableInitialRounds, getEditableInitialRoundIndex, getQuotesByRound, isRejectedQuoteRound, normalizeQuoteStatus } from './inbox/quoteRounds';
+import { calculateProgressPercentFromGross, getBudgetSourceLabel, isLegacyFlowPlaceholderPayment, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
 import {
   formatCurrency as formatCurrencyInput,
   normalizeCurrencyInput,
@@ -535,55 +537,12 @@ function getStageGuidance(status: string): { text: string; waiting: boolean } | 
   }
 }
 
-function isLegacyFlowPlaceholderPayment(payment: PaymentRecord) {
-  const hasGross = parseCurrencyInput(payment.grossValue || '') > 0;
-  const hasValue = parseCurrencyInput(payment.value || '') > 0;
-  const hasTax = parseCurrencyInput(payment.taxValue || '') > 0;
-  const hasNet = parseCurrencyInput(payment.netValue || '') > 0;
-  const hasMeasurementLink = Boolean(payment.measurementId);
-  const hasAttachments = Array.isArray(payment.attachments) && payment.attachments.length > 0;
-  const hasReceipt = Boolean(payment.receiptFileName);
-  const isUnpaidStatus = payment.status === 'pending' || payment.status === 'approved';
-  return isUnpaidStatus && !hasGross && !hasValue && !hasTax && !hasNet && !hasMeasurementLink && !hasAttachments && !hasReceipt;
-}
-
-function stripLegacyFlowPlaceholders(payments: PaymentRecord[]) {
-  return payments.filter(payment => !isLegacyFlowPlaceholderPayment(payment));
-}
-
 function normalizeTagValue(value?: string | null) {
   return String(value || '')
     .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-}
-
-function roundProgressPercent(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Number(value.toFixed(2));
-}
-
-function resolveExpectedBaselineValue(contract?: ContractRecord, payments: PaymentRecord[] = []) {
-  const contractInitial = parseCurrencyInput(contract?.initialPlannedValue || '');
-  if (contractInitial > 0) return contractInitial;
-
-  const paymentBaseline = parseCurrencyInput(payments[0]?.expectedBaselineValue || '');
-  if (paymentBaseline > 0) return paymentBaseline;
-
-  const contractValue = parseCurrencyInput(contract?.value || '');
-  if (contractValue > 0) return contractValue;
-
-  return parseCurrencyInput(payments[0]?.value || '');
-}
-
-function calculateProgressPercentFromGross(grossAmount: number, baselineValue: number) {
-  if (!Number.isFinite(grossAmount) || grossAmount < 0 || baselineValue <= 0) return 0;
-  return roundProgressPercent((grossAmount / baselineValue) * 100);
-}
-
-function getBudgetSourceLabel(source: 'initial' | 'additive' | null | undefined) {
-  return source === 'additive' ? 'Aditivo' : 'Orçamento inicial';
 }
 
 function normalizeQuoteSection(section?: string | null) {
@@ -629,58 +588,6 @@ function isQuoteDraftFilledForSubmission(draft: QuoteDraft) {
   if (!vendor) return false;
   const total = parseCurrencyInput(resolveQuoteDraftSubmittedTotal(draft));
   return total > 0;
-}
-
-function getAvailableAdditiveRounds(quotes: Quote[]) {
-  return Array.from(
-    new Set(
-      (Array.isArray(quotes) ? quotes : [])
-        .filter(quote => quote.category === 'additive')
-        .map(quote => Number(quote.additiveIndex || 0))
-        .filter(value => Number.isFinite(value) && value > 0)
-    )
-  ).sort((a, b) => a - b);
-}
-
-function getAvailableInitialRounds(quotes: Quote[]) {
-  return Array.from(
-    new Set(
-      (Array.isArray(quotes) ? quotes : [])
-        .filter(quote => (quote.category === 'additive' ? 'additive' : 'initial') === 'initial')
-        .map(quote => Number(quote.initialRoundIndex || 1))
-        .filter(value => Number.isFinite(value) && value > 0)
-    )
-  ).sort((a, b) => a - b);
-}
-
-function normalizeQuoteStatus(value: unknown) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function isRejectedQuoteRound(quotes: Quote[]) {
-  return quotes.length > 0 && quotes.every(quote => normalizeQuoteStatus(quote.status) === 'rejected');
-}
-
-function getEditableInitialRoundIndex(quotes: Quote[]) {
-  const initialRounds = getAvailableInitialRounds(quotes);
-  if (initialRounds.length === 0) return 1;
-  const latestRound = Math.max(...initialRounds);
-  const latestRoundQuotes = getQuotesByRound(quotes, 'initial', latestRound);
-  return isRejectedQuoteRound(latestRoundQuotes) ? latestRound + 1 : latestRound;
-}
-
-function getQuotesByRound(quotes: Quote[], roundType: 'initial' | 'additive', roundIndex: number) {
-  const list = Array.isArray(quotes) ? quotes : [];
-  const filtered = list.filter(quote => {
-    const category = quote.category === 'additive' ? 'additive' : 'initial';
-    if (roundType !== category) return false;
-    if (roundType === 'additive') {
-      return Number(quote.additiveIndex || 1) === Number(roundIndex || 1);
-    }
-    return Number(quote.initialRoundIndex || 1) === Number(roundIndex || 1);
-  });
-
-  return filtered.sort((a, b) => String(a.id).localeCompare(String(b.id), 'pt-BR'));
 }
 
 function getRoundMinQuoteSlots(roundType: 'initial' | 'additive') {
