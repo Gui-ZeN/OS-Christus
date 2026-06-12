@@ -223,6 +223,14 @@ async function resolveAuthorizedUser(email: string) {
   return found;
 }
 
+// Compara duas listas de tickets por conteúdo. Usado para evitar re-render do
+// app inteiro quando o poll de 10s retorna exatamente os mesmos dados.
+function areTicketListsEqual(a: Ticket[], b: Ticket[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const authEnabled = isAuthEnabled();
   const [authResolved, setAuthResolved] = useState(!authEnabled);
@@ -315,7 +323,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const remote = await fetchTicketsFromApi();
       if (generation !== refreshCountRef.current) return;
-      setAllTickets(mergeRemoteWithPendingTickets(remote));
+      const merged = mergeRemoteWithPendingTickets(remote);
+      // Só atualiza (e re-renderiza) se algo realmente mudou desde o último poll.
+      setAllTickets(prev => (areTicketListsEqual(prev, merged) ? prev : merged));
     } catch {
       if (!silent && generation === refreshCountRef.current) {
         setAllTickets([]);
