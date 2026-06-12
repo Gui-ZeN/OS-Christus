@@ -10,6 +10,7 @@ import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentMime } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
+import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
 
 const STATUS_IN_PROGRESS = 'Em andamento';
 const STATUS_WAITING_MAINTENANCE_APPROVAL = 'Aguardando aprovação da manutenção';
@@ -890,6 +891,17 @@ export default async function handler(req, res) {
         const payload = { ...updates, updatedAt: new Date() };
         const statusChanged = updates.status && updates.status !== data.status;
 
+        // Integridade do fluxo: rejeita status inexistente e transições fora
+        // do que o papel pode acionar (Admin/Gestor livres; Diretor restrito).
+        if (statusChanged) {
+          if (!isValidStatus(updates.status)) {
+            return { invalidStatus: updates.status };
+          }
+          if (!canTransitionStatus(user.role, data.status, updates.status)) {
+            return { invalidTransition: { from: data.status, to: updates.status } };
+          }
+        }
+
         if (Array.isArray(updates.history)) {
           // Cliente enviou histórico (ex.: nova mensagem). Mescla apenas entradas
           // novas (por id) sobre o histórico fresco, preservando as concorrentes.
@@ -916,6 +928,15 @@ export default async function handler(req, res) {
       }
       if (txResult.forbidden) {
         return sendJson(res, 403, { ok: false, error: 'Você não tem acesso a esta OS.' });
+      }
+      if (txResult.invalidStatus) {
+        return sendJson(res, 400, { ok: false, error: `Status inválido: "${txResult.invalidStatus}".` });
+      }
+      if (txResult.invalidTransition) {
+        return sendJson(res, 409, {
+          ok: false,
+          error: `Transição não permitida para o seu perfil: "${txResult.invalidTransition.from}" → "${txResult.invalidTransition.to}".`,
+        });
       }
 
       const beforeData = txResult.before;

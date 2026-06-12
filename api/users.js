@@ -38,6 +38,8 @@ function describePasswordEmailError(error) {
   return message || 'Falha ao enviar e-mail de acesso.';
 }
 
+const VALID_ROLES = ['Admin', 'Gestor', 'Diretor', 'Usuario'];
+
 function mapRoleToClaim(role) {
   const normalized = String(role || '').trim();
   if (normalized === 'Admin') return 'admin';
@@ -156,6 +158,9 @@ export default async function handler(req, res) {
       if (!user.name || !user.email || !user.role) {
         return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
       }
+      if (!VALID_ROLES.includes(user.role)) {
+        return sendJson(res, 400, { ok: false, error: `Perfil inválido. Use um de: ${VALID_ROLES.join(', ')}.` });
+      }
       if (!isDeliverableEmail(user.email)) {
         return sendJson(res, 400, {
           ok: false,
@@ -224,6 +229,9 @@ export default async function handler(req, res) {
       }
       if (!user.name || !user.email || !user.role) {
         return sendJson(res, 400, { ok: false, error: 'name, role e email sao obrigatorios.' });
+      }
+      if (!VALID_ROLES.includes(user.role)) {
+        return sendJson(res, 400, { ok: false, error: `Perfil inválido. Use um de: ${VALID_ROLES.join(', ')}.` });
       }
       if (!isDeliverableEmail(user.email)) {
         return sendJson(res, 400, {
