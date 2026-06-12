@@ -26,26 +26,37 @@ function isReviewActive(review) {
 }
 
 async function ensureBudgetReviewLock(db, ticketId, reviewerName) {
-  const ticketSnap = await db.collection('tickets').doc(ticketId).get();
-  if (!ticketSnap.exists) {
-    throw new HttpError(404, 'Ticket não encontrado para revisão de orçamento.');
-  }
+  const ticketRef = db.collection('tickets').doc(ticketId);
+  // Transação: check-then-set atômico do lock (evita 2 revisores simultâneos).
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ticketRef);
+    if (!snap.exists) {
+      throw new HttpError(404, 'Ticket não encontrado para revisão de orçamento.');
+    }
 
-  const review = ticketSnap.data()?.viewingBy || null;
-  if (review && isReviewActive(review) && normalizeKey(review.name) !== normalizeKey(reviewerName)) {
-    throw new HttpError(409, `${review.name} já está revisando este orçamento.`);
-  }
+    const review = snap.data()?.viewingBy || null;
+    if (review && isReviewActive(review) && normalizeKey(review.name) !== normalizeKey(reviewerName)) {
+      throw new HttpError(409, `${review.name} já está revisando este orçamento.`);
+    }
 
-  await ticketSnap.ref.set(
-    {
-      viewingBy: {
-        name: reviewerName,
-        at: new Date(),
+    tx.set(
+      ticketRef,
+      {
+        viewingBy: { name: reviewerName, at: new Date() },
+        updatedAt: new Date(),
       },
-      updatedAt: new Date(),
-    },
-    { merge: true }
-  );
+      { merge: true }
+    );
+  });
+}
+
+/** Upsert que preserva o createdAt original de forma atômica (read+set em transação). */
+async function upsertWithCreatedAt(db, ref, data, now) {
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const createdAt = (snap.exists && snap.data()?.createdAt) || now;
+    tx.set(ref, { ...data, createdAt }, { merge: true });
+  });
 }
 
 function getItemUnitPrice(item) {
@@ -171,10 +182,7 @@ async function writeQuotes(db, ticketId, quotes) {
     const quote = quotes[index];
     const id = quote.id || `quote-${index + 1}`;
     const quoteRef = db.collection('tickets').doc(ticketId).collection('quotes').doc(id);
-    const existingSnap = await quoteRef.get();
-    const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
-    await quoteRef.set(
-      {
+    await upsertWithCreatedAt(db, quoteRef, {
         id,
         ticketId,
         vendor: String(quote.vendor || '').trim(),
@@ -213,10 +221,7 @@ async function writeQuotes(db, ticketId, quotes) {
           : [],
         classification: quote.classification || classification,
         updatedAt: now,
-        createdAt: existing.createdAt || now,
-      },
-      { merge: true }
-    );
+      }, now);
   }
 }
 
@@ -224,10 +229,7 @@ async function writeContract(db, ticketId, contract, classification) {
   const now = new Date();
   const id = contract.id || 'contract-1';
   const contractRef = db.collection('tickets').doc(ticketId).collection('contracts').doc(id);
-  const existingSnap = await contractRef.get();
-  const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
-  await contractRef.set(
-    {
+  await upsertWithCreatedAt(db, contractRef, {
       id,
       ticketId,
       vendor: String(contract.vendor || '').trim(),
@@ -253,20 +255,14 @@ async function writeContract(db, ticketId, contract, classification) {
         : [],
       classification: contract.classification || classification || null,
       updatedAt: now,
-      createdAt: existing.createdAt || now,
-    },
-    { merge: true }
-  );
+    }, now);
 }
 
 async function writePayment(db, ticketId, payment, classification) {
   const now = new Date();
   const id = payment.id || 'payment-1';
   const paymentRef = db.collection('tickets').doc(ticketId).collection('payments').doc(id);
-  const existingSnap = await paymentRef.get();
-  const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
-  await paymentRef.set(
-    {
+  await upsertWithCreatedAt(db, paymentRef, {
       id,
       ticketId,
       vendor: String(payment.vendor || '').trim(),
@@ -301,20 +297,14 @@ async function writePayment(db, ticketId, payment, classification) {
       paidAt: payment.paidAt ? new Date(payment.paidAt) : null,
       classification: payment.classification || classification || null,
       updatedAt: now,
-      createdAt: existing.createdAt || now,
-    },
-    { merge: true }
-  );
+    }, now);
 }
 
 async function writeMeasurement(db, ticketId, measurement, classification) {
   const now = new Date();
   const id = measurement.id || `measurement-${Date.now()}`;
   const measurementRef = db.collection('tickets').doc(ticketId).collection('measurements').doc(id);
-  const existingSnap = await measurementRef.get();
-  const existing = existingSnap.exists ? (existingSnap.data() || {}) : {};
-  await measurementRef.set(
-    {
+  await upsertWithCreatedAt(db, measurementRef, {
       id,
       ticketId,
       label: String(measurement.label || 'Medição').trim(),
@@ -340,10 +330,7 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
       approvedAt: measurement.approvedAt ? new Date(measurement.approvedAt) : null,
       classification: measurement.classification || classification || null,
       updatedAt: now,
-      createdAt: existing.createdAt || now,
-    },
-    { merge: true }
-  );
+    }, now);
 }
 
 export default async function handler(req, res) {
