@@ -2731,6 +2731,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
   };
 
   const handleDuplicateTicket = async () => {
+    if (isSending) return; // evita duplo clique criando duas OS
+    setIsSending(true);
     const now = new Date();
 
     const duplicated: Ticket = {
@@ -2771,6 +2773,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       showToast(`OS ${activeTicket.id} duplicada como ${createdTicket.id}.`, 3000);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível duplicar a OS.', 3000);
+    } finally {
+      setIsSending(false);
     }
   };
 

@@ -1007,6 +1007,7 @@ export function FinanceView() {
   };
 
   const handleAddMeasurement = async (ticketId: string) => {
+    if (processingId === ticketId) return; // evita duplo clique gravando 2 medições
     const draft = getMeasurementDraft(ticketId);
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
 
@@ -1929,9 +1930,10 @@ export function FinanceView() {
                           <div className="md:col-span-2 flex justify-end">
                             <button
                               onClick={() => handleAddMeasurement(ticket.id)}
-                              className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm"
+                              disabled={processingId === ticket.id}
+                              className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                              Salvar andamento
+                              {processingId === ticket.id ? 'Salvando...' : 'Salvar andamento'}
                             </button>
                           </div>
                         </div>
