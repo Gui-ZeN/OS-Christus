@@ -287,6 +287,7 @@ export function SettingsView() {
   const [loading, setLoading] = useState(true);
   const [templateSaved, setTemplateSaved] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [backfillLoading, setBackfillLoading] = useState(false);
@@ -427,6 +428,7 @@ export function SettingsView() {
   const handleSaveTemplate = async () => {
     if (!canEditSettings) return;
     setTemplateSaving(true);
+    setTemplateError(null);
     try {
       await saveSettings('emailTemplates', template);
       setEmailTemplatesCatalog(current =>
@@ -434,13 +436,15 @@ export function SettingsView() {
           a.trigger.localeCompare(b.trigger, 'pt-BR')
         )
       );
-    } catch {
-      // Mantém feedback local mesmo se a API não estiver disponível.
+      // Só confirma "salvo" se a API confirmou — antes mostrava sucesso mesmo
+      // quando saveSettings falhava (perda silenciosa de dados).
+      setTemplateSaved(true);
+      setTimeout(() => setTemplateSaved(false), 3000);
+    } catch (error) {
+      setTemplateError(error instanceof Error ? error.message : 'Falha ao salvar o template. Tente novamente.');
     } finally {
       setTemplateSaving(false);
     }
-    setTemplateSaved(true);
-    setTimeout(() => setTemplateSaved(false), 3000);
   };
 
   const handleRunBackfill = async () => {
@@ -690,6 +694,9 @@ export function SettingsView() {
     }),
     []
   );
+  // Hooks antes de qualquer early-return (Rules of Hooks): renderizar o preview
+  // após o `return` de acesso negado mudava a contagem de hooks por papel.
+  const renderedTemplatePreview = useMemo(() => buildEmailPreviewHtml(template, SAMPLE_EMAIL_VARIABLES), [template]);
 
   if (!canAccess) {
     return (
@@ -715,8 +722,6 @@ export function SettingsView() {
   const visibleSections = (Object.entries(SECTION_META) as Array<[SettingsSection, (typeof SECTION_META)[SettingsSection]]>)
     .filter(([key]) => !isGestor || key === 'catalog');
   const sectionMeta = SECTION_META[section];
-  const selectedTemplateLabel = useMemo(() => getTemplateTriggerLabel(template.trigger), [template.trigger]);
-  const renderedTemplatePreview = useMemo(() => buildEmailPreviewHtml(template, SAMPLE_EMAIL_VARIABLES), [template]);
 
   return (
     <>
@@ -1009,6 +1014,11 @@ export function SettingsView() {
                           </div>
                         </div>
 
+                        {templateError && (
+                          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                            {templateError}
+                          </div>
+                        )}
                         <div className="mt-5 flex justify-end">
                           <button
                             onClick={() => void handleSaveTemplate()}
