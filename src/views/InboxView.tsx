@@ -1308,6 +1308,10 @@ export function InboxView() {
             priority: ticketPriority || activeTicket.priority,
             assignedTeam: techTeam || activeTicket.assignedTeam || '',
             assignedEmail: isExternalTeam ? resolveAssignedEmails() : '',
+            // Persiste a seleção viva de diretores: o roteamento (aprovação vs.
+            // pular) usa hasInvolvedDirectors, então directorIds tem que casar.
+            directorIds: selectedDirectors.map(director => director.id),
+            directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
             attachments:
               uploadedReplyAttachments.length > 0
                 ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
@@ -2591,6 +2595,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       };
       updateTicket(activeTicket.id, {
         status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_BUDGET_APPROVAL : TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
+        directorIds: selectedDirectors.map(director => director.id),
+        directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
         directorCcEmails: directorInterestedEmails,
         history: [...activeTicket.history, historyItem],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
@@ -2652,6 +2658,8 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     setContractsByTicket(prev => ({ ...prev, [activeTicket.id]: nextContract }));
     updateTicket(activeTicket.id, {
       status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_CONTRACT_APPROVAL : TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+      directorIds: selectedDirectors.map(director => director.id),
+      directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
       history: [
         ...activeTicket.history,
         {
