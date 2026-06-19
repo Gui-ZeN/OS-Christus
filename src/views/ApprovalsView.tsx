@@ -628,6 +628,7 @@ export function ApprovalsView() {
   };
 
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
+    try {
     const quoteGrandTotals = getQuoteGrandTotals(budget.quotes);
     const rows: string[][] = [
       ['OS', budget.id],
@@ -718,6 +719,9 @@ export function ApprovalsView() {
 
     triggerCsvDownload(`comparativo-${String(budget.id).toLowerCase()}.csv`, rows);
     showToast(`Comparativo ${budget.id} exportado em CSV.`, 3000);
+    } catch (error) {
+      showToast(error instanceof Error ? `Falha ao exportar: ${error.message}` : 'Falha ao exportar o comparativo.', 3500);
+    }
   };
 
   const solutions = useMemo(
@@ -1298,7 +1302,7 @@ export function ApprovalsView() {
                       </div>
                     </div>
                   ))}
-                  <div className="rounded-2xl border border-roman-primary/20 bg-roman-primary/5 overflow-hidden">
+                  <div className="rounded-2xl border border-roman-primary/20 bg-roman-primary/5 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <tbody>
                         <tr>
