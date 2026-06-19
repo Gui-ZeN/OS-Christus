@@ -874,6 +874,19 @@ export default async function handler(req, res) {
       }
 
       const updates = normalizeTicketForStorage(body.updates);
+      // Campos de identidade/imutáveis nunca podem ser alterados via PATCH do
+      // painel (evita sequestro de trackingToken público e forja de id/data).
+      delete updates.id;
+      delete updates.trackingToken;
+      delete updates.createdAt;
+      // regionId/siteId só podem ser reclassificados por Admin (senão um perfil
+      // escopado poderia mover a OS para fora/dentro do próprio território).
+      if (user.role !== 'Admin') {
+        delete updates.regionId;
+        delete updates.siteId;
+        delete updates.region;
+        delete updates.sede;
+      }
       const docRef = col.doc(body.id);
 
       // Catálogo territorial para checar escopo (Gestor/Diretor/Usuario são

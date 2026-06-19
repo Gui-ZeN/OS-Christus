@@ -49,9 +49,13 @@ function canUserSeeNotification(user, notification) {
 // Escopo territorial de uma notificação ligada a uma OS. Admin vê tudo;
 // notificação sem ticketId é geral. Demais perfis só veem se a OS referenciada
 // estiver no seu escopo (região/sede).
+function resolveNotificationTicketId(notification) {
+  return String(notification?.ticketId || notification?.action?.ticketId || '').trim();
+}
+
 async function canUserAccessNotificationTicket(db, user, notification, territory) {
   if (user?.role === 'Admin') return true;
-  const ticketId = String(notification?.ticketId || '').trim();
+  const ticketId = resolveNotificationTicketId(notification);
   if (!ticketId) return true;
   const ticketSnap = await db.collection('tickets').doc(ticketId).get();
   if (!ticketSnap.exists) return false;
