@@ -888,7 +888,7 @@ async function processGmailInboundMessage(db, msg, source) {
       source,
     });
 
-    await finalizeInboundMessageLock(lock.ref);
+    await finalizeInboundMessageLock(lock.ref, ticketId);
 
     if (!createdTicket) {
       await appendInboundMessageToTicketHistory(db, ticketId, {
@@ -994,9 +994,14 @@ async function acquireInboundMessageLock(db, options) {
     return { acquired: false, ref, data: snap.exists ? snap.data() : null };
   }
 }
-async function finalizeInboundMessageLock(ref) {
+async function finalizeInboundMessageLock(ref, ticketId = null) {
   if (!ref) return;
-  await ref.delete().catch(() => undefined);
+  // Marca como processado em vez de apagar: reentregas da MESMA mensagem
+  // (push seguido de sync) reencontram este lock, recaem em acquired:false e
+  // são deduplicadas — antes o delete deixava recriar o lock e criava OS dupla.
+  await ref
+    .set({ status: 'done', ticketId: ticketId || null, completedAt: new Date() }, { merge: true })
+    .catch(() => undefined);
 }
 async function releaseInboundMessageLock(ref) {
   if (!ref) return;
@@ -2303,7 +2308,7 @@ async function handleInbound(req, res) {
       source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
     });
 
-    await finalizeInboundMessageLock(lock.ref);
+    await finalizeInboundMessageLock(lock.ref, ticketId);
 
     if (!createdTicket) {
       await appendInboundMessageToTicketHistory(db, ticketId, {
