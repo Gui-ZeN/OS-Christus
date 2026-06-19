@@ -1181,11 +1181,8 @@ export function InboxView() {
     const target = isExternalTeam
       ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || 'Terceiro selecionado')
       : techTeam;
+    // Aceitar a OS no painel já é o ato de triagem — o motivo é opcional aqui.
     const statusReason = statusTransitionReason.trim();
-    if (!statusReason) {
-      showToast('Informe o motivo para aceitar e mover a OS de status.', 3000);
-      return;
-    }
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
     const nextSector = ticketDetailsForm.sector.trim() || activeTicket.sector || 'Email';
@@ -1212,7 +1209,7 @@ export function InboxView() {
             type: 'system',
             sender: displayActorLabel,
             time: new Date(),
-            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, local ${nextSector}${nextLocation ? `, detalhe do local ${nextLocation}` : ''} e encaminhada para ${target}. Motivo da transição: ${statusReason}.`,
+            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, local ${nextSector}${nextLocation ? `, detalhe do local ${nextLocation}` : ''} e encaminhada para ${target}.${statusReason ? ` Motivo da transição: ${statusReason}.` : ''}`,
           },
         ],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
