@@ -9,6 +9,14 @@ import { normalizeKey, slugify } from './_lib/text.js';
 
 const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
 
+// Converte para número finito ou null — evita gravar NaN no Firestore quando o
+// cliente manda string não-numérica em campos numéricos.
+function finiteOrNull(value) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function parseCurrency(value) {
   const normalized = String(value || '')
     .replace(/[^\d,.-]/g, '')
@@ -191,11 +199,16 @@ async function writeQuotes(db, ticketId, quotes) {
         materialValue: quote.materialValue != null ? String(quote.materialValue).trim() : null,
         totalValue: quote.totalValue != null ? String(quote.totalValue).trim() : null,
         category: quote.category === 'additive' ? 'additive' : 'initial',
-        additiveIndex: quote.additiveIndex != null ? Number(quote.additiveIndex) : null,
+        additiveIndex: finiteOrNull(quote.additiveIndex),
+        // Índice da rodada inicial: sem isso, recarregar colapsa as rodadas.
+        initialRoundIndex: finiteOrNull(quote.initialRoundIndex),
         additiveReason: quote.additiveReason != null ? String(quote.additiveReason).trim() : null,
         recommended: Boolean(quote.recommended),
         status: String(quote.status || 'pending'),
         attachmentName: quote.attachmentName ? String(quote.attachmentName) : null,
+        // Anexo da proposta (URL/caminho): sem isso, o PDF some ao recarregar.
+        attachmentUrl: quote.attachmentUrl ? String(quote.attachmentUrl).trim() : null,
+        attachmentPath: quote.attachmentPath ? String(quote.attachmentPath).trim() : null,
         proposalHeader: quote.proposalHeader
           ? {
               unitName: quote.proposalHeader.unitName ? String(quote.proposalHeader.unitName).trim() : null,
@@ -214,7 +227,7 @@ async function writeQuotes(db, ticketId, quotes) {
               materialId: item.materialId ? String(item.materialId).trim() : null,
               materialName: item.materialName ? String(item.materialName).trim() : null,
               unit: item.unit ? String(item.unit).trim() : null,
-              quantity: item.quantity != null ? Number(item.quantity) : null,
+              quantity: finiteOrNull(item.quantity),
               costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
               totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
             }))
@@ -240,10 +253,10 @@ async function writeContract(db, ticketId, contract, classification) {
       signedFileUrl: contract.signedFileUrl ? String(contract.signedFileUrl) : null,
       signedFilePath: contract.signedFilePath ? String(contract.signedFilePath) : null,
       signedFileContentType: contract.signedFileContentType ? String(contract.signedFileContentType) : null,
-      signedFileSize: contract.signedFileSize != null ? Number(contract.signedFileSize) : null,
+      signedFileSize: finiteOrNull(contract.signedFileSize),
       items: Array.isArray(contract.items)
         ? contract.items.map(item => ({
-            id: String(item.id || '').trim() || `item-${Date.now()}`,
+            id: String(item.id || '').trim() || `item-${randomUUID()}`,
             description: String(item.description || '').trim(),
             materialId: item.materialId ? String(item.materialId).trim() : null,
             materialName: item.materialName ? String(item.materialName).trim() : null,
@@ -271,25 +284,25 @@ async function writePayment(db, ticketId, payment, classification) {
       budgetSource: payment.budgetSource === 'additive' ? 'additive' : 'initial',
       taxValue: payment.taxValue != null ? String(payment.taxValue).trim() : null,
       netValue: payment.netValue != null ? String(payment.netValue).trim() : null,
-      progressPercent: payment.progressPercent != null ? Number(payment.progressPercent) : null,
+      progressPercent: finiteOrNull(payment.progressPercent),
       expectedBaselineValue: payment.expectedBaselineValue != null ? String(payment.expectedBaselineValue).trim() : null,
       status: String(payment.status || 'pending'),
       label: payment.label ? String(payment.label) : null,
-      installmentNumber: payment.installmentNumber ? Number(payment.installmentNumber) : null,
-      totalInstallments: payment.totalInstallments ? Number(payment.totalInstallments) : null,
+      installmentNumber: finiteOrNull(payment.installmentNumber),
+      totalInstallments: finiteOrNull(payment.totalInstallments),
       dueAt: payment.dueAt ? new Date(payment.dueAt) : null,
       measurementId: payment.measurementId ? String(payment.measurementId) : null,
-      releasedPercent: payment.releasedPercent != null ? Number(payment.releasedPercent) : null,
-      milestonePercent: payment.milestonePercent != null ? Number(payment.milestonePercent) : null,
+      releasedPercent: finiteOrNull(payment.releasedPercent),
+      milestonePercent: finiteOrNull(payment.milestonePercent),
       receiptFileName: payment.receiptFileName ? String(payment.receiptFileName) : null,
       attachments: Array.isArray(payment.attachments)
         ? payment.attachments.map(item => ({
-            id: String(item?.id || '').trim() || `payment-attachment-${Date.now()}`,
+            id: String(item?.id || '').trim() || `payment-attachment-${randomUUID()}`,
             name: String(item?.name || '').trim() || 'Anexo',
             path: String(item?.path || '').trim() || '',
             url: String(item?.url || '').trim() || '',
             contentType: item?.contentType ? String(item.contentType).trim() : null,
-            size: item?.size != null ? Number(item.size) : null,
+            size: finiteOrNull(item?.size),
             uploadedAt: item?.uploadedAt ? new Date(item.uploadedAt) : null,
             category: item?.category || 'attachment',
           }))
@@ -302,26 +315,26 @@ async function writePayment(db, ticketId, payment, classification) {
 
 async function writeMeasurement(db, ticketId, measurement, classification) {
   const now = new Date();
-  const id = measurement.id || `measurement-${Date.now()}`;
+  const id = measurement.id || `measurement-${randomUUID()}`;
   const measurementRef = db.collection('tickets').doc(ticketId).collection('measurements').doc(id);
   await upsertWithCreatedAt(db, measurementRef, {
       id,
       ticketId,
       label: String(measurement.label || 'Medição').trim(),
-      progressPercent: Number(measurement.progressPercent || 0),
-      releasePercent: Number(measurement.releasePercent || 0),
+      progressPercent: finiteOrNull(measurement.progressPercent) ?? 0,
+      releasePercent: finiteOrNull(measurement.releasePercent) ?? 0,
       grossValue: measurement.grossValue != null ? String(measurement.grossValue).trim() : null,
       budgetSource: measurement.budgetSource === 'additive' ? 'additive' : 'initial',
       status: String(measurement.status || 'approved'),
       notes: measurement.notes ? String(measurement.notes) : '',
       attachments: Array.isArray(measurement.attachments)
         ? measurement.attachments.map(item => ({
-            id: String(item?.id || '').trim() || `measurement-attachment-${Date.now()}`,
+            id: String(item?.id || '').trim() || `measurement-attachment-${randomUUID()}`,
             name: String(item?.name || '').trim() || 'Anexo',
             path: String(item?.path || '').trim() || '',
             url: String(item?.url || '').trim() || '',
             contentType: item?.contentType ? String(item.contentType).trim() : null,
-            size: item?.size != null ? Number(item.size) : null,
+            size: finiteOrNull(item?.size),
             uploadedAt: item?.uploadedAt ? new Date(item.uploadedAt) : null,
             category: item?.category || 'attachment',
           }))
