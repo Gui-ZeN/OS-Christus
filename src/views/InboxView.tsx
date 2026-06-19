@@ -2199,9 +2199,15 @@ export function InboxView() {
   }
 
 const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: string) => {
-  const newQuotes = [...quotes];
-  newQuotes[index][field] = field === 'value' ? sanitizeCurrencyTypingInput(value) : value;
-  setQuotes(newQuotes);
+  // Imutável: [...quotes] é cópia rasa e mutar newQuotes[index][field] alteraria
+  // o objeto de estado original (render obsoleto). Usa .map como o blur faz.
+  setQuotes(current =>
+    current.map((quote, quoteIndex) =>
+      quoteIndex === index
+        ? { ...quote, [field]: field === 'value' ? sanitizeCurrencyTypingInput(value) : value }
+        : quote
+    )
+  );
 };
 
   const handleQuoteCurrencyBlur = (index: number, field: 'value') => {
@@ -3530,9 +3536,9 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
                 {/* Formatting Toolbar */}
                 <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <button onClick={() => applyFormatting('bold')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Bold size={16} /></button>
-                  <button onClick={() => applyFormatting('italic')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Italic size={16} /></button>
-                  <button onClick={() => applyFormatting('list')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><List size={16} /></button>
+                  <button type="button" aria-label="Negrito" title="Negrito" onClick={() => applyFormatting('bold')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Bold size={16} /></button>
+                  <button type="button" aria-label="Itálico" title="Itálico" onClick={() => applyFormatting('italic')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Italic size={16} /></button>
+                  <button type="button" aria-label="Lista" title="Lista" onClick={() => applyFormatting('list')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><List size={16} /></button>
                   <div className="w-px h-4 bg-roman-border mx-1"></div>
                   <button
                     onClick={() => replyFileRef.current?.click()}
