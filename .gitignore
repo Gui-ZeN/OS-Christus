@@ -10,3 +10,6 @@ playwright-report/
 !.env.example
 .secrets/
 *.service-account.json
+
+# Scripts/credenciais temporárias (nunca commitar)
+tmp/

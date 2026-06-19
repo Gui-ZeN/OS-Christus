@@ -1015,11 +1015,21 @@ async function resolveSiteContext(db, siteCode) {
 
   const sites = sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   const regions = regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  // Casamento "apertado": remove tudo que não é letra/dígito e zera leading
+  // zeros nos grupos numéricos, para que "PQL 3", "PQL03", "PQL 03" e "D.L"
+  // casem com os códigos canônicos "PQL3" e "DL" do catálogo.
+  const tightKey = value =>
+    normalizeKey(value).replace(/[^a-z0-9]/g, '').replace(/\d+/g, match => String(Number(match)));
+  const normalizedTight = tightKey(siteCode);
   const site = (() => {
     if (!normalized) return null;
-    const exact = sites.find(item =>
-      [item.id, item.code, item.name].some(value => normalizeKey(value) === normalized)
-    );
+    const exact =
+      sites.find(item =>
+        [item.id, item.code, item.name].some(value => normalizeKey(value) === normalized)
+      ) ||
+      (normalizedTight
+        ? sites.find(item => [item.id, item.code].some(value => tightKey(value) === normalizedTight))
+        : null);
     if (exact) return exact;
 
     // Fallback para assuntos com nome de sede parcial/completo (ex.: "(aldeota)").
