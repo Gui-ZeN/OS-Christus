@@ -2,6 +2,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
+import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
@@ -1322,7 +1323,20 @@ async function handleSend(req, res) {
       (await canSendPublicCreationEmail(db, ticketId, firstEmail(toEmailInput) || '', internalCopy));
 
     if (!isPublicCreationEmail) {
-      await requireAuthenticatedUser(req);
+      const user = await requireAuthenticatedUser(req);
+      // Perfis não-Admin só disparam e-mail de OS dentro do seu escopo
+      // territorial — evita usar o remetente corporativo como relay para OS de
+      // outra região (texto/destinatário controlados pelo chamador).
+      if (user.role !== 'Admin' && ticketId) {
+        const ticketSnap = await db.collection('tickets').doc(ticketId).get();
+        if (!ticketSnap.exists) {
+          return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
+        }
+        const territory = await readTerritoryCatalog(db);
+        if (!canUserAccessTicket(user, { id: ticketSnap.id, ...ticketSnap.data() }, territory.regions, territory.sites)) {
+          return sendJson(res, 403, { ok: false, error: 'Sem acesso a esta OS.' });
+        }
+      }
     }
 
     const storedTemplate = await resolveEmailTemplate(db, trigger);

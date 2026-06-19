@@ -74,13 +74,26 @@ async function readNotifications(db, user) {
     return visibleByRole.sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
   }
 
-  const territory = await readTerritoryCatalog(db);
-  const scoped = [];
-  for (const notification of visibleByRole) {
-    if (await canUserAccessNotificationTicket(db, user, notification, territory)) {
-      scoped.push(notification);
+  // Escopo territorial em lote: busca todos os tickets referenciados de uma vez
+  // (db.getAll) em vez de uma leitura por notificação (antes era O(N) em série).
+  const ticketIds = [...new Set(visibleByRole.map(resolveNotificationTicketId).filter(Boolean))];
+  const ticketMap = new Map();
+  if (ticketIds.length > 0) {
+    const refs = ticketIds.map(id => db.collection('tickets').doc(id));
+    const snaps = await db.getAll(...refs);
+    for (const ticketSnap of snaps) {
+      if (ticketSnap.exists) ticketMap.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() });
     }
   }
+
+  const territory = await readTerritoryCatalog(db);
+  const scoped = visibleByRole.filter(notification => {
+    const ticketId = resolveNotificationTicketId(notification);
+    if (!ticketId) return true; // notificação geral
+    const ticket = ticketMap.get(ticketId);
+    if (!ticket) return false; // OS inexistente → fail-closed
+    return canUserAccessTicket(user, ticket, territory.regions, territory.sites);
+  });
   return scoped.sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
 }
 
