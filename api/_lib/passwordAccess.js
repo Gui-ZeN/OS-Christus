@@ -83,7 +83,16 @@ export async function sendPasswordAccessEmail({
     ctaLabel: mode === 'invite' ? 'Definir senha' : 'Redefinir senha',
   });
 
-  const provider = String(process.env.EMAIL_PROVIDER || 'sendgrid').trim().toLowerCase();
+  // Autodetect alinhado ao mail.js: sem EMAIL_PROVIDER explícito, usa Gmail se
+  // as credenciais Gmail existirem (antes ia direto para SendGrid e o e-mail de
+  // convite/reset falhava para quem usa Gmail).
+  const explicitProvider = String(process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
+  const provider =
+    explicitProvider === 'gmail' || explicitProvider === 'sendgrid'
+      ? explicitProvider
+      : process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN
+        ? 'gmail'
+        : 'sendgrid';
   if (provider === 'gmail') {
     await gmailSend({
       toEmail: email,

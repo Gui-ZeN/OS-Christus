@@ -9,6 +9,12 @@ service firebase.storage {
       return isAuthenticated() && request.auth.token.role in ['admin', 'gestor'];
     }
 
+    // Diretor participa do canal de mensagens (responde com anexo na OS), mas
+    // não dos uploads de orçamento/contrato/pagamento (esses ficam com manager).
+    function canAttachMessage() {
+      return isAuthenticated() && request.auth.token.role in ['admin', 'gestor', 'diretor'];
+    }
+
     function isValidImage() {
       return request.resource != null
         && request.resource.size < 8 * 1024 * 1024
@@ -74,8 +80,8 @@ service firebase.storage {
     }
 
     match /attachments/tickets/messages/{ticketId}/{fileName=**} {
-      allow read: if isManager();
-      allow write: if isManager() && isValidAttachmentDocument();
+      allow read: if canAttachMessage();
+      allow write: if canAttachMessage() && isValidAttachmentDocument();
     }
 
     match /attachments/tickets/inbound/{ticketId}/{fileName=**} {
