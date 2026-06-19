@@ -3578,6 +3578,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         onClick={() => {
                           setReplyText('');
                           setReplyFiles([]);
+                          // Reverte também a etapa escolhida e o motivo, senão o
+                          // "Pular/voltar etapa" continua armado após cancelar.
+                          setStatusDraft(activeTicket.status || '');
+                          setStatusTransitionReason('');
                           if (replyFileRef.current) replyFileRef.current.value = '';
                         }}
                         className="rounded px-4 py-1.5 font-medium text-roman-text-sub transition-colors hover:bg-roman-bg disabled:opacity-50"
