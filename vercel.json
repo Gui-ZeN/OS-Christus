@@ -1,4 +1,8 @@
 {
+  "functions": {
+    "api/**/*.js": { "maxDuration": 60 }
+  },
+  "regions": ["gru1"],
   "rewrites": [
     {
       "source": "/api/email/send",
