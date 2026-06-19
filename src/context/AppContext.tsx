@@ -177,7 +177,8 @@ function canUserAccessTicket(
 ) {
   if (!currentUserEmail) return true;
   if (!user) return false;
-  if (user.role === 'Admin' || user.role === 'Gestor') return true;
+  if (user.role === 'Admin') return true;
+  // Gestor é escopado por território, igual ao Usuario (espelha o backend).
   if (user.role === 'Diretor') {
     const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
     const directorEmails = Array.isArray(ticket.directorEmails) ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()) : [];

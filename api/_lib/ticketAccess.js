@@ -66,7 +66,9 @@ function resolveTicketRegionIds(ticket, regions, sites) {
 
 function canUserAccessTicket(user, ticket, regions, sites) {
   if (!user) return false;
-  if (user.role === 'Admin' || user.role === 'Gestor') return true;
+  if (user.role === 'Admin') return true;
+  // Gestor é escopado por território (regionIds/siteIds), igual ao perfil Usuario:
+  // cai no bloco genérico abaixo. Fail-closed se não tiver escopo vinculado.
   if (user.role === 'Diretor') {
     const directorIds = Array.isArray(ticket?.directorIds) ? ticket.directorIds.map(value => String(value || '').trim()).filter(Boolean) : [];
     const directorEmails = Array.isArray(ticket?.directorEmails)
@@ -209,7 +211,7 @@ async function queryDirectorAssignedTickets(db, user) {
 
 async function readAccessibleTickets(db, user) {
   if (!user) return [];
-  if (user.role === 'Admin' || user.role === 'Gestor') {
+  if (user.role === 'Admin') {
     const snap = await db.collection('tickets').get();
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }

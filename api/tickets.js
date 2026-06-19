@@ -4,7 +4,7 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
-import { canUserAccessTicket, readAccessibleTickets } from './_lib/ticketAccess.js';
+import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentMime } from './_lib/attachments.js';
@@ -876,6 +876,12 @@ export default async function handler(req, res) {
       const updates = normalizeTicketForStorage(body.updates);
       const docRef = col.doc(body.id);
 
+      // Catálogo territorial para checar escopo (Gestor/Diretor/Usuario são
+      // escopados por região/sede). Admin ignora o escopo, então não carrega.
+      const territory = user.role === 'Admin'
+        ? { regions: [], sites: [] }
+        : await readTerritoryCatalog(db);
+
       // Transação: relê o documento e remonta o histórico a partir do estado
       // fresco, evitando que edições concorrentes (ex.: inbound) sejam perdidas.
       const txResult = await db.runTransaction(async tx => {
@@ -883,7 +889,7 @@ export default async function handler(req, res) {
         if (!snap.exists) return { notFound: true };
 
         const data = snap.data() || {};
-        if (!canUserAccessTicket(user, { id: snap.id, ...data }, [], [])) {
+        if (!canUserAccessTicket(user, { id: snap.id, ...data }, territory.regions, territory.sites)) {
           return { forbidden: true };
         }
 

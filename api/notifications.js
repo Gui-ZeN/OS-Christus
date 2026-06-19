@@ -1,4 +1,5 @@
 import { requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
+import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
@@ -45,12 +46,38 @@ function canUserSeeNotification(user, notification) {
   return audience.includes(user?.role);
 }
 
+// Escopo territorial de uma notificação ligada a uma OS. Admin vê tudo;
+// notificação sem ticketId é geral. Demais perfis só veem se a OS referenciada
+// estiver no seu escopo (região/sede).
+async function canUserAccessNotificationTicket(db, user, notification, territory) {
+  if (user?.role === 'Admin') return true;
+  const ticketId = String(notification?.ticketId || '').trim();
+  if (!ticketId) return true;
+  const ticketSnap = await db.collection('tickets').doc(ticketId).get();
+  if (!ticketSnap.exists) return false;
+  const cat = territory || (await readTerritoryCatalog(db));
+  return canUserAccessTicket(user, { id: ticketSnap.id, ...ticketSnap.data() }, cat.regions, cat.sites);
+}
+
 async function readNotifications(db, user) {
   const snap = await db.collection('notifications').get();
-  return snap.docs
+  const visibleByRole = snap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(notification => canUserSeeNotification(user, notification))
-    .sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
+    .filter(notification => canUserSeeNotification(user, notification));
+
+  // Admin não precisa de escopo territorial; demais perfis filtram por OS acessível.
+  if (user?.role === 'Admin') {
+    return visibleByRole.sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
+  }
+
+  const territory = await readTerritoryCatalog(db);
+  const scoped = [];
+  for (const notification of visibleByRole) {
+    if (await canUserAccessNotificationTicket(db, user, notification, territory)) {
+      scoped.push(notification);
+    }
+  }
+  return scoped.sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
 }
 
 export default async function handler(req, res) {
@@ -79,7 +106,7 @@ export default async function handler(req, res) {
         const ref = db.collection('notifications').doc(id);
         const snap = await ref.get();
         if (!snap.exists) return sendJson(res, 404, { ok: false, error: 'Notificação não encontrada.' });
-        if (!canUserSeeNotification(user, snap.data())) {
+        if (!canUserSeeNotification(user, snap.data()) || !(await canUserAccessNotificationTicket(db, user, snap.data()))) {
           return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
         }
         await ref.set({ read: true, updatedAt: new Date() }, { merge: true });
@@ -92,7 +119,7 @@ export default async function handler(req, res) {
         const ref = db.collection('notifications').doc(id);
         const snap = await ref.get();
         if (!snap.exists) return sendJson(res, 404, { ok: false, error: 'Notificação não encontrada.' });
-        if (!canUserSeeNotification(user, snap.data())) {
+        if (!canUserSeeNotification(user, snap.data()) || !(await canUserAccessNotificationTicket(db, user, snap.data()))) {
           return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
         }
         await ref.delete();
