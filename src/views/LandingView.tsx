@@ -11,12 +11,10 @@ export function LandingView({ onOpenForm, onLogin }: LandingViewProps) {
     <div className="relative h-screen w-full overflow-auto bg-roman-bg">
       <div className="mx-auto w-full max-w-[1320px] px-4 py-8 sm:px-6 sm:py-10 md:py-12">
         <header className="text-center">
-          <div className="inline-flex items-center gap-3 rounded-full border border-roman-border bg-roman-surface px-5 py-2 text-[12px] font-medium uppercase tracking-[0.2em] text-roman-text-sub">
-            <span className="h-1.5 w-1.5 rounded-full bg-roman-primary" />
-            Grupo Christus · Infraestrutura
-            <span className="h-1.5 w-1.5 rounded-full bg-roman-primary" />
-          </div>
-          <h1 className="mt-6 text-4xl font-serif text-roman-text-main sm:text-5xl md:text-6xl">
+          <span className="inline-flex rounded-2xl bg-roman-sidebar px-6 py-4">
+            <img src="/logo-serv3.svg" alt="Serv3 — Grupo Christus" className="h-12 w-auto sm:h-14" />
+          </span>
+          <h1 className="mt-7 text-4xl font-serif text-roman-text-main sm:text-5xl md:text-6xl">
             Gestão de <span className="text-roman-primary italic">Manutenção</span>
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-lg text-roman-text-sub sm:text-2xl">

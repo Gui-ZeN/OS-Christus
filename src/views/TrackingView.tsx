@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Landmark, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
+import { ArrowRight, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
 import { TICKET_STATUS, type TicketStatus } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
@@ -611,9 +611,9 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
         <div className="bg-roman-surface border border-roman-border p-5 md:p-6 rounded-2xl shadow-sm mb-6">
           <div className="flex justify-between items-start mb-6 border-b border-roman-border pb-5 gap-4">
             <div>
-              <div className="text-roman-primary mb-4">
-                <Landmark size={36} strokeWidth={1.5} />
-              </div>
+              <span className="mb-4 inline-flex rounded-xl bg-roman-sidebar p-2.5">
+                <img src="/serv3-selo.svg" alt="Serv3" className="h-9 w-9" />
+              </span>
               <h1 className="text-[1.75rem] font-serif text-roman-text-main font-medium mb-1">Acompanhamento de OS</h1>
               <p className="text-roman-text-sub font-serif italic">Portal do solicitante</p>
             </div>
