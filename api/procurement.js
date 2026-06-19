@@ -186,11 +186,10 @@ async function writeQuotes(db, ticketId, quotes) {
   const now = new Date();
   const classification = quotes[0]?.classification || null;
 
-  for (let index = 0; index < quotes.length; index += 1) {
-    const quote = quotes[index];
+  const quotesCol = db.collection('tickets').doc(ticketId).collection('quotes');
+  const entries = quotes.map((quote, index) => {
     const id = quote.id || `quote-${index + 1}`;
-    const quoteRef = db.collection('tickets').doc(ticketId).collection('quotes').doc(id);
-    await upsertWithCreatedAt(db, quoteRef, {
+    return { id, ref: quotesCol.doc(id), data: {
         id,
         ticketId,
         vendor: String(quote.vendor || '').trim(),
@@ -234,8 +233,23 @@ async function writeQuotes(db, ticketId, quotes) {
           : [],
         classification: quote.classification || classification,
         updatedAt: now,
-      }, now);
+      } };
+  });
+  if (entries.length === 0) return;
+
+  // Grava TODAS as cotações num único batch atômico (antes era 1 transação por
+  // cotação → falha no meio deixava o orçamento parcial). Pré-lê o createdAt de
+  // cada doc para preservá-lo.
+  const existing = await db.getAll(...entries.map(entry => entry.ref));
+  const createdAtById = new Map();
+  existing.forEach(snap => {
+    if (snap.exists) createdAtById.set(snap.id, snap.data()?.createdAt || null);
+  });
+  const batch = db.batch();
+  for (const entry of entries) {
+    batch.set(entry.ref, { ...entry.data, createdAt: createdAtById.get(entry.id) || now }, { merge: true });
   }
+  await batch.commit();
 }
 
 async function writeContract(db, ticketId, contract, classification) {
