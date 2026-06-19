@@ -70,8 +70,8 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
             <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.05)_0_2px,transparent_2px_42px)]" />
             <div className="relative z-10 flex h-full flex-col justify-between p-14">
               <div>
-                <p className="text-[12px] uppercase tracking-[0.2em] text-white/55">Grupo Christus · Infraestrutura</p>
-                <h1 className="mt-8 text-6xl font-serif leading-[1.08] text-white">
+                <img src="/logo-serv3.svg" alt="Serv3 — Grupo Christus" className="w-full max-w-[320px]" />
+                <h1 className="mt-10 text-6xl font-serif leading-[1.08] text-white">
                   Gestão de
                   <br />
                   <span className="text-roman-primary italic">Manutenção</span>
@@ -87,6 +87,11 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
           </section>
 
           <section className="h-full overflow-y-auto overflow-x-hidden bg-roman-surface p-5 sm:p-7 lg:p-8 xl:p-10 2xl:p-12">
+            <div className="mb-6 lg:hidden">
+              <span className="inline-flex rounded-xl bg-roman-sidebar px-4 py-3">
+                <img src="/logo-serv3.svg" alt="Serv3 — Grupo Christus" className="h-9 w-auto" />
+              </span>
+            </div>
             <button
               onClick={onBack}
               className="mb-6 inline-flex items-center gap-2 text-sm text-roman-text-sub transition-colors hover:text-roman-text-main lg:mb-8"
