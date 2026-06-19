@@ -376,7 +376,15 @@ function isLaborSection(section?: string | null) {
 function summarizeQuoteDraft(draft: QuoteDraft) {
   const totals = draft.items.reduce(
     (acc, item) => {
-      const lineTotal = parseCurrencyInput(item.totalPrice || '');
+      // Mesma regra do recalculateQuoteValue: usa qtd×preço unitário quando o
+      // total da linha não foi preenchido, senão o breakdown labor/material
+      // diverge do value total.
+      const quantity = item.quantity ?? 0;
+      const costUnitPrice = item.costUnitPrice ? parseCurrencyInput(item.costUnitPrice) : 0;
+      const lineTotal =
+        quantity > 0 && costUnitPrice > 0
+          ? quantity * costUnitPrice
+          : parseCurrencyInput(item.totalPrice || '');
       if (lineTotal <= 0) return acc;
       if (isLaborSection(item.section)) {
         acc.labor += lineTotal;
@@ -625,6 +633,7 @@ export function InboxView() {
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
     setReplyText('');
+    setReplyMode('internal'); // sempre volta para Nota Interna ao trocar de OS
     setTechTeam(activeTicket.assignedTeam || '');
     setCustomEmail(activeTicket.assignedEmail || '');
     setPublicInterestedEmails(mergeEmails(activeTicket.requesterCcEmails || []));
@@ -664,6 +673,18 @@ export function InboxView() {
   }, [
     activeTicket.id,
   ]);
+
+  // Reconcilia o statusDraft quando o status da OS aberta muda remotamente
+  // (poll silencioso / inbound). Só acompanha se o usuário NÃO tiver uma troca
+  // de etapa armada (draft ainda igual ao status anterior) — senão preserva.
+  const prevActiveStatusRef = useRef(activeTicket.status);
+  useEffect(() => {
+    const prev = prevActiveStatusRef.current;
+    if (activeTicket.status !== prev) {
+      setStatusDraft(current => (current === prev ? activeTicket.status || '' : current));
+      prevActiveStatusRef.current = activeTicket.status;
+    }
+  }, [activeTicket.status]);
 
   useEffect(() => {
     setSidebarSections({
