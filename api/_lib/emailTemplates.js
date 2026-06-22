@@ -15,6 +15,14 @@ function linkifyEscaped(escapedText) {
   );
 }
 
+// Destaca @menções (@Nome com palavras capitalizadas) como o Gmail marca pessoas.
+function styleMentions(text) {
+  return String(text || '').replace(
+    /@\p{Lu}[\p{L}.'-]*(?:\s\p{Lu}[\p{L}.'-]*){0,2}/gu,
+    match => `<strong style="color:#9a6a2f;">${match}</strong>`
+  );
+}
+
 function normalizeToken(value) {
   return String(value || '')
     .toLowerCase()
@@ -122,12 +130,12 @@ function renderBodyText(text) {
         const items = lines
           .map(line => line.replace(/^[-•]\s*/, '').trim())
           .filter(Boolean)
-          .map(item => `<li style="margin:0 0 8px;">${linkifyEscaped(esc(item))}</li>`)
+          .map(item => `<li style="margin:0 0 8px;">${styleMentions(linkifyEscaped(esc(item)))}</li>`)
           .join('');
         return `<ul style="margin:0 0 18px 18px;padding:0;color:#544b41;font-size:14px;line-height:1.7;">${items}</ul>`;
       }
 
-      return `<p style="margin:0 0 16px;color:#544b41;font-size:14px;line-height:1.8;">${linkifyEscaped(esc(lines.join(' ')))}</p>`;
+      return `<p style="margin:0 0 16px;color:#544b41;font-size:14px;line-height:1.8;">${styleMentions(linkifyEscaped(esc(lines.join(' '))))}</p>`;
     })
     .join('');
 }

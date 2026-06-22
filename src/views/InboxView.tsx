@@ -485,6 +485,9 @@ export function InboxView() {
   const [inlineImages, setInlineImages] = useState<TicketAttachment[]>([]);
   const [insertingImage, setInsertingImage] = useState(false);
   const inlineImageRef = useRef<HTMLInputElement>(null);
+  // @menção: marca uma pessoa (insere @Nome no texto + adiciona o e-mail ao CC).
+  const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [progressReportFiles, setProgressReportFiles] = useState<File[]>([]);
 
   useEffect(() => {
@@ -2219,6 +2222,50 @@ export function InboxView() {
     setReplyText(prev => prev.split('\n').filter(line => !line.includes(att.url || ' ')).join('\n'));
   };
 
+  // Pessoas sugeridas no @menção (diretório com nome + e-mail).
+  const mentionResults = useMemo(() => {
+    if (!mention) return [] as DirectoryUser[];
+    const q = mention.query.trim().toLowerCase();
+    return directoryUsers
+      .filter(u => String(u.email || '').trim() && String(u.name || '').trim())
+      .filter(u => !q || u.name.toLowerCase().includes(q) || String(u.email).toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [mention, directoryUsers]);
+
+  const handleReplyTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setReplyText(value);
+    const caret = e.target.selectionStart ?? value.length;
+    const before = value.slice(0, caret);
+    // último @ antes do cursor, sem espaço entre o @ e o texto digitado
+    const match = before.match(/(?:^|\s)@([\p{L}\p{N}._'-]*)$/u);
+    if (match) {
+      setMention({ query: match[1], start: caret - match[1].length - 1 });
+      setMentionIndex(0);
+    } else if (mention) {
+      setMention(null);
+    }
+  };
+
+  const insertMention = (person: DirectoryUser) => {
+    if (!mention) return;
+    const end = mention.start + 1 + mention.query.length;
+    const nextText = `${replyText.slice(0, mention.start)}@${person.name} ${replyText.slice(end)}`;
+    setReplyText(nextText);
+    // Marcar a pessoa = adiciona o e-mail dela aos interessados (CC da resposta).
+    if (person.email) setPublicInterestedEmails(prev => mergeEmails(prev, [String(person.email)]));
+    setMention(null);
+    window.setTimeout(() => replyTextRef.current?.focus(), 0);
+  };
+
+  const handleReplyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!mention || mentionResults.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => (i + 1) % mentionResults.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex(i => (i - 1 + mentionResults.length) % mentionResults.length); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionResults[mentionIndex] || mentionResults[0]); }
+    else if (e.key === 'Escape') { setMention(null); }
+  };
+
   // Labels dinâmicos do reply box conforme status
   let internalTabLabel = 'Nota Interna';
   let internalPlaceholder = 'Adicione uma nota interna...';
@@ -3640,9 +3687,27 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           : 'Mensagem para solicitante e interessados...'
                   }
                   value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
+                  onChange={handleReplyTextChange}
+                  onKeyDown={handleReplyKeyDown}
                   disabled={isClosed}
                 />
+
+                {mention && mentionResults.length > 0 && (
+                  <div className="mx-3 mb-2 max-h-44 overflow-y-auto rounded-sm border border-roman-border bg-white shadow-lg">
+                    <div className="border-b border-roman-border/60 px-3 py-1 text-[10px] uppercase tracking-widest text-roman-text-sub">Marcar pessoa (recebe a resposta)</div>
+                    {mentionResults.map((person, i) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); insertMention(person); }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${i === mentionIndex ? 'bg-roman-primary/10' : 'hover:bg-roman-bg'}`}
+                      >
+                        <span className="font-medium text-roman-text-main">{person.name}</span>
+                        <span className="truncate text-xs text-roman-text-sub">{person.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* File Preview */}
                 {replyFiles.length > 0 && (
