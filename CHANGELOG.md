@@ -48,6 +48,10 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   OS dentro do seu escopo (anti-relay).
 - **Escopo de notificações** (`777e8d4`): notificação ligada a OS só é visível/
   acionável se a OS estiver no escopo (resolve `ticketId` e `action.ticketId`).
+- **Dropdown de Sede na Inbox escopado** (`32ecd5d`): o filtro listava **todas** as
+  sedes do catálogo; agora só Admin vê todas — Gestor/Diretor/Usuario veem apenas as
+  sedes que aparecem nos seus tickets (já escopados pelo backend). Não vaza sedes de
+  outras regiões.
 - **Diretor anexa em mensagens** (`741fba2`): `storage.rules` `canAttachMessage`
   inclui `diretor` (a UI permitia, as rules negavam). **Requer deploy das rules.**
 - Provider de e-mail no reset de senha com autodetect de Gmail (`741fba2`).
@@ -71,6 +75,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ### ⚡ Performance
 - Notificações: leitura de tickets em **lote** (`getAll`), N→1 (`cc6e966`).
+
+### 📊 Indicadores (KPI)
+- **Filtro "Por Mês"** (`4c1da3d`): escolher um mês de calendário específico
+  (mês + ano) no dashboard, além de Este Mês / Semestre / Últimos 12 Meses. O
+  período passa a recortar exatamente aquele mês (com fim de mês/bissexto certos).
 
 ### 🖥️ UI / acessibilidade / mobile
 - Trava de **double-submit** em medição e duplicar OS (`882c056`).
