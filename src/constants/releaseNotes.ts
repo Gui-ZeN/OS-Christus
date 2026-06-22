@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { ShieldCheck, Sparkles, Compass, Type, Smartphone, Activity } from 'lucide-react';
+import { Mail, Images, ImagePlus, AtSign, Zap, BellRing } from 'lucide-react';
 
 export interface ReleaseNoteItem {
   Icon: ComponentType<{ size?: number; className?: string }>;
@@ -20,39 +20,39 @@ export interface ReleaseNote {
  * Para anunciar uma nova leva: troque `version` e atualize `items`.
  */
 export const CURRENT_RELEASE: ReleaseNote = {
-  version: '2026.06',
+  version: '2026.06.2',
   title: 'Novidades do sistema',
-  subtitle: 'Atualização de junho • principais melhorias',
+  subtitle: 'Atualização de junho • correções e novidades',
   items: [
     {
-      Icon: ShieldCheck,
-      title: 'Mais segurança',
-      body: 'Reforçamos as proteções de acesso, do formulário público e dos e-mails do sistema.',
+      Icon: Mail,
+      title: 'E-mails na mesma conversa',
+      body: 'As respostas por e-mail agora continuam na mesma conversa (thread), em vez de abrir um e-mail novo a cada resposta.',
     },
     {
-      Icon: Sparkles,
-      title: 'Caixa de Entrada mais limpa',
-      body: 'O painel da OS foi simplificado. Para mudar de etapa, use “Alterar etapa” — e o botão mostra a ação (“Salvar e mover para…”).',
+      Icon: Images,
+      title: 'Várias fotos — e elas chegam na Diretoria',
+      body: 'Dá para anexar mais de uma foto por atendimento, uma a uma. E as fotos da OS passam a acompanhar os e-mails enviados à Diretoria.',
     },
     {
-      Icon: Compass,
-      title: 'Faixa “Próximo passo”',
-      body: 'Cada OS indica o que fazer naquela etapa — ou o que está aguardando (diretoria/solicitante).',
+      Icon: ImagePlus,
+      title: 'Inserir foto na mensagem',
+      body: 'Novo botão para inserir foto direto no texto da resposta: a imagem vai anexada e com um link clicável no corpo.',
     },
     {
-      Icon: Type,
-      title: 'Acentuação corrigida',
-      body: 'Textos e e-mails sem mais caracteres quebrados em palavras com acento.',
+      Icon: AtSign,
+      title: 'Marcar pessoas com @',
+      body: 'Digite @ na resposta para marcar alguém: a pessoa é incluída e recebe o e-mail, e o nome sai destacado — como no Gmail.',
     },
     {
-      Icon: Smartphone,
-      title: 'Melhor no celular e no notebook',
-      body: 'As telas se ajustam melhor em telas menores, incluindo a Caixa de Entrada.',
+      Icon: Zap,
+      title: 'Sem travar ao responder',
+      body: 'Corrigimos a lentidão que acontecia ao registrar respostas em uma Ordem de Serviço.',
     },
     {
-      Icon: Activity,
-      title: 'Mais estável',
-      body: 'Evitamos perda de histórico em edições simultâneas e telas que podiam travar.',
+      Icon: BellRing,
+      title: 'Aviso quando o e-mail não sai',
+      body: 'Se a resposta não puder ser enviada por e-mail (ex.: OS sem e-mail do solicitante), o sistema agora avisa em vez de falhar em silêncio.',
     },
   ],
 };
