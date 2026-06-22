@@ -33,6 +33,9 @@ import { DateTimePicker, buildInputDateTime, formatDateTimeDisplay, formatInputD
 import { getExecutionNextActionLabel, getStageGuidance } from './inbox/stageGuidance';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { ContractDispatchModal } from './inbox/ContractDispatchModal';
+import { PreliminaryActionsModal } from './inbox/PreliminaryActionsModal';
+import { ExecutionSetupModal } from './inbox/ExecutionSetupModal';
+import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
   formatCurrency as formatCurrencyInput,
   normalizeCurrencyInput,
@@ -171,15 +174,6 @@ const EMPTY_TICKET: Ticket = {
   viewingBy: null,
 };
 
-const PRELIMINARY_ITEMS = [
-  { id: 'materialRequested', label: 'Compra de material solicitada' },
-  { id: 'teamConfirmed', label: 'Equipe responsável confirmada' },
-  { id: 'sitePrepared', label: 'Local organizado para manutenção' },
-  { id: 'scheduleDefined', label: 'Cronograma de atividades definido' },
-  { id: 'stakeholderAligned', label: 'Alinhamento com direção/supervisão concluído' },
-  { id: 'accessReleased', label: 'Acesso ao local liberado pela unidade' },
-] as const;
-
 const ALL_INBOX_STATUS_OPTIONS = [
   TICKET_STATUS.NEW,
   TICKET_STATUS.WAITING_TECH_OPINION,
@@ -199,20 +193,6 @@ const ALL_INBOX_STATUS_OPTIONS = [
 function resolveActorRole(role?: string | null): AppActorRole {
   if (role === 'Admin' || role === 'Gestor' || role === 'Diretor') return role;
   return 'Usuario';
-}
-
-type PreliminaryChecklistKey = (typeof PRELIMINARY_ITEMS)[number]['id'];
-
-interface PreliminaryFormState {
-  materialRequested: boolean;
-  materialEta: string;
-  teamConfirmed: boolean;
-  sitePrepared: boolean;
-  scheduleDefined: boolean;
-  stakeholderAligned: boolean;
-  accessReleased: boolean;
-  plannedStartAt: string;
-  blockerNotes: string;
 }
 
 interface ExecutionSetupFormState {
@@ -5470,170 +5450,33 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
       {/* Ações Preliminares Modal */}
       {showPrelimModal && (
-        <ModalShell
+        <PreliminaryActionsModal
           isOpen={showPrelimModal}
           onClose={() => setShowPrelimModal(false)}
-          title="Ações Preliminares"
-          description="Registre compras, cronograma, liberações e impedimentos antes de iniciar a execução."
-          maxWidthClass="max-w-2xl"
-          footer={(
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowPrelimModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleSavePreliminaryActions(false)}
-                className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm"
-              >
-                Salvar checklist
-              </button>
-              <button
-                disabled={!arePreliminaryActionsReady(prelimForm) || !prelimForm.plannedStartAt}
-                onClick={() => handleSavePreliminaryActions(true)}
-                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Concluir e Iniciar Execução
-              </button>
-            </div>
-          )}
-        >
-              <div>
-                <p className="mt-2 text-xs text-roman-text-sub">
-                  Checklist concluído: {PRELIMINARY_ITEMS.filter(item => prelimForm[item.id]).length}/{PRELIMINARY_ITEMS.length}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {PRELIMINARY_ITEMS.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => handlePrelimFieldToggle(item.id)}
-                    className={`w-full flex items-center gap-3 p-3 border rounded-sm text-left transition-colors ${
-                      prelimForm[item.id]
-                        ? 'border-roman-primary bg-roman-primary/5 text-roman-primary'
-                        : 'border-roman-border text-roman-text-main hover:border-roman-primary/50'
-                    }`}
-                  >
-                    <div className={`w-4 h-4 border rounded-sm flex items-center justify-center flex-shrink-0 ${prelimForm[item.id] ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
-                      {prelimForm[item.id] && <CheckSquare size={10} className="text-white" />}
-                    </div>
-                    <span className="text-sm font-medium">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Previsão de chegada do material</label>
-                  <input
-                    type="date"
-                    value={prelimForm.materialEta}
-                    onChange={e => handlePrelimFieldChange('materialEta', e.target.value)}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Data prevista para início</label>
-                  <input
-                    type="date"
-                    value={prelimForm.plannedStartAt}
-                    onChange={e => handlePrelimFieldChange('plannedStartAt', e.target.value)}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impedimentos / observações</label>
-                <textarea
-                  value={prelimForm.blockerNotes}
-                  onChange={e => handlePrelimFieldChange('blockerNotes', e.target.value)}
-                  placeholder="Ex: aguardando liberação da unidade, janela sem aula, entrega do fornecedor."
-                  className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                />
-              </div>
-
-              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                <div className="font-medium text-roman-text-main">Resumo operacional</div>
-                <div>{buildPreliminarySummary(buildPreliminaryActionsPayload(false))}</div>
-                {prelimForm.blockerNotes.trim() && <div>Impedimentos: {prelimForm.blockerNotes.trim()}</div>}
-              </div>
-
-        </ModalShell>
+          form={prelimForm}
+          onToggleItem={handlePrelimFieldToggle}
+          onFieldChange={handlePrelimFieldChange}
+          onSaveChecklist={() => handleSavePreliminaryActions(false)}
+          onCompleteAndStart={() => handleSavePreliminaryActions(true)}
+          canComplete={arePreliminaryActionsReady(prelimForm) && !!prelimForm.plannedStartAt}
+          summary={buildPreliminarySummary(buildPreliminaryActionsPayload(false))}
+        />
       )}
 
       {showExecutionSetupModal && (
-        <ModalShell
+        <ExecutionSetupModal
           isOpen={showExecutionSetupModal}
           onClose={() => setShowExecutionSetupModal(false)}
-          title="Iniciar Execução da Obra"
-          description="Defina o fluxo financeiro que vai liberar os marcos de pagamento durante a execução."
-          maxWidthClass="max-w-xl"
-          footer={(
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowExecutionSetupModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                Cancelar
-              </button>
-              <button
-                disabled={isSending}
-                onClick={() => void handleConfirmExecutionStart()}
-                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isSending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                Iniciar execução
-              </button>
-            </div>
-          )}
-        >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Fluxo de pagamento</label>
-                  <select
-                    value={executionSetupForm.paymentFlowParts}
-                    onChange={e => setExecutionSetupForm(prev => ({ ...prev, paymentFlowParts: e.target.value }))}
-                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                  >
-                    {[1, 2, 3, 4, 5].map(parts => (
-                      <option key={parts} value={parts}>{parts === 1 ? 'À vista' : `${parts}x conforme andamento`}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
-                  <div className="font-medium text-roman-text-main mb-1">Resumo do contrato</div>
-                  <div>Fornecedor: {activeContract?.vendor || activeTicket.assignedTeam || 'Não definido'}</div>
-                  <div>Valor: {activeContract?.value || 'Não informado'}</div>
-                  <div>Andamento inicial: {activeProgressPercent}%</div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Link da planilha de medição (opcional)</label>
-                <input
-                  type="url"
-                  value={executionSetupForm.measurementSheetUrl}
-                  onChange={e => setExecutionSetupForm(prev => ({ ...prev, measurementSheetUrl: e.target.value }))}
-                  placeholder="https://docs.google.com/spreadsheets/..."
-                  className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                />
-              </div>
-
-              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                <div className="font-medium text-roman-text-main">Regra do fluxo</div>
-                <div>Cada atualização de andamento com valor bruto cria um novo lançamento no financeiro.</div>
-                <div>Os marcos (1x a 5x) ficam como referência de progresso da execução.</div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de início</label>
-                <textarea
-                  value={executionSetupForm.notes}
-                  onChange={e => setExecutionSetupForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Ex: equipe mobilizada, cronograma validado e material entregue na unidade."
-                  className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                />
-              </div>
-
-        </ModalShell>
+          isSending={isSending}
+          onConfirm={() => void handleConfirmExecutionStart()}
+          paymentFlowParts={executionSetupForm.paymentFlowParts}
+          measurementSheetUrl={executionSetupForm.measurementSheetUrl}
+          notes={executionSetupForm.notes}
+          onFieldChange={(field, value) => setExecutionSetupForm(prev => ({ ...prev, [field]: value }))}
+          contractVendor={activeContract?.vendor || activeTicket.assignedTeam || 'Não definido'}
+          contractValue={activeContract?.value || 'Não informado'}
+          progressPercent={activeProgressPercent}
+        />
       )}
 
       {showProgressModal && (
