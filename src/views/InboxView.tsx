@@ -543,7 +543,12 @@ export function InboxView() {
 
   // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
-  const activeTicket = tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET;
+  // Memoizado: era recriado a cada render (digitar no composer etc.), o que
+  // reinvalidava memos pesados desnecessariamente.
+  const activeTicket = useMemo(
+    () => tickets.find(t => t.id === activeTicketId) ?? tickets[0] ?? EMPTY_TICKET,
+    [tickets, activeTicketId]
+  );
   const recurrentLocationSummary = useMemo(() => {
     if (!activeTicket.id) {
       return {
@@ -1348,7 +1353,14 @@ export function InboxView() {
           history: [...activeTicket.history, item],
         });
         if (shouldSendMessageEmail) {
-          void notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails);
+          // Dá feedback se o e-mail não sair (antes era fire-and-forget silencioso:
+          // a resposta salvava mas o usuário não sabia que o e-mail falhou/pulou).
+          notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails)
+            .then(result => {
+              if (result === 'no-recipient') showToast('Resposta registrada, mas esta OS não tem e-mail do solicitante — nenhum e-mail foi enviado.', 5000);
+              else if (result === 'failed') showToast('Resposta registrada, mas o e-mail NÃO foi enviado ao solicitante. Tente reenviar.', 5000);
+            })
+            .catch(() => showToast('Resposta registrada, mas falhou o envio do e-mail.', 5000));
         }
       } else {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
@@ -1372,7 +1384,12 @@ export function InboxView() {
           history: [...activeTicket.history, item],
         });
         if (shouldSendMessageEmail) {
-          void notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments);
+          notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments)
+            .then(result => {
+              if (result === 'no-directors') showToast('Mensagem registrada, mas não há diretores envolvidos — nada foi enviado à Diretoria.', 5000);
+              else if (result === 'failed') showToast('Mensagem registrada, mas o e-mail à Diretoria NÃO foi enviado. Tente reenviar.', 5000);
+            })
+            .catch(() => showToast('Mensagem registrada, mas falhou o envio à Diretoria.', 5000));
         }
       }
 
@@ -2015,9 +2032,12 @@ export function InboxView() {
     return [...new Set([...catalogOptions, ...ticketOptions].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [catalogSites, tickets]);
 
+  // budgetHistory (cálculo O(n×m) sobre TODOS os tickets) só é exibido no modal
+  // de cotações. Fora dele, passa lista vazia para não recalcular a cada
+  // resposta na OS — era a causa da trava ao responder.
   const budgetHistory = useMemo(
-    () => buildBudgetHistorySummary(activeTicket, tickets, storedQuotesByTicket, vendors),
-    [activeTicket, tickets, storedQuotesByTicket, vendors]
+    () => buildBudgetHistorySummary(activeTicket, showQuotesModal ? tickets : [], storedQuotesByTicket, vendors),
+    [activeTicket, showQuotesModal, tickets, storedQuotesByTicket, vendors]
   );
 
   const budgetBaselineAndRealized = useMemo(() => {
@@ -2156,7 +2176,11 @@ export function InboxView() {
   }, [activeTicket.macroServiceId, activeTicket.serviceCatalogId, vendorPreferences]);
 
   const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setReplyFiles(Array.from(e.target.files));
+    // Acumula (em vez de substituir) e limpa o value, para permitir adicionar
+    // várias fotos uma a uma — antes a 2ª seleção apagava a 1ª.
+    const next = Array.from(e.target.files || []);
+    if (next.length > 0) setReplyFiles(prev => [...prev, ...next]);
+    e.target.value = '';
   };
 
   // Labels dinâmicos do reply box conforme status

@@ -227,7 +227,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setFiles(Array.from(e.target.files));
+    // Acumula e limpa o value para permitir adicionar fotos uma a uma
+    // (no celular o usuário tira/anexa uma de cada vez).
+    const next = Array.from(e.target.files || []);
+    if (next.length > 0) setFiles(prev => [...prev, ...next]);
+    e.target.value = '';
   };
 
   return (
