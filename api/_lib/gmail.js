@@ -231,6 +231,13 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
   const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
 
+  // Message-Id RFC próprio: setamos explicitamente no header e o RETORNAMOS,
+  // para que o In-Reply-To/References da próxima resposta case com o e-mail real.
+  // Antes retornávamos result.data.id (id INTERNO do Gmail, que nunca casa) →
+  // cada resposta virava uma thread nova no cliente do destinatário.
+  const fromDomain = (String(fromEmail).split('@')[1] || 'serv3.local').trim();
+  const generatedMessageId = `<os-${ticketId || 'msg'}-${Date.now()}-${Math.random().toString(16).slice(2)}@${fromDomain}>`;
+
   const raw = buildRawMessage({
     from: fromEmail,
     to: toEmail,
@@ -242,6 +249,7 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
     references,
     attachments,
     extraHeaders: {
+      'Message-Id': generatedMessageId,
       'X-OS-Ticket-ID': ticketId,
       ...(trackingToken ? { 'X-OS-Tracking-Token': trackingToken } : {}),
     },
@@ -258,6 +266,7 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
   return {
     status: 200,
     id: result.data.id || null,
+    messageId: generatedMessageId,
     threadId: result.data.threadId || null,
   };
 }
