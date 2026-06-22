@@ -480,6 +480,11 @@ export function InboxView() {
   const lastMailSyncAtRef = useRef(0);
   const lastScheduledMailSyncKeyRef = useRef('');
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  // Fotos inseridas no corpo do texto (já enviadas ao Storage): vão como anexo
+  // E como link no corpo da mensagem.
+  const [inlineImages, setInlineImages] = useState<TicketAttachment[]>([]);
+  const [insertingImage, setInsertingImage] = useState(false);
+  const inlineImageRef = useRef<HTMLInputElement>(null);
   const [progressReportFiles, setProgressReportFiles] = useState<File[]>([]);
 
   useEffect(() => {
@@ -655,6 +660,7 @@ export function InboxView() {
     setNewThirdPartyContact('');
     setNewThirdPartyTags([]);
     setReplyFiles([]);
+    setInlineImages([]);
     setProgressReportFiles([]);
     setContractDispatchFile(null);
     if (replyFileRef.current) replyFileRef.current.value = '';
@@ -1246,6 +1252,10 @@ export function InboxView() {
           replyFiles.map(file => uploadMessageAttachment(activeTicket.id, replyMode, file))
         );
       }
+      // Fotos inseridas no texto já estão no Storage — anexa sem reenviar.
+      if (inlineImages.length > 0) {
+        uploadedReplyAttachments = [...uploadedReplyAttachments, ...inlineImages];
+      }
 
       const messageWithAttachments = trimmedReply;
       const shouldSendMessageEmail = sendMessageEmailUpdate;
@@ -1395,6 +1405,7 @@ export function InboxView() {
 
       setReplyText('');
       setReplyFiles([]);
+      setInlineImages([]);
       setStatusTransitionReason('');
       if (replyFileRef.current) replyFileRef.current.value = '';
     } catch {
@@ -2181,6 +2192,31 @@ export function InboxView() {
     const next = Array.from(e.target.files || []);
     if (next.length > 0) setReplyFiles(prev => [...prev, ...next]);
     e.target.value = '';
+  };
+
+  // Inserir foto no corpo: faz upload na hora, anexa à mensagem E insere um link
+  // clicável no texto. Anexo é a entrega confiável; o link dá a foto "na mensagem".
+  const handleInsertImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0 || insertingImage) return;
+    setInsertingImage(true);
+    try {
+      const uploaded = await Promise.all(files.map(file => uploadMessageAttachment(activeTicket.id, replyMode, file)));
+      setInlineImages(prev => [...prev, ...uploaded]);
+      const lines = uploaded.map(att => `📷 ${att.name}: ${att.url}`).join('\n');
+      setReplyText(prev => (prev.trim() ? `${prev}\n${lines}` : lines));
+    } catch {
+      showToast('Falha ao enviar a imagem. Tente novamente.', 3000);
+    } finally {
+      setInsertingImage(false);
+    }
+  };
+
+  const handleRemoveInlineImage = (att: TicketAttachment) => {
+    setInlineImages(prev => prev.filter(item => item.id !== att.id));
+    // Remove também a linha de link correspondente no corpo.
+    setReplyText(prev => prev.split('\n').filter(line => !line.includes(att.url || ' ')).join('\n'));
   };
 
   // Labels dinâmicos do reply box conforme status
@@ -3567,6 +3603,27 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     onChange={handleReplyFileChange}
                     disabled={isClosed}
                   />
+                  <button
+                    type="button"
+                    onClick={() => inlineImageRef.current?.click()}
+                    className={`p-1 hover:bg-roman-bg rounded relative ${inlineImages.length > 0 ? 'text-roman-primary' : ''}`}
+                    title="Inserir foto no texto (anexa e adiciona um link no corpo)"
+                    disabled={isClosed || insertingImage}
+                  >
+                    {insertingImage ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                    {inlineImages.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-roman-primary rounded-full"></span>
+                    )}
+                  </button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    ref={inlineImageRef}
+                    onChange={handleInsertImages}
+                    disabled={isClosed}
+                  />
                 </div>
 
                 {/* Textarea */}
@@ -3595,6 +3652,18 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         <FileText size={12} />
                         <span className="max-w-[150px] truncate">{file.name}</span>
                         <button onClick={() => setReplyFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:text-red-500" disabled={isClosed}><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {inlineImages.length > 0 && (
+                  <div className="px-4 pb-2 flex flex-wrap gap-2">
+                    {inlineImages.map(att => (
+                      <div key={att.id} className="flex items-center gap-1 text-xs bg-roman-primary/10 border border-roman-primary/30 px-2 py-1 rounded-sm text-roman-primary">
+                        <ImageIcon size={12} />
+                        <span className="max-w-[150px] truncate">{att.name}</span>
+                        <button onClick={() => handleRemoveInlineImage(att)} className="ml-1 hover:text-red-500" disabled={isClosed}><X size={12} /></button>
                       </div>
                     ))}
                   </div>

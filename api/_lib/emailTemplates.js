@@ -6,6 +6,15 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
+// Converte URLs http(s) (já escapadas por esc) em links clicáveis. Usado para
+// que as fotos inseridas no corpo virem links de fato em qualquer cliente.
+function linkifyEscaped(escapedText) {
+  return String(escapedText || '').replace(
+    /https?:\/\/[^\s<]+/g,
+    url => `<a href="${url.replace(/&amp;/g, '&')}" style="color:#9a6a2f;word-break:break-all;">${url}</a>`
+  );
+}
+
 function normalizeToken(value) {
   return String(value || '')
     .toLowerCase()
@@ -113,12 +122,12 @@ function renderBodyText(text) {
         const items = lines
           .map(line => line.replace(/^[-•]\s*/, '').trim())
           .filter(Boolean)
-          .map(item => `<li style="margin:0 0 8px;">${esc(item)}</li>`)
+          .map(item => `<li style="margin:0 0 8px;">${linkifyEscaped(esc(item))}</li>`)
           .join('');
         return `<ul style="margin:0 0 18px 18px;padding:0;color:#544b41;font-size:14px;line-height:1.7;">${items}</ul>`;
       }
 
-      return `<p style="margin:0 0 16px;color:#544b41;font-size:14px;line-height:1.8;">${esc(lines.join(' '))}</p>`;
+      return `<p style="margin:0 0 16px;color:#544b41;font-size:14px;line-height:1.8;">${linkifyEscaped(esc(lines.join(' ')))}</p>`;
     })
     .join('');
 }
