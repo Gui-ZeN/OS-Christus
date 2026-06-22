@@ -21,13 +21,19 @@ function parseServiceAccountFromEnv() {
 
 export function getAdminDb() {
   if (getApps().length === 0) {
-    const serviceAccount = parseServiceAccountFromEnv();
-    const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id;
-    initializeApp({
-      credential: cert(serviceAccount),
-      projectId,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
-    });
+    // Dev local: com FIRESTORE_EMULATOR_HOST setado, o firebase-admin fala só
+    // com o emulador e dispensa service account real. Inócuo em produção.
+    if (process.env.FIRESTORE_EMULATOR_HOST) {
+      initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'os-christus' });
+    } else {
+      const serviceAccount = parseServiceAccountFromEnv();
+      const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id;
+      initializeApp({
+        credential: cert(serviceAccount),
+        projectId,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
+      });
+    }
   }
   return getFirestore();
 }

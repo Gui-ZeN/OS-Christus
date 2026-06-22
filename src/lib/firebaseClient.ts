@@ -1,5 +1,5 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
+import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence } from 'firebase/auth';
 
 function readConfig() {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
@@ -37,6 +37,10 @@ export async function getFirebaseClientAuth() {
   const app = getFirebaseClientApp();
   if (!app) return null;
   const auth = getAuth(app);
+  // Dev local: conecta no Auth emulador quando VITE_USE_FIREBASE_EMULATOR=true.
+  if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' && !(auth as { emulatorConfig?: unknown }).emulatorConfig) {
+    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+  }
   await setPersistence(auth, browserLocalPersistence).catch(() => undefined);
   return auth;
 }
