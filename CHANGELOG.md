@@ -57,6 +57,9 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 - Provider de e-mail no reset de senha com autodetect de Gmail (`741fba2`).
 
 ### 🐞 Fluxo de tickets
+- **Encerradas/Canceladas saem da Inbox** (`ad95d36`): a lista mostra só OS ativas;
+  botão fixo no rodapé "Mostrar encerradas (N)" traz as finalizadas (que vão pro fim
+  da lista). Filtro explícito por status finalizado é respeitado (botão some).
 - **Aceitar OS sem exigir motivo na triagem** (`deacad0`).
 - **Cancelar** reverte a etapa e o motivo do composer (`1274cbe`).
 - **Seleção de diretores persistida** nas transições de aprovação (`4f5593e`).
