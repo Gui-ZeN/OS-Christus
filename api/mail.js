@@ -1320,10 +1320,17 @@ async function createTicketFromInbound(db, message) {
   const parsedSubject = parseNewTicketSubject(message.subject);
   if (!parsedSubject?.siteCode || !parsedSubject?.subject) return null;
 
+  // Só cria OS se o [CÓDIGO] do assunto casar com uma sede REAL do catálogo.
+  // Como o separador depois do [CÓDIGO] é opcional, notificações como
+  // "[GitHub] ...", "[Action Required] ...", "[NotaQuest] ..." também casam o
+  // padrão — exigir a sede evita criar OS-lixo a partir delas. Checa antes de
+  // consumir um número de OS para não deixar buracos na sequência.
+  const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
+  if (!site) return null;
+
   const ticketId = await buildNextTicketId(db);
   const trackingToken = `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const now = message.internalDate || new Date();
-  const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
   const attachments = await uploadInboundAttachments(ticketId, message.attachments || []);
   const fromEmail = firstEmail(message.from);
   const ccRecipients = filterCopyRecipients(mergeEmailLists(message.to, message.cc), [fromEmail]);
