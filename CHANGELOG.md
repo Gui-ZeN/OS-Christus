@@ -5,6 +5,24 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-06-22
 
+### 🐛 Bugs de produção reportados (correções)
+6 inconsistências relatadas no uso real, todas com causa-raiz confirmada e corrigida:
+- **E-mails não encadeavam a conversa** (`9a55dc3`~): `gmailSend` retornava o id
+  interno do Gmail em vez do header `Message-Id` próprio → cada resposta virava
+  thread nova. Agora gera/seta/retorna um `Message-Id` RFC.
+- **Só 1 foto por atendimento/parecer e no formulário público**: os handlers de
+  arquivo substituíam a lista; agora acumulam e limpam o input (`prev => [...prev, ...next]`).
+- **Anexo (foto) não ia no e-mail à Diretoria**: só iam anexos de parecer/contrato;
+  agora as fotos da OS (`ticket.attachments`) sempre acompanham.
+- **Trava a cada resposta**: `budgetHistory` (O(n×m) sobre todos os tickets) só é
+  usado no modal de cotações; passou a só calcular com o modal aberto + `activeTicket`
+  memoizado → responder deixou de disparar o recálculo.
+- **Resposta salva mas e-mail não enviado, sem aviso**: envio era fire-and-forget;
+  agora as funções retornam status e o composer dá toast quando o e-mail não sai
+  (sem destinatário / falha).
+- **Parcial — imagem inline no corpo do parecer**: ainda não suportado (corpo é
+  `<textarea>`; exigiria editor rich-text — fica como feature à parte).
+
 ### 🔐 Segurança & Autorização
 - **Gestor escopado por região** (`717e358`): deixa de ter visão global; vê apenas
   OS do seu `regionIds`/`siteIds` (Inbox, números/KPI, filtros, procurement) —
