@@ -29,6 +29,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   escolher insere `@Nome` no texto e adiciona o e-mail da pessoa ao CC (ela recebe
   a resposta). No e-mail o `@Nome` sai destacado. Réplica do `@` do Gmail (sem o
   pill interativo nativo, que é UI do Workspace).
+- **Aviso de e-mail bloqueado/rejeitado (bounce)** (`eaa6e1f`): quando o provedor
+  de destino rejeita um e-mail enviado, o Gmail devolve um NDR ("Message blocked")
+  que antes era descartado. Agora o sistema detecta o bounce, resolve a OS (pelo
+  `X-OS-Ticket-ID` embutido) e registra um aviso no histórico + notificação
+  Admin/Gestor.
 
 ### 🔐 Segurança & Autorização
 - **Gestor escopado por região** (`717e358`): deixa de ter visão global; vê apenas
