@@ -773,17 +773,21 @@ function detectBounce(message) {
   if (!isDaemon && !subjectHint) return null;
 
   const body = `${message.text || ''}\n${message.html || ''}`;
-  const recipient =
-    (body.match(/Final-Recipient:\s*rfc822;\s*([^\s<>]+@[^\s<>]+)/i) || [])[1] ||
-    (body.match(/(?:Your message to|sua mensagem para)\s+\*?\s*([^\s*<>]+@[^\s*<>]+)/i) || [])[1] ||
-    (body.match(/([^\s<>]+@[^\s<>]+)\s+(?:has been blocked|was not delivered|foi bloque)/i) || [])[1] ||
-    null;
+  // Extrai TODOS os destinatários que falharam — um único NDR pode listar vários
+  // (formato DSN com múltiplos Final-Recipient). Senão avisaríamos só 1 de N.
+  const recipients = [...new Set(
+    [
+      ...[...body.matchAll(/Final-Recipient:\s*rfc822;\s*([^\s<>]+@[^\s<>]+)/gi)].map(m => m[1]),
+      ...[...body.matchAll(/(?:Your message to|sua mensagem para)\s+\*?\s*([^\s*<>]+@[^\s*<>]+)/gi)].map(m => m[1]),
+      ...[...body.matchAll(/([^\s<>]+@[^\s<>]+)\s+(?:has been blocked|was not delivered|foi bloque)/gi)].map(m => m[1]),
+    ].map(e => String(e).toLowerCase().replace(/[.,;>]+$/, '')).filter(Boolean)
+  )];
   const reasonMatch =
     body.match(/Message rejected[^\n]*/i) ||
     body.match(/\b5\d\d[\s.-][^\n]{0,120}/) ||
     body.match(/(blocked|rejected|denied|not authorized|policy|spam)[^\n]{0,120}/i);
   const reason = reasonMatch ? reasonMatch[0].trim().replace(/\s+/g, ' ').slice(0, 200) : 'O provedor de destino rejeitou a mensagem.';
-  return { recipient, reason };
+  return { recipients, reason };
 }
 
 // Avisa na OS (histórico + notificação) quando um e-mail enviado foi
@@ -800,8 +804,9 @@ async function handleBounceNotice(db, message) {
     parseTicketId(body) ||
     (await resolveTicketIdByThreadReferences(db, message.inReplyTo, message.references));
 
-  const recipientLabel = bounce.recipient || 'o destinatário';
-  const noteText = `⚠️ E-mail não entregue: a mensagem para ${recipientLabel} foi rejeitada/bloqueada pelo provedor de destino. ${bounce.reason}`;
+  const recipientLabel = bounce.recipients.length ? bounce.recipients.join(', ') : 'o destinatário';
+  const plural = bounce.recipients.length > 1;
+  const noteText = `⚠️ E-mail não entregue: ${plural ? `as mensagens para ${recipientLabel} foram rejeitadas/bloqueadas` : `a mensagem para ${recipientLabel} foi rejeitada/bloqueada`} pelo provedor de destino. ${bounce.reason}`;
   const dedupeKey = buildInboundMessageLockId(message.messageId, body) || randomUUID().replace(/-/g, '');
 
   if (ticketId) {
@@ -843,10 +848,10 @@ async function handleBounceNotice(db, message) {
     status: 'failed',
     provider: 'gmail',
     ticketId: ticketId || null,
-    fromEmail: bounce.recipient || null,
+    fromEmail: bounce.recipients[0] || null,
     subject: message.subject || '',
     messageId: message.messageId || message.id || null,
-    error: bounce.reason,
+    error: `${bounce.recipients.join(', ')} — ${bounce.reason}`.slice(0, 250),
   });
   return true;
 }
