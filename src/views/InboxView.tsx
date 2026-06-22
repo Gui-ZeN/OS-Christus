@@ -2041,10 +2041,15 @@ export function InboxView() {
   }), [tickets, inboxFilter, catalogRegions, catalogSites]);
 
   const siteFilterOptions = useMemo(() => {
-    const catalogOptions = catalogSites.map(site => site.code || site.name);
     const ticketOptions = tickets.map(ticket => getTicketSiteLabel(ticket, catalogSites));
+    // Admin vê todas as sedes do catálogo. Demais perfis (ex.: Gestor de uma
+    // região) só veem as sedes que aparecem nos seus tickets — já escopados pelo
+    // backend —, então o dropdown não lista sedes de outras regiões.
+    const catalogOptions = currentUser?.role === 'Admin'
+      ? catalogSites.map(site => site.code || site.name)
+      : [];
     return [...new Set([...catalogOptions, ...ticketOptions].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [catalogSites, tickets]);
+  }, [catalogSites, tickets, currentUser?.role]);
 
   // budgetHistory (cálculo O(n×m) sobre TODOS os tickets) só é exibido no modal
   // de cotações. Fora dele, passa lista vazia para não recalcular a cada
