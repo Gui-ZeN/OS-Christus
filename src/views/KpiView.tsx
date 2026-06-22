@@ -62,11 +62,17 @@ function resolveItemValue(
   return fallbackValue;
 }
 
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
 export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor' || currentUser?.role === 'Usuario';
-  const [period, setPeriod] = useState<'month' | 'semester' | 'custom'>('month');
+  const [period, setPeriod] = useState<'month' | 'semester' | 'custom' | 'specificMonth'>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
@@ -166,6 +172,12 @@ export function KpiView() {
 
   const periodRange = useMemo(() => {
     const now = new Date();
+    if (period === 'specificMonth') {
+      return {
+        start: new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0),
+        end: new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59, 999),
+      };
+    }
     if (period === 'month') {
       const start = new Date(now);
       start.setDate(start.getDate() - 29);
@@ -195,7 +207,7 @@ export function KpiView() {
       start: new Date(selectedYear, 0, 1, 0, 0, 0, 0),
       end: new Date(selectedYear, 11, 31, 23, 59, 59, 999),
     };
-  }, [latestBalanceDate, latestBalanceYear, period, selectedYear]);
+  }, [latestBalanceDate, latestBalanceYear, period, selectedYear, selectedMonth]);
 
   const periodTickets = useMemo(() => {
     const startMs = periodRange.start.getTime();
@@ -716,6 +728,12 @@ export function KpiView() {
               >
                 Últimos 12 Meses
               </button>
+              <button
+                onClick={() => setPeriod('specificMonth')}
+                className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'specificMonth' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
+              >
+                Por Mês
+              </button>
             </div>
             {period === 'custom' && (
               <div className="flex justify-end">
@@ -727,6 +745,32 @@ export function KpiView() {
                   {availableYears.map(year => (
                     <option key={year} value={year}>
                       {year}{year === latestBalanceYear ? ' (12 meses móveis)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {period === 'specificMonth' && (
+              <div className="flex justify-end gap-2">
+                <select
+                  value={selectedMonth}
+                  onChange={event => setSelectedMonth(Number(event.target.value))}
+                  className="w-full md:w-40 rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                >
+                  {MONTH_NAMES.map((name, index) => (
+                    <option key={name} value={index}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={event => setSelectedYear(Number(event.target.value))}
+                  className="w-full md:w-28 rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>
+                      {year}
                     </option>
                   ))}
                 </select>
