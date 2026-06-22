@@ -25,6 +25,10 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   texto (renderBodyText passou a auto-linkar URLs). Imagem **inline** (`<img>` no
   corpo) segue como feature à parte (exigiria editor rich-text e é frágil entre
   clientes de e-mail).
+- **@menção no composer** (`87a59d0`): digitar `@` abre autocomplete do diretório;
+  escolher insere `@Nome` no texto e adiciona o e-mail da pessoa ao CC (ela recebe
+  a resposta). No e-mail o `@Nome` sai destacado. Réplica do `@` do Gmail (sem o
+  pill interativo nativo, que é UI do Workspace).
 
 ### 🔐 Segurança & Autorização
 - **Gestor escopado por região** (`717e358`): deixa de ter visão global; vê apenas
