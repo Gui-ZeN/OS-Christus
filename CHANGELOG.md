@@ -20,8 +20,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 - **Resposta salva mas e-mail não enviado, sem aviso**: envio era fire-and-forget;
   agora as funções retornam status e o composer dá toast quando o e-mail não sai
   (sem destinatário / falha).
-- **Parcial — imagem inline no corpo do parecer**: ainda não suportado (corpo é
-  `<textarea>`; exigiria editor rich-text — fica como feature à parte).
+- **Inserir foto no corpo da mensagem** (`5adc232`): novo botão no composer que
+  faz upload da imagem ao Storage, anexa à mensagem e insere um link clicável no
+  texto (renderBodyText passou a auto-linkar URLs). Imagem **inline** (`<img>` no
+  corpo) segue como feature à parte (exigiria editor rich-text e é frágil entre
+  clientes de e-mail).
 
 ### 🔐 Segurança & Autorização
 - **Gestor escopado por região** (`717e358`): deixa de ter visão global; vê apenas
