@@ -78,11 +78,41 @@ export function cleanForwardedMessageText(value: unknown): string {
     if (normalized === 'forwarded message' || normalized === 'mensagem encaminhada') return false;
     if (/forwarded conversation/i.test(line)) return false;            // "---- Forwarded Conversation ----"
     if (/^[-_=*~]{3,}.*[-_=*~]{3,}$/.test(line)) return false;          // divisórias "---------- x ----------"
-    if (/^[-_=*~]{3,}$/.test(line)) return false;                       // divisórias só de traços
+    if (/^[-_=*~]{2,}$/.test(line)) return false;                       // separadores só de traços ("--", "___")
     if (/^(from|de|to|para|subject|assunto|date|data|cc|cco|enviado|sent)\s*:/i.test(line)) return false;
+    if ((line.match(/@[\w.-]+/g) || []).length >= 3) return false;      // linha que é lista de destinatários
     return true;
   });
 
   const compact = cleaned.join('\n').replace(/(?:\n\s*){3,}/g, '\n\n').trim();
   return compact || text;
+}
+
+/**
+ * Separa a mensagem mais recente do histórico citado (respostas/encaminhamentos
+ * anteriores). O corte é a primeira linha citada (">") ou a primeira atribuição
+ * de resposta ("Em <data> Fulano escreveu:"). Cada parte é limpa por
+ * cleanForwardedMessageText. Sem citação, `quoted` vem vazio.
+ */
+export function splitMessageQuote(value: unknown): { latest: string; quoted: string } {
+  const text = String(value ?? '').replace(/\r\n/g, '\n');
+  if (!text.trim()) return { latest: '', quoted: '' };
+
+  const lines = text.split('\n');
+  let boundary = lines.findIndex(line => /^\s*>/.test(line));
+  const attribution = lines.findIndex(line => /^\s*(Em|On)\s+.+(escreveu|wrote)\s*:?\s*$/i.test(line));
+  if (attribution !== -1 && (boundary === -1 || attribution < boundary)) {
+    boundary = attribution;
+  }
+
+  if (boundary === -1) {
+    return { latest: cleanForwardedMessageText(text), quoted: '' };
+  }
+
+  const latest = cleanForwardedMessageText(lines.slice(0, boundary).join('\n'))
+    // remove uma atribuição "Em ... escreveu:" que tenha sobrado no fim do trecho.
+    .replace(/\n?\s*(Em|On)\s+.+(escreveu|wrote)\s*:?\s*$/i, '')
+    .trim();
+  const quoted = cleanForwardedMessageText(lines.slice(boundary).join('\n'));
+  return { latest, quoted };
 }

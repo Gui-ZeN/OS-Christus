@@ -37,6 +37,7 @@ import { PreliminaryActionsModal } from './inbox/PreliminaryActionsModal';
 import { ExecutionSetupModal } from './inbox/ExecutionSetupModal';
 import { ProgressUpdateModal } from './inbox/ProgressUpdateModal';
 import { DirectorInterestsPanel } from './inbox/DirectorInterestsPanel';
+import { MessageBody } from './inbox/MessageBody';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
   formatCurrency as formatCurrencyInput,
@@ -3487,7 +3488,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   : 'bg-roman-surface border-roman-border'
                             }`}
                           >
-                            <div className="whitespace-pre-line break-words">{displayText}</div>
+                            <MessageBody text={item.text} />
                             {messageAttachmentItems.length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {messageAttachmentItems.map((attachment, attachmentIndex) => (
