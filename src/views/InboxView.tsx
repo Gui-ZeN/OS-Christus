@@ -2025,20 +2025,42 @@ export function InboxView() {
   }, [quotes]);
 
   // useMemo evita recalcular em todo re-render
-  const filteredTickets = useMemo(() => tickets.filter(t => {
+  const [showFinalized, setShowFinalized] = useState(false);
+
+  // Filtros explícitos (status/prioridade/região/sede/tipo), sem o toggle de
+  // finalizadas — base tanto para a lista quanto para a contagem de ocultas.
+  const baseFilteredTickets = useMemo(() => tickets.filter(t => {
     if (inboxFilter.status.length > 0 && !inboxFilter.status.includes(t.status)) return false;
     if (inboxFilter.priority.length > 0 && t.priority && !inboxFilter.priority.includes(t.priority)) return false;
     if (inboxFilter.region.length > 0 && !inboxFilter.region.includes(getTicketRegionLabel(t, catalogRegions, catalogSites))) return false;
     if (inboxFilter.site.length > 0 && !inboxFilter.site.includes(getTicketSiteLabel(t, catalogSites))) return false;
     if (inboxFilter.type.length > 0 && !inboxFilter.type.includes(t.type)) return false;
     return true;
-  }).sort((a, b) => {
-    const isAUrgentCorrective = a.type === 'Corretiva' && a.priority === 'Urgente';
-    const isBUrgentCorrective = b.type === 'Corretiva' && b.priority === 'Urgente';
-    if (isAUrgentCorrective && !isBUrgentCorrective) return -1;
-    if (!isAUrgentCorrective && isBUrgentCorrective) return 1;
-    return b.time.getTime() - a.time.getTime();
   }), [tickets, inboxFilter, catalogRegions, catalogSites]);
+
+  // OS Encerradas/Canceladas saem da Inbox por padrão; o botão "Mostrar
+  // encerradas" as traz de volta. Se o usuário filtrar explicitamente por um
+  // status finalizado, respeitamos o filtro (não escondemos).
+  const finalizedExplicitlyFiltered = inboxFilter.status.some(isFinalizedTicketStatus);
+  const hideFinalized = !showFinalized && !finalizedExplicitlyFiltered;
+  const finalizedInScopeCount = useMemo(
+    () => baseFilteredTickets.filter(t => isFinalizedTicketStatus(t.status)).length,
+    [baseFilteredTickets]
+  );
+
+  const filteredTickets = useMemo(() => baseFilteredTickets
+    .filter(t => !(hideFinalized && isFinalizedTicketStatus(t.status)))
+    .sort((a, b) => {
+      // Finalizadas (quando exibidas) vão para o fim da lista.
+      const aFinalized = isFinalizedTicketStatus(a.status);
+      const bFinalized = isFinalizedTicketStatus(b.status);
+      if (aFinalized !== bFinalized) return aFinalized ? 1 : -1;
+      const isAUrgentCorrective = a.type === 'Corretiva' && a.priority === 'Urgente';
+      const isBUrgentCorrective = b.type === 'Corretiva' && b.priority === 'Urgente';
+      if (isAUrgentCorrective && !isBUrgentCorrective) return -1;
+      if (!isAUrgentCorrective && isBUrgentCorrective) return 1;
+      return b.time.getTime() - a.time.getTime();
+    }), [baseFilteredTickets, hideFinalized]);
 
   const siteFilterOptions = useMemo(() => {
     const ticketOptions = tickets.map(ticket => getTicketSiteLabel(ticket, catalogSites));
@@ -3121,6 +3143,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 }}
               />
             ))
+          )}
+          {!finalizedExplicitlyFiltered && finalizedInScopeCount > 0 && (
+            <button
+              onClick={() => setShowFinalized(value => !value)}
+              className="sticky bottom-0 z-10 flex w-full items-center justify-center gap-2 border-t border-roman-border bg-roman-surface px-3 py-2.5 text-[12px] font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
+            >
+              <CheckCircle size={13} />
+              {showFinalized ? 'Ocultar encerradas' : `Mostrar encerradas (${finalizedInScopeCount})`}
+              <ChevronDown size={13} className={`transition-transform ${showFinalized ? 'rotate-180' : ''}`} />
+            </button>
           )}
         </div>
       </div>
