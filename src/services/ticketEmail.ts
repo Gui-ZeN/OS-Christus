@@ -679,12 +679,22 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
             .join('\n')
         : '';
     const contractBlock = contractContext?.contractBlock || '';
-    const directorAttachments =
+    // Fotos anexadas na OS (abertura) sempre acompanham o e-mail ao diretor.
+    // Antes só iam anexos de parecer/contrato, então a foto do solicitante sumia.
+    const ticketPhotos = normalizeEmailAttachments(Array.isArray(ticket.attachments) ? ticket.attachments : []);
+    const flowAttachments =
       directorTab === 'solutions'
         ? normalizeEmailAttachments(latestAttachments)
         : directorTab === 'contracts'
           ? (contractContext?.attachments || [])
           : [];
+    const seenAttachmentKeys = new Set<string>();
+    const directorAttachments = [...ticketPhotos, ...flowAttachments].filter(item => {
+      const key = String(item?.path || item?.url || item?.id || '').trim();
+      if (!key || seenAttachmentKeys.has(key)) return false;
+      seenAttachmentKeys.add(key);
+      return true;
+    });
     const directorBody = [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, contractBlock, technicalBlock].filter(Boolean).join('\n\n');
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
@@ -747,9 +757,10 @@ export async function notifyTicketPublicReply(
 ) {
   const toEmail = resolveTicketEmail(ticket);
   const bodyText = appendAttachmentsToBody(message, attachments);
-  if (!toEmail || !bodyText.trim()) return;
+  if (!bodyText.trim()) return 'empty' as const;
+  if (!toEmail) return 'no-recipient' as const; // OS sem e-mail do solicitante
 
-  await postEmail({
+  const sent = await postEmail({
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     toEmail,
@@ -773,6 +784,7 @@ export async function notifyTicketPublicReply(
       ctaLabel: 'Ver mensagem',
     },
   });
+  return sent ? ('sent' as const) : ('failed' as const);
 }
 
 export async function notifyTicketDirectorReply(
@@ -781,9 +793,9 @@ export async function notifyTicketDirectorReply(
   message: string,
   attachments: TicketAttachment[] = []
 ) {
-  if (!hasInvolvedDirectors(ticket)) return;
+  if (!hasInvolvedDirectors(ticket)) return 'no-directors' as const;
   const bodyText = appendAttachmentsToBody(message, attachments);
-  if (!bodyText.trim()) return;
+  if (!bodyText.trim()) return 'empty' as const;
 
   const directorTab = resolveDirectorApprovalTab(ticket.status);
   const trigger = directorTab === 'solutions' ? 'EMAIL-DIRETORIA-SOLUCAO' : 'EMAIL-DIRETORIA-APROVACAO';
@@ -794,7 +806,7 @@ export async function notifyTicketDirectorReply(
     },
   });
 
-  await sendToConfiguredFlowRecipients({
+  const sent = await sendToConfiguredFlowRecipients({
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     trigger,
@@ -814,6 +826,7 @@ export async function notifyTicketDirectorReply(
       ctaLabel: 'Abrir painel da Diretoria',
     },
   });
+  return sent ? ('sent' as const) : ('failed' as const);
 }
 
 export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: number, additiveReason: string) {
