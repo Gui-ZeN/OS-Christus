@@ -79,10 +79,14 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   backfill que limpa o texto guardado no banco. Como o colapso depende dos `>` para
   separar bem, é melhor **não** rodar — o render já resolve sem destruir os dados.
 - **Tolerar variação de código de sede** no inbound (`PQL 3`/`D.L` → `PQL3`/`DL`) (`b4246b8`).
-- **Sede sem separador no assunto** (`89253b0`): o parser exigia `-`/`:` logo após o
-  `[SEDE]`. Agora `[PE] 7° andar... - Haste...` (colchete colado no texto, traço só no
-  meio) cria a OS na sede PE. Separador opcional; traço interno preservado; assunto sem
-  colchete continua não virando OS.
+- **Sede sem separador no assunto** (`89253b0`, `2b1dc3f`): o parser exigia `-`/`:` logo
+  após o `[SEDE]`. Agora `[PE] 7° andar... - Haste...` (colchete colado no texto, traço
+  só no meio) cria a OS na sede PE. Separador opcional; traço interno preservado. Como
+  isso faz `[X] texto` casar, foi adicionada uma **trava**: só vira OS se o `[CÓDIGO]`
+  resolver para uma sede real do catálogo — senão notificações (`[GitHub]`,
+  `[Action Required]`, `[NotaQuest]`…) virariam OS-lixo. Auditoria do banco
+  (`inboundMessageLocks`): 12 assuntos foram afetados pelo bug; só 1 era OS real
+  (`[PE]`, de operacional11) — as outras 11 eram notificações, agora filtradas.
 - **Impedir OS duplicada** em reentrega push→sync (lock persistente como `done`) (`1ec16a7`).
 
 ### 💰 Procurement / dados
