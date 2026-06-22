@@ -3455,7 +3455,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                                   : 'bg-roman-surface border-roman-border'
                             }`}
                           >
-                            {displayText}
+                            <div className="whitespace-pre-line break-words">{displayText}</div>
                             {messageAttachmentItems.length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {messageAttachmentItems.map((attachment, attachmentIndex) => (

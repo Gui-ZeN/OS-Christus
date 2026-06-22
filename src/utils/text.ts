@@ -64,15 +64,22 @@ export function cleanForwardedMessageText(value: unknown): string {
   const lines = text
     .replace(/\r\n/g, '\n')
     .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
+    .map(line =>
+      line
+        .replace(/^\s*>[>\s]*/, '')          // marcadores de citação ">" no início (inclui ">> aninhado")
+        .replace(/\[image:[^\]]*\]/gi, '')   // placeholders de imagem inline ([image: foo.gif])
+        .replace(/[ \t]{2,}/g, ' ')          // colapsa espaços repetidos
+        .trim()
+    );
 
   const cleaned = lines.filter(line => {
     const normalized = line.toLowerCase();
+    if (!line) return false;
     if (normalized === 'forwarded message' || normalized === 'mensagem encaminhada') return false;
-    if (/^(from|de|to|para|subject|assunto|date|data|cc|cco|enviado)\s*:/i.test(line)) return false;
-    if (/^>+\s*$/.test(line)) return false;
-    if (/^\[image:.*\]$/i.test(line)) return false;
+    if (/forwarded conversation/i.test(line)) return false;            // "---- Forwarded Conversation ----"
+    if (/^[-_=*~]{3,}.*[-_=*~]{3,}$/.test(line)) return false;          // divisórias "---------- x ----------"
+    if (/^[-_=*~]{3,}$/.test(line)) return false;                       // divisórias só de traços
+    if (/^(from|de|to|para|subject|assunto|date|data|cc|cco|enviado|sent)\s*:/i.test(line)) return false;
     return true;
   });
 
