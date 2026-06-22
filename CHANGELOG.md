@@ -71,6 +71,13 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   virar um parágrafo único ilegível — remove marcadores `>`, `[image: ...]` inline e
   divisórias de encaminhamento, e o histórico passa a preservar as quebras de linha
   (`whitespace-pre-line`).
+- **Histórico citado colapsável** (`144fb7d`): threads encaminhadas N vezes mostram só
+  a mensagem mais recente; o resto fica atrás de "Mostrar conversa anterior" (igual ao
+  Gmail). `splitMessageQuote` separa recente/citado; remove ainda linhas de lista de
+  destinatários (3+ e-mails) e separadores `--`. Componente `inbox/MessageBody`.
+- *(opcional, não recomendado)* `scripts/infra/fix-forwarded-texts.mjs` (`f7cca5c`):
+  backfill que limpa o texto guardado no banco. Como o colapso depende dos `>` para
+  separar bem, é melhor **não** rodar — o render já resolve sem destruir os dados.
 - **Tolerar variação de código de sede** no inbound (`PQL 3`/`D.L` → `PQL3`/`DL`) (`b4246b8`).
 - **Impedir OS duplicada** em reentrega push→sync (lock persistente como `done`) (`1ec16a7`).
 
