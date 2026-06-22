@@ -32,6 +32,7 @@ import { calculateProgressPercentFromGross, getBudgetSourceLabel, isLegacyFlowPl
 import { DateTimePicker, buildInputDateTime, formatDateTimeDisplay, formatInputDate, formatInputDateTime, formatShortDate, parseInputDateTime } from './inbox/DateTimePicker';
 import { getExecutionNextActionLabel, getStageGuidance } from './inbox/stageGuidance';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
+import { ContractDispatchModal } from './inbox/ContractDispatchModal';
 import {
   formatCurrency as formatCurrencyInput,
   normalizeCurrencyInput,
@@ -5455,66 +5456,16 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
       )}
 
       {showContractDispatchModal && (
-        <ModalShell
+        <ContractDispatchModal
           isOpen={showContractDispatchModal}
-          onClose={() => {
-            if (isSending) return;
-            setShowContractDispatchModal(false);
-          }}
-          title="Anexar Contrato para Diretoria"
-          description="Após o aceite do orçamento, anexe o contrato para a Diretoria aprovar."
-          maxWidthClass="max-w-lg"
-          footer={(
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowContractDispatchModal(false)}
-                disabled={isSending}
-                className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm disabled:opacity-60"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => void handleSendContractToDirector()}
-                disabled={isSending || !contractDispatchFile}
-                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isSending ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
-                {isSending ? 'Enviando...' : 'Enviar para Aprovação'}
-              </button>
-            </div>
-          )}
-        >
-          <div className="space-y-4">
-            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
-              <div className="font-medium text-roman-text-main mb-1">Resumo do contrato</div>
-              <div>Fornecedor: {activeContract?.vendor || 'Não informado'}</div>
-              <div>Valor: {activeContract?.value || 'Não informado'}</div>
-            </div>
-
-            <div className="border-2 border-dashed border-roman-border rounded-sm p-6 text-center bg-roman-bg relative hover:bg-roman-border-light transition-colors cursor-pointer">
-              <input
-                type="file"
-                accept=".pdf"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                onChange={event => {
-                  if (event.target.files && event.target.files.length > 0) {
-                    setContractDispatchFile(event.target.files[0]);
-                  }
-                }}
-              />
-              <FileText size={28} className="mx-auto text-roman-primary mb-2" />
-              {contractDispatchFile ? (
-                <div className="text-sm font-medium text-roman-text-main">{contractDispatchFile.name}</div>
-              ) : (
-                <>
-                  <div className="text-sm font-medium text-roman-text-main mb-1">Selecione o contrato em PDF</div>
-                  <div className="text-xs text-roman-text-sub">Esse arquivo será registrado antes da aprovação da Diretoria</div>
-                </>
-              )}
-            </div>
-          </div>
-
-        </ModalShell>
+          onClose={() => setShowContractDispatchModal(false)}
+          isSending={isSending}
+          onSend={() => void handleSendContractToDirector()}
+          file={contractDispatchFile}
+          onFileChange={file => setContractDispatchFile(file)}
+          contractVendor={activeContract?.vendor || 'Não informado'}
+          contractValue={activeContract?.value || 'Não informado'}
+        />
       )}
 
       {/* Ações Preliminares Modal */}
