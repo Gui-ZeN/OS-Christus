@@ -64,6 +64,10 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   total de cotação (breakdown = value) (`455e56b`).
 
 ### 📧 E-mail / inbound (Gmail)
+- **E-mail encaminhado formatado** (`5e9da3d`): respostas/encaminhamentos deixam de
+  virar um parágrafo único ilegível — remove marcadores `>`, `[image: ...]` inline e
+  divisórias de encaminhamento, e o histórico passa a preservar as quebras de linha
+  (`whitespace-pre-line`).
 - **Tolerar variação de código de sede** no inbound (`PQL 3`/`D.L` → `PQL3`/`DL`) (`b4246b8`).
 - **Impedir OS duplicada** em reentrega push→sync (lock persistente como `done`) (`1ec16a7`).
 
