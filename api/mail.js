@@ -804,14 +804,16 @@ async function handleBounceNotice(db, message) {
     parseTicketId(body) ||
     (await resolveTicketIdByThreadReferences(db, message.inReplyTo, message.references));
 
-  const recipientLabel = bounce.recipients.length ? bounce.recipients.join(', ') : 'o destinatário';
-  const plural = bounce.recipients.length > 1;
-  const noteText = `⚠️ E-mail não entregue: ${plural ? `as mensagens para ${recipientLabel} foram rejeitadas/bloqueadas` : `a mensagem para ${recipientLabel} foi rejeitada/bloqueada`} pelo provedor de destino. ${bounce.reason}`;
+  const noteText = '⚠️ E-mail bloqueado: a resposta enviada por e-mail foi rejeitada/bloqueada pelo provedor de destino e pode não ter chegado ao destinatário.';
   const dedupeKey = buildInboundMessageLockId(message.messageId, body) || randomUUID().replace(/-/g, '');
+  // Um único aviso por OS (por dia): vários bounces do mesmo envio — ou um NDR
+  // por destinatário — colapsam num só "e-mail bloqueado", sem encher a OS/sino.
+  const dayBucket = new Date().toISOString().slice(0, 10);
+  const consolidationKey = ticketId ? `${ticketId}-${dayBucket}` : dedupeKey;
 
   if (ticketId) {
     const ticketRef = db.collection('tickets').doc(ticketId);
-    const entryId = `bounce-${dedupeKey}`;
+    const entryId = `bounce-${consolidationKey}`;
     await db.runTransaction(async tx => {
       const snap = await tx.get(ticketRef);
       if (!snap.exists) return;
@@ -831,11 +833,11 @@ async function handleBounceNotice(db, message) {
     });
   }
 
-  // Notificação idempotente (mesmo bounce reprocessado não duplica).
-  await db.collection('notifications').doc(`bounce-${dedupeKey}`).set({
+  // Notificação consolidada por OS (idempotente): um só aviso no sino por OS.
+  await db.collection('notifications').doc(`bounce-${consolidationKey}`).set({
     type: 'email-bounce',
     ticketId: ticketId || null,
-    title: ticketId ? `E-mail rejeitado — ${ticketId}` : 'E-mail rejeitado',
+    title: ticketId ? `E-mail bloqueado — ${ticketId}` : 'E-mail bloqueado',
     body: noteText,
     audienceRoles: ['Admin', 'Gestor'],
     read: false,
