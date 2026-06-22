@@ -762,7 +762,100 @@ async function authorizeGmailAutomation(req) {
   }
 }
 
+// Detecta um bounce/NDR (ex.: "Message blocked / rejected" do mailer-daemon do
+// Gmail) e extrai o destinatário que falhou + o motivo curto.
+function detectBounce(message) {
+  const fromRaw = String(message.from || '');
+  const fromEmail = firstEmail(message.from).toLowerCase();
+  const subject = String(message.subject || '');
+  const isDaemon = /(mailer-daemon|postmaster)@/i.test(fromEmail) || /mail delivery (subsystem|system)/i.test(fromRaw);
+  const subjectHint = /delivery status notification|undeliver|failure notice|returned mail|message blocked|delivery has failed|n[ãa]o foi entregue|mensagem rejeitada/i.test(subject);
+  if (!isDaemon && !subjectHint) return null;
+
+  const body = `${message.text || ''}\n${message.html || ''}`;
+  const recipient =
+    (body.match(/Final-Recipient:\s*rfc822;\s*([^\s<>]+@[^\s<>]+)/i) || [])[1] ||
+    (body.match(/(?:Your message to|sua mensagem para)\s+\*?\s*([^\s*<>]+@[^\s*<>]+)/i) || [])[1] ||
+    (body.match(/([^\s<>]+@[^\s<>]+)\s+(?:has been blocked|was not delivered|foi bloque)/i) || [])[1] ||
+    null;
+  const reasonMatch =
+    body.match(/Message rejected[^\n]*/i) ||
+    body.match(/\b5\d\d[\s.-][^\n]{0,120}/) ||
+    body.match(/(blocked|rejected|denied|not authorized|policy|spam)[^\n]{0,120}/i);
+  const reason = reasonMatch ? reasonMatch[0].trim().replace(/\s+/g, ' ').slice(0, 200) : 'O provedor de destino rejeitou a mensagem.';
+  return { recipient, reason };
+}
+
+// Avisa na OS (histórico + notificação) quando um e-mail enviado foi
+// rejeitado/bloqueado. Resolve a OS pelo X-OS-Ticket-ID embutido no bounce
+// (header que setamos nos envios), pelo OS-xxxx do corpo, ou pela thread.
+async function handleBounceNotice(db, message) {
+  const bounce = detectBounce(message);
+  if (!bounce) return false;
+
+  const body = `${message.text || ''}\n${message.html || ''}`;
+  const ticketId =
+    (body.match(/X-OS-Ticket-ID:\s*(OS-\d+)/i) || [])[1]?.toUpperCase() ||
+    parseTicketId(message.subject) ||
+    parseTicketId(body) ||
+    (await resolveTicketIdByThreadReferences(db, message.inReplyTo, message.references));
+
+  const recipientLabel = bounce.recipient || 'o destinatário';
+  const noteText = `⚠️ E-mail não entregue: a mensagem para ${recipientLabel} foi rejeitada/bloqueada pelo provedor de destino. ${bounce.reason}`;
+  const dedupeKey = buildInboundMessageLockId(message.messageId, body) || randomUUID().replace(/-/g, '');
+
+  if (ticketId) {
+    const ticketRef = db.collection('tickets').doc(ticketId);
+    const entryId = `bounce-${dedupeKey}`;
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(ticketRef);
+      if (!snap.exists) return;
+      const freshHistory = Array.isArray(snap.data()?.history) ? snap.data().history : [];
+      if (freshHistory.some(item => item?.id === entryId)) return;
+      tx.set(ticketRef, {
+        history: [...freshHistory, {
+          id: entryId,
+          type: 'system',
+          sender: 'Sistema',
+          time: message.internalDate || new Date(),
+          text: noteText,
+          visibility: 'internal',
+        }],
+        updatedAt: new Date(),
+      }, { merge: true });
+    });
+  }
+
+  // Notificação idempotente (mesmo bounce reprocessado não duplica).
+  await db.collection('notifications').doc(`bounce-${dedupeKey}`).set({
+    type: 'email-bounce',
+    ticketId: ticketId || null,
+    title: ticketId ? `E-mail rejeitado — ${ticketId}` : 'E-mail rejeitado',
+    body: noteText,
+    audienceRoles: ['Admin', 'Gestor'],
+    read: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }, { merge: true });
+
+  await logEmailEvent({
+    type: 'bounce',
+    status: 'failed',
+    provider: 'gmail',
+    ticketId: ticketId || null,
+    fromEmail: bounce.recipient || null,
+    subject: message.subject || '',
+    messageId: message.messageId || message.id || null,
+    error: bounce.reason,
+  });
+  return true;
+}
+
 async function processGmailInboundMessage(db, msg, source) {
+  // Bounce/NDR do provedor (ex.: "Message blocked"): avisa na OS em vez de
+  // descartar como mensagem automática (o ignore abaixo o jogaria fora).
+  if (await handleBounceNotice(db, msg)) return false;
+
   if (shouldIgnoreInboundMessage(msg)) {
     await logEmailEvent({
       type: 'inbound',
