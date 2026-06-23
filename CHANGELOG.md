@@ -116,10 +116,15 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
     users — 2ª leitura das 3 coleções cai de ~765ms→0ms no hit quente (`ce909ca`).
     Notificações deixam de refazer a leitura quando a lista filtrada vem vazia
     (`e5cd034`).
-  - **Pendente (frontend, maior — "B"):** extrair o composer de resposta (re-render da
-    digitação), memoizar value/handlers do `AppContext`, trocar o `JSON.stringify` do
-    poll, virtualizar listas. Backend restante: escopar `tickets` Admin (sem `history`
-    na lista) e os 4 `collectionGroup` do procurement Admin.
+  - **3ª leva — poll O(N) (`fdb392c`):** `areTicketListsEqual` deixa de fazer
+    `JSON.stringify` da lista inteira a cada 10s; compara uma assinatura por ticket
+    (`id|updatedAt|history.length|status|priority|viewingBy`), com `updatedAt`
+    serializado no payload e carimbado em toda escrita. Remove a micro-trava periódica.
+  - **Pendente (maior, precisa de teste ao vivo):** extrair o composer de resposta — a
+    correção direta da travada de digitar, mas `replyText` está entrelaçado com
+    send/@menção/formatação/foto no InboxView (refactor de risco). Memoizar o value do
+    `AppContext` tem ganho baixo. Virtualizar listas (precisa de lib). Backend restante:
+    `tickets` Admin sem `history` na lista + os 4 `collectionGroup` do procurement Admin.
 
 ### 📊 Indicadores (KPI)
 - **Filtro "Por Mês"** (`4c1da3d`): escolher um mês de calendário específico
