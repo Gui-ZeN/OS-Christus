@@ -1301,6 +1301,15 @@ export function InboxView() {
             visibility: 'internal',
           });
         } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
+          // Trava: a OS só avança de "Parecer Técnico" para orçamento/aprovação com
+          // o serviço classificado (macroserviço + serviço). Garante que a
+          // classificação adiada na triagem não seja esquecida — o medo do "deixar
+          // pra depois". O erro aparece no momento certo, não como parede no dia 1.
+          if (!activeTicket.macroServiceId || !activeTicket.serviceCatalogId) {
+            showToast('Classifique o serviço (macroserviço + serviço) no painel antes de avançar para orçamento.', 4000);
+            setIsSending(false);
+            return;
+          }
           newStatus = hasInvolvedDirectors ? TICKET_STATUS.WAITING_SOLUTION_APPROVAL : TICKET_STATUS.WAITING_BUDGET;
           if (trimmedReply || uploadedReplyAttachments.length > 0) {
             items.push({
