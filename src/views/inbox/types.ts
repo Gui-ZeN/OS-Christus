@@ -16,6 +16,16 @@ export type QuoteDraft = {
   items: QuoteItem[];
 };
 
+/** Cabeçalho/contexto da rodada de cotações (unidade, local, pasta, etc.). */
+export type ProposalHeaderDraft = {
+  unitName: string;
+  location: string;
+  folderLink: string;
+  contractedVendor: string;
+  totalQuantity: string;
+  totalEstimatedValue: string;
+};
+
 /** Seção do comparativo consolidado (linhas agrupadas por seção, valores por fornecedor). */
 export type QuoteComparisonSection = {
   key: string;

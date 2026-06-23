@@ -43,7 +43,8 @@ import { AdditiveReferenceCard } from './inbox/AdditiveReferenceCard';
 import { QuoteHistoryMetrics } from './inbox/QuoteHistoryMetrics';
 import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
-import type { QuoteDraft } from './inbox/types';
+import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
+import type { ProposalHeaderDraft, QuoteDraft } from './inbox/types';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
   formatCurrency as formatCurrencyInput,
@@ -51,15 +52,6 @@ import {
   parseCurrency as parseCurrencyInput,
   sanitizeCurrencyTypingInput,
 } from '../utils/currency';
-
-type ProposalHeaderDraft = {
-  unitName: string;
-  location: string;
-  folderLink: string;
-  contractedVendor: string;
-  totalQuantity: string;
-  totalEstimatedValue: string;
-};
 
 const QUOTE_SECTION_OPTIONS = [
   { value: 'material', label: 'Material' },
@@ -4720,79 +4712,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     </div>
                   </div>
 
-                  <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-serif text-roman-text-main">Cabeçalho da proposta</h4>
-                        <p className="text-xs text-roman-text-sub">Estruture a rodada com unidade, local e pasta da referência enviada pelo solicitante.</p>
-                      </div>
-                      <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">Comparativo lado a lado</span>
-                    </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Unidade</label>
-                    <input
-                      type="text"
-                      value={proposalHeader.unitName}
-                      onChange={event => handleProposalHeaderChange('unitName', event.target.value)}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Local</label>
-                    <input
-                      type="text"
-                      placeholder="Ex.: 9º andar"
-                      value={proposalHeader.location}
-                      onChange={event => handleProposalHeaderChange('location', event.target.value)}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pasta / Link</label>
-                    <input
-                      type="text"
-                      placeholder="Cole o link da pasta"
-                      value={proposalHeader.folderLink}
-                      onChange={event => handleProposalHeaderChange('folderLink', event.target.value)}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Contratado / referência</label>
-                    <input
-                      type="text"
-                      placeholder="Fornecedor já contratado, se houver"
-                      value={proposalHeader.contractedVendor}
-                      onChange={event => handleProposalHeaderChange('contractedVendor', event.target.value)}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Quantidade total</label>
-                    <input
-                      type="text"
-                      placeholder="Ex.: 212 m²"
-                      value={proposalHeader.totalQuantity}
-                      onChange={event => handleProposalHeaderChange('totalQuantity', event.target.value)}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total previsto</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="R$ 0,00"
-                      value={proposalHeader.totalEstimatedValue}
-                      onChange={event => handleProposalHeaderChange('totalEstimatedValue', event.target.value)}
-                      onBlur={() => handleProposalCurrencyBlur('totalEstimatedValue')}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    />
-                  </div>
-                </div>
-                  </div>
+                  <ProposalHeaderForm value={proposalHeader} onChange={handleProposalHeaderChange} onCurrencyBlur={handleProposalCurrencyBlur} />
 
               {showQuoteHistoryPanel && (
                 <QuoteHistoryPanel history={budgetHistory} servicePreference={persistedServicePreference} ticketId={activeTicket.id} />
