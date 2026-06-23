@@ -188,16 +188,23 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   `inbox/types.ts` (tipos compartilhados): `QuoteDraft` (17 usos viram import),
   `QuoteComparisonSection`, `ProposalHeaderDraft` — todos saíram da InboxView.
   Todos behavior-identical, verificados por tsc+build (+diff).
-- **Editor de cotações — núcleo stateful** (`c48e3fc`, `33b7c92`): início da quebra do
-  editor (a parte mais complexa). `QuoteEditorTabs` (barra de abas A/B/C/Consolidado +
-  "Adicionar cotação", ~55 linhas, presentacional) e `QuoteItemRow` (linha de um item —
-  tipo/material/descrição/qtd/unidade/custo/total + unidade custom + dica de histórico,
-  ~107 linhas, 15 props zero-rename). Novo `inbox/quotes.ts` (fonte única, sem drift):
-  `CUSTOM_QUOTE_UNIT_VALUE`, `QUOTE_SECTION_OPTIONS`, `normalizeQuoteSection`.
-  **Verificado no emulador** (não só tsc+build): editar item recalcula total (10×50 =
-  R$ 500,00), remover apaga o item certo, abas alternam foco, zero erros de console.
-  InboxView: 6036 (god original) → 5058 linhas. Falta do editor: header do card, grid
-  vendor/valor, shell da seção de itens, modo consolidado (menos arriscados).
+- **Editor de cotações — núcleo stateful COMPLETO** (`c48e3fc`, `33b7c92`, `98755c0`, `f38afd0`, `f8b3a95`):
+  a parte mais complexa do elefante, decomposta em 6 componentes — `QuoteEditorTabs`
+  (abas A/B/C/Consolidado), `QuoteItemRow` (linha de item — a mais complexa, 15 props),
+  `QuoteEditorCardHeader` (Fornecedor + Remover slot + Anexar PDF), `QuoteVendorFields`
+  (Fornecedor/Valor + resumos + dica de preferencial), `QuoteConsolidatedView` (modo
+  consolidado read-only) e `QuoteItemsSection` (botões +1/+5, sugeridos, lista de itens).
+  O card de fornecedor virou um assembler limpo (header + vendor-fields + items-section).
+  Novo `inbox/quotes.ts` (fonte única, sem drift): `CUSTOM_QUOTE_UNIT_VALUE`,
+  `QUOTE_SECTION_OPTIONS`, `normalizeQuoteSection`, `normalizeUnitAbbreviation`,
+  `buildQuoteItemUnitKey`. **Verificado E2E no emulador** (reload completo, código fresco):
+  adicionar cotação/+5 itens, editar (total recalcula, ex.: 7×30 = R$ 210,00), remover o
+  item certo, modo consolidado + Editar round-trip — zero erros de runtime.
+- 🐘 **ELEFANTE DOMADO.** O modal de Cotações (~1.064 linhas, ~70 deps) agora são **11
+  componentes** em `src/views/inbox/` + 2 módulos compartilhados (`types.ts`, `quotes.ts`).
+  **InboxView: 6036 (god-component original) → 4835 linhas** (−1201, ~20% menor). Toda
+  extração behavior-identical (cópia verbatim do JSX + props zero-rename, script de
+  balanceamento de `<div>`), verificada por tsc + build, e o editor stateful no emulador.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
