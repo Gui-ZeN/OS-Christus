@@ -57,6 +57,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 - Provider de e-mail no reset de senha com autodetect de Gmail (`741fba2`).
 
 ### 🐞 Fluxo de tickets
+- **Data da OS = data da conversa** (`8304c05`): em OS retroativas o card/inbox mostrava
+  a data de registro e a conversa a data real do pedido. Agora editar a data da 1ª
+  mensagem (do solicitante) sincroniza a data de abertura da OS (card, cabeçalho, KPIs).
+  Backfill alinhou **19 OS** retroativas existentes (`ticket.time` = 1ª mensagem) —
+  16 voltaram de jun→mai; backup reversível em `_date_backups/`.
 - **Encerradas/Canceladas saem da Inbox** (`ad95d36`): a lista mostra só OS ativas;
   botão fixo no rodapé "Mostrar encerradas (N)" traz as finalizadas (que vão pro fim
   da lista). Filtro explícito por status finalizado é respeitado (botão some).
