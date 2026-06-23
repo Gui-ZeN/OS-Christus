@@ -64,7 +64,14 @@ async function canUserAccessNotificationTicket(db, user, notification, territory
 }
 
 async function readNotifications(db, user) {
-  const snap = await db.collection('notifications').get();
+  let snap = await db.collection('notifications').get();
+  // Seed dos defaults só quando a coleção está GLOBALMENTE vazia (uma vez) — não
+  // quando o resultado FILTRADO do usuário está vazio. Antes, o handler refazia a
+  // leitura toda vez que um usuário não tinha notificação no escopo (2x por poll).
+  if (snap.empty) {
+    await ensureDefaults(db);
+    snap = await db.collection('notifications').get();
+  }
   const visibleByRole = snap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(notification => canUserSeeNotification(user, notification));
@@ -103,11 +110,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const user = await requireAuthenticatedUser(req);
-      let notifications = await readNotifications(db, user);
-      if (notifications.length === 0) {
-        await ensureDefaults(db);
-        notifications = await readNotifications(db, user);
-      }
+      const notifications = await readNotifications(db, user);
       return sendJson(res, 200, { ok: true, notifications });
     }
 
