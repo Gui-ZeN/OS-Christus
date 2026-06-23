@@ -210,6 +210,10 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   iguais". Hierarquia invertida: selecionada agora tem fundo `roman-primary/20` + anel
   interno + assunto em negrito + barra dourada cheia; new/waiting com barra/fundo leves.
   Sem shift de layout (4px de borda esquerda reservados em todos). Verificado no emulador.
+- **Fotos do "Mensagem aos Interessados" viram anexo real**: antes a foto anexada à
+  mensagem ia só como link no corpo; agora segue também como anexo de arquivo do e-mail
+  (`attachments: normalizeEmailAttachments(...)` no `notifyTicketPublicReply`), espelhando
+  o fluxo da Diretoria. O link no corpo continua como fallback.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,

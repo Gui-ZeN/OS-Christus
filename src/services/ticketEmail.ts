@@ -767,6 +767,9 @@ export async function notifyTicketPublicReply(
     ccEmail: ccEmails.join(', '),
     overrideConversationCopies: true,
     trigger: 'EMAIL-NOVA-MENSAGEM',
+    // As fotos anexadas na mensagem vão como anexo real do e-mail (além do link
+    // no corpo) — antes só seguiam como link. Espelha o fluxo da Diretoria.
+    attachments: normalizeEmailAttachments(attachments),
     variables: await buildVariables(ticket, {
       message: {
         sender,
