@@ -1176,8 +1176,16 @@ export function InboxView() {
       index === originalIndex ? { ...item, time: nextTime } : item
     );
 
-    updateTicket(activeTicket.id, { history: nextHistory });
-    showToast('Data da mensagem atualizada.', 2000);
+    // Se a mensagem editada é a originadora (1ª do solicitante), a data de
+    // abertura da OS (card/inbox + KPIs) acompanha — evita o card e a conversa
+    // divergirem em OS retroativas.
+    const firstCustomerIndex = activeTicket.history.findIndex(item => item.type === 'customer');
+    const isOriginating = originalIndex === (firstCustomerIndex === -1 ? 0 : firstCustomerIndex);
+    const updates: Partial<Ticket> = { history: nextHistory };
+    if (isOriginating) updates.time = nextTime;
+
+    updateTicket(activeTicket.id, updates);
+    showToast(isOriginating ? 'Data da OS e da mensagem atualizadas.' : 'Data da mensagem atualizada.', 2000);
   };
 
   const handleAcceptTicket = () => {
