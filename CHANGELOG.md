@@ -110,10 +110,16 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
     do InboxView (o AppContext já cobre) (`70d84bc`).
   - `MessageBody` memoizado + limpeza-regex deixa de rodar por mensagem a cada
     tecla (só itens de sistema usam `displayText`) (`b5c0248`).
-  - **Pendente (2ª leva, maior):** extrair o composer de resposta (re-render da
-    digitação), memoizar value/handlers do `AppContext`, trocar o `JSON.stringify`
-    do poll, virtualizar listas; backend: cache de sites/regions/users, escopar
-    leituras de coleção inteira (notifications/tickets Admin/procurement).
+  - **2ª leva — backend (cache + escopo):** cache TTL (~60s) de sites/regions/users
+    (`api/_lib/refCache.js`), aplicado em `readTerritoryCatalog` (todo poll de
+    notificações/PATCH/procurement), `resolveSiteContext` (por e-mail) e nas listas de
+    users — 2ª leitura das 3 coleções cai de ~765ms→0ms no hit quente (`ce909ca`).
+    Notificações deixam de refazer a leitura quando a lista filtrada vem vazia
+    (`e5cd034`).
+  - **Pendente (frontend, maior — "B"):** extrair o composer de resposta (re-render da
+    digitação), memoizar value/handlers do `AppContext`, trocar o `JSON.stringify` do
+    poll, virtualizar listas. Backend restante: escopar `tickets` Admin (sem `history`
+    na lista) e os 4 `collectionGroup` do procurement Admin.
 
 ### 📊 Indicadores (KPI)
 - **Filtro "Por Mês"** (`4c1da3d`): escolher um mês de calendário específico
