@@ -187,9 +187,17 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   proposta", 6 campos, ~73 linhas, controlado por value+onChange/onCurrencyBlur). Novo
   `inbox/types.ts` (tipos compartilhados): `QuoteDraft` (17 usos viram import),
   `QuoteComparisonSection`, `ProposalHeaderDraft` — todos saíram da InboxView.
-  Todos behavior-identical, verificados por tsc+build (+diff). InboxView: 5457 → 5229 linhas.
-  Falta 1: o **editor de cotações** (o núcleo stateful — cards/itens/anexos); exige
-  emulador com `quotes` semeadas pra verificar com segurança, não só tsc+build.
+  Todos behavior-identical, verificados por tsc+build (+diff).
+- **Editor de cotações — núcleo stateful** (`c48e3fc`, `33b7c92`): início da quebra do
+  editor (a parte mais complexa). `QuoteEditorTabs` (barra de abas A/B/C/Consolidado +
+  "Adicionar cotação", ~55 linhas, presentacional) e `QuoteItemRow` (linha de um item —
+  tipo/material/descrição/qtd/unidade/custo/total + unidade custom + dica de histórico,
+  ~107 linhas, 15 props zero-rename). Novo `inbox/quotes.ts` (fonte única, sem drift):
+  `CUSTOM_QUOTE_UNIT_VALUE`, `QUOTE_SECTION_OPTIONS`, `normalizeQuoteSection`.
+  **Verificado no emulador** (não só tsc+build): editar item recalcula total (10×50 =
+  R$ 500,00), remover apaga o item certo, abas alternam foco, zero erros de console.
+  InboxView: 6036 (god original) → 5058 linhas. Falta do editor: header do card, grid
+  vendor/valor, shell da seção de itens, modo consolidado (menos arriscados).
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
