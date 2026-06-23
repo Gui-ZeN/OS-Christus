@@ -31,7 +31,6 @@ export default defineConfig(({mode}) => {
             if (normalizedId.includes('/recharts/')) return 'charts';
             if (normalizedId.includes('/date-fns/')) return 'date-fns';
             if (normalizedId.includes('/lucide-react/')) return 'icons';
-            if (normalizedId.includes('/motion/')) return 'motion';
             if (normalizedId.includes('/@babel/')) return 'babel-runtime';
             return 'vendor';
           },
