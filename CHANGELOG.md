@@ -176,6 +176,10 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   componente de ~5.700 linhas (causa-raiz da travada). 10 pontos convertidos (onChange,
   3 resets, foto, @menção, formatação, envio). **Verificado no emulador** (verify-or-revert):
   digitar/@menção/envio/negrito/resets — tudo OK, zero erro de console.
+- **Modal de Cotações — 1ª sub-mordida** (`2982cff`): o card "Orçamento base escolhido"
+  (referência de aditivo, ~42 linhas) sai para `inbox/AdditiveReferenceCard` (3 props,
+  behavior-identical). Início da decomposição incremental do "elefante" das cotações
+  (~1.064 linhas); próximas sub-seções no roadmap interno. Verificado por tsc+build.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
