@@ -21,3 +21,14 @@ export function normalizeQuoteSection(section?: string | null) {
   if (!normalized || normalized === 'material-mao-de-obra') return 'material';
   return normalized;
 }
+
+/** Normaliza a sigla de unidade (trim + maiúsculas). */
+export function normalizeUnitAbbreviation(value?: string | null) {
+  if (!value) return '';
+  return value.trim().toUpperCase();
+}
+
+/** Chave estável de um item por (índice da cotação, id do item) — p/ estado de unidade custom. */
+export function buildQuoteItemUnitKey(quoteIndex: number, itemId: string) {
+  return `${quoteIndex}:${itemId}`;
+}

@@ -45,11 +45,12 @@ import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
-import { CUSTOM_QUOTE_UNIT_VALUE, QUOTE_SECTION_OPTIONS, normalizeQuoteSection } from './inbox/quotes';
+import { CUSTOM_QUOTE_UNIT_VALUE, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, normalizeQuoteSection, normalizeUnitAbbreviation } from './inbox/quotes';
 import { QuoteItemRow } from './inbox/QuoteItemRow';
 import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
 import { QuoteVendorFields } from './inbox/QuoteVendorFields';
 import { QuoteConsolidatedView } from './inbox/QuoteConsolidatedView';
+import { QuoteItemsSection } from './inbox/QuoteItemsSection';
 import type { ProposalHeaderDraft, QuoteDraft } from './inbox/types';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
@@ -95,11 +96,6 @@ const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
   TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
 ] as const;
-
-function normalizeUnitAbbreviation(value?: string | null) {
-  if (!value) return '';
-  return value.trim().toUpperCase();
-}
 
 function parseEmailTokens(input: string) {
   const valid: string[] = [];
@@ -2468,7 +2464,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     );
   };
 
-  const buildQuoteItemUnitKey = (quoteIndex: number, itemId: string) => `${quoteIndex}:${itemId}`;
   const buildQuoteEditorItemKey = (quoteIndex: number, itemId: string) => `${quoteIndex}:${itemId}`;
 
   const isQuoteItemExpanded = (quoteIndex: number, itemId: string) =>
@@ -4748,82 +4743,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                     <QuoteEditorCardHeader i={i} canRemoveSlot={quotes.length > getRoundMinQuoteSlots(quoteRoundType)} attachment={quoteAttachments[i]} handleRemoveQuoteSlot={handleRemoveQuoteSlot} handleQuoteAttachmentChange={handleQuoteAttachmentChange} />
                     <div className="space-y-3 flex-1">
                       <QuoteVendorFields quote={quote} i={i} handleQuoteChange={handleQuoteChange} handleQuoteCurrencyBlur={handleQuoteCurrencyBlur} persistedServicePreference={persistedServicePreference} preferredVendor={budgetHistory.preferredVendor} />
-                      <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
-                            Itens do orçamento ({quote.items.length})
-                          </label>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleAddMultipleQuoteItems(i, 5)}
-                              className="text-[11px] font-medium text-roman-primary hover:underline"
-                            >
-                              +5 itens
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleAddQuoteItem(i)}
-                              className="text-[11px] font-medium text-roman-primary hover:underline"
-                            >
-                              +1 item
-                            </button>
-                          </div>
-                        </div>
-
-                        {suggestedQuoteMaterials.length > 0 && (
-                          <div className="mb-2 flex flex-wrap gap-2">
-                            {suggestedQuoteMaterials.slice(0, 4).map(material => (
-                              <button
-                                key={`${i}-${material.id}`}
-                                type="button"
-                                onClick={() => {
-                                  const targetItem = quote.items[quote.items.length - 1];
-                                  if (!targetItem) return;
-                                  handleQuoteItemChange(i, targetItem.id, 'materialName', material.name);
-                                  if (material.unit) {
-                                    handleQuoteItemChange(i, targetItem.id, 'unit', material.unit);
-                                  }
-                                }}
-                                className="rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-2 py-1 text-[11px] text-roman-primary"
-                              >
-                                {material.name}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="hidden lg:grid grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_100px_130px_150px_150px_88px] gap-2 px-2 pb-2 text-[10px] uppercase tracking-widest text-roman-text-sub">
-                          <span>Tipo</span>
-                          <span>Material</span>
-                          <span>Descrição</span>
-                          <span>Qtd.</span>
-                          <span>Unidade</span>
-                          <span>Custo unitário</span>
-                          <span>Total</span>
-                          <span className="text-right">Ação</span>
-                        </div>
-
-                        <div className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
-                          {quote.items.map((item, itemIndex) => {
-                            const itemKey = String(item.materialId || item.materialName || item.description || '')
-                              .normalize('NFD')
-                              .replace(/[\u0300-\u036f]/g, '')
-                              .toLowerCase()
-                              .trim();
-                            const reference = budgetHistory.itemReferences.find(entry => entry.key === itemKey);
-                            const itemUnitKey = buildQuoteItemUnitKey(i, item.id);
-                            const hasCustomUnitInput = Object.prototype.hasOwnProperty.call(pendingCustomUnitByItem, itemUnitKey);
-                            const selectedUnitValue = hasCustomUnitInput
-                              ? CUSTOM_QUOTE_UNIT_VALUE
-                              : normalizeUnitAbbreviation(item.unit) || '';
-
-                            return (
-                              <QuoteItemRow key={item.id} item={item} itemIndex={itemIndex} i={i} reference={reference} selectedUnitValue={selectedUnitValue} hasCustomUnitInput={hasCustomUnitInput} itemUnitKey={itemUnitKey} pendingCustomUnitByItem={pendingCustomUnitByItem} setPendingCustomUnitByItem={setPendingCustomUnitByItem} quoteUnitOptions={quoteUnitOptions} handleQuoteItemChange={handleQuoteItemChange} handleRemoveQuoteItem={handleRemoveQuoteItem} handleQuoteItemUnitSelect={handleQuoteItemUnitSelect} handleQuoteItemCurrencyBlur={handleQuoteItemCurrencyBlur} handleQuoteItemCustomUnitSave={handleQuoteItemCustomUnitSave} />
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <QuoteItemsSection quote={quote} i={i} suggestedQuoteMaterials={suggestedQuoteMaterials} itemReferences={budgetHistory.itemReferences} pendingCustomUnitByItem={pendingCustomUnitByItem} setPendingCustomUnitByItem={setPendingCustomUnitByItem} quoteUnitOptions={quoteUnitOptions} handleAddQuoteItem={handleAddQuoteItem} handleAddMultipleQuoteItems={handleAddMultipleQuoteItems} handleQuoteItemChange={handleQuoteItemChange} handleRemoveQuoteItem={handleRemoveQuoteItem} handleQuoteItemUnitSelect={handleQuoteItemUnitSelect} handleQuoteItemCurrencyBlur={handleQuoteItemCurrencyBlur} handleQuoteItemCustomUnitSave={handleQuoteItemCustomUnitSave} />
                       {quoteAttachments[i] && (
                         <div className="text-[11px] text-roman-text-sub truncate">
                           PDF: {quoteAttachments[i]!.name}
