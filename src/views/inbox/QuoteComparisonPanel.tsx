@@ -1,18 +1,12 @@
 import React from 'react';
 import { formatCurrency as formatCurrencyInput, parseCurrency as parseCurrencyInput } from '../../utils/currency';
 import type { QuoteComparisonSection, QuoteDraft } from './types';
+import { normalizeQuoteSection } from './quotes';
 
 interface QuoteComparisonPanelProps {
   quoteComparisonSections: QuoteComparisonSection[];
   quotes: QuoteDraft[];
   quoteGrandTotals: number[];
-}
-
-// Pura (espelha a da InboxView): normaliza a seção do item de cotação.
-function normalizeQuoteSection(section?: string | null) {
-  const normalized = String(section || '').trim();
-  if (!normalized || normalized === 'material-mao-de-obra') return 'material';
-  return normalized;
 }
 
 /**
