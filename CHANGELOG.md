@@ -205,6 +205,11 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   **InboxView: 6036 (god-component original) → 4835 linhas** (−1201, ~20% menor). Toda
   extração behavior-identical (cópia verbatim do JSX + props zero-rename, script de
   balanceamento de `<div>`), verificada por tsc + build, e o editor stateful no emulador.
+- **OS selecionada destacada na lista** (`de32df8`): a OS ativa usava `bg-roman-bg`
+  (≈ branco da lista) — destaque mais fraco que uma "Nova OS", então "todas ficavam
+  iguais". Hierarquia invertida: selecionada agora tem fundo `roman-primary/20` + anel
+  interno + assunto em negrito + barra dourada cheia; new/waiting com barra/fundo leves.
+  Sem shift de layout (4px de borda esquerda reservados em todos). Verificado no emulador.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
