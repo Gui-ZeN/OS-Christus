@@ -169,7 +169,13 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   saem do InboxView para um componente `React.memo`. Motivado por perf: com `history`
   + callbacks estáveis (`handleUpdateHistoryItemTime` virou `useCallback`), a lista
   **não re-renderiza a cada tecla** no composer — era a maior parcela da travada ao
-  digitar. Construído e **verificado no emulador**. Próxima mordida natural: o composer.
+  digitar. Construído e **verificado no emulador**.
+- **Composer textarea não-controlado** (`d5a45f1`): 2ª mordida — o `replyText` deixa de
+  ser state do InboxView; o valor vive no DOM (via `replyTextRef`) com 2 helpers
+  (`getReplyText`/`setReplyTextValue`). **Digitar não dispara mais re-render** do
+  componente de ~5.700 linhas (causa-raiz da travada). 10 pontos convertidos (onChange,
+  3 resets, foto, @menção, formatação, envio). **Verificado no emulador** (verify-or-revert):
+  digitar/@menção/envio/negrito/resets — tudo OK, zero erro de console.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
