@@ -38,6 +38,7 @@ import { ExecutionSetupModal } from './inbox/ExecutionSetupModal';
 import { ProgressUpdateModal } from './inbox/ProgressUpdateModal';
 import { DirectorInterestsPanel } from './inbox/DirectorInterestsPanel';
 import { MessageBody } from './inbox/MessageBody';
+import { TicketHistory } from './inbox/TicketHistory';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
   formatCurrency as formatCurrencyInput,
@@ -1163,34 +1164,6 @@ export function InboxView() {
     showToast('Painel da OS atualizado.', 2500);
   };
 
-  const handleUpdateHistoryItemTime = (originalIndex: number, value: string) => {
-    if (!canManageStatus || isSending) return;
-    const nextTime = parseInputDateTime(value);
-    if (!nextTime) {
-      showToast('Informe uma data válida para a mensagem.', 2500);
-      return;
-    }
-
-    const currentItem = activeTicket.history[originalIndex];
-    if (!currentItem) return;
-    if (Math.abs(nextTime.getTime() - currentItem.time.getTime()) < 60000) return;
-
-    const nextHistory = activeTicket.history.map((item, index) =>
-      index === originalIndex ? { ...item, time: nextTime } : item
-    );
-
-    // Se a mensagem editada é a originadora (1ª do solicitante), a data de
-    // abertura da OS (card/inbox + KPIs) acompanha — evita o card e a conversa
-    // divergirem em OS retroativas.
-    const firstCustomerIndex = activeTicket.history.findIndex(item => item.type === 'customer');
-    const isOriginating = originalIndex === (firstCustomerIndex === -1 ? 0 : firstCustomerIndex);
-    const updates: Partial<Ticket> = { history: nextHistory };
-    if (isOriginating) updates.time = nextTime;
-
-    updateTicket(activeTicket.id, updates);
-    showToast(isOriginating ? 'Data da OS e da mensagem atualizadas.' : 'Data da mensagem atualizada.', 2000);
-  };
-
   const handleAcceptTicket = () => {
     if (isSending) return;
 
@@ -1773,6 +1746,34 @@ export function InboxView() {
   const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
   const [progressUpdateForm, setProgressUpdateForm] = useState<ProgressUpdateFormState>(createProgressUpdateFormState());
   const { toast, showToast } = useToast();
+
+  const handleUpdateHistoryItemTime = useCallback((originalIndex: number, value: string) => {
+    if (!canManageStatus || isSending) return;
+    const nextTime = parseInputDateTime(value);
+    if (!nextTime) {
+      showToast('Informe uma data válida para a mensagem.', 2500);
+      return;
+    }
+
+    const currentItem = activeTicket.history[originalIndex];
+    if (!currentItem) return;
+    if (Math.abs(nextTime.getTime() - currentItem.time.getTime()) < 60000) return;
+
+    const nextHistory = activeTicket.history.map((item, index) =>
+      index === originalIndex ? { ...item, time: nextTime } : item
+    );
+
+    // Se a mensagem editada é a originadora (1ª do solicitante), a data de
+    // abertura da OS (card/inbox + KPIs) acompanha — evita o card e a conversa
+    // divergirem em OS retroativas.
+    const firstCustomerIndex = activeTicket.history.findIndex(item => item.type === 'customer');
+    const isOriginating = originalIndex === (firstCustomerIndex === -1 ? 0 : firstCustomerIndex);
+    const updates: Partial<Ticket> = { history: nextHistory };
+    if (isOriginating) updates.time = nextTime;
+
+    updateTicket(activeTicket.id, updates);
+    showToast(isOriginating ? 'Data da OS e da mensagem atualizadas.' : 'Data da mensagem atualizada.', 2000);
+  }, [canManageStatus, isSending, activeTicket, updateTicket, showToast]);
   const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
   const activeDynamicPayments = useMemo(() => stripLegacyFlowPlaceholders(activePayments), [activePayments]);
@@ -3412,149 +3413,13 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
             <div className="min-h-0 overflow-y-auto p-3 md:p-4">
-              <div className="space-y-4 pb-3">
-              {activeTicket.history
-                .map((item, originalIndex) => ({ item, originalIndex }))
-                .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
-                .map(({ item, originalIndex }, index) => {
-                  if (item.type === 'system') {
-                    // displayText (limpeza-regex) só é usado aqui; mensagens normais
-                    // usam o <MessageBody/>, que faz a própria limpeza memoizada —
-                    // não computa por mensagem a cada tecla no composer.
-                    const displayText = cleanForwardedMessageText(item.text);
-                    return (
-                      <div key={`${item.id || 'system'}-${originalIndex}`} className="flex justify-center">
-                        <div className="max-w-[92%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub xl:max-w-[86%]">
-                          <div className="flex items-center justify-center gap-2 text-center">
-                            <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[10px] md:text-[11px]">
-                              <Clock size={11} />
-                              <span className="truncate">{displayText}</span>
-                            </div>
-                            <div className="shrink-0 text-[10px] font-sans text-roman-text-sub/80">
-                              {formatDateTimeSafe(item.time)}
-                            </div>
-                            {canManageStatus && (
-                              <div className="shrink-0">
-                                <DateTimePicker
-                                  value={formatInputDateTime(item.time)}
-                                  onChange={value => handleUpdateHistoryItemTime(originalIndex, value)}
-                                  compact
-                                  iconOnly
-                                  disabled={isSending}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  if (item.type === 'field_change') {
-                    return (
-                      <div key={`${item.id || 'field'}-${originalIndex}`} className="flex justify-center">
-                        <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1.5 text-[10px] text-roman-text-sub font-mono flex flex-wrap items-center justify-center gap-1.5">
-                          <span className="font-semibold">{item.sender}</span> alterou
-                          <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
-                          de <span className="line-through opacity-70">{item.from}</span>
-                          para <span className="font-medium text-roman-text-main">{item.to}</span>
-                          <span className="text-[10px] opacity-50">{formatDateTimeSafe(item.time)}</span>
-                          {canManageStatus && (
-                            <div className="shrink-0">
-                              <DateTimePicker
-                                value={formatInputDateTime(item.time)}
-                                onChange={value => handleUpdateHistoryItemTime(originalIndex, value)}
-                                compact
-                                iconOnly
-                                disabled={isSending}
-                              />
-                            </div>
-                            )}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  const isExternalMessage = item.type === 'customer';
-                  const isInternalNote = item.visibility === 'internal' || item.type === 'internal';
-                  const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
-                  const messageAttachmentItems = (Array.isArray(item.attachments) ? item.attachments : [])
-                    .filter(attachment => attachment?.url)
-                    .map(attachment => ({
-                      title: attachment.name,
-                      type: resolveAttachmentPreviewType(attachment.contentType, attachment.name),
-                      url: attachment.url,
-                    }));
-
-                  return (
-                    <div key={`${item.id || 'message'}-${originalIndex}`} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex w-full max-w-[94%] gap-3 xl:max-w-[88%] ${isExternalMessage ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <div className={`w-9 h-9 rounded-sm border flex items-center justify-center font-serif text-base shrink-0 ${
-                          isExternalMessage
-                            ? 'bg-roman-primary/10 text-roman-primary border-roman-primary/20'
-                            : isInternalNote
-                              ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-roman-border-light text-roman-text-main border-roman-border'
-                        }`}>
-                          {senderInitial}
-                        </div>
-                        <div className={`flex-1 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
-                          <div className={`flex items-baseline gap-2 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                            <span className="font-semibold text-[12px]">{item.sender}</span>
-                            <span className="text-roman-text-sub text-[11px] font-serif italic">
-                              {formatDateTimeSafe(item.time)}
-                            </span>
-                          </div>
-                          {canManageStatus && (
-                            <div className={`mb-2 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
-                              <div className="inline-block">
-                                <DateTimePicker
-                                  value={formatInputDateTime(item.time)}
-                                  onChange={value => handleUpdateHistoryItemTime(originalIndex, value)}
-                                  compact
-                                  iconOnly
-                                  disabled={isSending}
-                                />
-                              </div>
-                            </div>
-                          )}
-                          <div
-                            className={`rounded-sm p-3 text-[12px] leading-relaxed shadow-sm border ${
-                              isExternalMessage
-                                ? 'bg-roman-primary/5 border-roman-primary/20'
-                                : isInternalNote
-                                  ? 'bg-amber-50/70 border-amber-200'
-                                  : 'bg-roman-surface border-roman-border'
-                            }`}
-                          >
-                            <MessageBody text={item.text} />
-                            {messageAttachmentItems.length > 0 && (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {messageAttachmentItems.map((attachment, attachmentIndex) => (
-                                  <button
-                                    key={`${item.id}-attachment-${attachmentIndex}`}
-                                    type="button"
-                                    onClick={() =>
-                                      openAttachment(attachment.title, attachment.type, {
-                                        url: attachment.url,
-                                        items: messageAttachmentItems,
-                                      })
-                                    }
-                                    className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white/70 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
-                                  >
-                                    <FileText size={12} />
-                                    <span className="max-w-[180px] truncate">{attachment.title}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <TicketHistory
+                history={activeTicket.history}
+                canManageStatus={canManageStatus}
+                isSending={isSending}
+                onUpdateItemTime={handleUpdateHistoryItemTime}
+                onOpenAttachment={openAttachment}
+              />
             </div>
 
             {/* Reply Box */}
