@@ -37,14 +37,15 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
   return (
     <button
       onClick={() => onSelect(id)}
-      className={`w-full cursor-pointer border-b border-roman-border p-3 xl:p-4 text-left transition-colors ${
+      aria-current={active ? 'true' : undefined}
+      className={`w-full cursor-pointer border-b border-l-4 border-roman-border p-3 xl:p-4 text-left transition-colors ${
         active
-          ? 'border-l-2 border-l-roman-primary bg-roman-bg'
+          ? 'border-l-roman-primary bg-roman-primary/20 ring-1 ring-inset ring-roman-primary/25 hover:bg-roman-primary/[0.22]'
           : isWaitingValidation
-            ? 'border-l-2 border-l-roman-primary bg-roman-primary/8 hover:bg-roman-primary/12'
+            ? 'border-l-roman-primary/45 bg-roman-primary/[0.06] hover:bg-roman-primary/12'
           : isNew
-            ? 'border-l-2 border-l-roman-primary bg-roman-primary/8 hover:bg-roman-primary/12'
-            : 'border-l-2 border-l-transparent hover:bg-roman-bg'
+            ? 'border-l-roman-primary/45 bg-roman-primary/[0.06] hover:bg-roman-primary/12'
+            : 'border-l-transparent hover:bg-roman-bg'
       }`}
     >
       <div className="mb-1 flex items-start justify-between gap-2">
@@ -57,7 +58,7 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
         </span>
       </div>
 
-      <div className="mb-1.5 truncate text-[15px] font-medium text-roman-text-main xl:mb-2 xl:text-base">{normalizedSubject}</div>
+      <div className={`mb-1.5 truncate text-[15px] text-roman-text-main xl:mb-2 xl:text-base ${active ? 'font-semibold' : 'font-medium'}`}>{normalizedSubject}</div>
 
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-serif text-roman-text-sub">
         <StatusBadge status={status} />
