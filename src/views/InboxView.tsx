@@ -39,6 +39,7 @@ import { ProgressUpdateModal } from './inbox/ProgressUpdateModal';
 import { DirectorInterestsPanel } from './inbox/DirectorInterestsPanel';
 import { MessageBody } from './inbox/MessageBody';
 import { TicketHistory } from './inbox/TicketHistory';
+import { AdditiveReferenceCard } from './inbox/AdditiveReferenceCard';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
   formatCurrency as formatCurrencyInput,
@@ -4659,48 +4660,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
               <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
                 {quoteRoundType === 'additive' && (
                   <div className="space-y-3">
-                    <div className="rounded-sm border border-roman-border bg-roman-bg p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Orçamento base escolhido</div>
-                          <div className="mt-1 text-sm text-roman-text-main">Referência para montar o aditivo</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowAdditiveReference(current => !current)}
-                          className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white px-2.5 py-1 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                        >
-                          <ChevronDown size={12} className={`transition-transform ${showAdditiveReference ? 'rotate-180' : ''}`} />
-                          {showAdditiveReference ? 'Recolher' : 'Expandir'}
-                        </button>
-                      </div>
-                      {showAdditiveReference && (
-                        <div className="mt-3 rounded-sm border border-roman-border bg-white p-3 text-sm text-roman-text-main">
-                          {approvedInitialQuote ? (
-                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                              <div>
-                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Fornecedor aprovado</div>
-                                <div className="mt-1 font-medium">{approvedInitialQuote.vendor || 'Não informado'}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Valor aprovado</div>
-                                <div className="mt-1 font-medium">{approvedInitialQuote.totalValue || approvedInitialQuote.value || '-'}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Material</div>
-                                <div className="mt-1">{approvedInitialQuote.materialValue || '-'}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
-                                <div className="mt-1">{approvedInitialQuote.laborValue || '-'}</div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-roman-text-sub">Nenhum orçamento inicial aprovado encontrado para usar como referência.</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <AdditiveReferenceCard
+                      expanded={showAdditiveReference}
+                      onToggle={() => setShowAdditiveReference(current => !current)}
+                      approvedQuote={approvedInitialQuote}
+                    />
                     <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
                     <select
                       value={quoteAdditiveIndex}
