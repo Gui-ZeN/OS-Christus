@@ -165,6 +165,11 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
 - Modal de Cotações ("elefante", ~1000 linhas): extração incremental iniciada —
   `DirectorInterestsPanel` (`0f4c451`). **Em andamento** (ver
   `memory`/roadmap interno).
+- **Lista do histórico → `TicketHistory` memoizado** (`85f66d2`): ~143 linhas de JSX
+  saem do InboxView para um componente `React.memo`. Motivado por perf: com `history`
+  + callbacks estáveis (`handleUpdateHistoryItemTime` virou `useCallback`), a lista
+  **não re-renderiza a cada tecla** no composer — era a maior parcela da travada ao
+  digitar. Construído e **verificado no emulador**. Próxima mordida natural: o composer.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
