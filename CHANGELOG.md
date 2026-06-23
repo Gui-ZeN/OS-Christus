@@ -57,6 +57,14 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 - Provider de e-mail no reset de senha com autodetect de Gmail (`741fba2`).
 
 ### 🐞 Fluxo de tickets
+- **Redesenho do aceite — Aceitar/Recusar OS** (`35ac318`, `db16aa7`): a OS nova começa
+  pela **decisão** ("Aceitar OS / Recusar OS" + "Definir equipe, urgência e
+  classificação"), sem a parede de campos de triagem — reaproveita o colapsar do painel.
+  Aceitar com equipe/urgência vazias **expande** o painel pra preencher. **Trava:** não
+  avança de "Parecer Técnico" para orçamento sem macroserviço+serviço (a classificação
+  adiada na triagem não é esquecida). "Recusar OS" usa o fluxo de **motivo + notificação
+  ao solicitante** já existente. Construído e **verificado no emulador local** (login →
+  Nova OS → decisão → aceite → mudança de status; trava bloqueando o avanço).
 - **Data da OS = data da conversa** (`8304c05`): em OS retroativas o card/inbox mostrava
   a data de registro e a conversa a data real do pedido. Agora editar a data da 1ª
   mensagem (do solicitante) sincroniza a data de abertura da OS (card, cabeçalho, KPIs).
