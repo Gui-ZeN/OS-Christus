@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, User, Image as ImageIcon, ChevronDown, ChevronLeft, ChevronRight, Calendar, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2 } from 'lucide-react';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
@@ -496,8 +496,9 @@ export function InboxView() {
 
     const runSilentRefresh = async () => {
       if (document.visibilityState !== 'visible') return;
-      await refreshTickets({ silent: true });
-
+      // refreshTickets já é feito pelo poll do AppContext (mesmo intervalo de 10s
+      // e também ao focar a aba) — aqui só agendamos o gmail-sync, sem duplicar
+      // o fetch + a comparação da lista a cada ciclo.
       const canRunMailSync = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
       if (!canRunMailSync) return;
 
@@ -548,7 +549,7 @@ export function InboxView() {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [currentUser?.role, currentView, refreshTickets]);
+  }, [currentUser?.role, currentView]);
 
   // Estado derivado: usa tickets do contexto (mutável)
   const hasTickets = tickets.length > 0;
@@ -1715,6 +1716,13 @@ export function InboxView() {
   const [isSending, setIsSending] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showMobileTicketList, setShowMobileTicketList] = useState(false);
+
+  // Estável (setters fixos) — mantém o TicketListItem memoizado; a lista não
+  // re-renderiza a cada tecla no composer / a cada poll.
+  const handleSelectTicket = useCallback((id: string) => {
+    setActiveTicketId(id);
+    setShowMobileTicketList(false);
+  }, [setActiveTicketId, setShowMobileTicketList]);
   const [showMobileContext, setShowMobileContext] = useState(false);
   const [isCompactInboxWorkspace, setIsCompactInboxWorkspace] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -3146,10 +3154,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 priority={ticket.priority}
                 recurrentLocation={recurrentTicketIds.has(ticket.id)}
                 active={activeTicketId === ticket.id}
-                onClick={() => {
-                  setActiveTicketId(ticket.id);
-                  setShowMobileTicketList(false);
-                }}
+                onSelect={handleSelectTicket}
               />
             ))
           )}

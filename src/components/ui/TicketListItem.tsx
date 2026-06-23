@@ -14,10 +14,10 @@ interface TicketListItemProps {
   priority?: string;
   recurrentLocation?: boolean;
   active?: boolean;
-  onClick: () => void;
+  onSelect: (id: string) => void;
 }
 
-export const TicketListItem: React.FC<TicketListItemProps> = ({
+const TicketListItemComponent: React.FC<TicketListItemProps> = ({
   id,
   subject,
   requester,
@@ -26,7 +26,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
   priority,
   recurrentLocation,
   active,
-  onClick,
+  onSelect,
 }) => {
   const normalizedRequester = repairMojibake(requester);
   const normalizedSubject = repairMojibake(subject);
@@ -36,7 +36,7 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onSelect(id)}
       className={`w-full cursor-pointer border-b border-roman-border p-3 xl:p-4 text-left transition-colors ${
         active
           ? 'border-l-2 border-l-roman-primary bg-roman-bg'
@@ -96,5 +96,10 @@ export const TicketListItem: React.FC<TicketListItemProps> = ({
     </button>
   );
 };
+
+// Memoizado: a lista de tickets não re-renderiza a cada tecla no composer / poll;
+// só re-renderiza o item cujos dados (ou `active`) mudaram. Requer `onSelect`
+// estável no pai (useCallback).
+export const TicketListItem = React.memo(TicketListItemComponent);
 
 
