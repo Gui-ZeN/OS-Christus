@@ -761,7 +761,17 @@ async function authorizeGmailAutomation(req) {
   }
 
   if (!provided || !matchesAnySecret(provided, validSecrets)) {
-    throw new Error('Segredo inválido.');
+    // Detalha o chamador (sem expor o segredo) para diagnosticar de onde vem o
+    // segredo errado: bearer = cron do GitHub; x-gmail-push-secret = push do
+    // Gmail/Pub-Sub; query.secret = chamada manual; user-agent ajuda a confirmar.
+    const via = [
+      req.query?.secret ? 'query.secret' : null,
+      req.headers['x-sync-secret'] ? 'x-sync-secret' : null,
+      req.headers['x-gmail-push-secret'] ? 'x-gmail-push-secret' : null,
+      bearer ? 'bearer' : null,
+    ].filter(Boolean).join(',') || 'nenhum';
+    const ua = String(req.headers['user-agent'] || '?').slice(0, 80);
+    throw new Error(`Segredo inválido (via: ${via}; ua: ${ua}).`);
   }
 }
 
