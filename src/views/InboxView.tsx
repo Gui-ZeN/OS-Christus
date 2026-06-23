@@ -426,7 +426,6 @@ export function InboxView() {
   } = useApp();
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal' | 'director'>('internal');
-  const [replyText, setReplyText] = useState('');
   const [sendStatusEmailUpdate, setSendStatusEmailUpdate] = useState(false);
   const [sendMessageEmailUpdate, setSendMessageEmailUpdate] = useState(false);
   const [statusTransitionReason, setStatusTransitionReason] = useState('');
@@ -479,6 +478,12 @@ export function InboxView() {
   const replyFileRef = useRef<HTMLInputElement>(null);
   const progressReportFileRef = useRef<HTMLInputElement>(null);
   const replyTextRef = useRef<HTMLTextAreaElement>(null);
+  // Textarea NÃO-controlado: o valor vive no DOM (via ref), não no state — digitar
+  // não re-renderiza o InboxView inteiro (fim da travada). Lê/escreve pelo ref.
+  const getReplyText = () => replyTextRef.current?.value ?? '';
+  const setReplyTextValue = (value: string) => {
+    if (replyTextRef.current) replyTextRef.current.value = value;
+  };
   const lastMailSyncAtRef = useRef(0);
   const lastScheduledMailSyncKeyRef = useRef('');
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
@@ -632,7 +637,7 @@ export function InboxView() {
 
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
-    setReplyText('');
+    setReplyTextValue('');
     setReplyMode('internal'); // sempre volta para Nota Interna ao trocar de OS
     setTechTeam(activeTicket.assignedTeam || '');
     setCustomEmail(activeTicket.assignedEmail || '');
@@ -1243,7 +1248,7 @@ export function InboxView() {
     setIsSending(true);
     const now = new Date();
     const sender = displayActorLabel;
-    const trimmedReply = replyText.trim();
+    const trimmedReply = getReplyText().trim();
 
     try {
       let uploadedReplyAttachments: TicketAttachment[] = [];
@@ -1412,7 +1417,7 @@ export function InboxView() {
         }
       }
 
-      setReplyText('');
+      setReplyTextValue('');
       setReplyFiles([]);
       setInlineImages([]);
       setStatusTransitionReason('');
@@ -2276,7 +2281,8 @@ export function InboxView() {
       const uploaded = await Promise.all(files.map(file => uploadMessageAttachment(activeTicket.id, replyMode, file)));
       setInlineImages(prev => [...prev, ...uploaded]);
       const lines = uploaded.map(att => `📷 ${att.name}: ${att.url}`).join('\n');
-      setReplyText(prev => (prev.trim() ? `${prev}\n${lines}` : lines));
+      const prev = getReplyText();
+      setReplyTextValue(prev.trim() ? `${prev}\n${lines}` : lines);
     } catch {
       showToast('Falha ao enviar a imagem. Tente novamente.', 3000);
     } finally {
@@ -2287,7 +2293,7 @@ export function InboxView() {
   const handleRemoveInlineImage = (att: TicketAttachment) => {
     setInlineImages(prev => prev.filter(item => item.id !== att.id));
     // Remove também a linha de link correspondente no corpo.
-    setReplyText(prev => prev.split('\n').filter(line => !line.includes(att.url || ' ')).join('\n'));
+    setReplyTextValue(getReplyText().split('\n').filter(line => !line.includes(att.url || ' ')).join('\n'));
   };
 
   // Pessoas sugeridas no @menção (diretório com nome + e-mail).
@@ -2302,7 +2308,6 @@ export function InboxView() {
 
   const handleReplyTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
-    setReplyText(value);
     const caret = e.target.selectionStart ?? value.length;
     const before = value.slice(0, caret);
     // último @ antes do cursor, sem espaço entre o @ e o texto digitado
@@ -2318,8 +2323,9 @@ export function InboxView() {
   const insertMention = (person: DirectoryUser) => {
     if (!mention) return;
     const end = mention.start + 1 + mention.query.length;
-    const nextText = `${replyText.slice(0, mention.start)}@${person.name} ${replyText.slice(end)}`;
-    setReplyText(nextText);
+    const current = getReplyText();
+    const nextText = `${current.slice(0, mention.start)}@${person.name} ${current.slice(end)}`;
+    setReplyTextValue(nextText);
     // Marcar a pessoa = adiciona o e-mail dela aos interessados (CC da resposta).
     if (person.email) setPublicInterestedEmails(prev => mergeEmails(prev, [String(person.email)]));
     setMention(null);
@@ -2644,9 +2650,10 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     const el = replyTextRef.current;
     const start = el.selectionStart;
     const end = el.selectionEnd;
-    const selected = replyText.slice(start, end);
-    const before = replyText.slice(0, start);
-    const after = replyText.slice(end);
+    const value = el.value;
+    const selected = value.slice(start, end);
+    const before = value.slice(0, start);
+    const after = value.slice(end);
 
     let insertion = selected;
     if (type === 'bold') insertion = `**${selected || 'texto'}**`;
@@ -2654,7 +2661,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
     if (type === 'list') insertion = selected ? selected.split('\n').map(line => `- ${line}`).join('\n') : '- item';
 
     const next = `${before}${insertion}${after}`;
-    setReplyText(next);
+    setReplyTextValue(next);
   };
 
   const handleSendToDirector = () => {
@@ -3628,7 +3635,6 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                           ? 'Mensagem interna para Diretoria...'
                           : 'Mensagem para solicitante e interessados...'
                   }
-                  value={replyText}
                   onChange={handleReplyTextChange}
                   onKeyDown={handleReplyKeyDown}
                   disabled={isClosed}
@@ -3699,7 +3705,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       </label>
                       <button
                         onClick={() => {
-                          setReplyText('');
+                          setReplyTextValue('');
                           setReplyFiles([]);
                           // Reverte também a etapa escolhida e o motivo, senão o
                           // "Pular/voltar etapa" continua armado após cancelar.
