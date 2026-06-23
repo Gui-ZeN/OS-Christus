@@ -44,6 +44,7 @@ import { QuoteHistoryMetrics } from './inbox/QuoteHistoryMetrics';
 import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
+import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
 import type { ProposalHeaderDraft, QuoteDraft } from './inbox/types';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
@@ -4745,61 +4746,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 </>
               )}
 
-              <div id="quote-editor-start" className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-roman-text-sub">Fornecedor:</span>
-                  <button
-                    type="button"
-                    onClick={() => setQuoteEditorFocus(0)}
-                    className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
-                      quoteEditorFocus === 0
-                        ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
-                        : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
-                    }`}
-                  >
-                    A
-                  </button>
-                  {quotes.slice(1).map((_, offset) => {
-                    const index = offset + 1;
-                    const label = index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
-                    return (
-                    <button
-                      key={`quote-focus-${index}`}
-                      type="button"
-                      onClick={() => setQuoteEditorFocus(index)}
-                      className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        quoteEditorFocus === index
-                          ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
-                          : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setQuoteEditorFocus('all')}
-                    className={`rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors ${
-                      quoteEditorFocus === 'all'
-                        ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
-                        : 'border-roman-border bg-roman-surface text-roman-text-main hover:bg-roman-bg'
-                    }`}
-                  >
-                    Consolidado
-                  </button>
-                </div>
-                {quotes.length < getRoundMaxQuoteSlots(quoteRoundType) && (
-                  <button
-                    type="button"
-                    onClick={handleAddQuoteSlot}
-                    className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                  >
-                    <Plus size={12} />
-                    Adicionar cotação
-                  </button>
-                )}
-              </div>
+              <QuoteEditorTabs quotes={quotes} focus={quoteEditorFocus} onSelectFocus={setQuoteEditorFocus} onAddSlot={handleAddQuoteSlot} canAddSlot={quotes.length < getRoundMaxQuoteSlots(quoteRoundType)} />
 
               {quoteEditorFocus === 'all' ? (
                 <div className="mb-6 space-y-4">
