@@ -102,6 +102,18 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ### ⚡ Performance
 - Notificações: leitura de tickets em **lote** (`getAll`), N→1 (`cc6e966`).
+- **Auditoria de performance** (jun/2026) e 1ª leva de otimizações (Tier 1 seguro):
+  - `emailEvents` ganha `ttlAt` (now+90d) p/ habilitar TTL policy do Firestore e
+    parar o crescimento ilimitado; removida dep morta `motion` (`a6df4d4`).
+  - `TicketListItem` memoizado (`React.memo` + `onSelect` estável) — a lista para
+    de re-renderizar a cada tecla/poll; removido o poll de tickets **duplicado**
+    do InboxView (o AppContext já cobre) (`70d84bc`).
+  - `MessageBody` memoizado + limpeza-regex deixa de rodar por mensagem a cada
+    tecla (só itens de sistema usam `displayText`) (`b5c0248`).
+  - **Pendente (2ª leva, maior):** extrair o composer de resposta (re-render da
+    digitação), memoizar value/handlers do `AppContext`, trocar o `JSON.stringify`
+    do poll, virtualizar listas; backend: cache de sites/regions/users, escopar
+    leituras de coleção inteira (notifications/tickets Admin/procurement).
 
 ### 📊 Indicadores (KPI)
 - **Filtro "Por Mês"** (`4c1da3d`): escolher um mês de calendário específico
