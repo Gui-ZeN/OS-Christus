@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { splitMessageQuote } from '../../utils/text';
 
@@ -8,7 +8,7 @@ import { splitMessageQuote } from '../../utils/text';
  * atrás de um botão "Mostrar conversa anterior" — evita o paredão de e-mails
  * encaminhados N vezes.
  */
-export function MessageBody({ text }: { text: string }) {
+function MessageBodyComponent({ text }: { text: string }) {
   const { latest, quoted } = useMemo(() => splitMessageQuote(text), [text]);
   const [showQuoted, setShowQuoted] = useState(false);
 
@@ -36,3 +36,7 @@ export function MessageBody({ text }: { text: string }) {
     </div>
   );
 }
+
+// Memoizado: o corpo da mensagem só re-renderiza quando seu `text` muda — não a
+// cada tecla no composer (evita re-rodar o split/limpeza da thread por mensagem).
+export const MessageBody = memo(MessageBodyComponent);

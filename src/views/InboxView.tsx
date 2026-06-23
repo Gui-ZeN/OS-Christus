@@ -3394,8 +3394,11 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                 .map((item, originalIndex) => ({ item, originalIndex }))
                 .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
                 .map(({ item, originalIndex }, index) => {
-                  const displayText = cleanForwardedMessageText(item.text);
                   if (item.type === 'system') {
+                    // displayText (limpeza-regex) só é usado aqui; mensagens normais
+                    // usam o <MessageBody/>, que faz a própria limpeza memoizada —
+                    // não computa por mensagem a cada tecla no composer.
+                    const displayText = cleanForwardedMessageText(item.text);
                     return (
                       <div key={`${item.id || 'system'}-${originalIndex}`} className="flex justify-center">
                         <div className="max-w-[92%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub xl:max-w-[86%]">
