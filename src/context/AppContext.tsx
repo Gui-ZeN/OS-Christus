@@ -224,12 +224,26 @@ async function resolveAuthorizedUser(email: string) {
   return found;
 }
 
-// Compara duas listas de tickets por conteúdo. Usado para evitar re-render do
-// app inteiro quando o poll de 10s retorna exatamente os mesmos dados.
+// Assinatura barata por ticket: muda sempre que algo relevante muda. `updatedAt`
+// é carimbado pelo backend em TODA escrita (cobre mudanças de detalhe); os demais
+// campos cobrem o que a lista/cabeçalho mostram e o caso de `updatedAt` ausente.
+function ticketSignature(t: Ticket): string {
+  const updated = t.updatedAt instanceof Date ? t.updatedAt.getTime() : String(t.updatedAt ?? '');
+  const viewingAt = t.viewingBy?.at instanceof Date ? t.viewingBy.at.getTime() : (t.viewingBy?.at ?? '');
+  const viewing = t.viewingBy ? `${t.viewingBy.name}@${viewingAt}` : '';
+  return `${t.id}|${updated}|${t.history?.length ?? 0}|${t.status}|${t.priority}|${viewing}`;
+}
+
+// Evita re-render do app a cada poll de 10s quando nada relevante mudou. Antes
+// fazia JSON.stringify da lista INTEIRA (com todo o histórico) 2x — custo
+// O(payload) na main thread a cada ciclo. Agora compara assinaturas, O(N).
 function areTicketListsEqual(a: Ticket[], b: Ticket[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
-  return JSON.stringify(a) === JSON.stringify(b);
+  for (let i = 0; i < a.length; i += 1) {
+    if (ticketSignature(a[i]) !== ticketSignature(b[i])) return false;
+  }
+  return true;
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {

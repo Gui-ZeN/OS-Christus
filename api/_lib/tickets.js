@@ -140,6 +140,7 @@ export function serializeTicketForApi(ticket) {
   return {
     ...ticket,
     time: serializeDate(ticket.time),
+    updatedAt: serializeDate(ticket.updatedAt),
     viewingBy: ticket.viewingBy
       ? { ...ticket.viewingBy, at: serializeDate(ticket.viewingBy.at) }
       : null,

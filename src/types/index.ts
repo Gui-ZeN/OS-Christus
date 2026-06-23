@@ -100,6 +100,8 @@ export interface Ticket {
   directorIds?: string[];
   directorEmails?: string[];
   time: Date;
+  /** Carimbo do backend a cada escrita; usado p/ detectar mudança barata no poll. */
+  updatedAt?: string | Date | null;
   status: TicketStatus;
   type: string;
   macroServiceId?: string;
