@@ -1494,7 +1494,29 @@ async function handleSend(req, res) {
     const threadDocId = isDirectorTrigger ? `${ticketId}__director` : shouldUseFinanceThread ? `${ticketId}__finance` : ticketId;
     const threadRef = db.collection('emailThreads').doc(threadDocId);
     const threadSnap = await threadRef.get();
-    const thread = threadSnap.exists ? threadSnap.data() : null;
+    const baseThread = threadSnap.exists ? threadSnap.data() : null;
+    // Diretoria entra na MESMA conversa da OS: o e-mail ao diretor herda assunto, raiz
+    // (rootMessageId), References e gmailThreadId da thread do solicitante (doc
+    // `${ticketId}`) quando a thread do diretor ainda não tem contexto próprio. Assim
+    // o aviso cai na conversa da OS em vez de uma thread isolada.
+    // IMPORTANTE: CC e participantes continuam isolados neste doc `__director` (não
+    // herdamos `ccEmail`/`participants` da OS), e o envio ao solicitante lê o doc da OS
+    // — nunca este — então as cópias das duas audiências nunca se misturam (sem vazamento).
+    let thread = baseThread;
+    if (isDirectorTrigger && !baseThread?.rootMessageId && !baseThread?.lastMessageId) {
+      const osThreadSnap = await db.collection('emailThreads').doc(ticketId).get();
+      const osThread = osThreadSnap.exists ? osThreadSnap.data() : null;
+      if (osThread && (osThread.rootMessageId || osThread.lastMessageId)) {
+        thread = {
+          ...(baseThread || {}),
+          subject: baseThread?.subject || osThread.subject || null,
+          rootMessageId: osThread.rootMessageId || osThread.lastMessageId || null,
+          lastMessageId: osThread.lastMessageId || osThread.rootMessageId || null,
+          references: Array.isArray(osThread.references) ? osThread.references : [],
+          gmailThreadId: osThread.gmailThreadId || null,
+        };
+      }
+    }
     const ticketSnapForCopies = await db.collection('tickets').doc(ticketId).get();
     const ticketForCopies = ticketSnapForCopies.exists ? ticketSnapForCopies.data() || {} : {};
     const requesterThreadSubject = shouldUseRequesterThread
