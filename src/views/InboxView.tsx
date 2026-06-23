@@ -659,7 +659,9 @@ export function InboxView() {
       setSelectedThirdPartyIds([]);
     }
     setThirdPartySelectDraftId('');
-    setQuickPanelExpanded(activeTicket.status === TICKET_STATUS.NEW);
+    // Nova OS começa colapsada também: mostra a decisão (Aceitar/Recusar) primeiro,
+    // sem a parede de campos. Os campos aparecem ao expandir / ao aceitar.
+    setQuickPanelExpanded(false);
     setNewThirdPartyName('');
     setNewThirdPartyEmail('');
     setNewThirdPartyContact('');
@@ -921,7 +923,7 @@ export function InboxView() {
       .filter(Boolean);
     return Array.from(new Set([...selectedThirdPartyEmails, ...manualEmails])).join(', ');
   };
-  const quickPanelCollapsed = activeTicket.status !== TICKET_STATUS.NEW && !quickPanelExpanded;
+  const quickPanelCollapsed = !quickPanelExpanded;
   const thirdPartyTagOptions = useMemo(() => {
     return (Array.from(new Set(sharedThirdPartyTags.map(tag => String(tag || '').trim()).filter(Boolean))) as string[]).sort((a, b) =>
       a.localeCompare(b, 'pt-BR')
@@ -1248,6 +1250,18 @@ export function InboxView() {
     } finally {
       window.setTimeout(() => setIsSending(false), 600);
     }
+  };
+
+  // Aceitar a partir do resumo colapsado: se faltar equipe/urgência, expande o
+  // painel pra preencher (em vez de só dar erro); senão aceita direto.
+  const handleAcceptFromCollapsed = () => {
+    if (isSending) return;
+    if (!techTeam || !ticketPriority) {
+      setQuickPanelExpanded(true);
+      showToast('Defina a equipe responsável e a urgência para aceitar a OS.', 3000);
+      return;
+    }
+    handleAcceptTicket();
   };
 
   // Botão principal de ação: transição de status + registro no histórico
@@ -4113,13 +4127,45 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                       Responsável: <span className="font-medium text-roman-text-main">{techTeam || 'Não definido'}</span> ·
                       Urgência: <span className="font-medium text-roman-text-main"> {ticketPriority || 'Não definida'}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setQuickPanelExpanded(true)}
-                      className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                    >
-                      Atualizar OS
-                    </button>
+                    {activeTicket.status === TICKET_STATUS.NEW ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={handleAcceptFromCollapsed}
+                            disabled={isSending}
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-60"
+                          >
+                            {isSending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                            Aceitar OS
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelTicket}
+                            disabled={isSending}
+                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                          >
+                            <X size={14} />
+                            Recusar OS
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setQuickPanelExpanded(true)}
+                          className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-sub transition-colors hover:border-roman-primary"
+                        >
+                          Definir equipe, urgência e classificação
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setQuickPanelExpanded(true)}
+                        className="w-full rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+                      >
+                        Atualizar OS
+                      </button>
+                    )}
                   </div>
                 )}
                 {!quickPanelCollapsed && (
@@ -4392,7 +4438,7 @@ const handleQuoteChange = (index: number, field: 'vendor' | 'value', value: stri
                         className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
                       >
                         <X size={14} />
-                        Cancelar OS
+                        Recusar OS
                       </button>
                       </div>
                       {canManageStatus && (
