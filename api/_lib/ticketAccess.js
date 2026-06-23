@@ -1,4 +1,5 @@
 import { chunkValues, normalizeKey } from './text.js';
+import { getCachedRegions, getCachedSites } from './refCache.js';
 
 function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))];
@@ -104,15 +105,14 @@ function canUserAccessTicket(user, ticket, regions, sites) {
 }
 
 async function readTerritoryCatalog(db) {
-  const [regionsSnap, sitesSnap] = await Promise.all([
-    db.collection('regions').get(),
-    db.collection('sites').get(),
+  // Cacheado (TTL ~60s): regions/sites mudam raramente e isto roda em todo poll
+  // de notificações, PATCH de ticket e procurement. Uso é read-only (filtros),
+  // então compartilhar as instâncias é seguro.
+  const [regions, sites] = await Promise.all([
+    getCachedRegions(db),
+    getCachedSites(db),
   ]);
-
-  return {
-    regions: regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-    sites: sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-  };
+  return { regions, sites };
 }
 
 function buildAllowedScope(user, regions, sites) {

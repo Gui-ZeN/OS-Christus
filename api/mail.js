@@ -4,6 +4,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
+import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
@@ -381,9 +382,8 @@ async function resolveFlowFallbackRecipients(db, trigger) {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
 
-  const usersSnap = await db.collection('users').get();
-  const userRecipients = usersSnap.docs
-    .map(doc => doc.data() || {})
+  const users = await getCachedUsers(db);
+  const userRecipients = users
     .filter(user => {
       const role = normalizeLabel(user.role);
       const status = normalizeLabel(user.status || 'ativo');
@@ -1127,13 +1127,11 @@ async function releaseInboundMessageLock(ref) {
 }
 async function resolveSiteContext(db, siteCode) {
   const normalized = normalizeKey(siteCode);
-  const [sitesSnap, regionsSnap] = await Promise.all([
-    db.collection('sites').get(),
-    db.collection('regions').get(),
+  // Cacheado (TTL ~60s): roda por e-mail de entrada (e por-doc no reprocess).
+  const [sites, regions] = await Promise.all([
+    getCachedSites(db),
+    getCachedRegions(db),
   ]);
-
-  const sites = sitesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  const regions = regionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   // Casamento "apertado": remove tudo que não é letra/dígito e zera leading
   // zeros nos grupos numéricos, para que "PQL 3", "PQL03", "PQL 03" e "D.L"
   // casem com os códigos canônicos "PQL3" e "DL" do catálogo.
@@ -1195,9 +1193,8 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
       .filter(Boolean)
   );
 
-  const usersSnap = await db.collection('users').get();
-  const gestores = usersSnap.docs
-    .map(doc => ({ id: doc.id, ...(doc.data() || {}) }))
+  const users = await getCachedUsers(db);
+  const gestores = users
     .filter(user => isGestorRole(user.role))
     .filter(user => isActiveUser(user))
     .filter(user => {
