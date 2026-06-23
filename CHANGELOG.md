@@ -176,12 +176,14 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   componente de ~5.700 linhas (causa-raiz da travada). 10 pontos convertidos (onChange,
   3 resets, foto, @menção, formatação, envio). **Verificado no emulador** (verify-or-revert):
   digitar/@menção/envio/negrito/resets — tudo OK, zero erro de console.
-- **Modal de Cotações — decomposição incremental** (`2982cff`, `6d88e8b`): início da
+- **Modal de Cotações — decomposição incremental** (`2982cff`, `6d88e8b`, `2eaf1d6`):
   quebra do "elefante" das cotações (~1.064 linhas) em sub-seções apresentacionais.
-  Feito: `AdditiveReferenceCard` (card "Orçamento base escolhido", ~42 linhas, 3 props)
-  e `QuoteHistoryMetrics` (grid Média/Faixa/Último/Referências, ~22 linhas, 1 prop) —
-  ambos behavior-identical, verificados por tsc+build. Próximas sub-seções no roadmap
-  interno (comparativo, contexto, resto da base histórica, editor núcleo).
+  Feito: `AdditiveReferenceCard` (card "Orçamento base escolhido", ~42 linhas, 3 props),
+  `QuoteHistoryMetrics` (grid Média/Faixa/Último/Referências, ~22 linhas, 1 prop) e
+  `QuoteHistoryPanel` (painel "Base histórica" inteiro — termos, métricas, fornecedor
+  preferencial, casos similares e referência por item, ~116 linhas, 3 props; absorveu o
+  QuoteHistoryMetrics). Todos behavior-identical, verificados por tsc+build. InboxView:
+  5457 → 5425 linhas. Próximas: comparativo, contexto/cabeçalho, editor núcleo.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
