@@ -214,6 +214,14 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   mensagem ia só como link no corpo; agora segue também como anexo de arquivo do e-mail
   (`attachments: normalizeEmailAttachments(...)` no `notifyTicketPublicReply`), espelhando
   o fluxo da Diretoria. O link no corpo continua como fallback.
+- **E-mail à Diretoria entra na conversa da OS** (`42ab00b`): antes a Diretoria tinha
+  thread exclusiva (`${ticketId}__director`) e o diretor caçava contexto. Agora o e-mail
+  ao diretor **herda o threading da thread da OS** (assunto/rootMessageId/References/
+  gmailThreadId do doc `${ticketId}`) quando a thread do diretor ainda não tem contexto —
+  caindo na mesma conversa. **CC/participantes seguem isolados** no doc `__director` (não
+  herda `ccEmail`/`participants` da OS; o envio ao solicitante lê só o doc da OS) → cópias
+  das duas audiências nunca se misturam. ⚠️ Envio é externo (Gmail) — **exige 1 teste
+  real** pós-deploy; revert isolado se preciso.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
