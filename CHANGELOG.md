@@ -222,6 +222,14 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   herda `ccEmail`/`participants` da OS; o envio ao solicitante lê só o doc da OS) → cópias
   das duas audiências nunca se misturam. ⚠️ Envio é externo (Gmail) — **exige 1 teste
   real** pós-deploy; revert isolado se preciso.
+- **OS duplicada por ordem de processamento — corrigido** (`c0ba339`): se as mensagens
+  de uma thread chegavam fora de ordem (resposta antes do original — ex.: original com
+  fotos atrasou), duplicava a OS (a resposta criava uma, e o original — raiz, sem
+  In-Reply-To — não casava e criava outra). Caso real: OS-0125 (resposta) + OS-0126
+  (original) na mesma conversa. Novo `resolveTicketIdByGmailThread` casa pelo `threadId`
+  do Gmail (toda a conversa compartilha) como fallback após References — **independente de
+  ordem**. ⚠️ Inbound externo — validar com thread real; mesclar a duplicata já criada;
+  concorrência real (2 msgs em paralelo) fica como hardening futuro.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
