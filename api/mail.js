@@ -623,6 +623,22 @@ async function resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw) {
   return null;
 }
 
+// Casa a mensagem com uma OS existente pelo threadId do Gmail. Toda a conversa
+// compartilha o mesmo threadId, então isto é INDEPENDENTE DE ORDEM: se a resposta
+// for processada antes do original (ou vice-versa), a 2ª mensagem acha o thread da
+// 1ª e cai na mesma OS, em vez de criar duplicata. Cobre o buraco do match por
+// References, que falha quando o original (a raiz da thread) chega sem In-Reply-To.
+async function resolveTicketIdByGmailThread(db, threadId) {
+  if (!threadId) return null;
+  const snap = await db
+    .collection('emailThreads')
+    .where('gmailThreadId', '==', String(threadId))
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  return String(snap.docs[0].data()?.ticketId || '').trim() || null;
+}
+
 function buildInboundHistoryEntry(message, options = {}) {
   const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
   const text = extractInboundMessageBody(message.text, message.html) || 'Resposta recebida por e-mail.';
@@ -909,7 +925,8 @@ async function processGmailInboundMessage(db, msg, source) {
     const explicitTicketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text);
     const referencedTicketId = explicitTicketId
       ? null
-      : await resolveTicketIdByThreadReferences(db, msg.inReplyTo, msg.references);
+      : (await resolveTicketIdByThreadReferences(db, msg.inReplyTo, msg.references))
+        || (await resolveTicketIdByGmailThread(db, msg.threadId));
     const createdTicket =
       explicitTicketId || referencedTicketId ? null : await createTicketFromInbound(db, msg);
     const ticketId = explicitTicketId || referencedTicketId || createdTicket?.id;
