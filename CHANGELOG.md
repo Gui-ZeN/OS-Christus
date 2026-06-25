@@ -230,6 +230,11 @@ God component reduzido de **6036 → 5457 linhas** extraindo modais para
   do Gmail (toda a conversa compartilha) como fallback após References — **independente de
   ordem**. ⚠️ Inbound externo — validar com thread real; mesclar a duplicata já criada;
   concorrência real (2 msgs em paralelo) fica como hardening futuro.
+- **E-mail do solicitante + interessados visíveis no Painel da OS** (`de1a0c1`): o painel
+  mostrava só o nome do solicitante (e os e-mails da Diretoria), nunca o e-mail de quem
+  abriu a OS. Adicionados os campos "E-mail" (`requesterEmail`) e "Interessados (CC)"
+  (`requesterCcEmails`) no resumo — quem administra agora vê pra quem o sistema responde.
+  Verificado no emulador.
 
 ### 🎨 Marca
 - Logo/selo Serv3 em login, landing, sidebar, rastreio + favicon (`18d33d0`,
