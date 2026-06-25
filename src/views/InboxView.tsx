@@ -43,6 +43,7 @@ import { AdditiveReferenceCard } from './inbox/AdditiveReferenceCard';
 import { QuoteHistoryMetrics } from './inbox/QuoteHistoryMetrics';
 import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
+import { useQuoteEditor } from './inbox/useQuoteEditor';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
 import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation } from './inbox/quotes';
@@ -1667,7 +1668,24 @@ export function InboxView() {
     if (typeof window === 'undefined') return false;
     return window.innerWidth >= 768 && window.innerWidth < NOTEBOOK_CONTEXT_PANEL_BREAKPOINT;
   });
-  const [showQuotesModal, setShowQuotesModal] = useState(false);
+  const {
+    showQuotesModal, setShowQuotesModal,
+    quoteAttachments, setQuoteAttachments,
+    pendingCustomUnitByItem, setPendingCustomUnitByItem,
+    additionalQuoteUnits, setAdditionalQuoteUnits,
+    quotes, setQuotes,
+    quoteRoundType, setQuoteRoundType,
+    quoteInitialRoundIndex, setQuoteInitialRoundIndex,
+    quoteAdditiveIndex, setQuoteAdditiveIndex,
+    showQuoteDirectorInterests, setShowQuoteDirectorInterests,
+    showQuoteContextPanel, setShowQuoteContextPanel,
+    showQuoteHistoryPanel, setShowQuoteHistoryPanel,
+    showQuoteComparisonPanel, setShowQuoteComparisonPanel,
+    showAdditiveReference, setShowAdditiveReference,
+    quoteEditorFocus, setQuoteEditorFocus,
+    expandedQuoteItems, setExpandedQuoteItems,
+    proposalHeader, setProposalHeader,
+  } = useQuoteEditor();
   const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
@@ -1676,11 +1694,6 @@ export function InboxView() {
   const [showCancelTicketModal, setShowCancelTicketModal] = useState(false);
   const [pendingCancelTicketUpdates, setPendingCancelTicketUpdates] = useState<Partial<Ticket> | null>(null);
   const [isDeletingTicket, setIsDeletingTicket] = useState(false);
-  const [quoteAttachments, setQuoteAttachments] = useState<Array<File | null>>(
-    Array.from({ length: INITIAL_MIN_QUOTE_SLOTS }, () => null)
-  );
-  const [additionalQuoteUnits, setAdditionalQuoteUnits] = useState<string[]>([]);
-  const [pendingCustomUnitByItem, setPendingCustomUnitByItem] = useState<Record<string, string>>({});
   const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [contractDispatchFile, setContractDispatchFile] = useState<File | null>(null);
@@ -1802,20 +1815,9 @@ export function InboxView() {
   // useClickOutside substitui o useEffect manual anterior
   const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
-  const [quotes, setQuotes] = useState<QuoteDraft[]>(
-    Array.from({ length: INITIAL_MIN_QUOTE_SLOTS }, () => createEmptyQuoteDraft())
-  );
-  const [quoteRoundType, setQuoteRoundType] = useState<'initial' | 'additive'>('initial');
-  const [quoteInitialRoundIndex, setQuoteInitialRoundIndex] = useState(1);
-  const [quoteAdditiveIndex, setQuoteAdditiveIndex] = useState(1);
   const [additiveReason, setAdditiveReason] = useState('');
-  const [showQuoteDirectorInterests, setShowQuoteDirectorInterests] = useState(false);
   const [directorInterestedEmails, setDirectorInterestedEmails] = useState<string[]>([]);
   const [directorInterestedDraft, setDirectorInterestedDraft] = useState('');
-  const [showQuoteContextPanel, setShowQuoteContextPanel] = useState(false);
-  const [showQuoteHistoryPanel, setShowQuoteHistoryPanel] = useState(false);
-  const [showQuoteComparisonPanel, setShowQuoteComparisonPanel] = useState(false);
-  const [showAdditiveReference, setShowAdditiveReference] = useState(true);
   const toggleQuoteMetaPanel = (panel: 'context' | 'history' | 'comparison') => {
     const isContextOpen = showQuoteContextPanel;
     const isHistoryOpen = showQuoteHistoryPanel;
@@ -1836,8 +1838,6 @@ export function InboxView() {
     setShowQuoteHistoryPanel(panel === 'history');
     setShowQuoteComparisonPanel(panel === 'comparison');
   };
-  const [quoteEditorFocus, setQuoteEditorFocus] = useState<number | 'all'>(0);
-  const [expandedQuoteItems, setExpandedQuoteItems] = useState<Record<string, boolean>>({});
   const quoteUnitOptions = useMemo(() => {
     const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
     additionalQuoteUnits.forEach(unit => {
@@ -1852,7 +1852,6 @@ export function InboxView() {
     });
     return Array.from(options);
   }, [additionalQuoteUnits, quotes]);
-  const [proposalHeader, setProposalHeader] = useState<ProposalHeaderDraft>(createProposalHeaderDraft());
   const ticketQuotes = useMemo(
     () => storedQuotesByTicket[activeTicketId] || [],
     [activeTicketId, storedQuotesByTicket]
