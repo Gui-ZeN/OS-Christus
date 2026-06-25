@@ -79,6 +79,27 @@ export function createProposalHeaderDraft(ticket?: Ticket, siteLabel?: string): 
   };
 }
 
+/** Unidades padrão do seletor de unidade do item. */
+export const DEFAULT_QUOTE_UNIT_OPTIONS = [
+  'UN', 'PÇ', 'CX', 'PC', 'CT', 'PR', 'RL', 'DZ', 'GS', 'CENTO',
+  'KG', 'G', 'SC60', 'L', 'ML', 'M3', 'M', 'CM', 'M2',
+] as const;
+
+/** Seções distintas presentes nos itens (default 'material' se vazio). */
+export function getQuoteSections(items: QuoteItem[]) {
+  const values = new Set<string>();
+  for (const item of items) {
+    values.add(normalizeQuoteSection(item.section));
+  }
+  if (values.size === 0) values.add('material');
+  return Array.from(values);
+}
+
+/** Label de exibição de uma seção do item. */
+export function getQuoteSectionLabel(section: string) {
+  return QUOTE_SECTION_OPTIONS.find(option => option.value === section)?.label || section;
+}
+
 /** A seção é mão de obra / serviço (vs. material)? */
 export function isLaborSection(section?: string | null) {
   const normalized = normalizeQuoteSection(section).toLowerCase();

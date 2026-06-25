@@ -46,7 +46,7 @@ import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { useQuoteEditor } from './inbox/useQuoteEditor';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
-import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './inbox/quotes';
+import { CUSTOM_QUOTE_UNIT_VALUE, DEFAULT_QUOTE_UNIT_OPTIONS, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, getQuoteSectionLabel, getQuoteSections, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './inbox/quotes';
 import { QuoteItemRow } from './inbox/QuoteItemRow';
 import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
 import { QuoteVendorFields } from './inbox/QuoteVendorFields';
@@ -61,27 +61,6 @@ import {
   sanitizeCurrencyTypingInput,
 } from '../utils/currency';
 
-const DEFAULT_QUOTE_UNIT_OPTIONS = [
-  'UN',
-  'PÇ',
-  'CX',
-  'PC',
-  'CT',
-  'PR',
-  'RL',
-  'DZ',
-  'GS',
-  'CENTO',
-  'KG',
-  'G',
-  'SC60',
-  'L',
-  'ML',
-  'M3',
-  'M',
-  'CM',
-  'M2',
-] as const;
 
 const INITIAL_MAX_QUOTE_SLOTS = 5;
 const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
@@ -268,19 +247,6 @@ function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
   }
 
   return parts.join(' | ');
-}
-
-function getQuoteSections(items: QuoteItem[]) {
-  const values = new Set<string>();
-  for (const item of items) {
-    values.add(normalizeQuoteSection(item.section));
-  }
-  if (values.size === 0) values.add('material');
-  return Array.from(values);
-}
-
-function getQuoteSectionLabel(section: string) {
-  return QUOTE_SECTION_OPTIONS.find(option => option.value === section)?.label || section;
 }
 
 // Orientação por etapa: o que o gestor deve fazer agora (ou aguardar).
