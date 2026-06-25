@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatCurrency as formatCurrencyInput, normalizeCurrencyInput, parseCurrency as parseCurrencyInput, sanitizeCurrencyTypingInput } from '../../utils/currency';
 import type { CatalogMaterial } from '../../services/catalogApi';
 import type { QuoteItem, Ticket } from '../../types';
 import type { ProposalHeaderDraft, QuoteDraft } from './types';
-import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './quotes';
+import { CUSTOM_QUOTE_UNIT_VALUE, DEFAULT_QUOTE_UNIT_OPTIONS, INITIAL_MIN_QUOTE_SLOTS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, getQuoteSectionLabel, getQuoteSections, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './quotes';
 
 interface UseQuoteEditorArgs {
   activeTicket: Ticket;
@@ -296,6 +296,104 @@ export function useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteM
     setPendingCustomUnitByItem({});
   };
 
+
+  const quoteUnitOptions = useMemo(() => {
+    const options = new Set<string>(DEFAULT_QUOTE_UNIT_OPTIONS);
+    additionalQuoteUnits.forEach(unit => {
+      const normalized = normalizeUnitAbbreviation(unit);
+      if (normalized) options.add(normalized);
+    });
+    quotes.forEach(quote => {
+      quote.items.forEach(item => {
+        const normalized = normalizeUnitAbbreviation(item.unit);
+        if (normalized) options.add(normalized);
+      });
+    });
+    return Array.from(options);
+  }, [additionalQuoteUnits, quotes]);
+
+  const quoteComparisonSections = useMemo(() => {
+    const sections = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        rows: Array<{
+          key: string;
+          description: string;
+          unit: string;
+          quantity: string;
+          values: Array<{ costUnitPrice: string; chargedTotalPrice: string }>;
+        }>;
+      }
+    >();
+
+    const sectionKeys = new Set<string>();
+    quotes.forEach(quote => {
+      getQuoteSections(quote.items).forEach(section => sectionKeys.add(section));
+    });
+
+    const orderedSections = Array.from(sectionKeys);
+
+    orderedSections.forEach(section => {
+      const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedTotalPrice: string }> }>();
+      quotes.forEach((quote, quoteIndex) => {
+        quote.items
+          .filter(item => normalizeQuoteSection(item.section) === section)
+          .forEach(item => {
+            const rowKey = String(item.description || item.materialName || item.id).trim().toLowerCase();
+            if (!rowMap.has(rowKey)) {
+              rowMap.set(rowKey, {
+                key: rowKey,
+                description: item.description || item.materialName || 'Item sem descrição',
+                unit: item.unit || '',
+                quantity: item.quantity != null ? String(item.quantity) : '',
+                values: quotes.map(() => ({ costUnitPrice: '', chargedTotalPrice: '' })),
+              });
+            }
+            const row = rowMap.get(rowKey)!;
+            row.values[quoteIndex] = {
+              costUnitPrice: item.costUnitPrice || '',
+              chargedTotalPrice: item.totalPrice || '',
+            };
+            if (!row.unit && item.unit) row.unit = item.unit;
+            if (!row.quantity && item.quantity != null) row.quantity = String(item.quantity);
+          });
+      });
+
+      sections.set(section, {
+        key: section,
+        label: getQuoteSectionLabel(section),
+        rows: Array.from(rowMap.values()),
+      });
+    });
+
+    return Array.from(sections.values());
+  }, [quotes]);
+
+  const quoteGrandTotals = useMemo(
+    () =>
+      quotes.map(quote =>
+        quote.items.reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0)
+      ),
+    [quotes]
+  );
+
+  const visibleQuoteEditors = useMemo(
+    () =>
+      quotes
+        .map((quote, index) => ({ quote, index }))
+        .filter(entry => quoteEditorFocus === 'all' || entry.index === quoteEditorFocus),
+    [quoteEditorFocus, quotes]
+  );
+
+  useEffect(() => {
+    if (quoteEditorFocus === 'all') return;
+    if (quoteEditorFocus >= quotes.length) {
+      setQuoteEditorFocus(0);
+    }
+  }, [quoteEditorFocus, quotes.length]);
+
   return {
     showQuotesModal, setShowQuotesModal,
     quoteAttachments, setQuoteAttachments,
@@ -317,5 +415,6 @@ export function useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteM
     handleQuoteItemChange, handleQuoteItemCurrencyBlur, handleQuoteItemUnitSelect, handleQuoteItemCustomUnitSave,
     handleAddQuoteItem, handleAddMultipleQuoteItems, handleRemoveQuoteItem, handleQuoteAttachmentChange,
     handleAddQuoteSlot, handleRemoveQuoteSlot,
+    quoteUnitOptions, quoteComparisonSections, quoteGrandTotals, visibleQuoteEditors,
   };
 }
