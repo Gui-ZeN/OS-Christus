@@ -3,6 +3,7 @@
  * componentes em `inbox/`). Fonte única pra evitar drift — especialmente da
  * taxonomia de seções, que precisa bater entre o editor e o comparativo.
  */
+import { formatCurrency as formatCurrencyInput, parseCurrency as parseCurrencyInput } from '../../utils/currency';
 import type { QuoteItem, Ticket } from '../../types';
 import type { ProposalHeaderDraft, QuoteDraft } from './types';
 
@@ -75,5 +76,39 @@ export function createProposalHeaderDraft(ticket?: Ticket, siteLabel?: string): 
     contractedVendor: '',
     totalQuantity: '',
     totalEstimatedValue: '',
+  };
+}
+
+/** A seção é mão de obra / serviço (vs. material)? */
+export function isLaborSection(section?: string | null) {
+  const normalized = normalizeQuoteSection(section).toLowerCase();
+  return normalized.includes('mao-de-obra') || normalized.includes('servico');
+}
+
+/** Breakdown labor/material/total de um rascunho de cotação (qtd×unitário, ou total da linha). */
+export function summarizeQuoteDraft(draft: QuoteDraft) {
+  const totals = draft.items.reduce(
+    (acc, item) => {
+      const quantity = item.quantity ?? 0;
+      const costUnitPrice = item.costUnitPrice ? parseCurrencyInput(item.costUnitPrice) : 0;
+      const lineTotal =
+        quantity > 0 && costUnitPrice > 0
+          ? quantity * costUnitPrice
+          : parseCurrencyInput(item.totalPrice || '');
+      if (lineTotal <= 0) return acc;
+      if (isLaborSection(item.section)) {
+        acc.labor += lineTotal;
+      } else {
+        acc.material += lineTotal;
+      }
+      return acc;
+    },
+    { labor: 0, material: 0 }
+  );
+  const total = totals.labor + totals.material;
+  return {
+    laborValue: totals.labor > 0 ? formatCurrencyInput(totals.labor) : '',
+    materialValue: totals.material > 0 ? formatCurrencyInput(totals.material) : '',
+    totalValue: total > 0 ? formatCurrencyInput(total) : '',
   };
 }

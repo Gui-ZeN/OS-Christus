@@ -46,7 +46,7 @@ import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { useQuoteEditor } from './inbox/useQuoteEditor';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
-import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation } from './inbox/quotes';
+import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './inbox/quotes';
 import { QuoteItemRow } from './inbox/QuoteItemRow';
 import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
 import { QuoteVendorFields } from './inbox/QuoteVendorFields';
@@ -291,41 +291,6 @@ function normalizeTagValue(value?: string | null) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-}
-
-function isLaborSection(section?: string | null) {
-  const normalized = normalizeQuoteSection(section).toLowerCase();
-  return normalized.includes('mao-de-obra') || normalized.includes('servico');
-}
-
-function summarizeQuoteDraft(draft: QuoteDraft) {
-  const totals = draft.items.reduce(
-    (acc, item) => {
-      // Mesma regra do recalculateQuoteValue: usa qtd×preço unitário quando o
-      // total da linha não foi preenchido, senão o breakdown labor/material
-      // diverge do value total.
-      const quantity = item.quantity ?? 0;
-      const costUnitPrice = item.costUnitPrice ? parseCurrencyInput(item.costUnitPrice) : 0;
-      const lineTotal =
-        quantity > 0 && costUnitPrice > 0
-          ? quantity * costUnitPrice
-          : parseCurrencyInput(item.totalPrice || '');
-      if (lineTotal <= 0) return acc;
-      if (isLaborSection(item.section)) {
-        acc.labor += lineTotal;
-      } else {
-        acc.material += lineTotal;
-      }
-      return acc;
-    },
-    { labor: 0, material: 0 }
-  );
-  const total = totals.labor + totals.material;
-  return {
-    laborValue: totals.labor > 0 ? formatCurrencyInput(totals.labor) : '',
-    materialValue: totals.material > 0 ? formatCurrencyInput(totals.material) : '',
-    totalValue: total > 0 ? formatCurrencyInput(total) : '',
-  };
 }
 
 function resolveQuoteDraftSubmittedTotal(draft: QuoteDraft) {
