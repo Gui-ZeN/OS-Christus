@@ -1,17 +1,12 @@
-import type { QuoteDraft } from './types';
-
-interface QuoteConsolidatedViewProps {
-  visibleQuoteEditors: Array<{ quote: QuoteDraft; index: number }>;
-  quoteAttachments: Array<File | null>;
-  setQuoteEditorFocus: (focus: number | 'all') => void;
-}
+import { useQuoteEditorContext } from './QuoteEditorContext';
 
 /**
  * Modo "consolidado" do editor de Cotações: resumo lado a lado de cada
  * fornecedor (valores, nº de itens, prévia) com botão "Editar" que volta o foco
  * pro card. Sub-mordida do editor núcleo. Read-only (só dispara setQuoteEditorFocus).
  */
-export function QuoteConsolidatedView({ visibleQuoteEditors, quoteAttachments, setQuoteEditorFocus }: QuoteConsolidatedViewProps) {
+export function QuoteConsolidatedView() {
+  const { visibleQuoteEditors, quoteAttachments, setQuoteEditorFocus } = useQuoteEditorContext();
   return (
     <div className="mb-6 space-y-4">
         <div className="rounded-sm border border-roman-border bg-roman-surface px-4 py-3">

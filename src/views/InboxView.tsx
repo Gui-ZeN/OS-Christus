@@ -1628,11 +1628,11 @@ export function InboxView() {
     quoteEditorFocus, setQuoteEditorFocus,
     expandedQuoteItems, setExpandedQuoteItems,
     proposalHeader, setProposalHeader,
-    handleQuoteChange, handleQuoteCurrencyBlur, handleProposalHeaderChange, handleProposalCurrencyBlur,
+    handleProposalHeaderChange, handleProposalCurrencyBlur,
     handleQuoteItemChange, handleQuoteItemCurrencyBlur, handleQuoteItemUnitSelect, handleQuoteItemCustomUnitSave,
     handleAddQuoteItem, handleAddMultipleQuoteItems, handleRemoveQuoteItem, handleQuoteAttachmentChange,
     handleAddQuoteSlot, handleRemoveQuoteSlot,
-    quoteUnitOptions, quoteComparisonSections, quoteGrandTotals, visibleQuoteEditors,
+    quoteUnitOptions, quoteGrandTotals, visibleQuoteEditors,
   } = quoteEditor;
   const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
@@ -4292,7 +4292,7 @@ export function InboxView() {
                   </div>
 
               {showQuoteComparisonPanel && (
-                  <QuoteComparisonPanel quoteComparisonSections={quoteComparisonSections} quotes={quotes} quoteGrandTotals={quoteGrandTotals} />
+                  <QuoteComparisonPanel />
                 )}
                 </>
               )}
@@ -4300,14 +4300,14 @@ export function InboxView() {
               <QuoteEditorTabs quotes={quotes} focus={quoteEditorFocus} onSelectFocus={setQuoteEditorFocus} onAddSlot={handleAddQuoteSlot} canAddSlot={quotes.length < getRoundMaxQuoteSlots(quoteRoundType)} />
 
               {quoteEditorFocus === 'all' ? (
-                <QuoteConsolidatedView visibleQuoteEditors={visibleQuoteEditors} quoteAttachments={quoteAttachments} setQuoteEditorFocus={setQuoteEditorFocus} />
+                <QuoteConsolidatedView />
               ) : (
               <div className="grid grid-cols-1 gap-4 mb-6 items-start xl:grid-cols-1">
                 {visibleQuoteEditors.map(({ quote, index: i }) => (
                   <div key={`quote-editor-${i}`} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
                     <QuoteEditorCardHeader i={i} canRemoveSlot={quotes.length > getRoundMinQuoteSlots(quoteRoundType)} attachment={quoteAttachments[i]} handleRemoveQuoteSlot={handleRemoveQuoteSlot} handleQuoteAttachmentChange={handleQuoteAttachmentChange} />
                     <div className="space-y-3 flex-1">
-                      <QuoteVendorFields quote={quote} i={i} handleQuoteChange={handleQuoteChange} handleQuoteCurrencyBlur={handleQuoteCurrencyBlur} persistedServicePreference={persistedServicePreference} preferredVendor={budgetHistory.preferredVendor} />
+                      <QuoteVendorFields quote={quote} i={i} persistedServicePreference={persistedServicePreference} preferredVendor={budgetHistory.preferredVendor} />
                       <QuoteItemsSection quote={quote} i={i} suggestedQuoteMaterials={suggestedQuoteMaterials} itemReferences={budgetHistory.itemReferences} />
                       {quoteAttachments[i] && (
                         <div className="text-[11px] text-roman-text-sub truncate">

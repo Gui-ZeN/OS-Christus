@@ -1,20 +1,15 @@
 import React from 'react';
 import { formatCurrency as formatCurrencyInput, parseCurrency as parseCurrencyInput } from '../../utils/currency';
-import type { QuoteComparisonSection, QuoteDraft } from './types';
 import { normalizeQuoteSection } from './quotes';
-
-interface QuoteComparisonPanelProps {
-  quoteComparisonSections: QuoteComparisonSection[];
-  quotes: QuoteDraft[];
-  quoteGrandTotals: number[];
-}
+import { useQuoteEditorContext } from './QuoteEditorContext';
 
 /**
  * Comparativo consolidado das cotações (tabela lado a lado por fornecedor).
  * Extraído do modal de Cotações do InboxView (4ª sub-mordida do "elefante").
  * Apresentacional — deriva tudo dos props (sem estado).
  */
-export function QuoteComparisonPanel({ quoteComparisonSections, quotes, quoteGrandTotals }: QuoteComparisonPanelProps) {
+export function QuoteComparisonPanel() {
+  const { quoteComparisonSections, quotes, quoteGrandTotals } = useQuoteEditorContext();
   return (
     <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
           <div className="flex items-center justify-between gap-3">

@@ -1,14 +1,13 @@
 import { buildBudgetHistorySummary } from '../../utils/budgetHistory';
 import type { CatalogVendorPreference } from '../../services/catalogApi';
 import type { QuoteDraft } from './types';
+import { useQuoteEditorContext } from './QuoteEditorContext';
 
 type PreferredVendor = ReturnType<typeof buildBudgetHistorySummary>['preferredVendor'];
 
 interface QuoteVendorFieldsProps {
   quote: QuoteDraft;
   i: number;
-  handleQuoteChange: (index: number, field: 'vendor' | 'value', value: string) => void;
-  handleQuoteCurrencyBlur: (index: number, field: 'value') => void;
   persistedServicePreference: CatalogVendorPreference | null;
   preferredVendor: PreferredVendor;
 }
@@ -18,7 +17,8 @@ interface QuoteVendorFieldsProps {
  * resumos Material/Mão de obra/Total da obra) + dica de fornecedor preferencial.
  * Sub-mordida do editor núcleo de Cotações. Controlado pelo pai via props.
  */
-export function QuoteVendorFields({ quote, i, handleQuoteChange, handleQuoteCurrencyBlur, persistedServicePreference, preferredVendor }: QuoteVendorFieldsProps) {
+export function QuoteVendorFields({ quote, i, persistedServicePreference, preferredVendor }: QuoteVendorFieldsProps) {
+  const { handleQuoteChange, handleQuoteCurrencyBlur } = useQuoteEditorContext();
   return (
     <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
               <div className="min-w-0">
