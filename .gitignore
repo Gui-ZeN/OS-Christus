@@ -13,3 +13,6 @@ playwright-report/
 
 # Scripts/credenciais temporárias (nunca commitar)
 tmp/
+
+# Backups de dados de produção (contêm PII — nunca commitar)
+_*_backups/
