@@ -1,7 +1,7 @@
-import type { Dispatch, SetStateAction } from 'react';
 import type { QuoteItem } from '../../types';
 import { buildBudgetHistorySummary } from '../../utils/budgetHistory';
 import { CUSTOM_QUOTE_UNIT_VALUE, QUOTE_SECTION_OPTIONS, normalizeQuoteSection } from './quotes';
+import { useQuoteEditorContext } from './QuoteEditorContext';
 
 type ItemReference = ReturnType<typeof buildBudgetHistorySummary>['itemReferences'][number];
 
@@ -13,14 +13,6 @@ interface QuoteItemRowProps {
   selectedUnitValue: string;
   hasCustomUnitInput: boolean;
   itemUnitKey: string;
-  pendingCustomUnitByItem: Record<string, string>;
-  setPendingCustomUnitByItem: Dispatch<SetStateAction<Record<string, string>>>;
-  quoteUnitOptions: string[];
-  handleQuoteItemChange: (quoteIndex: number, itemId: string, field: keyof QuoteItem, value: string | number | null) => void;
-  handleRemoveQuoteItem: (quoteIndex: number, itemId: string) => void;
-  handleQuoteItemUnitSelect: (quoteIndex: number, itemId: string, selectedValue: string) => void;
-  handleQuoteItemCurrencyBlur: (quoteIndex: number, itemId: string, field: 'costUnitPrice') => void;
-  handleQuoteItemCustomUnitSave: (quoteIndex: number, itemId: string) => void;
 }
 
 /**
@@ -31,10 +23,12 @@ interface QuoteItemRowProps {
  */
 export function QuoteItemRow({
   item, itemIndex, i, reference, selectedUnitValue, hasCustomUnitInput, itemUnitKey,
-  pendingCustomUnitByItem, setPendingCustomUnitByItem, quoteUnitOptions,
-  handleQuoteItemChange, handleRemoveQuoteItem, handleQuoteItemUnitSelect,
-  handleQuoteItemCurrencyBlur, handleQuoteItemCustomUnitSave,
 }: QuoteItemRowProps) {
+  const {
+    pendingCustomUnitByItem, setPendingCustomUnitByItem, quoteUnitOptions,
+    handleQuoteItemChange, handleRemoveQuoteItem, handleQuoteItemUnitSelect,
+    handleQuoteItemCurrencyBlur, handleQuoteItemCustomUnitSave,
+  } = useQuoteEditorContext();
   return (
     <div className="rounded-sm border border-roman-border bg-roman-bg px-2 py-2">
                       <div className="mb-2 flex items-center justify-between gap-2 lg:hidden">

@@ -44,6 +44,7 @@ import { QuoteHistoryMetrics } from './inbox/QuoteHistoryMetrics';
 import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { useQuoteEditor } from './inbox/useQuoteEditor';
+import { QuoteEditorProvider } from './inbox/QuoteEditorContext';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
 import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './inbox/quotes';
@@ -1609,6 +1610,7 @@ export function InboxView() {
       .filter((value): value is CatalogMaterial => Boolean(value));
   }, [activeTicket.serviceCatalogId, catalogMaterials, serviceCatalog]);
 
+  const quoteEditor = useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteMaterials, getRoundMinQuoteSlots, getRoundMaxQuoteSlots });
   const {
     showQuotesModal, setShowQuotesModal,
     quoteAttachments, setQuoteAttachments,
@@ -1631,7 +1633,7 @@ export function InboxView() {
     handleAddQuoteItem, handleAddMultipleQuoteItems, handleRemoveQuoteItem, handleQuoteAttachmentChange,
     handleAddQuoteSlot, handleRemoveQuoteSlot,
     quoteUnitOptions, quoteComparisonSections, quoteGrandTotals, visibleQuoteEditors,
-  } = useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteMaterials, getRoundMinQuoteSlots, getRoundMaxQuoteSlots });
+  } = quoteEditor;
   const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);
   const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
@@ -4066,6 +4068,7 @@ export function InboxView() {
       )}
 
       {showQuotesModal && (
+        <QuoteEditorProvider value={quoteEditor}>
         <ModalShell
           isOpen={showQuotesModal}
           onClose={() => setShowQuotesModal(false)}
@@ -4305,7 +4308,7 @@ export function InboxView() {
                     <QuoteEditorCardHeader i={i} canRemoveSlot={quotes.length > getRoundMinQuoteSlots(quoteRoundType)} attachment={quoteAttachments[i]} handleRemoveQuoteSlot={handleRemoveQuoteSlot} handleQuoteAttachmentChange={handleQuoteAttachmentChange} />
                     <div className="space-y-3 flex-1">
                       <QuoteVendorFields quote={quote} i={i} handleQuoteChange={handleQuoteChange} handleQuoteCurrencyBlur={handleQuoteCurrencyBlur} persistedServicePreference={persistedServicePreference} preferredVendor={budgetHistory.preferredVendor} />
-                      <QuoteItemsSection quote={quote} i={i} suggestedQuoteMaterials={suggestedQuoteMaterials} itemReferences={budgetHistory.itemReferences} pendingCustomUnitByItem={pendingCustomUnitByItem} setPendingCustomUnitByItem={setPendingCustomUnitByItem} quoteUnitOptions={quoteUnitOptions} handleAddQuoteItem={handleAddQuoteItem} handleAddMultipleQuoteItems={handleAddMultipleQuoteItems} handleQuoteItemChange={handleQuoteItemChange} handleRemoveQuoteItem={handleRemoveQuoteItem} handleQuoteItemUnitSelect={handleQuoteItemUnitSelect} handleQuoteItemCurrencyBlur={handleQuoteItemCurrencyBlur} handleQuoteItemCustomUnitSave={handleQuoteItemCustomUnitSave} />
+                      <QuoteItemsSection quote={quote} i={i} suggestedQuoteMaterials={suggestedQuoteMaterials} itemReferences={budgetHistory.itemReferences} />
                       {quoteAttachments[i] && (
                         <div className="text-[11px] text-roman-text-sub truncate">
                           PDF: {quoteAttachments[i]!.name}
@@ -4318,6 +4321,7 @@ export function InboxView() {
               )}
 
         </ModalShell>
+        </QuoteEditorProvider>
       )}
 
       {showContractDispatchModal && (

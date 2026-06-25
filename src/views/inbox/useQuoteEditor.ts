@@ -418,3 +418,6 @@ export function useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteM
     quoteUnitOptions, quoteComparisonSections, quoteGrandTotals, visibleQuoteEditors,
   };
 }
+
+/** Valor exposto pelo QuoteEditorContext (= retorno do hook). */
+export type QuoteEditorValue = ReturnType<typeof useQuoteEditor>;

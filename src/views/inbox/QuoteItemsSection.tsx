@@ -1,10 +1,9 @@
-import type { Dispatch, SetStateAction } from 'react';
-import type { QuoteItem } from '../../types';
 import type { CatalogMaterial } from '../../services/catalogApi';
 import { buildBudgetHistorySummary } from '../../utils/budgetHistory';
 import type { QuoteDraft } from './types';
 import { CUSTOM_QUOTE_UNIT_VALUE, buildQuoteItemUnitKey, normalizeUnitAbbreviation } from './quotes';
 import { QuoteItemRow } from './QuoteItemRow';
+import { useQuoteEditorContext } from './QuoteEditorContext';
 
 type ItemReferences = ReturnType<typeof buildBudgetHistorySummary>['itemReferences'];
 
@@ -13,16 +12,6 @@ interface QuoteItemsSectionProps {
   i: number;
   suggestedQuoteMaterials: CatalogMaterial[];
   itemReferences: ItemReferences;
-  pendingCustomUnitByItem: Record<string, string>;
-  setPendingCustomUnitByItem: Dispatch<SetStateAction<Record<string, string>>>;
-  quoteUnitOptions: string[];
-  handleAddQuoteItem: (quoteIndex: number) => void;
-  handleAddMultipleQuoteItems: (quoteIndex: number, count: number) => void;
-  handleQuoteItemChange: (quoteIndex: number, itemId: string, field: keyof QuoteItem, value: string | number | null) => void;
-  handleRemoveQuoteItem: (quoteIndex: number, itemId: string) => void;
-  handleQuoteItemUnitSelect: (quoteIndex: number, itemId: string, selectedValue: string) => void;
-  handleQuoteItemCurrencyBlur: (quoteIndex: number, itemId: string, field: 'costUnitPrice') => void;
-  handleQuoteItemCustomUnitSave: (quoteIndex: number, itemId: string) => void;
 }
 
 /**
@@ -31,12 +20,13 @@ interface QuoteItemsSectionProps {
  * Última sub-mordida do editor núcleo — fecha a decomposição do card. Os locais
  * calculados por item (reference, itemUnitKey, etc.) ficam aqui, no map.
  */
-export function QuoteItemsSection({
-  quote, i, suggestedQuoteMaterials, itemReferences, pendingCustomUnitByItem,
-  setPendingCustomUnitByItem, quoteUnitOptions, handleAddQuoteItem, handleAddMultipleQuoteItems,
-  handleQuoteItemChange, handleRemoveQuoteItem, handleQuoteItemUnitSelect,
-  handleQuoteItemCurrencyBlur, handleQuoteItemCustomUnitSave,
-}: QuoteItemsSectionProps) {
+export function QuoteItemsSection({ quote, i, suggestedQuoteMaterials, itemReferences }: QuoteItemsSectionProps) {
+  const {
+    pendingCustomUnitByItem, setPendingCustomUnitByItem, quoteUnitOptions,
+    handleAddQuoteItem, handleAddMultipleQuoteItems, handleQuoteItemChange,
+    handleRemoveQuoteItem, handleQuoteItemUnitSelect, handleQuoteItemCurrencyBlur,
+    handleQuoteItemCustomUnitSave,
+  } = useQuoteEditorContext();
   return (
     <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -109,7 +99,7 @@ export function QuoteItemsSection({
                     : normalizeUnitAbbreviation(item.unit) || '';
 
                   return (
-                    <QuoteItemRow key={item.id} item={item} itemIndex={itemIndex} i={i} reference={reference} selectedUnitValue={selectedUnitValue} hasCustomUnitInput={hasCustomUnitInput} itemUnitKey={itemUnitKey} pendingCustomUnitByItem={pendingCustomUnitByItem} setPendingCustomUnitByItem={setPendingCustomUnitByItem} quoteUnitOptions={quoteUnitOptions} handleQuoteItemChange={handleQuoteItemChange} handleRemoveQuoteItem={handleRemoveQuoteItem} handleQuoteItemUnitSelect={handleQuoteItemUnitSelect} handleQuoteItemCurrencyBlur={handleQuoteItemCurrencyBlur} handleQuoteItemCustomUnitSave={handleQuoteItemCustomUnitSave} />
+                    <QuoteItemRow key={item.id} item={item} itemIndex={itemIndex} i={i} reference={reference} selectedUnitValue={selectedUnitValue} hasCustomUnitInput={hasCustomUnitInput} itemUnitKey={itemUnitKey} />
                   );
                 })}
               </div>
