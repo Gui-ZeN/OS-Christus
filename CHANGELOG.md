@@ -14,6 +14,13 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   threads existentes mantêm o assunto salvo (sem split no Gmail) e a resposta ao
   solicitante que abriu por e-mail continua usando o assunto original dele.
 
+### 📎 Anexos da abertura no e-mail de criação da OS
+- As fotos enviadas no formulário de abertura (`ticket.attachments`) passam a
+  acompanhar os **dois** e-mails de `EMAIL-NOVA-OS` (`notifyTicketCreated`): a
+  confirmação ao solicitante e a cópia interna de triagem ao gestor. Antes nenhum
+  dos dois levava anexo. Mesmo caminho já usado no e-mail à diretoria
+  (`normalizeEmailAttachments` → `resolveOutboundAttachments` no backend).
+
 ### 🔧 Refactor: editor de Cotações (thermo-nuclear / "elefante")
 - Estado, handlers e derivados do modal de Cotações saíram do god-component
   `InboxView` para o hook `useQuoteEditor` + `QuoteEditorContext` (5 mordidas:

@@ -584,11 +584,15 @@ export async function notifyTicketCreated(ticket: Ticket) {
   if (!requesterEmail) return;
 
   const variables = await buildVariables(ticket);
+  // Fotos anexadas na abertura (formulário) acompanham o e-mail de criação da OS —
+  // tanto a confirmação ao solicitante quanto a cópia de triagem ao gestor.
+  const ticketAttachments = normalizeEmailAttachments(Array.isArray(ticket.attachments) ? ticket.attachments : []);
   await postEmail({
     ticketId: ticket.id,
     trackingToken: ticket.trackingToken,
     toEmail: requesterEmail,
     trigger: 'EMAIL-NOVA-OS',
+    attachments: ticketAttachments,
     variables,
     templateData: {
       title: 'Nova solicitação registrada',
@@ -606,6 +610,7 @@ export async function notifyTicketCreated(ticket: Ticket) {
     trigger: 'EMAIL-NOVA-OS',
     internalCopy: true,
     skipThread: true,
+    attachments: ticketAttachments,
     variables,
     templateData: {
       title: 'Nova OS na fila de triagem',
