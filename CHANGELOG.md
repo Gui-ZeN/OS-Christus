@@ -3,6 +3,25 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-06-25
+
+### ✉️ Sede da OS no assunto do e-mail
+- `buildConversationSubject` passa a injetar o nome da sede entre o código e o
+  assunto: `OS-XXXX - <Sede> - <Assunto>` (ex.: `OS-0126 - Aldeota - Troca de piso`).
+  O nome vem de `variables.ticket.sede` (já resolvido por `getTicketSiteLabel` no
+  front), sem lookup novo no backend. Sede vazia mantém o formato antigo e
+  assuntos já-prefixados são idempotentes (sem duplo prefixo). Vale para OS novas —
+  threads existentes mantêm o assunto salvo (sem split no Gmail) e a resposta ao
+  solicitante que abriu por e-mail continua usando o assunto original dele.
+
+### 🔧 Refactor: editor de Cotações (thermo-nuclear / "elefante")
+- Estado, handlers e derivados do modal de Cotações saíram do god-component
+  `InboxView` para o hook `useQuoteEditor` + `QuoteEditorContext` (5 mordidas:
+  estado → handlers → derivados → Context). **Prop-drilling morto:** QuoteItemRow
+  15→7 props, QuoteItemsSection 14→4, QuoteComparisonPanel/QuoteConsolidatedView →0,
+  QuoteVendorFields 6→4. InboxView 6036→4401 linhas. Behavior-identical, cada mordida
+  verificada no emulador (editar item, totais, unidade custom, consolidado).
+
 ## 2026-06-22
 
 ### 🐛 Bugs de produção reportados (correções)

@@ -431,14 +431,19 @@ function normalizeDirectorGreeting(body) {
   return `Olá,\n\n${withoutRepeatedGreeting}`;
 }
 
-function buildConversationSubject(ticketId, ticketSubject, fallbackSubject) {
+function buildConversationSubject(ticketId, ticketSubject, fallbackSubject, sede) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
   if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
-  if (!cleanSubject) return `${ticketId} - Atualização da OS`;
+  // Prefixo "OS-XXXX - SEDE" (sede vem do nome resolvido em variables.ticket.sede;
+  // se vazia, mantém só "OS-XXXX"). A checagem de idempotência abaixo casa ambos
+  // os formatos (com/sem sede), pois os dois começam com "OS-XXXX - ".
+  const sedeLabel = repairMojibake(String(sede || '').trim());
+  const prefix = sedeLabel ? `${ticketId} - ${sedeLabel}` : ticketId;
+  if (!cleanSubject) return `${prefix} - Atualização da OS`;
   if (cleanSubject.toUpperCase().startsWith(`${ticketId.toUpperCase()} - `)) {
     return repairMojibake(cleanSubject);
   }
-  return repairMojibake(`${ticketId} - ${cleanSubject}`);
+  return repairMojibake(`${prefix} - ${cleanSubject}`);
 }
 
 function buildReplySubject(subject) {
@@ -1504,7 +1509,7 @@ async function handleSend(req, res) {
     const resolvedTicket = variables.ticket && typeof variables.ticket === 'object' ? variables.ticket : {};
     const resolvedGuarantee = variables.guarantee && typeof variables.guarantee === 'object' ? variables.guarantee : {};
     const resolvedSubject = ticketId
-      ? buildConversationSubject(ticketId, repairMojibake(templateData.ticketSubject || resolvedTicket.subject), 'Atualização da OS')
+      ? buildConversationSubject(ticketId, repairMojibake(templateData.ticketSubject || resolvedTicket.subject), 'Atualização da OS', resolvedTicket.sede)
       : templateSubject;
 
 
