@@ -3,6 +3,8 @@
  * componentes em `inbox/`). Fonte única pra evitar drift — especialmente da
  * taxonomia de seções, que precisa bater entre o editor e o comparativo.
  */
+import type { QuoteItem, Ticket } from '../../types';
+import type { ProposalHeaderDraft, QuoteDraft } from './types';
 
 /** Sentinela do <option> "+ Outra..." no seletor de unidade do item. */
 export const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
@@ -31,4 +33,47 @@ export function normalizeUnitAbbreviation(value?: string | null) {
 /** Chave estável de um item por (índice da cotação, id do item) — p/ estado de unidade custom. */
 export function buildQuoteItemUnitKey(quoteIndex: number, itemId: string) {
   return `${quoteIndex}:${itemId}`;
+}
+
+/** Mínimo de slots de cotação numa rodada inicial. */
+export const INITIAL_MIN_QUOTE_SLOTS = 2;
+
+/** Item de cotação vazio (id novo, seção 'material'). */
+export function createEmptyQuoteItem(defaultDescription = '', defaultUnit = ''): QuoteItem {
+  return {
+    id: crypto.randomUUID(),
+    section: 'material',
+    description: defaultDescription,
+    materialId: null,
+    materialName: null,
+    unit: defaultUnit || null,
+    quantity: null,
+    costUnitPrice: null,
+    unitPrice: null,
+    totalPrice: null,
+  };
+}
+
+/** Rascunho de cotação vazio (1 item). */
+export function createEmptyQuoteDraft(): QuoteDraft {
+  return {
+    vendor: '',
+    value: '',
+    laborValue: '',
+    materialValue: '',
+    totalValue: '',
+    items: [createEmptyQuoteItem()],
+  };
+}
+
+/** Cabeçalho de proposta inicial (puxa a unidade do site/OS). */
+export function createProposalHeaderDraft(ticket?: Ticket, siteLabel?: string): ProposalHeaderDraft {
+  return {
+    unitName: siteLabel || ticket?.sede || '',
+    location: '',
+    folderLink: '',
+    contractedVendor: '',
+    totalQuantity: '',
+    totalEstimatedValue: '',
+  };
 }

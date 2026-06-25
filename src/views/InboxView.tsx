@@ -45,7 +45,7 @@ import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
-import { CUSTOM_QUOTE_UNIT_VALUE, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, normalizeQuoteSection, normalizeUnitAbbreviation } from './inbox/quotes';
+import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation } from './inbox/quotes';
 import { QuoteItemRow } from './inbox/QuoteItemRow';
 import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
 import { QuoteVendorFields } from './inbox/QuoteVendorFields';
@@ -82,7 +82,6 @@ const DEFAULT_QUOTE_UNIT_OPTIONS = [
   'M2',
 ] as const;
 
-const INITIAL_MIN_QUOTE_SLOTS = 2;
 const INITIAL_MAX_QUOTE_SLOTS = 5;
 const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
 const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
@@ -268,43 +267,6 @@ function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
   }
 
   return parts.join(' | ');
-}
-
-function createEmptyQuoteItem(defaultDescription = '', defaultUnit = ''): QuoteItem {
-  return {
-    id: crypto.randomUUID(),
-    section: 'material',
-    description: defaultDescription,
-    materialId: null,
-    materialName: null,
-    unit: defaultUnit || null,
-    quantity: null,
-    costUnitPrice: null,
-    unitPrice: null,
-    totalPrice: null,
-  };
-}
-
-function createEmptyQuoteDraft(): QuoteDraft {
-  return {
-    vendor: '',
-    value: '',
-    laborValue: '',
-    materialValue: '',
-    totalValue: '',
-    items: [createEmptyQuoteItem()],
-  };
-}
-
-function createProposalHeaderDraft(ticket?: Ticket, siteLabel?: string): ProposalHeaderDraft {
-  return {
-    unitName: siteLabel || ticket?.sede || '',
-    location: '',
-    folderLink: '',
-    contractedVendor: '',
-    totalQuantity: '',
-    totalEstimatedValue: '',
-  };
 }
 
 function getQuoteSections(items: QuoteItem[]) {
