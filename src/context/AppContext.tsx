@@ -93,70 +93,6 @@ function getInitialView(): ViewState {
   return allowed.includes(stored as ViewState) ? (stored as ViewState) : 'landing';
 }
 
-function normalizeKey(value: string | null | undefined) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function resolveTicketSiteIds(ticket: Ticket, sites: CatalogSite[]) {
-  const rawValues = [ticket.siteId, ticket.sede].map(value => normalizeKey(value)).filter(Boolean);
-  const matches = sites
-    .filter(site => rawValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value)))
-    .map(site => site.id);
-
-  if (ticket.siteId && !matches.includes(ticket.siteId)) {
-    matches.push(ticket.siteId);
-  }
-
-  return matches;
-}
-
-function resolveUserSiteIds(user: DirectoryUser | null, sites: CatalogSite[]) {
-  const rawValues = Array.isArray(user?.siteIds) ? user.siteIds : [];
-  if (rawValues.length === 0) return [];
-  const normalizedValues = rawValues.map(value => normalizeKey(value)).filter(Boolean);
-  return [...new Set(
-    sites
-      .filter(site => normalizedValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value)))
-      .map(site => site.id)
-  )];
-}
-
-function resolveUserRegionIds(user: DirectoryUser | null, regions: CatalogRegion[]) {
-  const rawValues = Array.isArray(user?.regionIds) ? user.regionIds : [];
-  if (rawValues.length === 0) return [];
-  const normalizedValues = rawValues.map(value => normalizeKey(value)).filter(Boolean);
-  return [...new Set(
-    regions
-      .filter(region => normalizedValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value)))
-      .map(region => region.id)
-  )];
-}
-
-function resolveTicketRegionIds(ticket: Ticket, regions: CatalogRegion[], sites: CatalogSite[]) {
-  const rawValues = [ticket.regionId, ticket.region].map(value => normalizeKey(value)).filter(Boolean);
-  const matches = regions
-    .filter(region => rawValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value)))
-    .map(region => region.id);
-
-  const siteRegionIds = resolveTicketSiteIds(ticket, sites)
-    .map(siteId => sites.find(site => site.id === siteId)?.regionId)
-    .filter(Boolean) as string[];
-
-  for (const regionId of siteRegionIds) {
-    if (!matches.includes(regionId)) matches.push(regionId);
-  }
-
-  if (ticket.regionId && !matches.includes(ticket.regionId)) {
-    matches.push(ticket.regionId);
-  }
-
-  return matches;
-}
-
 function getInitialUserEmail() {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem('serv3-user-email') || '';
@@ -166,41 +102,6 @@ function getInitialTheme(): AppThemeId {
   if (typeof window === 'undefined') return DEFAULT_APP_THEME;
   const stored = String(window.localStorage.getItem('serv3-theme') || '').trim() as AppThemeId;
   return APP_THEMES.some(theme => theme.id === stored) ? stored : DEFAULT_APP_THEME;
-}
-
-function canUserAccessTicket(
-  user: DirectoryUser | null,
-  currentUserEmail: string,
-  ticket: Ticket,
-  regions: CatalogRegion[],
-  sites: CatalogSite[]
-) {
-  if (!currentUserEmail) return true;
-  if (!user) return false;
-  if (user.role === 'Admin') return true;
-  // Gestor é escopado por território, igual ao Usuario (espelha o backend).
-  if (user.role === 'Diretor') {
-    const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
-    const directorEmails = Array.isArray(ticket.directorEmails) ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()) : [];
-    if (directorIds.length === 0 && directorEmails.length === 0) return false;
-    return (
-      directorIds.includes(user.id) ||
-      directorEmails.includes(String(user.email || currentUserEmail || '').trim().toLowerCase())
-    );
-  }
-
-  const hasExplicitSiteScope = Array.isArray(user?.siteIds) && user.siteIds.some(value => String(value || '').trim());
-  const siteIds = resolveUserSiteIds(user, sites);
-  const regionIds = resolveUserRegionIds(user, regions);
-  if (hasExplicitSiteScope && siteIds.length === 0) return false;
-  if (regionIds.length === 0 && siteIds.length === 0) return false;
-  const ticketSiteIds = resolveTicketSiteIds(ticket, sites);
-  const ticketRegionIds = resolveTicketRegionIds(ticket, regions, sites);
-  if (siteIds.length > 0) {
-    return siteIds.some(siteId => ticketSiteIds.includes(siteId));
-  }
-  if (regionIds.length > 0 && regionIds.some(regionId => ticketRegionIds.includes(regionId))) return true;
-  return false;
 }
 
 async function resolveAuthorizedUser(email: string) {
