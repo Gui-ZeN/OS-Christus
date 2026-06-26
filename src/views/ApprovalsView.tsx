@@ -14,26 +14,9 @@ import { buildProcurementClassification } from '../utils/procurementClassificati
 import { formatDateTimeSafe } from '../utils/date';
 import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
 import { stripAttachmentLinksFromMessage } from '../utils/text';
+import { buildQuoteComparison, getQuoteSectionLabel } from './inbox/quotes';
 
 const REVIEW_ACTIVE_WINDOW_MS = 2 * 60 * 1000;
-
-const QUOTE_SECTION_LABELS: Record<string, string> = {
-  material: 'Material',
-  'mao-de-obra': 'Mão de obra',
-  'materiais-complementares': 'Materiais complementares',
-  'servicos-complementares': 'Serviços complementares',
-};
-
-function normalizeQuoteSection(section?: string | null) {
-  const normalized = String(section || '').trim();
-  if (!normalized || normalized === 'material-mao-de-obra') return 'material';
-  return normalized;
-}
-
-function getQuoteSectionLabel(section?: string | null) {
-  if (!section) return 'Material';
-  return QUOTE_SECTION_LABELS[section] || section;
-}
 
 // Mantém o clamp em 0 do comportamento original, delegando a formatação ao util.
 function formatCurrencyValue(value: number) {
@@ -53,58 +36,6 @@ function createEmptyProposalHeader(): QuoteProposalHeader {
 
 function getProposalHeaderValue(header: QuoteProposalHeader | null | undefined, key: keyof QuoteProposalHeader) {
   return (header?.[key] || '').trim();
-}
-
-function buildQuoteComparisonSections(quotes: Quote[]) {
-  const sectionKeys = new Set<string>();
-  quotes.forEach(quote => {
-    (quote.items || []).forEach(item => sectionKeys.add(normalizeQuoteSection(item.section)));
-  });
-
-  return Array.from(sectionKeys).map(sectionKey => {
-    const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedTotalPrice: string }> }>();
-
-    quotes.forEach((quote, quoteIndex) => {
-      (quote.items || [])
-        .filter(item => normalizeQuoteSection(item.section) === sectionKey)
-        .forEach(item => {
-          const key = String(item.description || item.materialName || item.id).trim().toLowerCase();
-          if (!rowMap.has(key)) {
-            rowMap.set(key, {
-              key,
-              description: item.description || item.materialName || 'Item sem descrição',
-              unit: item.unit || '',
-              quantity: item.quantity != null ? String(item.quantity) : '',
-              values: quotes.map(() => ({ costUnitPrice: '', chargedTotalPrice: '' })),
-            });
-          }
-          const row = rowMap.get(key)!;
-          row.values[quoteIndex] = {
-            costUnitPrice: item.costUnitPrice || '',
-            chargedTotalPrice: item.totalPrice || '',
-          };
-          if (!row.unit && item.unit) row.unit = item.unit;
-          if (!row.quantity && item.quantity != null) row.quantity = String(item.quantity);
-        });
-    });
-
-    return {
-      key: sectionKey,
-      label: getQuoteSectionLabel(sectionKey),
-      rows: Array.from(rowMap.values()),
-      subtotals: quotes.map(quote =>
-        (quote.items || [])
-          .filter(item => normalizeQuoteSection(item.section) === sectionKey)
-          .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice), 0)
-      ),
-    };
-  });
-}
-
-function getQuoteGrandTotals(quotes: Quote[]) {
-  return quotes.map(quote =>
-    (quote.items || []).reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice), 0)
-  );
 }
 
 function isReviewStateActive(viewingBy?: { name: string; at: Date } | null) {
@@ -629,7 +560,7 @@ export function ApprovalsView() {
 
   const handleExportBudgetComparison = (budget: (typeof budgets)[number]) => {
     try {
-    const quoteGrandTotals = getQuoteGrandTotals(budget.quotes);
+    const quoteGrandTotals = buildQuoteComparison(budget.quotes).grandTotals;
     const rows: string[][] = [
       ['OS', budget.id],
       ['Assunto', budget.subject],
@@ -1133,7 +1064,7 @@ export function ApprovalsView() {
               }`}
             >
               {(() => {
-                const quoteGrandTotals = getQuoteGrandTotals(budget.quotes);
+                const quoteGrandTotals = buildQuoteComparison(budget.quotes).grandTotals;
                 return (
                   <>
               {processingId === budget.id && (
@@ -1241,7 +1172,7 @@ export function ApprovalsView() {
                   </div>
                 </div>
                 <div className="mt-4 space-y-4">
-                  {buildQuoteComparisonSections(budget.quotes).map(section => (
+                  {buildQuoteComparison(budget.quotes).sections.map(section => (
                     <div key={section.key} className="rounded-2xl border border-roman-border/80 bg-roman-surface">
                       <div className="border-b border-roman-border/70 px-4 py-3">
                         <div className="text-sm font-medium text-roman-text-main">{section.label}</div>

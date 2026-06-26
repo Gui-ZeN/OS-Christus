@@ -1,6 +1,5 @@
 import React from 'react';
-import { formatCurrency as formatCurrencyInput, parseCurrency as parseCurrencyInput } from '../../utils/currency';
-import { normalizeQuoteSection } from './quotes';
+import { formatCurrency as formatCurrencyInput } from '../../utils/currency';
 import { useQuoteEditorContext } from './QuoteEditorContext';
 
 /**
@@ -83,19 +82,14 @@ export function QuoteComparisonPanel() {
                   ))}
                   <tr className="bg-roman-surface">
                     <td colSpan={3} className="px-3 py-2 font-medium text-roman-text-main">Subtotal da seção</td>
-                    {quotes.map((quote, index) => {
-                      const subtotal = quote.items
-                        .filter(item => normalizeQuoteSection(item.section) === section.key)
-                        .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0);
-                      return (
-                        <React.Fragment key={`${section.key}-subtotal-${index}`}>
-                          <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">-</td>
-                          <td className="px-3 py-2 font-medium text-roman-text-main">
-                            {subtotal > 0 ? formatCurrencyInput(subtotal) : '-'}
-                          </td>
-                        </React.Fragment>
-                      );
-                    })}
+                    {section.subtotals.map((subtotal, index) => (
+                      <React.Fragment key={`${section.key}-subtotal-${index}`}>
+                        <td className="border-l border-roman-border px-3 py-2 text-roman-text-sub">-</td>
+                        <td className="px-3 py-2 font-medium text-roman-text-main">
+                          {subtotal > 0 ? formatCurrencyInput(subtotal) : '-'}
+                        </td>
+                      </React.Fragment>
+                    ))}
                   </tr>
                 </tbody>
               </table>

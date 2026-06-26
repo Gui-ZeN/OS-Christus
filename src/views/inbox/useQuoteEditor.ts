@@ -3,7 +3,7 @@ import { formatCurrency as formatCurrencyInput, normalizeCurrencyInput, parseCur
 import type { CatalogMaterial } from '../../services/catalogApi';
 import type { QuoteItem, Ticket } from '../../types';
 import type { ProposalHeaderDraft, QuoteDraft } from './types';
-import { CUSTOM_QUOTE_UNIT_VALUE, DEFAULT_QUOTE_UNIT_OPTIONS, INITIAL_MIN_QUOTE_SLOTS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, getQuoteSectionLabel, getQuoteSections, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './quotes';
+import { CUSTOM_QUOTE_UNIT_VALUE, DEFAULT_QUOTE_UNIT_OPTIONS, INITIAL_MIN_QUOTE_SLOTS, buildQuoteComparison, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './quotes';
 
 interface UseQuoteEditorArgs {
   activeTicket: Ticket;
@@ -312,70 +312,10 @@ export function useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteM
     return Array.from(options);
   }, [additionalQuoteUnits, quotes]);
 
-  const quoteComparisonSections = useMemo(() => {
-    const sections = new Map<
-      string,
-      {
-        key: string;
-        label: string;
-        rows: Array<{
-          key: string;
-          description: string;
-          unit: string;
-          quantity: string;
-          values: Array<{ costUnitPrice: string; chargedTotalPrice: string }>;
-        }>;
-      }
-    >();
-
-    const sectionKeys = new Set<string>();
-    quotes.forEach(quote => {
-      getQuoteSections(quote.items).forEach(section => sectionKeys.add(section));
-    });
-
-    const orderedSections = Array.from(sectionKeys);
-
-    orderedSections.forEach(section => {
-      const rowMap = new Map<string, { key: string; description: string; unit: string; quantity: string; values: Array<{ costUnitPrice: string; chargedTotalPrice: string }> }>();
-      quotes.forEach((quote, quoteIndex) => {
-        quote.items
-          .filter(item => normalizeQuoteSection(item.section) === section)
-          .forEach(item => {
-            const rowKey = String(item.description || item.materialName || item.id).trim().toLowerCase();
-            if (!rowMap.has(rowKey)) {
-              rowMap.set(rowKey, {
-                key: rowKey,
-                description: item.description || item.materialName || 'Item sem descrição',
-                unit: item.unit || '',
-                quantity: item.quantity != null ? String(item.quantity) : '',
-                values: quotes.map(() => ({ costUnitPrice: '', chargedTotalPrice: '' })),
-              });
-            }
-            const row = rowMap.get(rowKey)!;
-            row.values[quoteIndex] = {
-              costUnitPrice: item.costUnitPrice || '',
-              chargedTotalPrice: item.totalPrice || '',
-            };
-            if (!row.unit && item.unit) row.unit = item.unit;
-            if (!row.quantity && item.quantity != null) row.quantity = String(item.quantity);
-          });
-      });
-
-      sections.set(section, {
-        key: section,
-        label: getQuoteSectionLabel(section),
-        rows: Array.from(rowMap.values()),
-      });
-    });
-
-    return Array.from(sections.values());
-  }, [quotes]);
-
-  const quoteGrandTotals = useMemo(
-    () =>
-      quotes.map(quote =>
-        quote.items.reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0)
-      ),
+  // Comparativo + totais: fonte única em `buildQuoteComparison` (mesma usada pela
+  // ApprovalsView), computado de uma vez (antes eram 2 memos separados).
+  const { sections: quoteComparisonSections, grandTotals: quoteGrandTotals } = useMemo(
+    () => buildQuoteComparison(quotes),
     [quotes]
   );
 

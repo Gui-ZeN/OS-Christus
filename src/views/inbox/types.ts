@@ -37,4 +37,6 @@ export type QuoteComparisonSection = {
     quantity: string;
     values: Array<{ costUnitPrice: string; chargedTotalPrice: string }>;
   }>;
+  /** Subtotal da seção por fornecedor (mesma ordem de `quotes`). */
+  subtotals: number[];
 };

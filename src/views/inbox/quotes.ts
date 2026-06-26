@@ -5,7 +5,7 @@
  */
 import { formatCurrency as formatCurrencyInput, parseCurrency as parseCurrencyInput } from '../../utils/currency';
 import type { QuoteItem, Ticket } from '../../types';
-import type { ProposalHeaderDraft, QuoteDraft } from './types';
+import type { ProposalHeaderDraft, QuoteComparisonSection, QuoteDraft } from './types';
 
 /** Sentinela do <option> "+ Outra..." no seletor de unidade do item. */
 export const CUSTOM_QUOTE_UNIT_VALUE = '__custom_unit__';
@@ -132,4 +132,60 @@ export function summarizeQuoteDraft(draft: QuoteDraft) {
     materialValue: totals.material > 0 ? formatCurrencyInput(totals.material) : '',
     totalValue: total > 0 ? formatCurrencyInput(total) : '',
   };
+}
+
+/**
+ * Comparativo consolidado das cotações: seções (linhas agrupadas × fornecedor,
+ * com subtotal por fornecedor) + total geral por fornecedor. **Fonte única** —
+ * consumida pelo editor (`useQuoteEditor`) E pela aprovação (`ApprovalsView`).
+ * Aceita `Quote[]` (persistido) e `QuoteDraft[]` (editor): ambos têm `items: QuoteItem[]`.
+ */
+export function buildQuoteComparison(quotes: Array<{ items?: QuoteItem[] }>): {
+  sections: QuoteComparisonSection[];
+  grandTotals: number[];
+} {
+  const itemsOf = (quote: { items?: QuoteItem[] }) => quote.items || [];
+
+  const sectionKeys = new Set<string>();
+  quotes.forEach(quote => itemsOf(quote).forEach(item => sectionKeys.add(normalizeQuoteSection(item.section))));
+
+  const sections = Array.from(sectionKeys).map(sectionKey => {
+    const rowMap = new Map<string, QuoteComparisonSection['rows'][number]>();
+    quotes.forEach((quote, quoteIndex) => {
+      itemsOf(quote)
+        .filter(item => normalizeQuoteSection(item.section) === sectionKey)
+        .forEach(item => {
+          const rowKey = String(item.description || item.materialName || item.id).trim().toLowerCase();
+          if (!rowMap.has(rowKey)) {
+            rowMap.set(rowKey, {
+              key: rowKey,
+              description: item.description || item.materialName || 'Item sem descrição',
+              unit: item.unit || '',
+              quantity: item.quantity != null ? String(item.quantity) : '',
+              values: quotes.map(() => ({ costUnitPrice: '', chargedTotalPrice: '' })),
+            });
+          }
+          const row = rowMap.get(rowKey)!;
+          row.values[quoteIndex] = { costUnitPrice: item.costUnitPrice || '', chargedTotalPrice: item.totalPrice || '' };
+          if (!row.unit && item.unit) row.unit = item.unit;
+          if (!row.quantity && item.quantity != null) row.quantity = String(item.quantity);
+        });
+    });
+    return {
+      key: sectionKey,
+      label: getQuoteSectionLabel(sectionKey),
+      rows: Array.from(rowMap.values()),
+      subtotals: quotes.map(quote =>
+        itemsOf(quote)
+          .filter(item => normalizeQuoteSection(item.section) === sectionKey)
+          .reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0)
+      ),
+    };
+  });
+
+  const grandTotals = quotes.map(quote =>
+    itemsOf(quote).reduce((sum, item) => sum + parseCurrencyInput(item.totalPrice || ''), 0)
+  );
+
+  return { sections, grandTotals };
 }
