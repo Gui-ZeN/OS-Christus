@@ -12,7 +12,7 @@ import { fetchProcurementData, saveMeasurement, savePayment } from '../services/
 import { fetchSettings } from '../services/settingsApi';
 import { deleteTicketAttachment, uploadClosureDocument, uploadMeasurementAttachment, uploadPaymentAttachment } from '../services/ticketStorage';
 import { notifyPaymentDispatch } from '../services/ticketEmail';
-import { buildValidationClosureChecklist } from '../utils/closureChecklist';
+import { mergeClosureChecklist } from '../utils/closureChecklist';
 import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
@@ -888,18 +888,7 @@ export function FinanceView() {
       const uploaded = await uploadClosureDocument(ticketId, file);
       const currentDocuments = targetTicket.closureChecklist?.documents || [];
       updateTicket(ticketId, {
-        closureChecklist: {
-          requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
-          requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
-          requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
-          infrastructureApprovalPrimary: targetTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
-          infrastructureApprovalSecondary: targetTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
-          closureNotes: targetTicket.closureChecklist?.closureNotes || '',
-          serviceStartedAt: targetTicket.closureChecklist?.serviceStartedAt || null,
-          serviceCompletedAt: targetTicket.closureChecklist?.serviceCompletedAt || null,
-          closedAt: targetTicket.closureChecklist?.closedAt || null,
-          documents: [uploaded, ...currentDocuments],
-        },
+        closureChecklist: mergeClosureChecklist(targetTicket, { documents: [uploaded, ...currentDocuments] }),
         history: [
           ...targetTicket.history,
           {
@@ -932,18 +921,7 @@ export function FinanceView() {
       await deleteTicketAttachment(targetDocument.path);
       const nextDocuments = currentDocuments.filter(document => document.id !== documentId);
       updateTicket(ticketId, {
-        closureChecklist: {
-          requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
-          requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
-          requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
-          infrastructureApprovalPrimary: targetTicket.closureChecklist?.infrastructureApprovalPrimary ?? false,
-          infrastructureApprovalSecondary: targetTicket.closureChecklist?.infrastructureApprovalSecondary ?? false,
-          closureNotes: targetTicket.closureChecklist?.closureNotes || '',
-          serviceStartedAt: targetTicket.closureChecklist?.serviceStartedAt || null,
-          serviceCompletedAt: targetTicket.closureChecklist?.serviceCompletedAt || null,
-          closedAt: targetTicket.closureChecklist?.closedAt || null,
-          documents: nextDocuments,
-        },
+        closureChecklist: mergeClosureChecklist(targetTicket, { documents: nextDocuments }),
         history: [
           ...targetTicket.history,
           {
@@ -1358,18 +1336,14 @@ export function FinanceView() {
         const serviceCompletedAt = closureDraft.serviceCompletedAt ? new Date(`${closureDraft.serviceCompletedAt}T12:00:00`) : null;
         const closedAt = canCloseTicket ? new Date() : targetTicket.closureChecklist?.closedAt || null;
         const closureChecklist: ClosureChecklist | undefined = canCloseTicket
-          ? {
-              requesterApproved: targetTicket.closureChecklist?.requesterApproved ?? false,
-              requesterApprovedBy: targetTicket.closureChecklist?.requesterApprovedBy || null,
-              requesterApprovedAt: targetTicket.closureChecklist?.requesterApprovedAt || null,
+          ? mergeClosureChecklist(targetTicket, {
               infrastructureApprovalPrimary: closureDraft.infrastructureApprovalPrimary,
               infrastructureApprovalSecondary: closureDraft.infrastructureApprovalSecondary,
               closureNotes: closureDraft.closureNotes.trim(),
               serviceStartedAt,
               serviceCompletedAt,
               closedAt,
-              documents: targetTicket.closureChecklist?.documents || [],
-            }
+            })
           : targetTicket.closureChecklist;
         const guarantee: GuaranteeInfo | undefined = canCloseTicket && serviceCompletedAt
           ? {
