@@ -7,6 +7,7 @@ import { ModalShell } from '../components/ui/ModalShell';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { useApp } from '../context/AppContext';
+import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useToast } from '../hooks/useToast';
 import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket, TicketAttachment } from '../types';
@@ -281,10 +282,10 @@ function getRoundMaxQuoteSlots(roundType: 'initial' | 'additive') {
 }
 
 export function InboxView() {
+  const { openAttachment } = useAttachmentPreview();
   const {
     currentView,
     navigateTo,
-    openAttachment,
     activeTicketId,
     setActiveTicketId,
     inboxFilter,

@@ -2,6 +2,7 @@
 import { CheckCircle, Download, FileText, Image as ImageIcon, Loader2, Shield, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
@@ -152,7 +153,8 @@ function resolvePendingRound(quotes: Quote[]) {
 }
 
 export function ApprovalsView() {
-  const { activeTicketId, setActiveTicketId, currentView, openAttachment, updateTicket, tickets, currentUser, refreshTickets } = useApp();
+  const { activeTicketId, setActiveTicketId, currentView, updateTicket, tickets, currentUser, refreshTickets } = useApp();
+  const { openAttachment } = useAttachmentPreview();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
   const directorActorName = String(currentUser?.name || '').trim() || 'Diretoria';

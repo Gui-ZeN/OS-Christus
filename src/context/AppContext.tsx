@@ -12,8 +12,6 @@ import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, pat
 import { requestPasswordResetInApi } from '../services/passwordResetApi';
 import { InboxFilter, Ticket, ViewState } from '../types';
 
-type AttachmentPreviewKind = 'image' | 'pdf' | 'file';
-
 interface TicketUpdateOptions {
   sendEmailUpdate?: boolean;
 }
@@ -25,21 +23,6 @@ interface AppContextType {
   setActiveTicketId: (id: string) => void;
   trackingTicketToken: string | null;
   setTrackingTicketToken: (token: string | null) => void;
-  attachmentPreview: {
-    title: string;
-    type: AttachmentPreviewKind;
-    url?: string | null;
-    items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
-  } | null;
-  openAttachment: (
-    title: string,
-    type: AttachmentPreviewKind,
-    options?: {
-      url?: string | null;
-      items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
-    }
-  ) => void;
-  closeAttachment: () => void;
   inboxFilter: InboxFilter;
   setInboxFilter: (filter: InboxFilter) => void;
   tickets: Ticket[];
@@ -157,12 +140,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentView, setCurrentView] = useState<ViewState>(getInitialView);
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<{
-    title: string;
-    type: AttachmentPreviewKind;
-    url?: string | null;
-    items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
-  } | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
@@ -528,26 +505,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentView(view);
   };
 
-  const openAttachment = (
-    title: string,
-    type: AttachmentPreviewKind,
-    options?: {
-      url?: string | null;
-      items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
-    }
-  ) => {
-    setAttachmentPreview({
-      title,
-      type,
-      url: options?.url || null,
-      items: options?.items || [],
-    });
-  };
-
-  const closeAttachment = () => {
-    setAttachmentPreview(null);
-  };
-
   const setCurrentUserEmail = (email: string) => {
     const normalized = email.trim().toLowerCase();
     setCurrentUserEmailState(normalized);
@@ -659,9 +616,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveTicketId,
         trackingTicketToken,
         setTrackingTicketToken,
-        attachmentPreview,
-        openAttachment,
-        closeAttachment,
         inboxFilter,
         setInboxFilter,
         tickets,

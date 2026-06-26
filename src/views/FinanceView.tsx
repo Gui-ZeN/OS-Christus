@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, Mail, PlusCircle, Trash2, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { ModalShell } from '../components/ui/ModalShell';
@@ -503,7 +504,8 @@ function shouldEnforceClosingChecklist(ticket: Ticket) {
 }
 
 export function FinanceView() {
-  const { activeTicketId, currentView, openAttachment, updateTicket, tickets, currentUser, refreshTickets } = useApp();
+  const { activeTicketId, currentView, updateTicket, tickets, currentUser, refreshTickets } = useApp();
+  const { openAttachment } = useAttachmentPreview();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canPay = canAccess;
   const actorLabel = currentUser?.role ? `${currentUser.name} (${currentUser.role})` : currentUser?.name || 'Financeiro';

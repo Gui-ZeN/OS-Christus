@@ -19,6 +19,7 @@ import { SidebarIcon } from './components/ui/SidebarIcon';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { CURRENT_RELEASE, hasSeenRelease, markReleaseSeen } from './constants/releaseNotes';
 import { useApp } from './context/AppContext';
+import { useAttachmentPreview } from './context/AttachmentPreviewContext';
 import { ViewState } from './types';
 
 const CHUNK_RELOAD_KEY = 'os-chunk-reloaded-once';
@@ -158,12 +159,11 @@ function ViewLoader({ fullScreen = false }: { fullScreen?: boolean }) {
 }
 
 export default function App() {
+  const { attachmentPreview, closeAttachment } = useAttachmentPreview();
   const {
     currentView,
     navigateTo,
     trackingTicketToken,
-    attachmentPreview,
-    closeAttachment,
     setActiveTicketId,
     tickets,
     updateTicket,
