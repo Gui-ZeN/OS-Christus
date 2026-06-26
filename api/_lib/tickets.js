@@ -239,3 +239,33 @@ export async function reserveNextTicketId(db) {
 
   return `OS-${String(nextNumber).padStart(4, '0')}`;
 }
+
+/**
+ * Mescla entradas novas no histórico deduplicando por `id` (as já presentes são
+ * ignoradas). Puro — não toca no banco. Fonte única do "append-preservando-
+ * concorrentes" antes copiado em tickets.js e mail.js.
+ */
+export function mergeTicketHistory(currentHistory, newEntries) {
+  const current = Array.isArray(currentHistory) ? currentHistory : [];
+  const entries = Array.isArray(newEntries) ? newEntries : [newEntries];
+  const existingIds = new Set(current.map(item => item?.id).filter(Boolean));
+  const appended = entries.filter(item => item?.id && !existingIds.has(item.id));
+  return { merged: appended.length ? [...current, ...appended] : current, appendedCount: appended.length };
+}
+
+/**
+ * Anexa entradas ao histórico de uma OS de forma ATÔMICA: relê o histórico
+ * fresco DENTRO de uma transação e mescla (dedup por id), preservando entradas
+ * concorrentes. Retorna quantas entradas foram realmente anexadas (0 = nada novo
+ * ou OS inexistente). Usar nos caminhos que NÃO estão dentro de uma transação.
+ */
+export async function appendTicketHistory(db, ticketRef, newEntries) {
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ticketRef);
+    if (!snap.exists) return 0;
+    const { merged, appendedCount } = mergeTicketHistory(snap.data()?.history, newEntries);
+    if (!appendedCount) return 0;
+    tx.set(ticketRef, { history: merged, updatedAt: new Date() }, { merge: true });
+    return appendedCount;
+  });
+}

@@ -5,7 +5,7 @@ import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_li
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
-import { normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
+import { mergeTicketHistory, normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentMime } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
@@ -922,15 +922,13 @@ export default async function handler(req, res) {
         }
 
         if (Array.isArray(updates.history)) {
-          // Cliente enviou histórico (ex.: nova mensagem). Mescla apenas entradas
-          // novas (por id) sobre o histórico fresco, preservando as concorrentes.
-          const existingIds = new Set(freshHistory.map(item => item?.id).filter(Boolean));
-          const appended = updates.history.filter(item => item?.id && !existingIds.has(item.id));
+          // Cliente enviou histórico (ex.: nova mensagem). Mescla só as entradas
+          // novas (por id) sobre o histórico fresco + a entrada de status auto.
           const statusEntry =
             statusChanged && shouldAppendAutomaticHistory(data.history, updates.history)
               ? [buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status)]
               : [];
-          payload.history = [...freshHistory, ...appended, ...statusEntry];
+          payload.history = mergeTicketHistory(freshHistory, [...updates.history, ...statusEntry]).merged;
         } else if (statusChanged) {
           payload.history = [
             ...freshHistory,

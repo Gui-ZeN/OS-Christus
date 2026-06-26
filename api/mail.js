@@ -8,7 +8,7 @@ import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCach
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { reserveNextTicketId } from './_lib/tickets.js';
+import { appendTicketHistory, reserveNextTicketId } from './_lib/tickets.js';
 import {
   decodeMimeHeader,
   gmailGetMessage,
@@ -711,22 +711,8 @@ async function appendInboundMessageToTicketHistory(db, ticketId, message) {
     visibility,
   });
 
-  // Transação: relê o histórico fresco e anexa apenas se a entrada ainda não
-  // existir, preservando entradas concorrentes (ex.: edição no painel).
-  await db.runTransaction(async tx => {
-    const snap = await tx.get(ticketRef);
-    if (!snap.exists) return;
-    const freshHistory = Array.isArray(snap.data()?.history) ? snap.data().history : [];
-    if (freshHistory.some(item => item?.id === nextEntry.id)) return;
-    tx.set(
-      ticketRef,
-      {
-        history: [...freshHistory, nextEntry],
-        updatedAt: new Date(),
-      },
-      { merge: true }
-    );
-  });
+  // Atômico (dedup por id, preserva entradas concorrentes — ex.: edição no painel).
+  await appendTicketHistory(db, ticketRef, [nextEntry]);
 }
 
 function getGmailStateRef(db) {
@@ -848,23 +834,14 @@ async function handleBounceNotice(db, message) {
   if (ticketId) {
     const ticketRef = db.collection('tickets').doc(ticketId);
     const entryId = `bounce-${consolidationKey}`;
-    await db.runTransaction(async tx => {
-      const snap = await tx.get(ticketRef);
-      if (!snap.exists) return;
-      const freshHistory = Array.isArray(snap.data()?.history) ? snap.data().history : [];
-      if (freshHistory.some(item => item?.id === entryId)) return;
-      tx.set(ticketRef, {
-        history: [...freshHistory, {
-          id: entryId,
-          type: 'system',
-          sender: 'Sistema',
-          time: message.internalDate || new Date(),
-          text: noteText,
-          visibility: 'internal',
-        }],
-        updatedAt: new Date(),
-      }, { merge: true });
-    });
+    await appendTicketHistory(db, ticketRef, [{
+      id: entryId,
+      type: 'system',
+      sender: 'Sistema',
+      time: message.internalDate || new Date(),
+      text: noteText,
+      visibility: 'internal',
+    }]);
   }
 
   // Notificação consolidada por OS (idempotente): um só aviso no sino por OS.
@@ -2031,15 +2008,10 @@ async function reprocessInboundWindow(db, sinceDate) {
         },
         {}
       );
-      const history = Array.isArray(ticketData.history) ? ticketData.history : [];
-      if (!history.some(item => item?.id === historyEntry.id)) {
-        await ticketRef.set(
-          {
-            history: [...history, historyEntry],
-            updatedAt: new Date(),
-          },
-          { merge: true }
-        );
+      // Atômico: relê o histórico fresco DENTRO da transação. Antes lia o
+      // snapshot stale `ticketData` e escrevia sem transação — race com edição
+      // concorrente do painel/inbound podia clobberar entradas.
+      if (await appendTicketHistory(db, ticketRef, [historyEntry])) {
         counters.historyRecovered += 1;
       }
 
