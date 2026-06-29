@@ -67,12 +67,12 @@ function getInitialView(): ViewState {
   if ((requestedView === 'password-reset' || mode === 'resetPassword') && oobCode) {
     return 'password-reset';
   }
-  const queryAllowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs', 'users', 'email-health'];
+  const queryAllowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'os-board', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'audit-logs', 'users', 'email-health'];
   if (queryAllowed.includes(requestedView as ViewState)) {
     return requestedView as ViewState;
   }
   const stored = window.localStorage.getItem('serv3-current-view');
-  const allowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
+  const allowed: ViewState[] = ['landing', 'login', 'password-reset', 'public-form', 'home', 'inbox', 'os-board', 'users', 'kpi', 'settings', 'tracking', 'approvals', 'finance', 'email-health', 'audit-logs'];
   return allowed.includes(stored as ViewState) ? (stored as ViewState) : 'landing';
 }
 
@@ -464,7 +464,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const allowedViews: ViewState[] = ['public-form', 'login', 'password-reset', 'home', 'inbox', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'];
+    const allowedViews: ViewState[] = ['public-form', 'login', 'password-reset', 'home', 'inbox', 'os-board', 'approvals', 'finance', 'kpi', 'settings', 'audit-logs'];
     if (allowedViews.includes(requestedView as ViewState)) {
       setCurrentView(requestedView as ViewState);
       const requestedTicketId = params.get('ticketId');

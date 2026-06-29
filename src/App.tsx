@@ -12,6 +12,7 @@ import {
   ScrollText,
   Settings,
   Shield,
+  Table,
   X,
 } from 'lucide-react';
 
@@ -64,6 +65,7 @@ const ApprovalsView = lazyWithAutoRecovery(async () => ({ default: (await import
 const FinanceView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
 const HomeView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/HomeView')).HomeView }));
 const InboxView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/InboxView')).InboxView }));
+const OsBoardView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/OsBoardView')).OsBoardView }));
 const SplitLoginView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
 const PasswordResetView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PasswordResetView')).PasswordResetView }));
 const LandingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/LandingView')).LandingView }));
@@ -78,6 +80,7 @@ export const VIEWS = {
   PUBLIC_FORM: 'public-form',
   HOME: 'home',
   INBOX: 'inbox',
+  OS_BOARD: 'os-board',
   USERS: 'users',
   KPI: 'kpi',
   SETTINGS: 'settings',
@@ -188,6 +191,7 @@ export default function App() {
   const currentRole = currentUser?.role || '';
   const isRequesterRole = currentRole === 'Usuario';
   const canAccessInbox = !isRequesterRole;
+  const canAccessOsBoard = currentRole === 'Admin' || currentRole === 'Gestor';
   const canAccessApprovals = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
@@ -233,6 +237,7 @@ export default function App() {
 
   const canOpenView = (view: ViewState) => {
     if (view === VIEWS.INBOX) return canAccessInbox;
+    if (view === VIEWS.OS_BOARD) return canAccessOsBoard;
     if (view === VIEWS.APPROVALS) return canAccessApprovals;
     if (view === VIEWS.FINANCE) return canAccessFinance;
     if (view === VIEWS.EMAIL_HEALTH) return canAccessEmailHealth;
@@ -418,6 +423,7 @@ export default function App() {
           {canAccessInbox && (
             <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           )}
+          {canAccessOsBoard && <SidebarIcon icon={<Table size={20} />} active={currentView === VIEWS.OS_BOARD} onClick={() => navigateTo(VIEWS.OS_BOARD)} title="Gestão de OS" />}
           {canAccessApprovals && <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />}
           {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
           {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
@@ -478,6 +484,7 @@ export default function App() {
           <Suspense fallback={<ViewLoader />}>
             {currentView === VIEWS.HOME && <HomeView />}
             {currentView === VIEWS.INBOX && canAccessInbox && <InboxView />}
+            {currentView === VIEWS.OS_BOARD && canAccessOsBoard && <OsBoardView />}
             {currentView === VIEWS.APPROVALS && canAccessApprovals && <ApprovalsView />}
             {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
             {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
