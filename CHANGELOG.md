@@ -3,6 +3,15 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-06-29
+
+### 🗂️ Nova tela "Gestão de OS" (`96d109a`)
+- Tela pros gestores (Admin + Gestor): tabela resumo de **todas** as OS com filtros por sede, macroserviço, serviço, equipe e status + busca. Clicar numa linha abre a OS na Caixa de Entrada. Nova entrada na sidebar (ícone de tabela). Categoria de serviço fica como filtro futuro.
+
+### 🎨 Ajustes de UI da Caixa de Entrada
+- **Bolinha de status na lista** (`5e63f05`): vermelha para Nova OS (precisa triagem), verde para as em andamento (antes só aparecia em Nova OS, cor âmbar).
+- **Composer responsivo** (`f633ea6`): em telas/janelas baixas o chat (`max-h-[55vh]` + scroll) deixa de cobrir a conversa.
+
 ## 2026-06-25
 
 ### ✉️ Sede da OS no assunto do e-mail
