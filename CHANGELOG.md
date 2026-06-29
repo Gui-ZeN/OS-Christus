@@ -12,6 +12,12 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 - **Bolinha de status na lista** (`5e63f05`): vermelha para Nova OS (precisa triagem), verde para as em andamento (antes só aparecia em Nova OS, cor âmbar).
 - **Composer responsivo** (`f633ea6`): em telas/janelas baixas o chat (`max-h-[55vh]` + scroll) deixa de cobrir a conversa.
 
+### 📐 Densidade pra laptops 14-15" (UI grande demais em telas menores)
+- **Causa-raiz** (`1fe310b`): um bloco em `index.css` inflava **todas** as fontes pequenas com `!important` (`text-sm` 14→15.2px, `text-xs` 12→13.9px, `text-[11px]` 11→13.1px, `text-[10px]` 10→12.2px) em **todas** as telas — daí o "tudo grande". A inflação foi escopada só pra **monitores ≥1536px**; laptops e telas menores voltam aos tamanhos naturais em todas as views. Boundary alinhado ao `2xl`.
+- **Inbox densificado** (`d0acd0d`): título da OS 26→21px, item da lista com fonte/padding menores, thread mais apertada. Regra "compacto no laptop, `2xl:` restaura no monitor".
+- **Item da lista reestruturado** (`1fe310b`): OS-id movido pro início do assunto; linha de status só badge + prioridade → item 196→**129px**, ~5 OS visíveis (era 3).
+- **Tabela "Gestão de OS"** (`e72fada`): apertada (padding/assunto/headers) pra caber sem scroll horizontal em 1280-1366.
+
 ## 2026-06-25
 
 ### ✉️ Sede da OS no assunto do e-mail
