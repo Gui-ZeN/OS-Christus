@@ -50,7 +50,11 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
     >
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 pr-2">
-          {isNew && <span className="h-2 w-2 shrink-0 rounded-full bg-roman-primary" aria-hidden="true" />}
+          <span
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${isNew ? 'bg-red-500' : 'bg-emerald-500'}`}
+            aria-hidden="true"
+            title={isNew ? 'Nova OS — aguardando triagem' : 'OS em andamento'}
+          />
           <span className="truncate text-[15px] font-semibold text-roman-text-main xl:text-base">{normalizedRequester}</span>
         </div>
         <span className="whitespace-nowrap text-[11px] font-serif italic text-roman-text-sub xl:text-xs">
