@@ -105,36 +105,43 @@ body {
   letter-spacing: 0.005em;
 }
 
-.text-\[10px\] {
-  font-size: 0.76rem !important;
-}
+/* Escala de tipo ampliada (legibilidade) — só em monitores grandes (>=1536px).
+   Em laptops 14-15" e telas menores, os tamanhos pequenos ficam no valor natural
+   (text-xs=12px, text-sm=14px, text-[11px]=11px, ...) pra a UI não ficar grande
+   demais / desperdiçar espaço. Este bloco era global e aplicava a inflação em
+   todas as telas — daí a sensação de "tudo grande" nos laptops. */
+@media (min-width: 1536px) {
+  .text-\[10px\] {
+    font-size: 0.76rem !important;
+  }
 
-.text-\[11px\] {
-  font-size: 0.82rem !important;
-}
+  .text-\[11px\] {
+    font-size: 0.82rem !important;
+  }
 
-.text-xs {
-  font-size: 0.87rem !important;
-}
+  .text-xs {
+    font-size: 0.87rem !important;
+  }
 
-.text-sm {
-  font-size: 0.95rem !important;
-}
+  .text-sm {
+    font-size: 0.95rem !important;
+  }
 
-.font-serif.text-\[10px\] {
-  font-size: 0.82rem !important;
-}
+  .font-serif.text-\[10px\] {
+    font-size: 0.82rem !important;
+  }
 
-.font-serif.text-\[11px\] {
-  font-size: 0.88rem !important;
-}
+  .font-serif.text-\[11px\] {
+    font-size: 0.88rem !important;
+  }
 
-.font-serif.text-xs {
-  font-size: 0.94rem !important;
-}
+  .font-serif.text-xs {
+    font-size: 0.94rem !important;
+  }
 
-.font-serif.text-sm {
-  font-size: 1rem !important;
+  .font-serif.text-sm {
+    font-size: 1rem !important;
+  }
 }
 
 button:focus-visible,

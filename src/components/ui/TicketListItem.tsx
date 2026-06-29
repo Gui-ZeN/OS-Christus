@@ -62,28 +62,25 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
         </span>
       </div>
 
-      <div className={`mb-1 truncate text-[13px] text-roman-text-main 2xl:text-base ${active ? 'font-semibold' : 'font-medium'}`}>{normalizedSubject}</div>
+      <div className={`mb-1 truncate text-[13px] text-roman-text-main 2xl:text-base ${active ? 'font-semibold' : 'font-medium'}`}>
+        <span className="font-normal text-roman-text-sub">{id}</span> · {normalizedSubject}
+      </div>
 
       <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-serif text-roman-text-sub">
         <StatusBadge status={status} compact />
-        <span className="opacity-50">•</span>
-        {id}
         {priority && (
-          <>
-            <span className="opacity-50">•</span>
-            <span
-              className={`flex items-center gap-1 font-medium ${
-                normalizedPriority === 'Urgente'
-                  ? 'text-red-600'
-                  : normalizedPriority === 'Alta'
-                    ? 'text-roman-primary'
-                    : 'text-roman-text-sub'
-              }`}
-            >
-              {normalizedPriority === 'Urgente' && <AlertCircle size={10} />}
-              {normalizedPriority}
-            </span>
-          </>
+          <span
+            className={`flex items-center gap-1 font-medium ${
+              normalizedPriority === 'Urgente'
+                ? 'text-red-600'
+                : normalizedPriority === 'Alta'
+                  ? 'text-roman-primary'
+                  : 'text-roman-text-sub'
+            }`}
+          >
+            {normalizedPriority === 'Urgente' && <AlertCircle size={10} />}
+            {normalizedPriority}
+          </span>
         )}
       </div>
 
