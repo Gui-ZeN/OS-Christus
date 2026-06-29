@@ -178,16 +178,16 @@ export function OsBoardView() {
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-roman-surface text-left">
-              <tr className="border-b border-roman-border text-[11px] uppercase tracking-widest text-roman-text-sub">
-                <th className="px-4 py-2.5 font-medium">OS</th>
-                <th className="px-4 py-2.5 font-medium">Assunto</th>
-                <th className="px-4 py-2.5 font-medium">Sede</th>
-                <th className="px-4 py-2.5 font-medium">Macroserviço</th>
-                <th className="px-4 py-2.5 font-medium">Serviço</th>
-                <th className="px-4 py-2.5 font-medium">Equipe</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 font-medium">Prioridade</th>
-                <th className="px-4 py-2.5 font-medium">Atualizado</th>
+              <tr className="border-b border-roman-border text-[11px] uppercase tracking-wider text-roman-text-sub">
+                <th className="px-3 py-2.5 font-medium">OS</th>
+                <th className="px-3 py-2.5 font-medium">Assunto</th>
+                <th className="px-3 py-2.5 font-medium">Sede</th>
+                <th className="px-3 py-2.5 font-medium">Macroserviço</th>
+                <th className="px-3 py-2.5 font-medium">Serviço</th>
+                <th className="px-3 py-2.5 font-medium">Equipe</th>
+                <th className="px-3 py-2.5 font-medium">Status</th>
+                <th className="px-3 py-2.5 font-medium">Prioridade</th>
+                <th className="px-3 py-2.5 font-medium">Atualizado</th>
               </tr>
             </thead>
             <tbody>
@@ -205,20 +205,20 @@ export function OsBoardView() {
                   tabIndex={0}
                   className="cursor-pointer border-b border-roman-border/60 align-top transition-colors hover:bg-roman-primary/[0.06] focus:bg-roman-primary/10 focus:outline-none"
                 >
-                  <td className="whitespace-nowrap px-4 py-2.5 font-medium text-roman-text-main">{ticket.id}</td>
-                  <td className="max-w-[22rem] px-4 py-2.5">
+                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-roman-text-main">{ticket.id}</td>
+                  <td className="max-w-[14rem] px-3 py-2.5">
                     <div className="truncate font-medium text-roman-text-main">{repairMojibake(ticket.subject)}</div>
                     <div className="truncate text-xs text-roman-text-sub">{repairMojibake(ticket.requester || 'Sem solicitante')}</div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-roman-text-sub">{siteLabel || '—'}</td>
-                  <td className="px-4 py-2.5 text-roman-text-sub">{macro || '—'}</td>
-                  <td className="px-4 py-2.5 text-roman-text-sub">{svc || '—'}</td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-roman-text-sub">{tm || '—'}</td>
-                  <td className="whitespace-nowrap px-4 py-2.5"><StatusBadge status={ticket.status} /></td>
-                  <td className={`whitespace-nowrap px-4 py-2.5 font-medium ${priorityClass(repairMojibake(ticket.priority || ''))}`}>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{siteLabel || '—'}</td>
+                  <td className="px-3 py-2.5 text-roman-text-sub">{macro || '—'}</td>
+                  <td className="px-3 py-2.5 text-roman-text-sub">{svc || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{tm || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5"><StatusBadge status={ticket.status} /></td>
+                  <td className={`whitespace-nowrap px-3 py-2.5 font-medium ${priorityClass(repairMojibake(ticket.priority || ''))}`}>
                     {repairMojibake(ticket.priority || '—')}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 font-serif italic text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
                 </tr>
               ))}
             </tbody>
