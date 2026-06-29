@@ -2960,8 +2960,9 @@ export function InboxView() {
               />
             </div>
 
-            {/* Reply Box */}
-            <div className="border-t border-roman-border bg-roman-bg/95 px-3 pb-3 pt-2 backdrop-blur md:px-4">
+            {/* Reply Box — cap por viewport em telas baixas pra não cobrir a conversa
+                (só age quando o composer passaria de ~55vh; sem efeito em telas altas). */}
+            <div className="border-t border-roman-border bg-roman-bg/95 px-3 pb-3 pt-2 backdrop-blur md:px-4 max-h-[55vh] overflow-y-auto">
               <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode !== 'public' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex overflow-x-auto border-b border-roman-border bg-roman-bg/50">
