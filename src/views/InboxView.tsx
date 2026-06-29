@@ -2820,7 +2820,7 @@ export function InboxView() {
           <div className="flex-1 min-h-0 min-w-0 bg-roman-bg overflow-hidden grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto]">
 
             {/* Ticket Header */}
-            <div className="min-w-0 bg-roman-surface px-3 py-3 md:px-4 md:py-4 border-b border-roman-border">
+            <div className="min-w-0 bg-roman-surface px-3 py-2.5 md:px-4 md:py-3 border-b border-roman-border">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
                   {/* Etapa atual em destaque (informação principal) */}
@@ -2832,7 +2832,7 @@ export function InboxView() {
                       </span>
                     ) : null}
                   </div>
-                  <h1 className="text-[1.35rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.5rem] xl:text-[1.65rem]">{activeTicket.subject}</h1>
+                  <h1 className="text-[1.2rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.3rem] 2xl:text-[1.5rem]">{activeTicket.subject}</h1>
                   {/* Identidade + escopo + data, consolidados numa única linha */}
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-roman-text-sub">
                     <span className="font-medium text-roman-text-main">{activeTicket.id}</span>
@@ -2950,7 +2950,7 @@ export function InboxView() {
             </div>
 
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
-            <div className="min-h-0 overflow-y-auto p-3 md:p-4">
+            <div className="min-h-0 overflow-y-auto p-3 2xl:p-4">
               <TicketHistory
                 history={activeTicket.history}
                 canManageStatus={canManageStatus}

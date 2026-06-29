@@ -4,9 +4,11 @@ import { repairMojibake } from '../../utils/text';
 interface StatusBadgeProps {
   status: string;
   className?: string;
+  /** Versão menor (lista densa): fonte/padding reduzidos pra quebrar menos em colunas estreitas. */
+  compact?: boolean;
 }
 
-export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
+export function StatusBadge({ status, className = '', compact = false }: StatusBadgeProps) {
   const normalizedStatusText = repairMojibake(status);
   let bgColor = 'bg-roman-bg';
   let textColor = 'text-roman-text-main';
@@ -65,7 +67,9 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   }
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border ${borderColor} px-2.5 py-1 text-xs font-medium ${bgColor} ${textColor} ${className}`}>
+    <span className={`inline-flex items-center rounded-full border ${borderColor} font-medium ${bgColor} ${textColor} ${
+      compact ? 'gap-1 px-2 py-0.5 text-[11px]' : 'gap-1.5 px-2.5 py-1 text-xs'
+    } ${className}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} aria-hidden="true"></span>
       {normalizedStatusText}
     </span>

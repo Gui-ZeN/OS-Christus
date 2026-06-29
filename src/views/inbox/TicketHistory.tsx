@@ -36,7 +36,7 @@ interface TicketHistoryProps {
  */
 function TicketHistoryComponent({ history, canManageStatus, isSending, onUpdateItemTime, onOpenAttachment }: TicketHistoryProps) {
   return (
-    <div className="space-y-4 pb-3">
+    <div className="space-y-3 pb-2">
       {history
         .map((item, originalIndex) => ({ item, originalIndex }))
         .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
@@ -140,7 +140,7 @@ function TicketHistoryComponent({ history, canManageStatus, isSending, onUpdateI
                     </div>
                   )}
                   <div
-                    className={`rounded-sm p-3 text-[12px] leading-relaxed shadow-sm border ${
+                    className={`rounded-sm p-2.5 text-[12px] leading-normal shadow-sm border ${
                       isExternalMessage
                         ? 'bg-roman-primary/5 border-roman-primary/20'
                         : isInternalNote

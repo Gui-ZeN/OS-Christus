@@ -38,7 +38,7 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
     <button
       onClick={() => onSelect(id)}
       aria-current={active ? 'true' : undefined}
-      className={`w-full cursor-pointer border-b border-l-4 border-roman-border p-3 xl:p-4 text-left transition-colors ${
+      className={`w-full cursor-pointer border-b border-l-4 border-roman-border px-3 py-2.5 2xl:p-4 text-left transition-colors ${
         active
           ? 'border-l-roman-primary bg-roman-primary/20 ring-1 ring-inset ring-roman-primary/25 hover:bg-roman-primary/[0.22]'
           : isWaitingValidation
@@ -55,17 +55,17 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
             aria-hidden="true"
             title={isNew ? 'Nova OS — aguardando triagem' : 'OS em andamento'}
           />
-          <span className="truncate text-[15px] font-semibold text-roman-text-main xl:text-base">{normalizedRequester}</span>
+          <span className="truncate text-[13px] font-semibold text-roman-text-main 2xl:text-base">{normalizedRequester}</span>
         </div>
-        <span className="whitespace-nowrap text-[11px] font-serif italic text-roman-text-sub xl:text-xs">
+        <span className="whitespace-nowrap text-[11px] font-serif italic text-roman-text-sub">
           {formatDateTimeSafe(time)}
         </span>
       </div>
 
-      <div className={`mb-1.5 truncate text-[15px] text-roman-text-main xl:mb-2 xl:text-base ${active ? 'font-semibold' : 'font-medium'}`}>{normalizedSubject}</div>
+      <div className={`mb-1 truncate text-[13px] text-roman-text-main 2xl:text-base ${active ? 'font-semibold' : 'font-medium'}`}>{normalizedSubject}</div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-serif text-roman-text-sub">
-        <StatusBadge status={status} />
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-serif text-roman-text-sub">
+        <StatusBadge status={status} compact />
         <span className="opacity-50">•</span>
         {id}
         {priority && (
@@ -88,13 +88,13 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
       </div>
 
       {isWaitingValidation && (
-        <div className="mb-2 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] font-medium text-roman-primary">
+        <div className="mb-1.5 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[10px] font-medium text-roman-primary">
           Aguardando validação do solicitante
         </div>
       )}
 
       {recurrentLocation && (
-        <div className="mb-2 w-fit rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
+        <div className="mb-1.5 w-fit rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
           Local recorrente
         </div>
       )}
