@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, User, Image as ImageIcon, ChevronDown, ChevronLeft, ChevronRight, Calendar, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, User, Image as ImageIcon, ChevronDown, ChevronLeft, ChevronRight, Calendar, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -308,6 +308,8 @@ export function InboxView() {
   const [ticketPriority, setTicketPriority] = useState('');
   const [statusDraft, setStatusDraft] = useState('');
   const [showStageControls, setShowStageControls] = useState(false);
+  // Minimizar/maximizar o composer — controle do usuário sobre o espaço da conversa.
+  const [composerView, setComposerView] = useState<'normal' | 'min' | 'max'>('normal');
   const [waterIssueDraft, setWaterIssueDraft] = useState(false);
   const [sidebarSections, setSidebarSections] = useState({
     // Detalhes read-only começam recolhidos para destacar o formulário de triagem.
@@ -2972,7 +2974,7 @@ export function InboxView() {
 
             {/* Reply Box — cap por viewport em telas baixas pra não cobrir a conversa
                 (só age quando o composer passaria de ~55vh; sem efeito em telas altas). */}
-            <div className="border-t border-roman-border bg-roman-bg/95 px-3 pb-2 pt-1.5 backdrop-blur md:px-4 max-h-[55vh] overflow-y-auto">
+            <div className={`border-t border-roman-border bg-roman-bg/95 px-3 pb-2 pt-1.5 backdrop-blur md:px-4 overflow-y-auto ${composerView === 'max' ? 'max-h-[85vh]' : 'max-h-[55vh]'}`}>
               <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode !== 'public' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex overflow-x-auto border-b border-roman-border bg-roman-bg/50">
@@ -2996,8 +2998,29 @@ export function InboxView() {
                       Mensagem à Diretoria
                     </button>
                   )}
+                  <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-1">
+                    <button
+                      type="button"
+                      onClick={() => setComposerView(v => (v === 'min' ? 'normal' : 'min'))}
+                      title={composerView === 'min' ? 'Expandir' : 'Minimizar'}
+                      aria-label={composerView === 'min' ? 'Expandir o campo de mensagem' : 'Minimizar o campo de mensagem'}
+                      className="rounded p-1 text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
+                    >
+                      {composerView === 'min' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComposerView(v => (v === 'max' ? 'normal' : 'max'))}
+                      title={composerView === 'max' ? 'Restaurar' : 'Maximizar'}
+                      aria-label={composerView === 'max' ? 'Restaurar o campo de mensagem' : 'Maximizar o campo de mensagem'}
+                      className="rounded p-1 text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
+                    >
+                      {composerView === 'max' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                    </button>
+                  </div>
                 </div>
 
+                <div className={composerView === 'min' ? 'hidden' : ''}>
                 {replyMode === 'public' && (
                   <div className="border-b border-roman-border/50 bg-white px-3 py-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -3168,7 +3191,7 @@ export function InboxView() {
                 <textarea
                   ref={replyTextRef}
                   rows={1}
-                  className="w-full min-h-[2.5rem] max-h-[40vh] overflow-y-auto p-3 outline-none resize-none bg-transparent text-[13px] font-sans disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full overflow-y-auto p-3 outline-none resize-none bg-transparent text-[13px] font-sans disabled:opacity-50 disabled:cursor-not-allowed ${composerView === 'max' ? 'min-h-[40vh] max-h-[70vh]' : 'min-h-[2.5rem] max-h-[40vh]'}`}
                   placeholder={
                     isClosed
                       ? 'Esta OS está encerrada e não aceita novos comentários.'
@@ -3281,6 +3304,7 @@ export function InboxView() {
                       </div>
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             </div>
