@@ -11,6 +11,8 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 ### 🎨 Ajustes de UI da Caixa de Entrada
 - **Bolinha de status na lista** (`5e63f05`): vermelha para Nova OS (precisa triagem), verde para as em andamento (antes só aparecia em Nova OS, cor âmbar).
 - **Composer responsivo** (`f633ea6`): em telas/janelas baixas o chat (`max-h-[55vh]` + scroll) deixa de cobrir a conversa.
+- **Composer compacto + auto-grow** (`9ee091f`): textarea começa em 1 linha (44px, era 80 fixo) e cresce conforme digita (volta ao limpar/enviar/trocar de OS); chrome (abas/etapa/toolbar/rodapé) apertado. Composer vazio ~262→216px, conversa ganha espaço.
+- **Minimizar/Maximizar o chat** (`e37202b`): botões no topo do composer — minimizar colapsa pra só a barra de abas (~54px, conversa ocupa quase tudo); maximizar dá um textarea grande (40vh) pra escrever à vontade.
 
 ### 📐 Densidade pra laptops 14-15" (UI grande demais em telas menores)
 - **Causa-raiz** (`1fe310b`): um bloco em `index.css` inflava **todas** as fontes pequenas com `!important` (`text-sm` 14→15.2px, `text-xs` 12→13.9px, `text-[11px]` 11→13.1px, `text-[10px]` 10→12.2px) em **todas** as telas — daí o "tudo grande". A inflação foi escopada só pra **monitores ≥1536px**; laptops e telas menores voltam aos tamanhos naturais em todas as views. Boundary alinhado ao `2xl`.
