@@ -353,8 +353,17 @@ export function InboxView() {
   // Textarea NÃO-controlado: o valor vive no DOM (via ref), não no state — digitar
   // não re-renderiza o InboxView inteiro (fim da travada). Lê/escreve pelo ref.
   const getReplyText = () => replyTextRef.current?.value ?? '';
+  // Auto-cresce o textarea conforme o conteúdo (compacto quando vazio = mais espaço
+  // pra conversa em telas baixas; cresce até o max-h da classe e aí rola).
+  const autoGrowReply = () => {
+    const el = replyTextRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
   const setReplyTextValue = (value: string) => {
     if (replyTextRef.current) replyTextRef.current.value = value;
+    autoGrowReply();
   };
   const lastMailSyncAtRef = useRef(0);
   const lastScheduledMailSyncKeyRef = useRef('');
@@ -2090,6 +2099,7 @@ export function InboxView() {
   }, [mention, directoryUsers]);
 
   const handleReplyTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    autoGrowReply();
     const value = e.target.value;
     const caret = e.target.selectionStart ?? value.length;
     const before = value.slice(0, caret);
@@ -2962,26 +2972,26 @@ export function InboxView() {
 
             {/* Reply Box — cap por viewport em telas baixas pra não cobrir a conversa
                 (só age quando o composer passaria de ~55vh; sem efeito em telas altas). */}
-            <div className="border-t border-roman-border bg-roman-bg/95 px-3 pb-3 pt-2 backdrop-blur md:px-4 max-h-[55vh] overflow-y-auto">
+            <div className="border-t border-roman-border bg-roman-bg/95 px-3 pb-2 pt-1.5 backdrop-blur md:px-4 max-h-[55vh] overflow-y-auto">
               <div className={`border rounded-xl overflow-hidden shadow-sm transition-colors ${replyMode !== 'public' ? 'border-roman-parchment-border bg-roman-parchment' : 'border-roman-border bg-roman-surface'}`}>
                 {/* Tabs */}
                 <div className="flex overflow-x-auto border-b border-roman-border bg-roman-bg/50">
                   <button
                     onClick={() => setReplyMode('internal')}
-                    className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     <Lock size={14} /> {internalTabLabel}
                   </button>
                   <button
                     onClick={() => setReplyMode('public')}
-                    className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     Mensagem aos Interessados
                   </button>
                   {canMessageDirector && (
                     <button
                       onClick={() => setReplyMode('director')}
-                      className={`shrink-0 px-3 py-2 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                      className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                     >
                       Mensagem à Diretoria
                     </button>
@@ -3050,7 +3060,7 @@ export function InboxView() {
                   const hasStageChange = Boolean(statusDraft) && statusDraft !== activeTicket.status;
                   const stageControlsVisible = showStageControls || hasStageChange;
                   return (
-                    <div className="border-b border-roman-border/50 bg-white px-3 py-2.5">
+                    <div className="border-b border-roman-border/50 bg-white px-3 py-2">
                       {!stageControlsVisible ? (
                         <button
                           type="button"
@@ -3107,7 +3117,7 @@ export function InboxView() {
                 })()}
 
                 {/* Formatting Toolbar */}
-                <div className={`flex items-center gap-2 p-2 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`flex items-center gap-2 px-2 py-1 border-b border-roman-border/50 text-roman-text-sub ${isClosed ? 'opacity-50 pointer-events-none' : ''}`}>
                   <button type="button" aria-label="Negrito" title="Negrito" onClick={() => applyFormatting('bold')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Bold size={16} /></button>
                   <button type="button" aria-label="Itálico" title="Itálico" onClick={() => applyFormatting('italic')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><Italic size={16} /></button>
                   <button type="button" aria-label="Lista" title="Lista" onClick={() => applyFormatting('list')} className="p-1 hover:bg-roman-bg rounded" disabled={isClosed}><List size={16} /></button>
@@ -3157,7 +3167,8 @@ export function InboxView() {
                 {/* Textarea */}
                 <textarea
                   ref={replyTextRef}
-                  className="w-full h-16 p-3 outline-none resize-none bg-transparent text-[13px] font-sans md:h-20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  rows={1}
+                  className="w-full min-h-[2.5rem] max-h-[40vh] overflow-y-auto p-3 outline-none resize-none bg-transparent text-[13px] font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder={
                     isClosed
                       ? 'Esta OS está encerrada e não aceita novos comentários.'
@@ -3215,7 +3226,7 @@ export function InboxView() {
                 )}
 
                 {/* Footer */}
-                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 px-3 py-2 backdrop-blur">
+                <div className="sticky bottom-0 z-10 border-t border-roman-border/50 bg-roman-bg/90 px-3 py-1.5 backdrop-blur">
                   <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="hidden truncate text-[11px] text-roman-text-sub font-serif italic sm:block">
                     {replyMode === 'internal'
