@@ -152,33 +152,6 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
-/* Relatório gerencial (KpiReport): renderizado fora da tela; só aparece na impressão
-   ("Salvar como PDF"). display:none quebraria os gráficos (recharts não mediria),
-   por isso fica posicionado fora da tela e visível só no @media print. */
-.kpi-report-print {
-  position: absolute;
-  left: -10000px;
-  top: 0;
-  width: 703px;
-  /* Força as cores/fundos a imprimirem mesmo sem "gráficos de fundo" marcado. */
-  print-color-adjust: exact;
-  -webkit-print-color-adjust: exact;
-}
-
-@media print {
-  /* O relatório é um portal em <body>. Escondendo o #root e voltando o relatório
-     pro fluxo normal (static), ele PAGINA de verdade — position:absolute clipava
-     tudo numa página só. */
-  #root { display: none !important; }
-  .kpi-report-print {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    width: auto !important;
-  }
-  @page { margin: 12mm; }
-}
-
 /* Bridge for legacy neutral Tailwind classes to follow active app theme tokens. */
 .theme-bridge .bg-white {
   background-color: var(--color-roman-surface) !important;

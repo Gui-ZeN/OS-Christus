@@ -1,7 +1,8 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
-import { KpiReport, type KpiReportData } from './kpi/KpiReport';
+import type { KpiReportData } from './kpi/reportTypes';
+import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { PeriodPicker, type PeriodMode } from './kpi/PeriodPicker';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -85,8 +86,7 @@ export function KpiView() {
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
-  const [exporting, setExporting] = useState(false);
-  const [exportStamp, setExportStamp] = useState('');
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -715,7 +715,7 @@ export function KpiView() {
       periodoLabel: periodLabel,
       sedeLabel: selectedSite === 'all' ? 'Todas' : selectedSite,
       regiaoLabel: selectedRegion === 'all' ? 'Todas' : selectedRegion,
-      geradoEm: exportStamp,
+      geradoEm: '',
       totalOs: filteredTickets.length,
       abertas,
       encerradas,
@@ -730,22 +730,38 @@ export function KpiView() {
       distribuicaoUrgencia,
       backlogPorEquipe,
     };
-  }, [filteredTickets, periodLabel, selectedSite, selectedRegion, exportStamp, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
+  }, [filteredTickets, periodLabel, selectedSite, selectedRegion, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
 
-  const handleExportPdf = () => {
-    setExportStamp(new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
-    setExporting(true);
+  const handleExportPdf = async () => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const payload = {
+        ...reportData,
+        geradoEm: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+      };
+      const headers = await getAuthenticatedActorHeaders();
+      const response = await fetch('/api/report-pdf', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: payload }),
+      });
+      if (!response.ok) throw new Error('Falha ao gerar o PDF.');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'relatorio-gerencial-os.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Falha ao gerar o PDF.');
+    } finally {
+      setGenerating(false);
+    }
   };
-
-  useEffect(() => {
-    if (!exporting) return;
-    // Deixa os gráficos (fixos, sem animação) pintarem antes de abrir a impressão.
-    const timer = window.setTimeout(() => {
-      window.print();
-      setExporting(false);
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [exporting]);
 
   if (!canAccess) {
     return (
@@ -763,7 +779,6 @@ export function KpiView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
-      {exporting && <KpiReport data={reportData} />}
       <div className="max-w-6xl mx-auto">
         <header className="mb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -783,10 +798,11 @@ export function KpiView() {
             {perspective === 'managerial' && (
               <button
                 onClick={handleExportPdf}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-roman-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-roman-primary-hover"
+                disabled={generating}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-roman-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                 title="Gera um relatório gerencial em PDF com os filtros atuais (período, sede, região)"
               >
-                <Download size={16} /> Exportar PDF
+                <Download size={16} /> {generating ? 'Gerando…' : 'Exportar PDF'}
               </button>
             )}
           </div>
