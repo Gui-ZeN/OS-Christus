@@ -7,7 +7,7 @@ function requiredEnv(name) {
   return value;
 }
 
-function parseServiceAccountFromEnv() {
+export function parseServiceAccountFromEnv() {
   const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
   if (b64) {
     const decoded = Buffer.from(b64, 'base64').toString('utf8');

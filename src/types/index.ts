@@ -33,6 +33,15 @@ export interface TicketAttachment {
   size?: number | null;
   uploadedAt?: Date | null;
   category?: 'closure_report' | 'closure_evidence' | 'attachment';
+  /**
+   * Arquivamento no Drive (OS encerrada há +30d): quando `archived`, o arquivo foi
+   * movido pro Google Drive e apagado do Firebase Storage; `url` passa a apontar pro
+   * proxy do Serv3 (`/api/attachments?f=…&t=…`) e `driveFileId` guarda o arquivo no
+   * Drive. `path` (origem no Storage) é mantido pós-delete só pra auditoria.
+   */
+  archived?: boolean;
+  driveFileId?: string | null;
+  archivedAt?: Date | null;
 }
 
 export interface PreliminaryActions {
