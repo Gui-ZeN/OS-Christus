@@ -166,10 +166,16 @@ select:focus-visible {
 }
 
 @media print {
-  body * { visibility: hidden !important; }
-  .kpi-report-print,
-  .kpi-report-print * { visibility: visible !important; }
-  .kpi-report-print { left: 0 !important; }
+  /* O relatório é um portal em <body>. Escondendo o #root e voltando o relatório
+     pro fluxo normal (static), ele PAGINA de verdade — position:absolute clipava
+     tudo numa página só. */
+  #root { display: none !important; }
+  .kpi-report-print {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+  }
   @page { margin: 12mm; }
 }
 
