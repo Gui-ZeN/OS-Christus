@@ -8,6 +8,9 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 ### 📄 Exportar relatório gerencial em PDF (`5d7f73f`)
 - Botão **Exportar PDF** no painel de Indicadores (perspectiva gerencial) → gera um relatório gerencial pronto pra "Salvar como PDF", pra enviar a quem **não tem acesso ao sistema**, com os **números à mostra** (o print da tela não mostrava bem). Traz cards de resumo, tabelas e gráficos, cabeçalho Grupo Christus + período/sede/região. Reaproveita os filtros atuais (mês, sede, região). Só números **gerenciais** (OS por status/sede/etapa, aging, tempo por etapa, tendência, prioridade, equipe) — sem financeiro, mais seguro pra envio externo. `print-color-adjust: exact` garante as cores na impressão.
 
+### 🎛️ Cabeçalho + filtros do painel redesenhados (`44e3437`)
+- O cabeçalho do Indicadores era desajeitado (título à esquerda + controles amontoados à direita num card com vazio no meio). Virou um **cabeçalho executivo** (kicker "Grupo Christus · Indicadores" + título + Exportar PDF como ação primária dourada) com uma **barra de filtros unificada** (perspectiva, período, região, sede). Novo **seletor de período** num popover: atalhos (este mês / 6 / 12 meses) + **calendário de meses** (grade Jan–Dez) + **intervalo de datas personalizado** (de–até) — substitui o toggle de rótulos confusos e os selects soltos.
+
 ## 2026-06-29
 
 ### 🗂️ Nova tela "Gestão de OS" (`96d109a`)
