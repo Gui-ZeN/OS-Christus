@@ -2,6 +2,7 @@
 import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import { KpiReport, type KpiReportData } from './kpi/KpiReport';
+import { PeriodPicker, type PeriodMode } from './kpi/PeriodPicker';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
@@ -71,9 +72,11 @@ const MONTH_NAMES = [
 export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor' || currentUser?.role === 'Usuario';
-  const [period, setPeriod] = useState<'month' | 'semester' | 'custom' | 'specificMonth'>('month');
+  const [period, setPeriod] = useState<PeriodMode>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
@@ -175,6 +178,13 @@ export function KpiView() {
 
   const periodRange = useMemo(() => {
     const now = new Date();
+    if (period === 'range') {
+      const start = customStart ? new Date(`${customStart}T00:00:00`) : null;
+      const end = customEnd ? new Date(`${customEnd}T23:59:59`) : null;
+      if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        return { start, end };
+      }
+    }
     if (period === 'specificMonth') {
       return {
         start: new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0),
@@ -210,7 +220,7 @@ export function KpiView() {
       start: new Date(selectedYear, 0, 1, 0, 0, 0, 0),
       end: new Date(selectedYear, 11, 31, 23, 59, 59, 999),
     };
-  }, [latestBalanceDate, latestBalanceYear, period, selectedYear, selectedMonth]);
+  }, [latestBalanceDate, latestBalanceYear, period, selectedYear, selectedMonth, customStart, customEnd]);
 
   const periodTickets = useMemo(() => {
     const startMs = periodRange.start.getTime();
@@ -668,22 +678,41 @@ export function KpiView() {
       .slice(0, 6);
   }, [contractValues, contractsByTicket, paymentsByTicket, sites]);
 
+  const periodLabel = useMemo(() => {
+    if (period === 'month') return 'Últimos 30 dias';
+    if (period === 'semester') return 'Últimos 6 meses';
+    if (period === 'specificMonth') return `${MONTH_NAMES[selectedMonth]} de ${selectedYear}`;
+    if (period === 'range') {
+      if (customStart && customEnd) {
+        const fmt = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('pt-BR');
+        return `${fmt(customStart)} – ${fmt(customEnd)}`;
+      }
+      return 'Período personalizado';
+    }
+    return selectedYear === latestBalanceYear ? 'Últimos 12 meses' : `Ano ${selectedYear}`;
+  }, [period, selectedMonth, selectedYear, customStart, customEnd, latestBalanceYear]);
+
+  const handleQuickPeriod = (p: 'month' | 'semester' | 'custom') => {
+    setPeriod(p);
+    if (p === 'custom') setSelectedYear(latestBalanceYear);
+  };
+  const handleSelectMonth = (month: number, year: number) => {
+    setSelectedMonth(month);
+    setSelectedYear(year);
+    setPeriod('specificMonth');
+  };
+  const handleSelectRange = (start: string, end: string) => {
+    setCustomStart(start);
+    setCustomEnd(end);
+    setPeriod('range');
+  };
+
   const reportData = useMemo<KpiReportData>(() => {
     const encerradas = filteredTickets.filter(t => t.status === TICKET_STATUS.CLOSED).length;
     const canceladas = filteredTickets.filter(t => t.status === TICKET_STATUS.CANCELED).length;
     const abertas = filteredTickets.length - encerradas - canceladas;
-    const periodoLabel =
-      period === 'specificMonth'
-        ? `${MONTH_NAMES[selectedMonth]} de ${selectedYear}`
-        : period === 'month'
-          ? 'Últimos 30 dias'
-          : period === 'semester'
-            ? 'Últimos 6 meses'
-            : selectedYear === latestBalanceYear
-              ? 'Últimos 12 meses'
-              : `Ano ${selectedYear}`;
     return {
-      periodoLabel,
+      periodoLabel: periodLabel,
       sedeLabel: selectedSite === 'all' ? 'Todas' : selectedSite,
       regiaoLabel: selectedRegion === 'all' ? 'Todas' : selectedRegion,
       geradoEm: exportStamp,
@@ -701,7 +730,7 @@ export function KpiView() {
       distribuicaoUrgencia,
       backlogPorEquipe,
     };
-  }, [filteredTickets, period, selectedMonth, selectedYear, latestBalanceYear, selectedSite, selectedRegion, exportStamp, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
+  }, [filteredTickets, periodLabel, selectedSite, selectedRegion, exportStamp, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
 
   const handleExportPdf = () => {
     setExportStamp(new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
@@ -736,161 +765,121 @@ export function KpiView() {
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       {exporting && <KpiReport data={reportData} />}
       <div className="max-w-6xl mx-auto">
-        <header className="mb-8 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-serif font-medium text-roman-text-main mb-2">
-              {perspective === 'managerial' ? 'Painel Executivo' : 'Painel Financeiro'}
-            </h1>
-            <p className="text-roman-text-sub font-serif italic">
-              {perspective === 'managerial'
-                ? 'Leitura consolidada da operação, com foco em volume, risco, decisões pendentes e pressão da fila.'
-                : 'Leitura de compromisso financeiro, desembolso, saldo a liberar e concentração de custo por recorte.'}
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3">
+        <header className="mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-roman-primary">
+                Grupo Christus · Indicadores
+              </div>
+              <h1 className="font-serif text-2xl font-medium leading-tight text-roman-text-main md:text-[1.9rem]">
+                {perspective === 'managerial' ? 'Painel Executivo' : 'Painel Financeiro'}
+              </h1>
+              <p className="mt-1.5 max-w-xl font-serif text-sm italic text-roman-text-sub">
+                {perspective === 'managerial'
+                  ? 'Leitura consolidada da operação: volume, risco, decisões pendentes e pressão da fila.'
+                  : 'Leitura de compromisso financeiro: desembolso, saldo a liberar e concentração de custo por recorte.'}
+              </p>
+            </div>
             {perspective === 'managerial' && (
               <button
                 onClick={handleExportPdf}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-roman-primary/40 bg-roman-primary/10 px-4 py-2 text-sm font-medium text-roman-primary transition-colors hover:bg-roman-primary/20"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-roman-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-roman-primary-hover"
                 title="Gera um relatório gerencial em PDF com os filtros atuais (período, sede, região)"
               >
                 <Download size={16} /> Exportar PDF
               </button>
             )}
-            <div className="flex w-full overflow-x-auto rounded-xl border border-roman-border bg-roman-bg p-1 hide-scrollbar sm:w-auto">
+          </div>
+
+          {/* Barra de filtros unificada */}
+          <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-roman-border bg-roman-surface p-2 shadow-sm">
+            <div className="flex shrink-0 rounded-lg border border-roman-border bg-roman-bg p-0.5">
               <button
                 onClick={() => setPerspective('managerial')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
               >
-                Visão Gerencial
+                Gerencial
               </button>
               <button
                 onClick={() => setPerspective('financial')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
               >
-                Visão Financeira
+                Financeira
               </button>
             </div>
-            <div className="flex w-full self-start overflow-x-auto rounded-xl border border-roman-border bg-roman-bg p-1 hide-scrollbar md:w-auto md:self-end">
-              <button
-                onClick={() => setPeriod('month')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'month' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
+
+            <span className="mx-0.5 hidden h-6 w-px bg-roman-border sm:block" />
+
+            <PeriodPicker
+              period={period}
+              selectedMonth={selectedMonth}
+              selectedYear={selectedYear}
+              customStart={customStart}
+              customEnd={customEnd}
+              minYear={availableYears.length ? Math.min(...availableYears) : latestBalanceYear}
+              maxYear={availableYears.length ? Math.max(...availableYears) : latestBalanceYear}
+              label={periodLabel}
+              onQuick={handleQuickPeriod}
+              onMonth={handleSelectMonth}
+              onRange={handleSelectRange}
+            />
+
+            <select
+              value={selectedRegion}
+              onChange={event => {
+                setSelectedRegion(event.target.value);
+                setSelectedSite('all');
+              }}
+              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              aria-label="Filtrar por região"
+            >
+              <option value="all">Todas as regiões</option>
+              {regionOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedSite}
+              onChange={event => setSelectedSite(event.target.value)}
+              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              aria-label="Filtrar por sede"
+            >
+              <option value="all">Todas as sedes</option>
+              {siteOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            {perspective === 'financial' && (
+              <select
+                value={selectedVendor}
+                onChange={event => setSelectedVendor(event.target.value)}
+                className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                aria-label="Filtrar por fornecedor"
               >
-                Este Mês
-              </button>
-              <button
-                onClick={() => setPeriod('semester')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'semester' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
-              >
-                Este Semestre
-              </button>
-              <button
-                onClick={() => setPeriod('custom')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'custom' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
-              >
-                Últimos 12 Meses
-              </button>
-              <button
-                onClick={() => setPeriod('specificMonth')}
-                className={`whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${period === 'specificMonth' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main hover:bg-roman-surface'}`}
-              >
-                Por Mês
-              </button>
-            </div>
-            {period === 'custom' && (
-              <div className="flex justify-end">
-                <select
-                  value={selectedYear}
-                  onChange={event => setSelectedYear(Number(event.target.value))}
-                  className="w-full md:w-44 rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>
-                      {year}{year === latestBalanceYear ? ' (12 meses móveis)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <option value="all">Todos os fornecedores</option>
+                {vendorOptions.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
             )}
-            {period === 'specificMonth' && (
-              <div className="flex justify-end gap-2">
-                <select
-                  value={selectedMonth}
-                  onChange={event => setSelectedMonth(Number(event.target.value))}
-                  className="w-full md:w-40 rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                >
-                  {MONTH_NAMES.map((name, index) => (
-                    <option key={name} value={index}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedYear}
-                  onChange={event => setSelectedYear(Number(event.target.value))}
-                  className="w-full md:w-28 rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
+            {(selectedRegion !== 'all' || selectedSite !== 'all' || selectedVendor !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRegion('all');
+                  setSelectedSite('all');
+                  setSelectedVendor('all');
+                }}
+                className="ml-auto rounded-lg px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg hover:text-roman-text-main"
+              >
+                Limpar filtros
+              </button>
             )}
           </div>
         </header>
-
-        <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <select
-            value={selectedRegion}
-            onChange={event => {
-              setSelectedRegion(event.target.value);
-              setSelectedSite('all');
-            }}
-            className="w-full border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-          >
-            <option value="all">Todas as regiões</option>
-            {regionOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedSite}
-            onChange={event => setSelectedSite(event.target.value)}
-            className="w-full border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-          >
-            <option value="all">Todas as sedes</option>
-            {siteOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedVendor}
-            onChange={event => setSelectedVendor(event.target.value)}
-            className="w-full border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
-          >
-            <option value="all">Todos os fornecedores</option>
-            {vendorOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedRegion('all');
-              setSelectedSite('all');
-              setSelectedVendor('all');
-            }}
-            className="px-4 py-2.5 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary hover:bg-roman-surface"
-          >
-            Limpar filtros
-          </button>
-        </div>
 
         {perspective === 'managerial' ? (
           <>
