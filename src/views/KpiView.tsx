@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend } from 'recharts';
-import { Briefcase, DollarSign, TrendingUp } from 'lucide-react';
+import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
+import { KpiReport, type KpiReportData } from './kpi/KpiReport';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
@@ -81,6 +82,8 @@ export function KpiView() {
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportStamp, setExportStamp] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -665,6 +668,56 @@ export function KpiView() {
       .slice(0, 6);
   }, [contractValues, contractsByTicket, paymentsByTicket, sites]);
 
+  const reportData = useMemo<KpiReportData>(() => {
+    const encerradas = filteredTickets.filter(t => t.status === TICKET_STATUS.CLOSED).length;
+    const canceladas = filteredTickets.filter(t => t.status === TICKET_STATUS.CANCELED).length;
+    const abertas = filteredTickets.length - encerradas - canceladas;
+    const periodoLabel =
+      period === 'specificMonth'
+        ? `${MONTH_NAMES[selectedMonth]} de ${selectedYear}`
+        : period === 'month'
+          ? 'Últimos 30 dias'
+          : period === 'semester'
+            ? 'Últimos 6 meses'
+            : selectedYear === latestBalanceYear
+              ? 'Últimos 12 meses'
+              : `Ano ${selectedYear}`;
+    return {
+      periodoLabel,
+      sedeLabel: selectedSite === 'all' ? 'Todas' : selectedSite,
+      regiaoLabel: selectedRegion === 'all' ? 'Todas' : selectedRegion,
+      geradoEm: exportStamp,
+      totalOs: filteredTickets.length,
+      abertas,
+      encerradas,
+      canceladas,
+      urgentesAbertas: urgentOpenCount,
+      osMaisAntigaDias: oldestOpenTicket?.days ?? null,
+      osPorSede,
+      backlogPorEtapa,
+      agingBuckets,
+      tempoPorEtapa,
+      tendenciaMensal,
+      distribuicaoUrgencia,
+      backlogPorEquipe,
+    };
+  }, [filteredTickets, period, selectedMonth, selectedYear, latestBalanceYear, selectedSite, selectedRegion, exportStamp, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
+
+  const handleExportPdf = () => {
+    setExportStamp(new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
+    setExporting(true);
+  };
+
+  useEffect(() => {
+    if (!exporting) return;
+    // Deixa os gráficos (fixos, sem animação) pintarem antes de abrir a impressão.
+    const timer = window.setTimeout(() => {
+      window.print();
+      setExporting(false);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [exporting]);
+
   if (!canAccess) {
     return (
       <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
@@ -681,6 +734,7 @@ export function KpiView() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
+      {exporting && <KpiReport data={reportData} />}
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -695,6 +749,15 @@ export function KpiView() {
           </div>
 
           <div className="flex flex-col gap-3">
+            {perspective === 'managerial' && (
+              <button
+                onClick={handleExportPdf}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-roman-primary/40 bg-roman-primary/10 px-4 py-2 text-sm font-medium text-roman-primary transition-colors hover:bg-roman-primary/20"
+                title="Gera um relatório gerencial em PDF com os filtros atuais (período, sede, região)"
+              >
+                <Download size={16} /> Exportar PDF
+              </button>
+            )}
             <div className="flex w-full overflow-x-auto rounded-xl border border-roman-border bg-roman-bg p-1 hide-scrollbar sm:w-auto">
               <button
                 onClick={() => setPerspective('managerial')}
