@@ -148,7 +148,7 @@ function drawFooter(doc, data, page, total) {
   doc.moveTo(M, fy - 6).lineTo(M + CW, fy - 6).lineWidth(1.5).strokeColor(C.gold).stroke();
   doc.font('Helvetica-Bold').fontSize(8).fillColor(C.body).text('Grupo Christus · Serv3 — Gestão de Manutenção', M, fy, { lineBreak: false });
   doc.font('Helvetica').fontSize(8).fillColor(C.sub)
-    .text(`Confidencial · sem dados financeiros · pág. ${page}/${total}`, M, fy, { width: CW, align: 'right', lineBreak: false });
+    .text(`Sem dados financeiros · pág. ${page}/${total}`, M, fy, { width: CW, align: 'right', lineBreak: false });
 }
 
 export async function buildReportPdf(data) {
@@ -164,11 +164,6 @@ export async function buildReportPdf(data) {
     // ── Masthead ──────────────────────────────────────────────
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.gold)
       .text('GRUPO CHRISTUS · MANUTENÇÃO', M, y, { characterSpacing: 1.6, lineBreak: false });
-    // Confidencial (direita)
-    const tagW = 74;
-    doc.rect(M + CW - tagW, y - 2, tagW, 14).lineWidth(1).strokeColor(C.gold).stroke();
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(C.goldDeep)
-      .text('CONFIDENCIAL', M + CW - tagW, y + 1.5, { width: tagW, align: 'center', characterSpacing: 1, lineBreak: false });
     y += 13;
     doc.font('Times-Bold').fontSize(21).fillColor(C.ink)
       .text('Relatório Gerencial de Ordens de Serviço', M, y, { lineBreak: false });
