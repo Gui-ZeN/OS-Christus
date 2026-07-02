@@ -160,6 +160,9 @@ select:focus-visible {
   left: -10000px;
   top: 0;
   width: 703px;
+  /* Força as cores/fundos a imprimirem mesmo sem "gráficos de fundo" marcado. */
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
 }
 
 @media print {
