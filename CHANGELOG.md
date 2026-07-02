@@ -3,6 +3,11 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-02
+
+### 📄 Exportar relatório gerencial em PDF (`5d7f73f`)
+- Botão **Exportar PDF** no painel de Indicadores (perspectiva gerencial) → gera um relatório gerencial pronto pra "Salvar como PDF", pra enviar a quem **não tem acesso ao sistema**, com os **números à mostra** (o print da tela não mostrava bem). Traz cards de resumo, tabelas e gráficos, cabeçalho Grupo Christus + período/sede/região. Reaproveita os filtros atuais (mês, sede, região). Só números **gerenciais** (OS por status/sede/etapa, aging, tempo por etapa, tendência, prioridade, equipe) — sem financeiro, mais seguro pra envio externo. `print-color-adjust: exact` garante as cores na impressão.
+
 ## 2026-06-29
 
 ### 🗂️ Nova tela "Gestão de OS" (`96d109a`)
