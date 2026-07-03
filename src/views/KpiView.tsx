@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend } from 'recharts';
+import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
@@ -15,6 +15,16 @@ import { parseCurrency } from '../utils/currency';
 
 function formatCurrencyBRL(value: number) {
   return `R$ ${value.toLocaleString('pt-BR')}`;
+}
+
+// Rótulo de dados dos gráficos: compacto (esconde zeros; 15k / 1.2M pros valores altos).
+const CHART_LABEL_STYLE = { fontSize: 11, fill: '#525252', fontWeight: 500 };
+function compactChartValue(value: number | string) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return '';
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return `${n}`;
 }
 
 function average(values: number[]) {
@@ -1101,11 +1111,17 @@ export function KpiView() {
                   {perspective === 'managerial' ? (
                     <>
                       <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="abertas" name="Em aberto" stackId="a" fill="#a3a3a3" barSize={40} />
-                      <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
+                      <Bar dataKey="abertas" name="Em aberto" stackId="a" fill="#a3a3a3" barSize={40}>
+                        <LabelList dataKey="abertas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: '#1a1a1a', fontWeight: 600 }} />
+                      </Bar>
+                      <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40}>
+                        <LabelList dataKey="fechadas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: '#ffffff', fontWeight: 600 }} />
+                      </Bar>
                     </>
                   ) : (
-                    <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40} />
+                    <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40}>
+                      <LabelList dataKey="custo" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                    </Bar>
                   )}
                 </BarChart>
               </ResponsiveContainer>
@@ -1128,7 +1144,9 @@ export function KpiView() {
                     itemStyle={{ color: '#1a1a1a' }}
                     formatter={perspective === 'managerial' ? ((value: number) => [`${value} dias`, 'Duração']) : ((value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo'])}
                   />
-                  <Bar dataKey={perspective === 'managerial' ? 'dias' : 'custo'} fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                  <Bar dataKey={perspective === 'managerial' ? 'dias' : 'custo'} fill="#525252" radius={[0, 2, 2, 0]} barSize={20}>
+                    <LabelList dataKey={perspective === 'managerial' ? 'dias' : 'custo'} position="right" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1152,7 +1170,9 @@ export function KpiView() {
                         itemStyle={{ color: '#1a1a1a' }}
                         formatter={(value: number) => [`${value}`, 'OS']}
                       />
-                      <Bar dataKey="total" fill="#525252" radius={[2, 2, 0, 0]} barSize={36} />
+                      <Bar dataKey="total" fill="#525252" radius={[2, 2, 0, 0]} barSize={36}>
+                        <LabelList dataKey="total" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1173,8 +1193,12 @@ export function KpiView() {
                         formatter={(value: number, name: string) => [`${value}`, name === 'abertas' ? 'Abertas' : 'Encerradas']}
                       />
                       <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="abertas" name="Abertas" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24} />
-                      <Bar dataKey="encerradas" name="Encerradas" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24} />
+                      <Bar dataKey="abertas" name="Abertas" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24}>
+                        <LabelList dataKey="abertas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
+                      <Bar dataKey="encerradas" name="Encerradas" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24}>
+                        <LabelList dataKey="encerradas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1196,7 +1220,9 @@ export function KpiView() {
                         itemStyle={{ color: '#1a1a1a' }}
                         formatter={(value: number) => [`${value}`, 'OS em aberto']}
                       />
-                      <Bar dataKey="total" fill="#737373" radius={[2, 2, 0, 0]} barSize={28} />
+                      <Bar dataKey="total" fill="#737373" radius={[2, 2, 0, 0]} barSize={28}>
+                        <LabelList dataKey="total" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1216,7 +1242,9 @@ export function KpiView() {
                         itemStyle={{ color: '#1a1a1a' }}
                         formatter={(value: number) => [`${value}`, 'OS em aberto']}
                       />
-                      <Bar dataKey="total" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                      <Bar dataKey="total" fill="#525252" radius={[0, 2, 2, 0]} barSize={20}>
+                        <LabelList dataKey="total" position="right" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1236,7 +1264,9 @@ export function KpiView() {
                         itemStyle={{ color: '#1a1a1a' }}
                         formatter={(value: number) => [`${value}`, 'OS']}
                       />
-                      <Bar dataKey="total" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={28} />
+                      <Bar dataKey="total" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={28}>
+                        <LabelList dataKey="total" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1325,8 +1355,12 @@ export function KpiView() {
                         formatter={(value: number, name: string) => [formatCurrencyBRL(value), name === 'previsto' ? 'Previsto' : 'Pago']}
                       />
                       <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24} />
-                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24} />
+                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24}>
+                        <LabelList dataKey="previsto" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
+                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24}>
+                        <LabelList dataKey="pago" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1346,7 +1380,9 @@ export function KpiView() {
                         itemStyle={{ color: '#1a1a1a' }}
                         formatter={(value: number) => [formatCurrencyBRL(value), 'Saldo']}
                       />
-                      <Bar dataKey="saldo" fill="#525252" radius={[0, 2, 2, 0]} barSize={20} />
+                      <Bar dataKey="saldo" fill="#525252" radius={[0, 2, 2, 0]} barSize={20}>
+                        <LabelList dataKey="saldo" position="right" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1369,8 +1405,12 @@ export function KpiView() {
                         formatter={(value: number, name: string) => [formatCurrencyBRL(value), name === 'previsto' ? 'Previsto' : 'Pago']}
                       />
                       <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24} />
-                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24} />
+                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24}>
+                        <LabelList dataKey="previsto" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
+                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24}>
+                        <LabelList dataKey="pago" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
