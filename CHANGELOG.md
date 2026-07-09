@@ -3,6 +3,12 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-09
+
+### 🐛 E-mail novo não devolve a OS para "Nova OS"
+- **Bug relatado**: o time mudava o status da OS (ex.: "Em andamento") e, ao chegar um e-mail novo na OS, ela "voltava para Nova OS". **Causa-raiz**: uma resposta cujo assunto é `Re: [SEDE] ...` tem o prefixo `Re:` removido no parse e casa como se fosse **OS nova**; quando o vínculo de thread falhava (sem OS-id no assunto/corpo, sem In-Reply-To/References que casassem, sem `gmailThreadId`), o `createTicketFromInbound` abria uma **"Nova OS" duplicada** — que na fila de triagem parecia a OS original "voltando" para Nova OS. Nenhum caminho do servidor alterava o status de uma OS existente; o problema era a duplicata.
+- **Correção**: antes de abrir OS nova a partir de um inbound, se a mensagem é claramente **resposta** (`isLikelyThreadReply`: prefixo Re:/Fw:/Enc: ou headers de thread) e o match por thread falhou, tenta casar por **remetente + assunto normalizado numa OS ainda aberta** (`resolveTicketIdByRequesterSubject`). Achando, a resposta entra na OS original e o status é preservado. Aplicado nos dois caminhos inbound (Gmail sync + webhook SendGrid). Fallback conservador (só OS não Encerrada/Cancelada, só respostas) — nunca descarta mensagem: sem match, segue o comportamento atual.
+
 ## 2026-07-02
 
 ### 📄 Exportar relatório gerencial em PDF (`5d7f73f`)

@@ -644,6 +644,53 @@ async function resolveTicketIdByGmailThread(db, threadId) {
   return String(snap.docs[0].data()?.ticketId || '').trim() || null;
 }
 
+// Prefixo Re:/Fw: no assunto OU headers de thread (In-Reply-To/References) = a
+// mensagem é resposta a uma conversa existente, não uma OS nova.
+function isLikelyThreadReply(message) {
+  const hasThreadHeaders = Boolean(
+    message.inReplyTo ||
+      (Array.isArray(message.references)
+        ? message.references.length > 0
+        : String(message.references || '').trim())
+  );
+  if (hasThreadHeaders) return true;
+  return /^\s*(?:(?:re|res|fw|fwd|enc)\s*:\s*)+/i.test(String(message.subject || ''));
+}
+
+const CLOSED_TICKET_STATUSES = new Set(['Encerrada', 'Cancelada']);
+
+// Fallback para respostas que perderam o vínculo de thread (sem OS-id no assunto,
+// sem In-Reply-To/References que casem, sem gmailThreadId): casa pela dupla
+// remetente + assunto normalizado numa OS AINDA ABERTA. Sem isto, o assunto
+// "Re: [SEDE] ..." (o prefixo Re: é removido no parse) casa como OS nova e o
+// createTicketFromInbound abre uma "Nova OS" DUPLICADA quando o cliente responde
+// uma OS em andamento — o bug relatado. Com o match, a resposta entra na OS
+// original e o status é preservado.
+async function resolveTicketIdByRequesterSubject(db, fromEmail, subject) {
+  const email = firstEmail(fromEmail);
+  if (!email) return null;
+  const normalizedSubject = normalizeKey(stripReplyForwardPrefixes(subject || ''));
+  if (!normalizedSubject) return null;
+
+  const snap = await db
+    .collection('tickets')
+    .where('requesterEmail', '==', email)
+    .limit(25)
+    .get();
+  if (snap.empty) return null;
+
+  let best = null;
+  for (const doc of snap.docs) {
+    const data = doc.data() || {};
+    if (CLOSED_TICKET_STATUSES.has(String(data.status || ''))) continue;
+    const docSubject = normalizeKey(stripReplyForwardPrefixes(String(data.subject || '')));
+    if (!docSubject || docSubject !== normalizedSubject) continue;
+    const when = coerceDateValue(data.time) || coerceDateValue(data.createdAt) || new Date(0);
+    if (!best || when > best.when) best = { id: doc.id, when };
+  }
+  return best?.id || null;
+}
+
 function buildInboundHistoryEntry(message, options = {}) {
   const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
   const text = extractInboundMessageBody(message.text, message.html) || 'Resposta recebida por e-mail.';
@@ -905,10 +952,15 @@ async function processGmailInboundMessage(db, msg, source) {
 
   try {
     const explicitTicketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text);
-    const referencedTicketId = explicitTicketId
+    let referencedTicketId = explicitTicketId
       ? null
       : (await resolveTicketIdByThreadReferences(db, msg.inReplyTo, msg.references))
         || (await resolveTicketIdByGmailThread(db, msg.threadId));
+    // Resposta cujo vínculo de thread falhou: casa por remetente+assunto numa OS
+    // aberta antes de cogitar abrir OS nova — senão viraria "Nova OS" duplicada.
+    if (!explicitTicketId && !referencedTicketId && isLikelyThreadReply(msg)) {
+      referencedTicketId = await resolveTicketIdByRequesterSubject(db, fromEmail, msg.subject);
+    }
     const createdTicket =
       explicitTicketId || referencedTicketId ? null : await createTicketFromInbound(db, msg);
     const ticketId = explicitTicketId || referencedTicketId || createdTicket?.id;
@@ -2364,7 +2416,17 @@ async function handleInbound(req, res) {
       });
     }
 
-    const referencedTicketId = await resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw);
+    let referencedTicketId = await resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw);
+    // Resposta cujo vínculo de thread falhou: casa por remetente+assunto numa OS
+    // aberta antes de cogitar abrir OS nova — senão viraria "Nova OS" duplicada.
+    if (
+      !explicitTicketId &&
+      !subjectTicketId &&
+      !referencedTicketId &&
+      isLikelyThreadReply({ subject, inReplyTo, references: referencesRaw })
+    ) {
+      referencedTicketId = await resolveTicketIdByRequesterSubject(db, fromEmail, subject);
+    }
     const createdTicket =
       explicitTicketId || subjectTicketId || referencedTicketId
         ? null
