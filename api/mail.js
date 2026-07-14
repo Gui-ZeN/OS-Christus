@@ -1199,6 +1199,9 @@ const SITE_ALIASES = {
   presul: 'PSUL',
   prenunes: 'PNV',
   dt1: 'DT',
+  // "SUL" sozinho é a SUL1. Sem o apelido, o fallback por substring casava em
+  // PSUL (o nome "psul" contém "sul") — sede errada.
+  sul: 'SUL1',
 };
 
 async function resolveSiteContext(db, siteCode) {
