@@ -5,6 +5,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-09
 
+### 🔐 "Segredo inválido" no log: front e back discordavam sobre quem sincroniza
+- **Sintoma**: a Saúde de E-mail acumulava `Segredo inválido (via: bearer; ua: Mozilla/…)` **sem ninguém clicar em nada**.
+- **Causa**: o `InboxView` dispara `gmail-sync` **sozinho** (a cada ~60s, para quem tem a inbox aberta) e libera isso para **Admin E Gestor** — mas o `authorizeGmailAutomation` aceitava **só Admin**. Cada um dos 6 Gestores batia no endpoint de minuto em minuto e levava recusa; o erro era engolido no `catch {}` do front (invisível na tela) mas logado no back. Não houve queda: o `gmail-sync.yml` (cron do GitHub Actions) continua sincronizando com o segredo.
+- **Correções**: (1) `authorizeGmailAutomation(req, allowedRoles)` — o `gmail-sync` passa a aceitar `['Admin','Gestor']`, alinhado ao que o front já assumia (o `reprocess-inbound`, mais pesado, já aceitava Gestor); `gmail-watch`/`gmail-push` seguem restritos a Admin. (2) A mensagem **mentia**: o `catch {}` engolia o erro real do `requireUserWithRoles` e reportava "Segredo inválido", mandando o usuário caçar um segredo de cron sem relação. Agora, quando a chamada é de gente pelo painel (bearer + User-Agent de navegador), propaga o motivo verdadeiro ("Permissão insuficiente" / "Usuário inativo" / "sem cadastro no diretório").
+
 ### 📥 E-mails que não viravam OS (117 de 494 perdidos em silêncio)
 Auditoria dos **494 inbounds** já registrados (`inboundMessageLocks`) revelou **117 sem OS**. Três causas, e a pior era invisível:
 - **Sedes reais fora do catálogo** → o assunto não casava nenhuma sede e o `createTicketFromInbound` devolvia `null`: a OS **não era criada**. Atingia `[CESIU]` (6 e-mails, 0 OS), `[PRÉ SUL]` (12), `[Pré-Nunes]`. **Correção**: mapa `SITE_ALIASES` em `resolveSiteContext` — `CESIU`/`CVU` → `ALD`, `PRÉ SUL` → `PSUL`, `PRÉ NUNES` → `PNV`, `DT1` → `DT`. O pessoal continua escrevendo como escreve; o sistema entende. Casa antes do fallback aproximado por substring (que só acertava `DT1`→`DT` por acaso, já que "dt1" contém "dt").

@@ -789,7 +789,11 @@ function matchesAnySecret(provided, secrets) {
   return secrets.some(secret => secretsMatch(provided, secret));
 }
 
-async function authorizeGmailAutomation(req) {
+// `allowedRoles` só vale para a via "usuário logado pelo painel"; a via do
+// cron/Pub-Sub continua sendo o segredo compartilhado. Default Admin: só o
+// gmail-sync (que o InboxView dispara sozinho) abre para Gestor — o gmail-watch
+// reconfigura o watch do Gmail e fica restrito.
+async function authorizeGmailAutomation(req, allowedRoles = ['Admin']) {
   const watchSecret = process.env.GMAIL_PUSH_SECRET;
   const syncSecret = process.env.GMAIL_SYNC_SECRET;
   const cronSecret = process.env.CRON_SECRET;
@@ -804,7 +808,7 @@ async function authorizeGmailAutomation(req) {
 
   let adminError = null;
   try {
-    await requireUserWithRoles(req, ['Admin']);
+    await requireUserWithRoles(req, allowedRoles);
     return;
   } catch (error) {
     adminError = error;
@@ -812,7 +816,7 @@ async function authorizeGmailAutomation(req) {
   }
 
   if (validSecrets.length === 0) {
-    await requireUserWithRoles(req, ['Admin']);
+    await requireUserWithRoles(req, allowedRoles);
     return;
   }
 
@@ -1953,7 +1957,11 @@ async function handleGmailSync(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
-    await authorizeGmailAutomation(req);
+    // Gestor entra junto com Admin: o InboxView dispara este sync sozinho (a cada
+    // ~60s, para Admin E Gestor) e o backend só aceitava Admin — cada Gestor com a
+    // inbox aberta enchia o log de recusa. O sync só PUXA e-mail pra dentro, e o
+    // reprocess-inbound (mais pesado) já aceita Gestor.
+    await authorizeGmailAutomation(req, ['Admin', 'Gestor']);
 
     const db = getAdminDb();
     const stateRef = getGmailStateRef(db);
