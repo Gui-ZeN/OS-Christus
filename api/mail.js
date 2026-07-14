@@ -802,16 +802,28 @@ async function authorizeGmailAutomation(req) {
     return;
   }
 
+  let adminError = null;
   try {
     await requireUserWithRoles(req, ['Admin']);
     return;
-  } catch {
+  } catch (error) {
+    adminError = error;
     // Segue para validação por segredo abaixo.
   }
 
   if (validSecrets.length === 0) {
     await requireUserWithRoles(req, ['Admin']);
     return;
+  }
+
+  // Chamada de GENTE pelo painel (bearer que não é segredo, com User-Agent de
+  // navegador): o motivo real é o do requireUserWithRoles — "Permissão
+  // insuficiente" (não é Admin), "Usuário inativo", "sem cadastro no diretório".
+  // Mascarar isso como "Segredo inválido" mandava o usuário caçar um segredo de
+  // cron que não tem nada a ver com o problema dele.
+  const looksLikeBrowser = /mozilla|chrome|safari|edge/i.test(String(req.headers['user-agent'] || ''));
+  if (adminError && bearer && looksLikeBrowser) {
+    throw adminError;
   }
 
   if (!provided || !matchesAnySecret(provided, validSecrets)) {
