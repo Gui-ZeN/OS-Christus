@@ -5,9 +5,16 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-09
 
-### 🐛 E-mail novo não devolve a OS para "Nova OS"
-- **Bug relatado**: o time mudava o status da OS (ex.: "Em andamento") e, ao chegar um e-mail novo na OS, ela "voltava para Nova OS". **Causa-raiz**: uma resposta cujo assunto é `Re: [SEDE] ...` tem o prefixo `Re:` removido no parse e casa como se fosse **OS nova**; quando o vínculo de thread falhava (sem OS-id no assunto/corpo, sem In-Reply-To/References que casassem, sem `gmailThreadId`), o `createTicketFromInbound` abria uma **"Nova OS" duplicada** — que na fila de triagem parecia a OS original "voltando" para Nova OS. Nenhum caminho do servidor alterava o status de uma OS existente; o problema era a duplicata.
-- **Correção**: antes de abrir OS nova a partir de um inbound, se a mensagem é claramente **resposta** (`isLikelyThreadReply`: prefixo Re:/Fw:/Enc: ou headers de thread) e o match por thread falhou, tenta casar por **remetente + assunto normalizado numa OS ainda aberta** (`resolveTicketIdByRequesterSubject`). Achando, a resposta entra na OS original e o status é preservado. Aplicado nos dois caminhos inbound (Gmail sync + webhook SendGrid). Fallback conservador (só OS não Encerrada/Cancelada, só respostas) — nunca descarta mensagem: sem match, segue o comportamento atual.
+### 📥 E-mails que não viravam OS (117 de 494 perdidos em silêncio)
+Auditoria dos **494 inbounds** já registrados (`inboundMessageLocks`) revelou **117 sem OS**. Três causas, e a pior era invisível:
+- **Sedes reais fora do catálogo** → o assunto não casava nenhuma sede e o `createTicketFromInbound` devolvia `null`: a OS **não era criada**. Atingia `[CESIU]` (6 e-mails, 0 OS), `[PRÉ SUL]` (12), `[Pré-Nunes]`. **Correção**: mapa `SITE_ALIASES` em `resolveSiteContext` — `CESIU`/`CVU` → `ALD`, `PRÉ SUL` → `PSUL`, `PRÉ NUNES` → `PNV`, `DT1` → `DT`. O pessoal continua escrevendo como escreve; o sistema entende. Casa antes do fallback aproximado por substring (que só acertava `DT1`→`DT` por acaso, já que "dt1" contém "dt").
+- **Descarte MUDO**: e-mail sem sede reconhecida sumia **sem log nenhum** — por isso ninguém percebeu os 117. Agora gera `logEmailEvent status:'skipped'` com o motivo, visível na tela de Saúde de E-mail.
+- Ruído (`[NotaQuest]`, `[GitHub]`, `[Action Required]`, `[TESTE]`…) segue corretamente descartado.
+
+### 🐛 Resposta de e-mail não abre mais OS duplicada
+- **Relato dos usuários**: "mudamos o status da OS e, quando chega e-mail novo, ela volta para Nova OS". **A auditoria do banco refutou a reversão**: em 241 mudanças de status, só 2 foram para "Nova OS" — ambas **manuais**, feitas pelo Admin pelo painel. Nenhuma OS regrediu de status automaticamente (o inbound nunca escreve `status`), e não há reuso de ID/sobrescrita (contador `ticketSequence` à frente do máximo).
+- **O que de fato ocorre**: uma resposta `Re: [SEDE] ...` tem o prefixo `Re:` removido no parse e casa como **OS nova**; quando o vínculo de thread falha, abre-se uma **OS duplicada** em "Nova OS" (ex.: OS-0143/OS-0160, mesmo remetente e assunto, 1 dia de diferença). Como quase toda OS de e-mail fica parada em "Nova OS" (87 das 94 do backlog), a duplicata parecia a original "voltando".
+- **Correção**: antes de abrir OS nova, se a mensagem é claramente **resposta** (`isLikelyThreadReply`: prefixo Re:/Fw:/Enc: ou headers de thread) e o match por thread falhou, casa por **remetente + assunto normalizado numa OS ainda aberta** (`resolveTicketIdByRequesterSubject`) — a resposta entra na OS original. Nos dois caminhos inbound (Gmail sync + webhook SendGrid). Conservador: só OS não Encerrada/Cancelada, só respostas; sem match, nunca descarta a mensagem.
 
 ## 2026-07-02
 

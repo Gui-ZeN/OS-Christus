@@ -965,6 +965,18 @@ async function processGmailInboundMessage(db, msg, source) {
       explicitTicketId || referencedTicketId ? null : await createTicketFromInbound(db, msg);
     const ticketId = explicitTicketId || referencedTicketId || createdTicket?.id;
     if (!ticketId) {
+      // Antes isto era um descarte MUDO: e-mail com [SEDE] desconhecida (ou sem
+      // colchete) sumia sem log nenhum e ninguém percebia a OS perdida. Agora
+      // aparece na tela de Saúde de E-mail com o motivo.
+      await logEmailEvent({
+        type: 'inbound',
+        status: 'skipped',
+        provider: 'gmail',
+        fromEmail: fromEmail || null,
+        subject: msg.subject || '',
+        messageId,
+        error: 'Nenhuma OS: assunto sem [SEDE] reconhecida e sem vínculo com OS existente.',
+      });
       await finalizeInboundMessageLock(lock.ref);
       return false;
     }
@@ -1176,6 +1188,19 @@ async function releaseInboundMessageLock(ref) {
     // Ignora falha na limpeza do lock para permitir novo processamento.
   }
 }
+// Apelidos que o pessoal REALMENTE escreve no [ ] do assunto e que não são o
+// código da sede no catálogo. Sem isto o e-mail não casa nenhuma sede e a OS
+// simplesmente não é criada (o inbound descarta em silêncio) — foi o que estava
+// engolindo os e-mails de CESIU, PRÉ SUL e Pré-Nunes.
+// Chave: apelido já em `tightKey` (sem acento/espaço/pontuação). Valor: código canônico.
+const SITE_ALIASES = {
+  cesiu: 'ALD',
+  cvu: 'ALD',
+  presul: 'PSUL',
+  prenunes: 'PNV',
+  dt1: 'DT',
+};
+
 async function resolveSiteContext(db, siteCode) {
   const normalized = normalizeKey(siteCode);
   // Cacheado (TTL ~60s): roda por e-mail de entrada (e por-doc no reprocess).
@@ -1199,6 +1224,14 @@ async function resolveSiteContext(db, siteCode) {
         ? sites.find(item => [item.id, item.code].some(value => tightKey(value) === normalizedTight))
         : null);
     if (exact) return exact;
+
+    // Apelido conhecido (CESIU/CVU → ALD, PRÉ SUL → PSUL, ...): resolve direto no
+    // código canônico. Vem antes do fallback por substring, que é aproximado.
+    const aliasCode = SITE_ALIASES[normalizedTight];
+    if (aliasCode) {
+      const aliased = sites.find(item => tightKey(item.code) === tightKey(aliasCode));
+      if (aliased) return aliased;
+    }
 
     // Fallback para assuntos com nome de sede parcial/completo (ex.: "(aldeota)").
     const ranked = sites
