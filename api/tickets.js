@@ -4,7 +4,7 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
-import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
+import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog, readTicketsChangedSince } from './_lib/ticketAccess.js';
 import { mergeTicketHistory, normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentMime } from './_lib/attachments.js';
@@ -656,13 +656,27 @@ export default async function handler(req, res) {
       }
 
       const user = await requireAuthenticatedUser(req);
-      const tickets = await readAccessibleTickets(db, user);
+
+      // Carimbado ANTES da leitura: o cliente devolve este `serverTime` como o
+      // próximo `since`, então nada escrito durante a query se perde (cai no
+      // próximo delta). Mesmo domínio de relógio do updatedAt (Date do servidor),
+      // sem depender do relógio do cliente.
+      const serverTime = new Date();
+      const sinceRaw = req.query?.since ? String(req.query.since).trim() : '';
+      const sinceDate = sinceRaw ? new Date(sinceRaw) : null;
+      const useDelta = Boolean(sinceDate) && !Number.isNaN(sinceDate.getTime());
+
+      const tickets = useDelta
+        ? await readTicketsChangedSince(db, user, sinceDate)
+        : await readAccessibleTickets(db, user);
 
       return sendJson(
         res,
         200,
         {
           ok: true,
+          mode: useDelta ? 'delta' : 'full',
+          serverTime: serverTime.toISOString(),
           tickets: tickets
             .map(serializeTicketForApi)
             .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time)),

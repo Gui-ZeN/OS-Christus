@@ -5,6 +5,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-09
 
+### 💸 Leituras do Firestore: ~200 mil/dia → poucos milhares (leitura incremental)
+- **Sintoma**: ~200.000 leituras num único dia, com só 164 OS e 28 usuários.
+- **Causa**: o painel faz polling a cada **10s** e, a cada ciclo, o servidor **relia a coleção inteira** de tickets (`readAccessibleTickets` → `collection('tickets').get()`, 164–165 docs no caminho Admin). Firestore cobra por documento: 165 × 6/min ≈ 59 mil leituras/hora por Admin com a aba aberta → ~3,5 h reproduzem os 200 mil.
+- **Correções**: (1) intervalo do poll **10s → 30s** (`OPERATIONAL_POLL_INTERVAL_MS`). (2) **Leitura incremental**: o poll manda `?since=<último serverTime>` e o backend (`readTicketsChangedSince`) devolve só as OS com `updatedAt > since`; o front funde o delta na lista (`applyTicketDelta`). Carga completa só na 1ª vez, ao abrir uma tela, e a cada 5 min para reconciliar exclusões. Para não-Admin, filtra o escopo em memória (delta é minúsculo — dispensa índices compostos). Validado em produção: 165/165 OS têm `updatedAt`; delta de janela de 30s = **0 leituras**, 5 min = 1, 1 h = 4. Estimativa: **~200 mil → uns poucos milhares/dia** (bem abaixo do limite grátis de 50 mil).
+
 ### 🔐 "Segredo inválido" no log: front e back discordavam sobre quem sincroniza
 - **Sintoma**: a Saúde de E-mail acumulava `Segredo inválido (via: bearer; ua: Mozilla/…)` **sem ninguém clicar em nada**.
 - **Causa**: o `InboxView` dispara `gmail-sync` **sozinho** (a cada ~60s, para quem tem a inbox aberta) e libera isso para **Admin E Gestor** — mas o `authorizeGmailAutomation` aceitava **só Admin**. Cada um dos 6 Gestores batia no endpoint de minuto em minuto e levava recusa; o erro era engolido no `catch {}` do front (invisível na tela) mas logado no back. Não houve queda: o `gmail-sync.yml` (cron do GitHub Actions) continua sincronizando com o segredo.

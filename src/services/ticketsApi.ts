@@ -190,12 +190,24 @@ function hydratePayment(item: ApiPayment): PaymentRecord {
   };
 }
 
-export async function fetchTicketsFromApi(): Promise<Ticket[]> {
-  const response = await fetch('/api/tickets', {
+export interface TicketsFetchResult {
+  tickets: Ticket[];
+  /** Relógio do servidor no início da leitura; reenviado como `since` no próximo poll. */
+  serverTime: string | null;
+  /** 'delta' = só o que mudou desde `since`; 'full' = coleção acessível inteira. */
+  mode: 'full' | 'delta';
+}
+
+// Com `since`, o servidor devolve só as OS alteradas desde então (leitura
+// incremental) — corta drasticamente as leituras do Firestore no polling. Sem
+// `since`, faz a carga completa (primeira vez e reconciliação periódica).
+export async function fetchTicketsFromApi(since?: string | null): Promise<TicketsFetchResult> {
+  const url = since ? `/api/tickets?since=${encodeURIComponent(since)}` : '/api/tickets';
+  const response = await fetch(url, {
     cache: 'no-store',
     headers: await getAuthenticatedActorHeaders(),
   });
-  const json = await expectApiJson<{ ok: boolean; tickets?: ApiTicket[] }>(
+  const json = await expectApiJson<{ ok: boolean; tickets?: ApiTicket[]; serverTime?: string; mode?: string }>(
     response,
     'Falha ao buscar tickets da API.'
   );
@@ -203,7 +215,11 @@ export async function fetchTicketsFromApi(): Promise<Ticket[]> {
     throw new Error('Resposta inválida da API de tickets.');
   }
 
-  return json.tickets.map((ticket: ApiTicket) => hydrateTicket(ticket));
+  return {
+    tickets: json.tickets.map((ticket: ApiTicket) => hydrateTicket(ticket)),
+    serverTime: typeof json.serverTime === 'string' ? json.serverTime : null,
+    mode: json.mode === 'delta' ? 'delta' : 'full',
+  };
 }
 
 export async function fetchTrackingDetailsFromApi(trackingToken: string): Promise<TrackingTicketPayload> {

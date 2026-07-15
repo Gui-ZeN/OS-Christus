@@ -56,7 +56,10 @@ const DEFAULT_FILTER: InboxFilter = {
 };
 
 const DIRECTORY_FETCH_FAILED = 'DIRECTORY_FETCH_FAILED';
-const OPERATIONAL_POLL_INTERVAL_MS = 10_000;
+const OPERATIONAL_POLL_INTERVAL_MS = 30_000;
+// A cada N ms o poll faz uma carga COMPLETA (em vez de delta) para reconciliar
+// exclusões de OS — o delta por `updatedAt` não enxerga docs apagados.
+const FULL_RECONCILE_INTERVAL_MS = 5 * 60_000;
 
 function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';
@@ -151,6 +154,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshCountRef = useRef(0);
   const pendingTicketUpdatesRef = useRef<Record<string, { ticket: Ticket; expiresAt: number }>>({});
+  // Leitura incremental: `since` do último poll e quando foi a última carga completa.
+  const lastSyncTimeRef = useRef<string | null>(null);
+  const lastFullSyncAtRef = useRef<number>(0);
 
   const prunePendingTicketUpdates = () => {
     const now = Date.now();
@@ -187,6 +193,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return merged;
   };
 
+  // Aplica o delta (só OS alteradas) sobre a lista atual: substitui as existentes
+  // por id, acrescenta as novas e reordena por data desc (mesma ordem do backend).
+  const applyTicketDelta = (current: Ticket[], delta: Ticket[]) => {
+    if (delta.length === 0) return current;
+    const byId = new Map(current.map(ticket => [ticket.id, ticket]));
+    for (const ticket of delta) byId.set(ticket.id, ticket);
+    const timeMs = (t: Ticket) => {
+      const value = t.time instanceof Date ? t.time.getTime() : new Date(t.time as unknown as string).getTime();
+      return Number.isNaN(value) ? 0 : value;
+    };
+    return [...byId.values()].sort((a, b) => timeMs(b) - timeMs(a));
+  };
+
   const refreshTickets = useCallback(async (options?: { silent?: boolean }) => {
     const generation = ++refreshCountRef.current;
     const silent = options?.silent ?? false;
@@ -195,6 +214,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     if (!currentUserEmail || !currentUser) {
+      lastSyncTimeRef.current = null;
+      lastFullSyncAtRef.current = 0;
       setAllTickets([]);
       if (!silent) {
         setTicketsLoading(false);
@@ -214,11 +235,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTicketsLoading(true);
     }
     try {
-      const remote = await fetchTicketsFromApi();
+      // Carga COMPLETA na primeira vez, sempre que o usuário abre uma tela
+      // (não-silencioso) e periodicamente para reconciliar exclusões. Nos demais
+      // polls, DELTA: só o que mudou desde o último `serverTime` — corta as
+      // leituras do Firestore de ~164/ciclo para ~0.
+      const now = Date.now();
+      const forceFull =
+        !silent ||
+        !lastSyncTimeRef.current ||
+        now - lastFullSyncAtRef.current > FULL_RECONCILE_INTERVAL_MS;
+
+      const result = await fetchTicketsFromApi(forceFull ? null : lastSyncTimeRef.current);
       if (generation !== refreshCountRef.current) return;
-      const merged = mergeRemoteWithPendingTickets(remote);
-      // Só atualiza (e re-renderiza) se algo realmente mudou desde o último poll.
-      setAllTickets(prev => (areTicketListsEqual(prev, merged) ? prev : merged));
+      if (result.serverTime) lastSyncTimeRef.current = result.serverTime;
+
+      if (result.mode === 'delta') {
+        // Nada mudou: sem re-render, sem custo. (o delta pode vir vazio)
+        if (result.tickets.length === 0) return;
+        setAllTickets(prev => {
+          const next = mergeRemoteWithPendingTickets(applyTicketDelta(prev, result.tickets));
+          return areTicketListsEqual(prev, next) ? prev : next;
+        });
+      } else {
+        lastFullSyncAtRef.current = now;
+        const merged = mergeRemoteWithPendingTickets(result.tickets);
+        setAllTickets(prev => (areTicketListsEqual(prev, merged) ? prev : merged));
+      }
     } catch {
       if (!silent && generation === refreshCountRef.current) {
         setAllTickets([]);

@@ -237,6 +237,24 @@ async function readAccessibleTickets(db, user) {
   return scopedTickets.filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites));
 }
 
+// Leitura INCREMENTAL: só as OS alteradas desde `since` (updatedAt > since). O
+// polling do painel usa isto no lugar de reler a coleção inteira a cada ciclo —
+// em regime, quase todo poll volta com 0–2 docs. Índice de campo único em
+// updatedAt já existe por padrão no Firestore (sem índice composto).
+//
+// Para não-Admin, filtra o escopo EM MEMÓRIA em vez de casar `in updatedAt` com
+// os filtros territoriais (que exigiriam vários índices compostos): como o delta
+// é minúsculo, ler o que mudou e filtrar depois custa quase nada.
+async function readTicketsChangedSince(db, user, since) {
+  if (!user || !since) return [];
+  const snap = await db.collection('tickets').where('updatedAt', '>', since).get();
+  if (snap.empty) return [];
+  const changed = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  if (user.role === 'Admin') return changed;
+  const territory = await readTerritoryCatalog(db);
+  return changed.filter(ticket => canUserAccessTicket(user, ticket, territory.regions, territory.sites));
+}
+
 export {
   normalizeKey,
   resolveTicketSiteIds,
@@ -244,4 +262,5 @@ export {
   canUserAccessTicket,
   readTerritoryCatalog,
   readAccessibleTickets,
+  readTicketsChangedSince,
 };
