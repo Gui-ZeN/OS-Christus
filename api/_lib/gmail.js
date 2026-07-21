@@ -230,6 +230,11 @@ async function gmailGetAttachment(gmail, messageId, attachmentId) {
 export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId, attachments = [] }) {
   const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
+  // Reply-To global: quando o "De:" é um endereço diferente da caixa que o
+  // sistema vigia (ex.: remetente com domínio próprio, mas o inbound continua no
+  // Gmail de recebimento), isto garante que a resposta do cliente volte para a
+  // caixa vigiada. Sem ele, a resposta iria para o "De:" e a OS não a receberia.
+  const replyToEmail = String(process.env.GMAIL_REPLY_TO_EMAIL || '').trim();
 
   // Message-Id RFC próprio: setamos explicitamente no header e o RETORNAMOS,
   // para que o In-Reply-To/References da próxima resposta case com o e-mail real.
@@ -251,6 +256,7 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
     extraHeaders: {
       'Message-Id': generatedMessageId,
       'X-OS-Ticket-ID': ticketId,
+      ...(replyToEmail ? { 'Reply-To': replyToEmail } : {}),
       ...(trackingToken ? { 'X-OS-Tracking-Token': trackingToken } : {}),
     },
   });

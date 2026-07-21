@@ -1660,7 +1660,7 @@ async function handleSend(req, res) {
       triggerKey !== 'EMAIL-DIRETORIA-SOLUCAO' &&
       triggerKey !== 'EMAIL-DIRETORIA-APROVACAO';
     const overrideConversationCopies = body.overrideConversationCopies === true;
-    const ccRecipients = shouldUseConversationCopies
+    const baseCcRecipients = shouldUseConversationCopies
       ? filterCopyRecipients(
           overrideConversationCopies
             ? mergeEmailLists(body.ccEmail || body.cc || '')
@@ -1668,6 +1668,19 @@ async function handleSend(req, res) {
           recipients
         )
       : filterCopyRecipients(body.ccEmail || body.cc || '', recipients);
+    // CC fixo da caixa de recebimento: garante que a resposta do cliente (mesmo
+    // "responder a todos") também chegue à caixa que o sistema vigia — cinto e
+    // suspensório com o Reply-To. Só na conversa com o solicitante; adicionado
+    // DEPOIS do filtro de mailbox do sistema (senão seria removido, por ser a
+    // conta do inbound) e sem duplicar quem já está no To/CC.
+    const alwaysCcEmail = firstEmail(process.env.TICKET_ALWAYS_CC_EMAIL || '');
+    const ccRecipients =
+      alwaysCcEmail &&
+      shouldUseConversationCopies &&
+      !recipients.some(recipient => firstEmail(recipient) === alwaysCcEmail) &&
+      !baseCcRecipients.some(copy => firstEmail(copy) === alwaysCcEmail)
+        ? [...baseCcRecipients, alwaysCcEmail]
+        : baseCcRecipients;
     const ccEmail = ccRecipients.join(', ');
     toEmailForLog = toEmail;
     if (!toEmail || recipients.length === 0) {

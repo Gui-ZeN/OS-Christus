@@ -5,6 +5,12 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-09
 
+### ✉️ Remetente com domínio próprio sem perder as respostas (Reply-To + CC fixo)
+Permite trocar o "De:" dos e-mails (ex.: para um endereço `@dominio` profissional) **mantendo o recebimento na caixa atual** — sem retreinar ninguém a mandar OS para um endereço novo.
+- **`GMAIL_REPLY_TO_EMAIL`** (novo, `gmailSend`): injeta `Reply-To` em todo envio. Quando o `GMAIL_FROM_EMAIL` é diferente da caixa que o sistema vigia, isto faz a resposta do cliente voltar para a caixa vigiada — cobre "Responder" **e** "Responder a todos". Sem ele, mudar o "De:" faria as respostas irem para o endereço novo e a OS não as receberia.
+- **`TICKET_ALWAYS_CC_EMAIL`** (novo, `handleSend`): CC fixo da caixa de recebimento em toda conversa com o solicitante — redundância do Reply-To para o caso de "responder a todos". Adicionado **depois** do filtro de mailbox do sistema (senão seria removido) e sem duplicar quem já está no To/CC.
+- Ambos **inertes com a variável vazia** (comportamento atual preservado). Loop de auto-envio segue coberto pelo filtro de rótulo `SENT`. Documentados no `.env.example`.
+
 ### 💸 Leituras do Firestore: ~200 mil/dia → poucos milhares (leitura incremental)
 - **Sintoma**: ~200.000 leituras num único dia, com só 164 OS e 28 usuários.
 - **Causa**: o painel faz polling a cada **10s** e, a cada ciclo, o servidor **relia a coleção inteira** de tickets (`readAccessibleTickets` → `collection('tickets').get()`, 164–165 docs no caminho Admin). Firestore cobra por documento: 165 × 6/min ≈ 59 mil leituras/hora por Admin com a aba aberta → ~3,5 h reproduzem os 200 mil.
