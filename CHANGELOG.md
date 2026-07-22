@@ -6,7 +6,10 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 ## 2026-07-10
 
 ### 📥 Mais apelidos de sede (revisão dos inbounds sem OS)
-Revisão dos 620 inbounds registrados (125 sem OS): o ruído (NotaQuest/GitHub/alertas) segue descartado certo, mas 3 sedes reais ainda escapavam. Adicionados ao `SITE_ALIASES`: **`JV` → PJF**, **`PRÉ-JOVITA` → PJF**, **`PQL 2/3` → PQL3** (área compartilhada, decisão do time). Ainda pendente: pedidos reais que chegam **sem `[SEDE]`** no assunto (ex.: "Reforma do parquinho") — não há como rotear sem a marcação; e o padrão "Título: [SEDE] …" (o colchete não no início) que o parser ainda ignora.
+Revisão dos 620 inbounds registrados (125 sem OS): o ruído (NotaQuest/GitHub/alertas) segue descartado certo, mas 3 sedes reais ainda escapavam. Adicionados ao `SITE_ALIASES`: **`JV` → PJF**, **`PRÉ-JOVITA` → PJF**, **`PQL 2/3` → PQL3** (área compartilhada, decisão do time). Ainda pendente: pedidos reais que chegam **sem `[SEDE]`** no assunto (ex.: "Reforma do parquinho") — não há como rotear sem a marcação.
+
+### 🔤 Parser aceita "Título:/Assunto:" antes do [SEDE]
+Assuntos como "Título: [BS] …" (o `[SEDE]` não no início) não casavam, porque o parser exigia o colchete no começo. Agora o `parseNewTicketSubject` remove um rótulo `Título:/Titulo:/Assunto:/Subject:` além do `Re:/Fwd:`, em qualquer ordem, até estabilizar. Casos normais e sem colchete não são afetados (testado 9/9).
 
 ## 2026-07-09
 

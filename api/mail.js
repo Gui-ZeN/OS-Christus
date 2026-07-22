@@ -49,7 +49,17 @@ function stripReplyForwardPrefixes(text) {
 
 function parseNewTicketSubject(text) {
   if (!text) return null;
-  const normalizedSubject = stripReplyForwardPrefixes(text);
+  // Remove prefixos de resposta/encaminhamento E um rótulo "Título:/Assunto:" que
+  // alguns e-mails colocam antes do [SEDE] (ex.: "Re: Título: [BS] ..."), em
+  // qualquer ordem, até estabilizar — assim o colchete volta ao início e casa.
+  let normalizedSubject = String(text).trim();
+  let previous = '';
+  while (normalizedSubject && previous !== normalizedSubject) {
+    previous = normalizedSubject;
+    normalizedSubject = stripReplyForwardPrefixes(normalizedSubject)
+      .replace(/^\s*(?:t[ií]tulo|assunto|subject)\s*:\s*/i, '')
+      .trim();
+  }
   // O separador depois do [SEDE] é opcional: aceita "[PE] - assunto", "[PE]: assunto"
   // e também "[PE] assunto" (sem traço logo após o colchete — caso comum). O traço
   // interno do assunto ("texto - texto") é preservado.
