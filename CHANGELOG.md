@@ -5,6 +5,11 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-09
 
+### 📨 "Responder/Diretoria" já enviam e-mail por padrão
+- **Sintoma**: escrever uma mensagem no modo público (aos interessados) não disparava e-mail nenhum — só salvava no histórico.
+- **Causa**: o checkbox "Enviar e-mail de atualização" (rodapé do composer) começava **desmarcado** em todos os modos e todo envio era `if (shouldSendMessageEmail)`. A pessoa achava que tinha notificado, mas nada saía.
+- **Correção**: efeito que marca o checkbox por padrão em **Responder** (público) e **Diretoria** — onde o propósito É notificar —, e mantém desmarcado em **Nota interna**. O checkbox continua como override manual dentro de cada modo. (`InboxView.tsx`)
+
 ### ✉️ Remetente com domínio próprio sem perder as respostas (Reply-To + CC fixo)
 Permite trocar o "De:" dos e-mails (ex.: para um endereço `@dominio` profissional) **mantendo o recebimento na caixa atual** — sem retreinar ninguém a mandar OS para um endereço novo.
 - **`GMAIL_REPLY_TO_EMAIL`** (novo, `gmailSend`): injeta `Reply-To` em todo envio. Quando o `GMAIL_FROM_EMAIL` é diferente da caixa que o sistema vigia, isto faz a resposta do cliente voltar para a caixa vigiada — cobre "Responder" **e** "Responder a todos". Sem ele, mudar o "De:" faria as respostas irem para o endereço novo e a OS não as receberia.

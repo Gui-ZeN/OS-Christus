@@ -1749,6 +1749,14 @@ export function InboxView() {
     setSendMessageEmailUpdate(false);
   }, [activeTicketId]);
 
+  // O propósito de "Responder" (público, aos interessados) e "Diretoria" É
+  // notificar por e-mail — então o envio já vem marcado por padrão nesses modos.
+  // "Nota interna" continua sem enviar por padrão. O checkbox segue disponível
+  // como override manual dentro de cada modo.
+  useEffect(() => {
+    setSendMessageEmailUpdate(replyMode !== 'internal');
+  }, [replyMode, activeTicketId]);
+
   useEffect(() => {
     const handleResize = () => {
       const compact = window.innerWidth >= 768 && window.innerWidth < NOTEBOOK_CONTEXT_PANEL_BREAKPOINT;
