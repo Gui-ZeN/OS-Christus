@@ -1218,6 +1218,10 @@ const SITE_ALIASES = {
   // "SUL" sozinho é a SUL1. Sem o apelido, o fallback por substring casava em
   // PSUL (o nome "psul" contém "sul") — sede errada.
   sul: 'SUL1',
+  jv: 'PJF',
+  prejovita: 'PJF',
+  // "PQL 2/3" (área compartilhada citada com as duas) → PQL3, por decisão do time.
+  pql23: 'PQL3',
 };
 
 async function resolveSiteContext(db, siteCode) {

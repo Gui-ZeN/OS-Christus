@@ -3,6 +3,11 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-10
+
+### 📥 Mais apelidos de sede (revisão dos inbounds sem OS)
+Revisão dos 620 inbounds registrados (125 sem OS): o ruído (NotaQuest/GitHub/alertas) segue descartado certo, mas 3 sedes reais ainda escapavam. Adicionados ao `SITE_ALIASES`: **`JV` → PJF**, **`PRÉ-JOVITA` → PJF**, **`PQL 2/3` → PQL3** (área compartilhada, decisão do time). Ainda pendente: pedidos reais que chegam **sem `[SEDE]`** no assunto (ex.: "Reforma do parquinho") — não há como rotear sem a marcação; e o padrão "Título: [SEDE] …" (o colchete não no início) que o parser ainda ignora.
+
 ## 2026-07-09
 
 ### 📨 Chat sempre notifica; e-mail de status vira modal de confirmação
