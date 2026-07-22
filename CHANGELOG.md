@@ -5,10 +5,12 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-09
 
-### 📨 "Responder/Diretoria" já enviam e-mail por padrão
-- **Sintoma**: escrever uma mensagem no modo público (aos interessados) não disparava e-mail nenhum — só salvava no histórico.
-- **Causa**: o checkbox "Enviar e-mail de atualização" (rodapé do composer) começava **desmarcado** em todos os modos e todo envio era `if (shouldSendMessageEmail)`. A pessoa achava que tinha notificado, mas nada saía.
-- **Correção**: efeito que marca o checkbox por padrão em **Responder** (público) e **Diretoria** — onde o propósito É notificar —, e mantém desmarcado em **Nota interna**. O checkbox continua como override manual dentro de cada modo. (`InboxView.tsx`)
+### 📨 Chat sempre notifica; e-mail de status vira modal de confirmação
+- **Sintoma**: escrever uma mensagem no modo público (aos interessados) não disparava e-mail — só salvava no histórico.
+- **Causa**: o checkbox "Enviar e-mail de atualização" (rodapé do composer) gateava **o chat**, quando na verdade era pra controlar o e-mail de **mudança de status** (para não spammar). Começava desmarcado → a pessoa achava que tinha notificado, mas nada saía.
+- **Correção** (desenho final, substitui a tentativa do checkbox-default):
+  - **Chat sempre envia**: Responder (público, aos interessados) e Diretoria disparam o e-mail sempre — o propósito do modo é notificar. Removido o gate e o checkbox.
+  - **Mudança manual de status** voltada pra fora (`Em andamento`/`Encerrada`/`Cancelada`, via `CUSTOMER_FACING_STATUSES`) abre um **modal de confirmação** com dois botões — **"Alterar e avisar solicitante"** / **"Alterar sem avisar"** — e **preview dos destinatários**. Transições internas de back-office não perguntam nem enviam. Implementado via promise-based modal (`requestStatusEmailDecision` + `ModalShell`) no `handleSend`. (`InboxView.tsx`)
 
 ### ✉️ Remetente com domínio próprio sem perder as respostas (Reply-To + CC fixo)
 Permite trocar o "De:" dos e-mails (ex.: para um endereço `@dominio` profissional) **mantendo o recebimento na caixa atual** — sem retreinar ninguém a mandar OS para um endereço novo.

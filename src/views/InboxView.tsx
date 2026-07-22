@@ -68,6 +68,15 @@ const INITIAL_MAX_QUOTE_SLOTS = 5;
 const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
 const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
 
+// Transições "voltadas pra fora" — as que o solicitante realmente acompanha.
+// Só ao mudar o status manualmente para uma destas o modal pergunta se avisa por
+// e-mail; os passos internos de back-office não perguntam nem enviam.
+const CUSTOMER_FACING_STATUSES = new Set<string>([
+  TICKET_STATUS.IN_PROGRESS,
+  TICKET_STATUS.CLOSED,
+  TICKET_STATUS.CANCELED,
+]);
+
 const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.NEW,
   TICKET_STATUS.WAITING_TECH_OPINION,
@@ -299,7 +308,15 @@ export function InboxView() {
 
   const [replyMode, setReplyMode] = useState<'public' | 'internal' | 'director'>('internal');
   const [sendStatusEmailUpdate, setSendStatusEmailUpdate] = useState(false);
-  const [sendMessageEmailUpdate, setSendMessageEmailUpdate] = useState(false);
+  // Modal de confirmação de e-mail ao mudar o status manualmente para uma
+  // transição voltada pra fora (o solicitante se importa). `resolve` devolve a
+  // escolha ('notify' | 'silent' | 'cancel') para o await no handleSend.
+  const [statusEmailPrompt, setStatusEmailPrompt] = useState<{
+    from: string;
+    to: string;
+    recipients: string[];
+    resolve: (decision: 'notify' | 'silent' | 'cancel') => void;
+  } | null>(null);
   const [statusTransitionReason, setStatusTransitionReason] = useState('');
   const [publicInterestedEmails, setPublicInterestedEmails] = useState<string[]>([]);
   const [publicInterestedDraft, setPublicInterestedDraft] = useState('');
@@ -1126,6 +1143,20 @@ export function InboxView() {
   };
 
   // Botão principal de ação: transição de status + registro no histórico
+  // Pergunta (via modal) se a mudança de status deve avisar o solicitante.
+  // Só abre o modal em transições voltadas pra fora; nas internas resolve
+  // 'silent' na hora, sem interromper o fluxo.
+  const requestStatusEmailDecision = (from: string, to: string): Promise<'notify' | 'silent' | 'cancel'> => {
+    if (!CUSTOMER_FACING_STATUSES.has(to)) return Promise.resolve('silent');
+    const recipients = [
+      activeTicket.requesterEmail,
+      ...(Array.isArray(activeTicket.requesterCcEmails) ? activeTicket.requesterCcEmails : []),
+    ]
+      .map(email => String(email || '').trim())
+      .filter(Boolean);
+    return new Promise(resolve => setStatusEmailPrompt({ from, to, recipients, resolve }));
+  };
+
   const handleSend = async () => {
     if (isSending) return;
     setIsSending(true);
@@ -1146,11 +1177,13 @@ export function InboxView() {
       }
 
       const messageWithAttachments = trimmedReply;
-      const shouldSendMessageEmail = sendMessageEmailUpdate;
 
       if (replyMode === 'internal') {
         const items: HistoryItem[] = [];
         let newStatus = activeTicket.status;
+        // Decisão de e-mail da mudança de status (definida pelo modal, quando a
+        // transição é voltada pra fora). Passos internos não avisam.
+        let notifyRequesterOfStatus = false;
         const requestedStatus = (statusDraft || activeTicket.status) as Ticket['status'];
         const hasManualStatusTransition = requestedStatus !== activeTicket.status;
 
@@ -1167,6 +1200,14 @@ export function InboxView() {
             return;
           }
           newStatus = requestedStatus;
+          // Transição voltada pra fora → pergunta se avisa o solicitante por
+          // e-mail (dois botões + preview). Interna → resolve 'silent' na hora.
+          const emailDecision = await requestStatusEmailDecision(activeTicket.status, newStatus);
+          if (emailDecision === 'cancel') {
+            setIsSending(false);
+            return;
+          }
+          notifyRequesterOfStatus = emailDecision === 'notify';
           items.push({
             id: crypto.randomUUID(),
             type: 'system',
@@ -1234,7 +1275,7 @@ export function InboxView() {
                 ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
                 : activeTicket.attachments,
             history: [...activeTicket.history, ...items],
-          }, newStatus !== activeTicket.status ? { sendEmailUpdate: shouldSendMessageEmail || sendStatusEmailUpdate } : undefined);
+          }, newStatus !== activeTicket.status ? { sendEmailUpdate: notifyRequesterOfStatus } : undefined);
         }
       } else if (replyMode === 'public') {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
@@ -1259,16 +1300,15 @@ export function InboxView() {
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
-        if (shouldSendMessageEmail) {
-          // Dá feedback se o e-mail não sair (antes era fire-and-forget silencioso:
-          // a resposta salvava mas o usuário não sabia que o e-mail falhou/pulou).
-          notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails)
-            .then(result => {
-              if (result === 'no-recipient') showToast('Resposta registrada, mas esta OS não tem e-mail do solicitante — nenhum e-mail foi enviado.', 5000);
-              else if (result === 'failed') showToast('Resposta registrada, mas o e-mail NÃO foi enviado ao solicitante. Tente reenviar.', 5000);
-            })
-            .catch(() => showToast('Resposta registrada, mas falhou o envio do e-mail.', 5000));
-        }
+        // Responder SEMPRE dispara o e-mail (o propósito do modo é notificar o
+        // solicitante/interessados). Dá feedback se o e-mail não sair (não é
+        // fire-and-forget silencioso).
+        notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails)
+          .then(result => {
+            if (result === 'no-recipient') showToast('Resposta registrada, mas esta OS não tem e-mail do solicitante — nenhum e-mail foi enviado.', 5000);
+            else if (result === 'failed') showToast('Resposta registrada, mas o e-mail NÃO foi enviado ao solicitante. Tente reenviar.', 5000);
+          })
+          .catch(() => showToast('Resposta registrada, mas falhou o envio do e-mail.', 5000));
       } else {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
           setIsSending(false);
@@ -1290,14 +1330,13 @@ export function InboxView() {
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
-        if (shouldSendMessageEmail) {
-          notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments)
-            .then(result => {
-              if (result === 'no-directors') showToast('Mensagem registrada, mas não há diretores envolvidos — nada foi enviado à Diretoria.', 5000);
-              else if (result === 'failed') showToast('Mensagem registrada, mas o e-mail à Diretoria NÃO foi enviado. Tente reenviar.', 5000);
-            })
-            .catch(() => showToast('Mensagem registrada, mas falhou o envio à Diretoria.', 5000));
-        }
+        // Diretoria SEMPRE dispara o e-mail (o propósito do modo é notificar).
+        notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments)
+          .then(result => {
+            if (result === 'no-directors') showToast('Mensagem registrada, mas não há diretores envolvidos — nada foi enviado à Diretoria.', 5000);
+            else if (result === 'failed') showToast('Mensagem registrada, mas o e-mail à Diretoria NÃO foi enviado. Tente reenviar.', 5000);
+          })
+          .catch(() => showToast('Mensagem registrada, mas falhou o envio à Diretoria.', 5000));
       }
 
       setReplyTextValue('');
@@ -1746,16 +1785,7 @@ export function InboxView() {
     setShowMobileContext(false);
     setStatusTransitionReason('');
     setSendStatusEmailUpdate(false);
-    setSendMessageEmailUpdate(false);
   }, [activeTicketId]);
-
-  // O propósito de "Responder" (público, aos interessados) e "Diretoria" É
-  // notificar por e-mail — então o envio já vem marcado por padrão nesses modos.
-  // "Nota interna" continua sem enviar por padrão. O checkbox segue disponível
-  // como override manual dentro de cada modo.
-  useEffect(() => {
-    setSendMessageEmailUpdate(replyMode !== 'internal');
-  }, [replyMode, activeTicketId]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -3267,16 +3297,6 @@ export function InboxView() {
                         : 'Responde ao solicitante com cópia aos interessados'}
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-2">
-                      <label className="mr-auto inline-flex items-center gap-2 text-xs text-roman-text-main lg:mr-2">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
-                          checked={sendMessageEmailUpdate}
-                          onChange={event => setSendMessageEmailUpdate(event.target.checked)}
-                          disabled={isClosed || isSending}
-                        />
-                        Enviar e-mail de atualização
-                      </label>
                       <button
                         onClick={() => {
                           setReplyTextValue('');
@@ -4108,6 +4128,57 @@ export function InboxView() {
           <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
             <div className="font-medium">Serão excluídos:</div>
             <div className="mt-1">ticket, cotações, contrato, lançamentos, medições, conversa por e-mail e anexos vinculados.</div>
+          </div>
+        </ModalShell>
+      )}
+
+      {statusEmailPrompt && (
+        <ModalShell
+          isOpen
+          onClose={() => { statusEmailPrompt.resolve('cancel'); setStatusEmailPrompt(null); }}
+          title="Avisar o solicitante?"
+          description="Esta mudança de status é acompanhada pelo solicitante. Deseja notificá-lo por e-mail?"
+          maxWidthClass="max-w-md"
+          footer={(
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                onClick={() => { statusEmailPrompt.resolve('cancel'); setStatusEmailPrompt(null); }}
+                className="rounded-sm border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { statusEmailPrompt.resolve('silent'); setStatusEmailPrompt(null); }}
+                className="rounded-sm border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-roman-bg"
+              >
+                Alterar sem avisar
+              </button>
+              <button
+                onClick={() => { statusEmailPrompt.resolve('notify'); setStatusEmailPrompt(null); }}
+                disabled={statusEmailPrompt.recipients.length === 0}
+                className="rounded-sm bg-roman-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Alterar e avisar solicitante
+              </button>
+            </div>
+          )}
+        >
+          <div className="space-y-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-xs text-roman-text-sub">{statusEmailPrompt.from}</span>
+              <span className="text-roman-text-sub">→</span>
+              <span className="rounded-sm border border-roman-primary/40 bg-roman-primary/10 px-2 py-1 text-xs font-medium text-roman-primary">{statusEmailPrompt.to}</span>
+            </div>
+            {statusEmailPrompt.recipients.length > 0 ? (
+              <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">O e-mail vai para</div>
+                <div className="mt-1 break-words text-roman-text-main">{statusEmailPrompt.recipients.join(', ')}</div>
+              </div>
+            ) : (
+              <div className="rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+                Esta OS não tem e-mail de solicitante — "avisar" não enviaria nada.
+              </div>
+            )}
           </div>
         </ModalShell>
       )}
