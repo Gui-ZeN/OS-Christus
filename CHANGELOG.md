@@ -3,6 +3,64 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-23 (2ª auditoria — segurança + integridade)
+
+Segunda passada adversarial: **5 auditores em paralelo** (segurança/authz, pipeline
+de e-mail, núcleo de tickets, estado do frontend, telas de negócio) + **Fable como
+auditor de regressões** de cada lote antes do commit (pegou 6 regressões reais e
+corrigiu). Foco em fragilidades exploráveis e bugs de dados.
+
+### 🔒 Backend — segurança externa e integridade (commit `4885942`)
+- **Relay de phishing público fechado**: o e-mail de "Nova OS" (fluxo público, sem
+  auth) não confia mais em html/assunto/CC/destinatário do cliente — a caixa
+  corporativa assina DKIM, então isso era relay de phishing. Renderiza do doc do
+  servidor e envia só ao solicitante (corpo/anexos/variáveis reconstruídos do lado
+  do servidor, mantendo o e-mail correto).
+- **SSRF/exfiltração de anexos**: `resolveOutboundAttachments` movido para DEPOIS do
+  authz e restrito ao Storage da própria OS; removido o fallback `fetch(url)`
+  arbitrária (era SSRF disparável até sem autenticação).
+- **Injeção de header (Bcc oculto)**: Subject e Content-Type de anexo passam por
+  `sanitizeHeaderValue` antes do raw MIME.
+- **Mensagem-veneno (P0)**: corpo >1 MiB (thread reencaminhada N vezes) travava TODO
+  o inbound em loop de reentrega. `truncateInboundBody` (Gmail + SendGrid) + try/catch
+  por-mensagem (uma msg ruim não aborta o lote); sync não marca 'seen' em falha
+  transitória (retenta no próximo ciclo).
+- **Forja na duplicação**: a duplicação de OS copiava campos do payload do cliente —
+  um gestor forjava sede/região/solicitante. Agora copia da OS de ORIGEM (servidor).
+- **create() anti-sobrescrita**: criação de OS usa `create()` (não `set()`) — id de
+  sequência regredida não sobrescreve mais uma OS real em silêncio.
+- **Delete-cascade seguro**: só apaga paths de Storage da própria OS (path plantado
+  em attachments/closureChecklist não destrói arquivo alheio).
+- **Tracking público**: aprovar/reprovar só transita de "Aguardando aprovação da
+  manutenção" (reprovar de "Aguardando pagamento" não devolve mais pra execução);
+  aprovar tardio em "Aguardando pagamento" preservado.
+- **XSS via anexo**: `sanitizeClientHistoryEntry` escova `attachments[].url`
+  (bloqueia `javascript:`/`data:`).
+
+### 🖥️ Frontend — moeda, vazamento público e perda de dados (commits `5fd7ed8`, `6aa7138`)
+- **parseCurrency 100×**: `"1234.56"` (colado de planilha) virava R$ 123.456,00. O
+  ponto agora só some quando é separador de milhar. +7 testes. (bug confirmado por 2
+  auditores independentes.)
+- **Vazamento na página PÚBLICA de tracking**: (a) só entradas system/field_change
+  viram marco de status — mensagem do solicitante não cria mais marco falso nem some
+  da timeline; (b) system/tech só aparecem com `visibility==='public'` explícito
+  (opt-in) — histórico legado não vaza mais fornecedor/valor.
+- **Composer não perde mais mensagem**: `updateTicket` retorna Promise<boolean>; o
+  composer aguarda o PATCH antes de disparar e-mail e limpar o texto (falha de rede
+  não perde a mensagem nem notifica solicitante/diretoria de algo não gravado).
+- **Aditivo 2×**: aprovação de aditivo somava o valor duas vezes no contrato (corrida
+  com o poll). `realizedValue` agora é derivado do conjunto de cotações aprovadas
+  (idempotente). Follow-up: aprovação transacional server-side (Achado A do Fable).
+
+### 🧭 Backlog remanescente (das 5 auditorias, ainda não corrigido)
+P1: colisão de ids de cotação (nova rodada/aditivo sobrescreve docs da anterior no
+Firestore). P2: obra 100% paga trava em 99,99% (drift de arredondamento); último
+lançamento quitável em IN_PROGRESS sem validação; escopo territorial nas
+storage.rules; audit log + history[] rumo ao teto de 1 MiB; aprovações sem guarda de
+status (diretor age em OS já resolvida por corrida). P3: dismiss global de
+notificação por qualquer usuário; GET de tracking sem rate-limit; iframe de preview
+de template sem sandbox; deslocamentos de data UTC×Fortaleza em inputs.
+
 ## 2026-07-23 (P1 — testes)
 
 ### 🧹 ESLint (foco em bugs) + statusFlow travado + mais fatia do `mail.js`
