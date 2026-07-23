@@ -69,6 +69,20 @@ describe('matchSiteCode — fallback por substring e não-casamento', () => {
   });
 });
 
+describe('matchSiteCode — apelido por-sede no catálogo (site.aliases[])', () => {
+  const withAliases = [
+    ...SITES,
+    { id: 'xyz', code: 'XYZ', name: 'Sede Nova', aliases: ['APELIDO NOVO', 'AN 2'] },
+  ];
+  it('casa por um apelido do próprio doc da sede (editável sem deploy)', () => {
+    expect(matchSiteCode('APELIDO NOVO', withAliases)?.code).toBe('XYZ');
+    expect(matchSiteCode('an2', withAliases)?.code).toBe('XYZ'); // apertado
+  });
+  it('sede sem aliases não quebra (campo ausente = sem efeito)', () => {
+    expect(matchSiteCode('PE', withAliases)?.code).toBe('PE');
+  });
+});
+
 describe('tightKey', () => {
   it('normaliza acento, pontuação e leading zeros', () => {
     expect(tightKey('PQL 03')).toBe('pql3');

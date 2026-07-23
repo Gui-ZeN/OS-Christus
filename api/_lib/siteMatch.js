@@ -46,7 +46,15 @@ export function matchSiteCode(siteCode, sites) {
       : null);
   if (exact) return exact;
 
-  // Apelido conhecido (CESIU/CVU → ALD, PRÉ SUL → PSUL, ...): resolve direto no
+  // Apelido POR-SEDE no catálogo (`site.aliases[]`): editável no banco, sem
+  // precisar de deploy para cada apelido novo. Tem precedência sobre o mapa
+  // hardcoded abaixo. Ausente em todas as sedes hoje → sem efeito até preencher.
+  const bySiteAlias = sites.find(
+    item => Array.isArray(item.aliases) && item.aliases.some(alias => tightKey(alias) === normalizedTight)
+  );
+  if (bySiteAlias) return bySiteAlias;
+
+  // Apelido hardcoded (CESIU/CVU → ALD, PRÉ SUL → PSUL, ...): resolve direto no
   // código canônico. Vem antes do fallback por substring, que é aproximado.
   const aliasCode = SITE_ALIASES[normalizedTight];
   if (aliasCode) {
