@@ -31,13 +31,13 @@ function required(input, name) {
   return String(input).trim();
 }
 
-function parseTicketId(text) {
+export function parseTicketId(text) {
   if (!text) return null;
   const match = String(text).match(/\bOS-\d{3,}\b/i);
   return match ? match[0].toUpperCase() : null;
 }
 
-function stripReplyForwardPrefixes(text) {
+export function stripReplyForwardPrefixes(text) {
   let next = String(text || '').trim();
   let previous = '';
   while (next && previous !== next) {
@@ -47,7 +47,7 @@ function stripReplyForwardPrefixes(text) {
   return next;
 }
 
-function parseNewTicketSubject(text) {
+export function parseNewTicketSubject(text) {
   if (!text) return null;
   // Remove prefixos de resposta/encaminhamento E um rótulo "Título:/Assunto:" que
   // alguns e-mails colocam antes do [SEDE] (ex.: "Re: Título: [BS] ..."), em
@@ -656,7 +656,7 @@ async function resolveTicketIdByGmailThread(db, threadId) {
 
 // Prefixo Re:/Fw: no assunto OU headers de thread (In-Reply-To/References) = a
 // mensagem é resposta a uma conversa existente, não uma OS nova.
-function isLikelyThreadReply(message) {
+export function isLikelyThreadReply(message) {
   const hasThreadHeaders = Boolean(
     message.inReplyTo ||
       (Array.isArray(message.references)
@@ -1219,7 +1219,7 @@ async function releaseInboundMessageLock(ref) {
 // simplesmente não é criada (o inbound descarta em silêncio) — foi o que estava
 // engolindo os e-mails de CESIU, PRÉ SUL e Pré-Nunes.
 // Chave: apelido já em `tightKey` (sem acento/espaço/pontuação). Valor: código canônico.
-const SITE_ALIASES = {
+export const SITE_ALIASES = {
   cesiu: 'ALD',
   cvu: 'ALD',
   presul: 'PSUL',

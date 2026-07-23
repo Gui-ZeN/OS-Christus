@@ -25,7 +25,7 @@ const STATUS_CANCELED = 'Cancelada';
 // id / trackingToken / createdAt / updatedAt ficam DE FORA de propósito
 // (identidade e campos controlados pelo servidor). As transições territoriais
 // (regionId/siteId/region/sede) entram na lista mas são restritas a Admin abaixo.
-const ALLOWED_TICKET_PATCH_FIELDS = new Set([
+export const ALLOWED_TICKET_PATCH_FIELDS = new Set([
   'status', 'priority', 'sector', 'location', 'time', 'waterIssue',
   'assignedTeam', 'assignedEmail',
   'macroServiceId', 'macroServiceName', 'serviceCatalogId', 'serviceCatalogName',
@@ -49,14 +49,14 @@ function buildActorLabel(user, fallbackActor) {
 }
 
 // Tipos válidos de entrada de histórico (espelha HistoryItem em src/types/index.ts).
-const HISTORY_ENTRY_TYPES = new Set(['customer', 'system', 'tech', 'internal', 'field_change']);
+export const HISTORY_ENTRY_TYPES = new Set(['customer', 'system', 'tech', 'internal', 'field_change']);
 
 // Rótulo do remetente derivado do usuário autenticado, no MESMO formato que o
 // front usa ("Nome (Papel)"). Forçar isto como sender das entradas NOVAS impede
 // forjar remetentes oficiais ('Diretoria'/'Sistema') que apareceriam na página
 // pública como comunicação do sistema — sem alterar o rótulo legítimo (que já é
 // exatamente "Nome (Papel)").
-function actorHistoryLabel(user, fallbackActor) {
+export function actorHistoryLabel(user, fallbackActor) {
   const name = user?.name || fallbackActor || user?.email || 'Gestor';
   return user?.role ? `${name} (${user.role})` : name;
 }
@@ -66,7 +66,7 @@ function actorHistoryLabel(user, fallbackActor) {
 // decide por marcador de texto quando ela não vem (coagir para 'internal'
 // esconderia marcos como "Triagem concluída"/"Execução iniciada"). Só coage uma
 // visibility inválida que veio preenchida.
-function sanitizeClientHistoryEntry(entry, senderLabel) {
+export function sanitizeClientHistoryEntry(entry, senderLabel) {
   const sanitized = {
     ...entry,
     type: HISTORY_ENTRY_TYPES.has(entry?.type) ? entry.type : 'internal',

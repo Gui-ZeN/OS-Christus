@@ -3,6 +3,16 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-23 (P1 — testes)
+
+### 🧪 Suíte de testes unitários (vitest) dos módulos puros
+Primeiro conjunto de testes unitários do repo — trava como regressão permanente (no CI, não em produção) a lógica que gerou os bugs desta maratona. **40 testes, 4 arquivos**, ambiente node, sem emulador. `npm test` (`vitest run`) + `npm run test:watch`.
+- **Parsing do inbound** (`api/mail.js`): `parseNewTicketSubject` (incl. prefixos `Re:/Fwd:` e `Título:/Assunto:`), `parseTicketId`, `isLikelyThreadReply`, e o mapa `SITE_ALIASES` (CESIU→ALD, PRÉ SUL→PSUL, JV→PJF, PQL 2/3→PQL3…).
+- **Fluxo de status** (`api/_lib/statusFlow.js`): `isValidStatus`, `canTransitionStatus` (Admin/Gestor livres, Diretor restrito ao fluxo dele).
+- **Histórico/allow-list** (`api/tickets.js`): `sanitizeClientHistoryEntry` (força sender, coage type, preserva visibility ausente), `actorHistoryLabel`, `ALLOWED_TICKET_PATCH_FIELDS` (barra requesterEmail/subject/id…), `mergeTicketHistory` (dedup por id).
+- **Utils** (`api/_lib/text.js`, `email.js`): `normalizeKey`, `slugFilename`, `firstEmail`, `parseEmailList`, `isValidEmail`.
+- As funções puras testadas ganharam `export` (mudança sem efeito de runtime; o Vercel usa só o `export default`).
+
 ## 2026-07-10 (P0 — robustez)
 
 ### ⏱️ Editar horário de mensagem volta a persistir (#3)
