@@ -274,10 +274,23 @@ export function ApprovalsView() {
         const approvedQuoteValue = parseCurrencyInput(approvedQuote?.totalValue || approvedQuote?.value || '0');
         const currentContract = contractsByTicket[id];
         const currentInitialValue = parseCurrencyInput(currentContract?.initialPlannedValue || currentContract?.value || '0');
-        const currentRealizedValue = parseCurrencyInput(currentContract?.realizedValue || currentContract?.value || '0');
-        const nextInitialValue = isAdditive ? currentInitialValue : approvedQuoteValue;
+        // realizedValue DERIVADO do conjunto de cotações aprovadas (não acumulado a
+        // partir do estado local). Sem isto, um refresh silencioso que revertesse as
+        // quotes para 'pending' fazia o card do aditivo reaparecer e um 2º clique
+        // somava o valor DE NOVO (50k→60k→70k). Derivar torna a aprovação idempotente:
+        // reprocessar a mesma aprovação dá sempre o mesmo total.
+        const approvedInitialQuote = nextQuotes.find(
+          quote => quote.category !== 'additive' && quote.status === 'approved'
+        );
+        const initialFromQuotes = approvedInitialQuote
+          ? parseCurrencyInput(approvedInitialQuote.totalValue || approvedInitialQuote.value || '0')
+          : currentInitialValue;
+        const approvedAdditivesTotal = nextQuotes
+          .filter(quote => quote.category === 'additive' && quote.status === 'approved')
+          .reduce((sum, quote) => sum + parseCurrencyInput(quote.totalValue || quote.value || '0'), 0);
+        const nextInitialValue = isAdditive ? initialFromQuotes : approvedQuoteValue;
         const nextRealizedValue = isAdditive
-          ? currentRealizedValue + approvedQuoteValue
+          ? initialFromQuotes + approvedAdditivesTotal
           : approvedQuoteValue;
         const nextContractValue = nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : approvedQuote?.value || currentContract?.value || 'A confirmar';
         let additivePaymentCreated = false;
