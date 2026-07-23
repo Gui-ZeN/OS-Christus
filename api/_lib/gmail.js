@@ -107,7 +107,7 @@ function buildRawMessage({ from, to, cc, subject, text, html, inReplyTo, referen
     `From: ${sanitizeHeaderValue(from)}`,
     `To: ${sanitizeHeaderValue(to)}`,
     ...(safeCc ? [`Cc: ${safeCc}`] : []),
-    `Subject: ${encodeMimeHeader(subject)}`,
+    `Subject: ${encodeMimeHeader(sanitizeHeaderValue(subject))}`,
     'MIME-Version: 1.0',
     `Content-Type: ${hasAttachments ? `multipart/mixed; boundary="${mixedBoundary}"` : `multipart/alternative; boundary="${alternativeBoundary}"`}`,
     ...(safeInReplyTo ? [`In-Reply-To: ${safeInReplyTo}`] : []),
@@ -146,7 +146,7 @@ function buildRawMessage({ from, to, cc, subject, text, html, inReplyTo, referen
     for (const attachment of attachments) {
       const filename = String(attachment?.filename || 'anexo');
       const safeFilename = sanitizeFilename(filename);
-      const mimeType = String(attachment?.mimeType || 'application/octet-stream');
+      const mimeType = sanitizeHeaderValue(String(attachment?.mimeType || 'application/octet-stream')) || 'application/octet-stream';
       const content = Buffer.isBuffer(attachment?.buffer) ? attachment.buffer.toString('base64') : '';
       if (!content) continue;
 

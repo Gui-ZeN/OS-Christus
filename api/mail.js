@@ -886,6 +886,11 @@ async function handleBounceNotice(db, message) {
 }
 
 async function processGmailInboundMessage(db, msg, source) {
+  // Trava o tamanho do corpo ANTES de qualquer persistência: e-mail com corpo
+  // gigante (thread reencaminhada N vezes) estouraria o teto de 1 MiB/doc do
+  // Firestore e derrubaria o processamento de TODAS as mensagens do lote.
+  msg = { ...msg, text: truncateInboundBody(msg?.text), html: truncateInboundBody(msg?.html) };
+
   // Bounce/NDR do provedor (ex.: "Message blocked"): avisa na OS em vez de
   // descartar como mensagem automática (o ignore abaixo o jogaria fora).
   if (await handleBounceNotice(db, msg)) return false;
@@ -1063,15 +1068,37 @@ async function processGmailInboundMessage(db, msg, source) {
 
 async function processGmailInboundMessageIds(db, messageIds, source) {
   let processed = 0;
+  const failedIds = [];
 
   for (const messageId of messageIds) {
     if (!messageId) continue;
-    const msg = await gmailGetMessage(messageId);
-    const ok = await processGmailInboundMessage(db, msg, source);
-    if (ok) processed += 1;
+    try {
+      const msg = await gmailGetMessage(messageId);
+      const ok = await processGmailInboundMessage(db, msg, source);
+      if (ok) processed += 1;
+    } catch (error) {
+      // Uma única mensagem-veneno (corpo gigante que estoura o teto de 1 MiB/doc,
+      // parse quebrado) NÃO pode abortar o lote e travar todo o inbound em loop de
+      // reentrega. Loga (visível na saúde de e-mail), marca como falha e segue.
+      // O sync usa `failedIds` para NÃO marcar a mensagem como vista → falha
+      // transitória (429/hiccup do Firestore) é retentada no próximo ciclo.
+      failedIds.push(messageId);
+      console.error('[mail] falha ao processar mensagem inbound', messageId, error);
+      try {
+        await logEmailEvent({
+          type: 'inbound',
+          status: 'error',
+          provider: 'gmail',
+          messageId,
+          error: error?.message || 'Falha ao processar mensagem inbound.',
+        });
+      } catch {
+        // logEmailEvent é best-effort; nunca deve mascarar o loop.
+      }
+    }
   }
 
-  return processed;
+  return { processed, failedIds };
 }
 
 async function canSendPublicCreationEmail(db, ticketId, toEmail, internalCopy) {
@@ -1272,6 +1299,16 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
 const MAX_ATTACHMENTS = 10;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB per file
 
+// Teto por campo de corpo de e-mail persistido (~100 KB). Firestore limita cada
+// doc a 1 MiB; uma thread reencaminhada N vezes estouraria o limite e derrubaria
+// a gravação da mensagem/OS. Truncar mantém o inbound vivo e o doc da OS enxuto.
+const MAX_INBOUND_BODY_CHARS = 100_000;
+function truncateInboundBody(value) {
+  const input = typeof value === 'string' ? value : value == null ? '' : String(value);
+  if (input.length <= MAX_INBOUND_BODY_CHARS) return input;
+  return `${input.slice(0, MAX_INBOUND_BODY_CHARS)}\n\n[…mensagem truncada pelo sistema…]`;
+}
+
 async function uploadInboundAttachments(ticketId, attachments) {
   if (!Array.isArray(attachments) || attachments.length === 0) return [];
 
@@ -1387,7 +1424,9 @@ async function createTicketFromInbound(db, message) {
     ],
   };
 
-  await db.collection('tickets').doc(ticketId).set({
+  // create() (não set()): id vindo de sequência regredida colidiria com uma OS real
+  // e set() a sobrescreveria em silêncio. create() falha alto em vez de destruir dados.
+  await db.collection('tickets').doc(ticketId).create({
     ...ticket,
     createdAt: now,
     updatedAt: now,
@@ -1415,12 +1454,12 @@ async function handleSend(req, res) {
 
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
     const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
-    const text = body.text ? String(body.text) : '';
-    const html = body.html ? String(body.html) : '';
+    let text = body.text ? String(body.text) : '';
+    let html = body.html ? String(body.html) : '';
     const templateId = body.templateId ? String(body.templateId) : null;
     const trigger = body.trigger ? String(body.trigger) : null;
-    const templateData = body.templateData && typeof body.templateData === 'object' ? body.templateData : {};
-    const variables = body.variables && typeof body.variables === 'object' ? body.variables : {};
+    let templateData = body.templateData && typeof body.templateData === 'object' ? body.templateData : {};
+    let variables = body.variables && typeof body.variables === 'object' ? body.variables : {};
     const trackingToken = body.trackingToken ? String(body.trackingToken) : null;
     const skipThread = body.skipThread === true;
     const internalCopy = body.internalCopy === true;
@@ -1436,7 +1475,10 @@ async function handleSend(req, res) {
     }
 
     const db = getAdminDb();
-    const outboundAttachments = await resolveOutboundAttachments(body.attachments);
+    const ticketSnapForSend = await db.collection('tickets').doc(ticketId).get();
+    const ticketDataForSend = ticketSnapForSend.exists
+      ? { id: ticketSnapForSend.id, ...ticketSnapForSend.data() }
+      : null;
     const isPublicCreationEmail =
       trigger === 'EMAIL-NOVA-OS' &&
       (await canSendPublicCreationEmail(db, ticketId, firstEmail(toEmailInput) || '', internalCopy));
@@ -1447,16 +1489,91 @@ async function handleSend(req, res) {
       // territorial — evita usar o remetente corporativo como relay para OS de
       // outra região (texto/destinatário controlados pelo chamador).
       if (user.role !== 'Admin' && ticketId) {
-        const ticketSnap = await db.collection('tickets').doc(ticketId).get();
-        if (!ticketSnap.exists) {
+        if (!ticketDataForSend) {
           return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
         }
         const territory = await readTerritoryCatalog(db);
-        if (!canUserAccessTicket(user, { id: ticketSnap.id, ...ticketSnap.data() }, territory.regions, territory.sites)) {
+        if (!canUserAccessTicket(user, ticketDataForSend, territory.regions, territory.sites)) {
           return sendJson(res, 403, { ok: false, error: 'Sem acesso a esta OS.' });
         }
       }
     }
+
+    // Fluxo público (SEM autenticação): a caixa corporativa assina DKIM, então
+    // aceitar html/assunto/CC/destinatário do cliente transformaria o endpoint em
+    // relay de phishing (confirmado por auditoria). Aqui ignoramos TODO conteúdo do
+    // cliente e renderizamos o e-mail de nova OS a partir dos dados do servidor,
+    // enviando só para o solicitante da própria OS.
+    let publicRecipientOverride = null;
+    if (isPublicCreationEmail) {
+      const t = ticketDataForSend || {};
+      html = '';
+      text = '';
+      body.ccEmail = '';
+      body.cc = '';
+      const serviceName = String(t.macroServiceName || t.serviceCatalogName || t.service || '');
+      const ctaUrl = t.trackingToken
+        ? `${process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://serv3.vercel.app'}/?tracking=${encodeURIComponent(t.trackingToken)}`
+        : null;
+      // variables vêm do DOC DO SERVIDOR (mesma forma que o cliente montava), não
+      // zeradas — senão o template default ("Olá {{requester.name}} … Sede:
+      // {{ticket.sede}}") renderiza em branco e o assunto perde a sede.
+      variables = {
+        requester: { name: String(t.requester || 'Solicitante'), email: String(t.requesterEmail || '') },
+        ticket: {
+          id: ticketId,
+          subject: String(t.subject || ''),
+          status: String(t.status || 'Nova OS'),
+          region: String(t.region || ''),
+          sede: String(t.sede || ''),
+          sector: String(t.sector || ''),
+          location: String(t.location || ''),
+          macroService: String(t.macroServiceName || ''),
+          service: String(t.serviceCatalogName || ''),
+        },
+        tracking: { url: ctaUrl || '' },
+      };
+      // Confirmação ao solicitante × cópia de triagem à caixa interna: títulos/CTA
+      // distintos, mas ambos 100% do servidor (nada do cliente).
+      templateData = internalCopy
+        ? {
+            title: `Nova OS ${ticketId} na fila de triagem`,
+            intro: 'Uma nova solicitação foi registrada por e-mail e já pode ser triada pela equipe.',
+            ticketSubject: String(t.subject || ''),
+            status: String(t.status || 'Nova OS'),
+            region: String(t.region || ''),
+            site: String(t.sede || ''),
+            service: serviceName,
+          }
+        : {
+            title: `OS ${ticketId} registrada`,
+            intro: 'Sua solicitação foi registrada. Você pode responder este e-mail para continuar a conversa no sistema.',
+            ticketSubject: String(t.subject || ''),
+            status: String(t.status || 'Nova OS'),
+            region: String(t.region || ''),
+            site: String(t.sede || ''),
+            service: serviceName,
+            ctaUrl,
+            ctaLabel: 'Acompanhar OS',
+          };
+      publicRecipientOverride = internalCopy ? null : firstEmail(String(t.requesterEmail || ''));
+    }
+
+    // Anexos de saída resolvidos SÓ após o authz e restritos ao Storage da própria
+    // OS — sem isto, qualquer chamador (até não autenticado) baixaria path/URL
+    // arbitrários do bucket (SSRF/exfiltração de contratos de outra sede). No fluxo
+    // público, as fotos da abertura acompanham o e-mail (feature intencional), mas
+    // vindas do DOC DO SERVIDOR (paths da própria OS), não do payload do cliente.
+    const outboundAttachments = isPublicCreationEmail
+      ? await resolveOutboundAttachments(
+          (Array.isArray(ticketDataForSend?.attachments) ? ticketDataForSend.attachments : []).map(a => ({
+            path: a?.path,
+            name: a?.name,
+            contentType: a?.contentType,
+          })),
+          ticketId
+        )
+      : await resolveOutboundAttachments(body.attachments, ticketId);
 
     const storedTemplate = await resolveEmailTemplate(db, trigger);
     const templateSubject = repairMojibake(
@@ -1530,7 +1647,9 @@ async function handleSend(req, res) {
       (shouldUseFinanceThread && String(thread?.subject || '').trim() ? repairMojibake(String(thread.subject)) : '') ||
       resolvedSubject;
 
-    const explicitRecipients = parseEmailList(toEmailInput);
+    const explicitRecipients = publicRecipientOverride !== null
+      ? (publicRecipientOverride ? [publicRecipientOverride] : [])
+      : parseEmailList(toEmailInput);
     const templateRecipients = parseEmailList(storedTemplate?.recipients || '');
     const flowFallbackRecipients = await resolveFlowFallbackRecipients(db, trigger);
     const threadRecipients = parseEmailList(thread?.toEmail || '');
@@ -1887,9 +2006,14 @@ async function handleGmailSync(req, res) {
 
     for (const ref of refs) {
       if (!ref.id || seenIds.has(ref.id)) continue;
-      processed += await processGmailInboundMessageIds(db, [ref.id], 'gmail-api-sync');
-      newSeen.push(ref.id);
-      seenIds.add(ref.id);
+      const result = await processGmailInboundMessageIds(db, [ref.id], 'gmail-api-sync');
+      processed += result.processed;
+      // Só marca como vista quando NÃO falhou: falha transitória (429/hiccup) é
+      // retentada no próximo sync em vez de dropar a mensagem para sempre.
+      if (!result.failedIds.includes(ref.id)) {
+        newSeen.push(ref.id);
+        seenIds.add(ref.id);
+      }
     }
 
     await stateRef.set(
@@ -2094,7 +2218,17 @@ async function handleReprocessInbound(req, res) {
   }
 }
 
-async function resolveOutboundAttachments(attachments) {
+// Aceita SÓ anexos do Storage da própria OS: `attachments/tickets/<pasta>/<ticketId>/...`.
+// Sem esta checagem, `path` livre baixaria qualquer objeto do bucket (contratos de
+// outra sede) e o antigo fallback `fetch(url)` permitia SSRF — ambos disparáveis
+// antes mesmo da autenticação. O fallback por URL foi removido de propósito.
+function isAttachmentPathInTicketScope(path, ticketId) {
+  if (!path || !ticketId) return false;
+  const parts = path.split('/');
+  return parts.length > 4 && parts[0] === 'attachments' && parts[1] === 'tickets' && parts[3] === ticketId;
+}
+
+async function resolveOutboundAttachments(attachments, ticketId) {
   if (!Array.isArray(attachments) || attachments.length === 0) return [];
 
   const filtered = attachments.slice(0, MAX_ATTACHMENTS);
@@ -2103,32 +2237,21 @@ async function resolveOutboundAttachments(attachments) {
 
   for (const attachment of filtered) {
     const path = String(attachment?.path || '').trim();
-    const url = String(attachment?.url || '').trim();
     const filename = String(attachment?.name || attachment?.filename || 'anexo').trim() || 'anexo';
     const mimeType = String(attachment?.contentType || attachment?.mimeType || 'application/octet-stream').trim() || 'application/octet-stream';
     let buffer = null;
 
+    if (!isAttachmentPathInTicketScope(path, ticketId)) {
+      console.error('[mail] anexo de saída recusado: path fora do escopo da OS', { ticketId, path });
+      continue;
+    }
+
     try {
-      if (path) {
-        const [downloaded] = await bucket.file(path).download();
-        buffer = downloaded;
-      }
+      const [downloaded] = await bucket.file(path).download();
+      buffer = downloaded;
     } catch (error) {
       console.error('[mail] falha ao baixar anexo do Storage para reenvio', error);
       buffer = null;
-    }
-
-    if (!buffer && url) {
-      try {
-        const response = await fetch(url);
-        if (response.ok) {
-          const arrayBuffer = await response.arrayBuffer();
-          buffer = Buffer.from(arrayBuffer);
-        }
-      } catch (error) {
-        console.error('[mail] falha ao buscar anexo pela URL para reenvio', error);
-        buffer = null;
-      }
     }
 
     if (!buffer) continue;
@@ -2249,7 +2372,10 @@ async function handleGmailPush(req, res) {
         ),
       ];
 
-      processed = await processGmailInboundMessageIds(db, messageIds, 'gmail-api-push');
+      // Push avança o historyId mesmo com falha por-mensagem: uma msg que falha aqui
+      // NÃO entra em seenMessageIds (só o sync o gerencia), então o próximo sync a
+      // repega e retenta — sem bloquear o avanço do push nem dropar a mensagem.
+      ({ processed } = await processGmailInboundMessageIds(db, messageIds, 'gmail-api-push'));
 
       await stateRef.set(
         {
@@ -2332,8 +2458,10 @@ async function handleInbound(req, res) {
 
     const fromEmail = firstEmail(body.from);
     const toEmail = firstEmail(body.to);
-    const text = body.text ? String(body.text) : '';
-    const html = body.html ? String(body.html) : '';
+    // Trava o corpo antes de persistir (mesmo motivo do caminho Gmail): corpo
+    // gigante estouraria o teto de 1 MiB/doc do Firestore.
+    const text = truncateInboundBody(body.text ? String(body.text) : '');
+    const html = truncateInboundBody(body.html ? String(body.html) : '');
     const subject = body.subject ? String(body.subject) : '';
     const inboundPreview = {
       from: body.from,

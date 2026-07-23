@@ -41,6 +41,14 @@ function sortTimeValue(value) {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
+function isAlreadyExistsError(error) {
+  return (
+    error?.code === 6 ||
+    error?.code === 'already-exists' ||
+    /already exists/i.test(String(error?.message || ''))
+  );
+}
+
 function buildActorLabel(user, fallbackActor) {
   if (user?.name) return user.name;
   if (fallbackActor) return fallbackActor;
@@ -66,6 +74,15 @@ export function actorHistoryLabel(user, fallbackActor) {
 // decide por marcador de texto quando ela não vem (coagir para 'internal'
 // esconderia marcos como "Triagem concluída"/"Execução iniciada"). Só coage uma
 // visibility inválida que veio preenchida.
+// Só URLs de anexo navegáveis e seguras: http(s) ou o proxy interno relativo
+// (`/api/attachments`). Bloqueia `javascript:`/`data:` — o painel abre a prévia do
+// anexo em iframe/href, então uma url forjada seria XSS armazenado (vetor insider).
+function isSafeAttachmentUrl(url) {
+  const value = String(url || '').trim();
+  if (!value) return false;
+  return /^https?:\/\//i.test(value) || value.startsWith('/api/attachments');
+}
+
 export function sanitizeClientHistoryEntry(entry, senderLabel) {
   const sanitized = {
     ...entry,
@@ -74,6 +91,12 @@ export function sanitizeClientHistoryEntry(entry, senderLabel) {
   };
   if (entry?.visibility !== undefined && entry.visibility !== 'public' && entry.visibility !== 'internal') {
     sanitized.visibility = 'internal';
+  }
+  // Escova as URLs dos anexos da entrada; url insegura vira '' (o anexo fica sem link).
+  if (Array.isArray(entry?.attachments)) {
+    sanitized.attachments = entry.attachments
+      .filter(att => att && typeof att === 'object')
+      .map(att => ({ ...att, url: isSafeAttachmentUrl(att.url) ? String(att.url).trim() : '' }));
   }
   return sanitized;
 }
@@ -474,7 +497,17 @@ async function deleteSubcollection(ticketRef, name) {
   return deleteCollectionDocs(ticketRef.collection(name));
 }
 
-async function deleteStoragePaths(paths) {
+// Só apaga arquivos DENTRO do Storage da própria OS: `attachments/tickets/<pasta>/<ticketId>/...`.
+// Sem isto, um gestor plantaria em `attachments`/`closureChecklist.documents` (ambos na
+// allow-list do PATCH) o path de OUTRA OS; ao Admin excluir a OS descartável, o arquivo
+// alheio (ou qualquer objeto do bucket) seria destruído sem ninguém perceber.
+function isPathInTicketScope(path, ticketId) {
+  if (!path || !ticketId) return false;
+  const parts = path.split('/');
+  return parts.length > 4 && parts[0] === 'attachments' && parts[1] === 'tickets' && parts[3] === ticketId;
+}
+
+async function deleteStoragePaths(paths, ticketId) {
   if (!Array.isArray(paths) || paths.length === 0) return 0;
   const bucket = getStorage().bucket();
   let deleted = 0;
@@ -482,6 +515,10 @@ async function deleteStoragePaths(paths) {
   for (const rawPath of paths) {
     const path = String(rawPath || '').trim();
     if (!path) continue;
+    if (!isPathInTicketScope(path, ticketId)) {
+      console.error('[tickets] path de anexo fora do escopo da OS recusado na exclusão', { ticketId, path });
+      continue;
+    }
     try {
       await bucket.file(path).delete({ ignoreNotFound: true });
       deleted += 1;
@@ -593,7 +630,7 @@ async function deleteTicketCascade(db, ticketId) {
     deleteCollectionDocs(db.collection('ticketInbound').where('ticketId', '==', ticketId)),
     deleteCollectionDocs(db.collection('emailEvents').where('ticketId', '==', ticketId)),
     deleteCollectionDocs(db.collection('vendorPreferenceEvents').where('ticketId', '==', ticketId)),
-    deleteStoragePaths([...rootAttachments, ...closureDocuments]),
+    deleteStoragePaths([...rootAttachments, ...closureDocuments], ticketId),
   ]);
 
   await Promise.all([
@@ -791,17 +828,24 @@ export default async function handler(req, res) {
         if (!canUserAccessTicket(user, { id: sourceSnap.id, ...sourceData }, territory.regions, territory.sites)) {
           return sendJson(res, 403, { ok: false, error: 'Você não tem acesso à OS de origem da duplicação.' });
         }
-        ticket = normalizeTicketForStorage(ticketPayload);
-        delete ticket.duplicateFromTicketId;
-        // Duplicata começa LIMPA: reseta o estado de workflow (o cliente não dita
-        // status/aprovações/execução da OS nova). Só a requisição (assunto/sede/
-        // solicitante) + a conversa copiada da origem seguem.
+        // Duplicata = MESMA requisição, workflow ZERADO. Os campos de identidade/
+        // requisição vêm da OS de ORIGEM (dado do servidor, confiável), NUNCA do
+        // payload do cliente — senão um gestor forjaria sede/região (reclassificação
+        // territorial que o PATCH restringe a Admin) ou o e-mail do solicitante ao
+        // "duplicar". Só a conversa da origem é copiada; todo o resto é regenerado.
+        const DUPLICATE_REQUEST_FIELDS = [
+          'subject', 'requester', 'requesterEmail', 'requesterCcEmails',
+          'type', 'macroServiceId', 'macroServiceName', 'serviceCatalogId', 'serviceCatalogName',
+          'regionId', 'region', 'siteId', 'sede', 'sector', 'location', 'priority', 'waterIssue',
+        ];
+        ticket = {};
+        for (const field of DUPLICATE_REQUEST_FIELDS) {
+          if (Object.prototype.hasOwnProperty.call(sourceData, field)) {
+            ticket[field] = sourceData[field];
+          }
+        }
         ticket.status = 'Nova OS';
-        delete ticket.closureChecklist;
-        delete ticket.executionProgress;
-        delete ticket.guarantee;
-        delete ticket.preliminaryActions; // datas de planejamento antigas não valem na cópia
-        delete ticket.viewingBy;          // "quem está vendo" da origem é stale
+        ticket.attachments = []; // arquivos reais sobem por upload; refs da origem apontam pro Storage dela
         const sourceHistory = Array.isArray(sourceData.history) ? sourceData.history : [];
         ticket.history = [
           ...sourceHistory,
@@ -814,6 +858,7 @@ export default async function handler(req, res) {
             visibility: 'internal',
           },
         ];
+        ticket = normalizeTicketForStorage(ticket);
       } else {
         ticket = await preparePublicTicketCreate(db, ticketPayload);
       }
@@ -838,7 +883,19 @@ export default async function handler(req, res) {
         updatedAt: now,
       };
 
-      await col.doc(ticketId).set(createdTicket);
+      // create() (não set()): se a sequência de OS regredir (restauração de backup,
+      // seed de emulador apontado pra prod, edição manual do contador), o id colidiria
+      // com uma OS real — set() a sobrescreveria INTEIRA em silêncio. create() falha
+      // alto, forçando o conserto da sequência em vez de destruir a OS existente.
+      try {
+        await col.doc(ticketId).create(createdTicket);
+      } catch (error) {
+        if (isAlreadyExistsError(error)) {
+          console.error('[tickets] colisão de id na criação — sequência de OS regredida?', { ticketId, error: error?.message });
+          throw new HttpError(409, 'Conflito ao gerar o número da OS. A sequência precisa ser verificada — avise o suporte.');
+        }
+        throw error;
+      }
 
       await writeAuditLog({
         actor: user ? buildActorLabel(user, user.email || user.name || 'painel') : 'Sistema',
@@ -934,24 +991,27 @@ export default async function handler(req, res) {
           });
         }
 
-        const ALLOWED_TRACKING_STATUSES = new Set([
-          STATUS_IN_PROGRESS,
-          STATUS_WAITING_MAINTENANCE_APPROVAL,
-          STATUS_WAITING_PAYMENT,
-          STATUS_CLOSED,
-          STATUS_CANCELED,
-        ]);
-
         // Transação: revalida status e idempotência sobre o estado fresco e
         // anexa a entrada de histórico atomicamente.
         const approvalResult = await db.runTransaction(async tx => {
           const snap = await tx.get(trackingDoc.ref);
           const data = snap.data() || {};
-          if (!ALLOWED_TRACKING_STATUSES.has(String(data.status || ''))) {
-            return { notAllowed: true };
-          }
-          if (approved && data?.closureChecklist?.requesterApproved) {
+          // Idempotência: reenvio do link após a aprovação já registrada não repete.
+          if (approved && data?.closureChecklist?.requesterApproved === true) {
             return { alreadyApproved: true };
+          }
+          const status = String(data.status || '');
+          // APROVAR: a UI oferece a confirmação em WAITING_MAINTENANCE_APPROVAL
+          // (→ Aguardando pagamento) E em "Aguardando pagamento" (validação tardia,
+          // quando o gestor já moveu a OS antes do clique — aqui só carimba, sem
+          // transição). REPROVAR: só de WAITING_MAINTENANCE_APPROVAL (→ Em andamento).
+          // Fora disso → 409: senão um "reprovar" devolveria pra execução uma OS já
+          // em pagamento/encerrada e mutilaria o checklist (transição fora da máquina).
+          const canApprove =
+            approved && (status === STATUS_WAITING_MAINTENANCE_APPROVAL || status === STATUS_WAITING_PAYMENT);
+          const canReject = !approved && status === STATUS_WAITING_MAINTENANCE_APPROVAL;
+          if (!canApprove && !canReject) {
+            return { notAllowed: true };
           }
           const payload = buildPublicTrackingPayload(data, approved);
           tx.set(trackingDoc.ref, payload, { merge: true });
