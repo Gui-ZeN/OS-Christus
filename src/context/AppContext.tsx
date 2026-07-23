@@ -31,7 +31,7 @@ interface AppContextType {
   tickets: Ticket[];
   ticketsLoading: boolean;
   refreshTickets: (options?: { silent?: boolean }) => Promise<void>;
-  updateTicket: (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions) => void;
+  updateTicket: (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions) => Promise<boolean>;
   addTicket: (ticket: Ticket, files?: File[]) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
   currentUserEmail: string;
@@ -452,15 +452,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [tickets, activeTicketId]);
 
-  const updateTicket = (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions) => {
+  const updateTicket = (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions): Promise<boolean> => {
     const previousTicket = allTickets.find(ticket => ticket.id === id);
-    if (!previousTicket) return;
+    if (!previousTicket) return Promise.resolve(false);
 
     const nextTicket: Ticket = { ...previousTicket, ...updates };
     registerPendingTicketUpdate(id, nextTicket);
     setAllTickets(prev => prev.map(ticket => (ticket.id === id ? nextTicket : ticket)));
 
-    void (async () => {
+    // Retorna se PERSISTIU: o chamador (composer) pode aguardar antes de limpar o
+    // texto e disparar e-mail — sem isto, uma falha de PATCH perdia a mensagem
+    // digitada em silêncio e podia notificar o solicitante de algo que não gravou.
+    return (async () => {
       try {
         await patchTicketInApi(id, updates, options?.historyTimeEdit ? { historyTimeEdit: options.historyTimeEdit } : undefined);
         clearPendingTicketUpdate(id);
@@ -468,7 +471,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearPendingTicketUpdate(id);
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
         console.error('[updateTicket] Failed to persist update for ticket', id, '— reverted optimistic update.', error);
-        return;
+        return false;
       }
 
       const shouldSendEmailUpdate = options?.sendEmailUpdate !== false;
@@ -479,6 +482,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           console.error('[updateTicket] Status persisted, but status e-mail notification failed for ticket', id, error);
         }
       }
+      return true;
     })();
   };
 

@@ -7,7 +7,11 @@
 export function parseCurrency(value: string | null | undefined): number {
   const normalized = String(value || '')
     .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
+    // Remove o ponto SÓ quando é separador de milhar (seguido de exatamente 3
+    // dígitos e então fim/não-dígito). Assim "1.234,56"→1234.56 e "1234.56"→1234.56.
+    // O antigo `.replace(/\./g,'')` transformava "1234.56" (colado de planilha/US)
+    // em 123456 — cem vezes maior, indo pra aprovação da diretoria inflado.
+    .replace(/\.(?=\d{3}(\D|$))/g, '')
     .replace(',', '.');
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;

@@ -285,7 +285,10 @@ function shouldShowMessageInPublicTimeline(item: HistoryItem) {
   const text = repairMojibake(item?.text || '').trim();
   if (!text) return false;
 
-  if (extractStatusFromHistoryItem(item)) {
+  // Marco de status (só de system/field_change) aparece na trilha de estágios, não
+  // como mensagem — não repete aqui. Mensagem do cliente NÃO é status, então nunca
+  // é filtrada por engano por esta linha.
+  if ((item.type === 'system' || item.type === 'field_change') && extractStatusFromHistoryItem(item)) {
     return false;
   }
 
@@ -294,13 +297,13 @@ function shouldShowMessageInPublicTimeline(item: HistoryItem) {
   const normalized = normalizeText(text);
   if (isSensitiveText(normalized)) return false;
 
-  if (item.type === 'tech') {
-    if (item.visibility === 'internal') return false;
-    return !normalized.includes('painel da os atualizado');
-  }
-
-  if (item.type === 'system') {
-    if (item.visibility === 'internal') return false;
+  // Opt-IN para tech/system: só exibe publicamente com visibility === 'public'
+  // explícito. Todo o histórico legado (anterior ao campo visibility) e as entradas
+  // internas ficam OCULTAS por padrão — antes vazavam (ex.: "Fornecedor ABC orçou
+  // 12 mil") por não conterem nenhuma palavra da lista de sensíveis. Os marcos de
+  // status seguem na trilha de estágios, então a timeline não fica vazia.
+  if (item.type === 'tech' || item.type === 'system') {
+    if (item.visibility !== 'public') return false;
     return !normalized.includes('painel da os atualizado');
   }
 
@@ -344,6 +347,11 @@ function buildTimelineEntries(ticket: Ticket): TimelineEntry[] {
   ];
 
   history.forEach((item, index) => {
+    // Só entradas do sistema/mudança-de-campo viram marco de status. Sem esta
+    // guarda, uma MENSAGEM do solicitante ("a execução concluída foi verificada?")
+    // casava um marcador de texto e criava um marco de status FALSO na página
+    // pública (e ainda sumia da timeline como mensagem).
+    if (item.type !== 'system' && item.type !== 'field_change') return;
     const status = extractStatusFromHistoryItem(item);
     if (!status) return;
     statusEvents.push({

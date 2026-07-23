@@ -1256,7 +1256,7 @@ export function InboxView() {
         }
 
         if (items.length > 0 || newStatus !== activeTicket.status) {
-          updateTicket(activeTicket.id, {
+          const persisted = await updateTicket(activeTicket.id, {
             status: newStatus,
             priority: ticketPriority || activeTicket.priority,
             assignedTeam: techTeam || activeTicket.assignedTeam || '',
@@ -1271,6 +1271,12 @@ export function InboxView() {
                 : activeTicket.attachments,
             history: [...activeTicket.history, ...items],
           }, newStatus !== activeTicket.status ? { sendEmailUpdate: notifyRequesterOfStatus } : undefined);
+          // Não persistiu: preserva o texto digitado e avisa (o retorno pula a
+          // limpeza do composer no fim; o finally reseta isSending).
+          if (!persisted) {
+            showToast('Não foi possível salvar a atualização — verifique a conexão e tente de novo. Seu texto foi mantido.', 5000);
+            return;
+          }
         }
       } else if (replyMode === 'public') {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
@@ -1287,7 +1293,7 @@ export function InboxView() {
           attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
         };
         const selectedInterestedEmails = mergeEmails(publicInterestedEmails);
-        updateTicket(activeTicket.id, {
+        const persisted = await updateTicket(activeTicket.id, {
           requesterCcEmails: selectedInterestedEmails,
           attachments:
             uploadedReplyAttachments.length > 0
@@ -1295,6 +1301,12 @@ export function InboxView() {
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
+        // Só notifica o solicitante DEPOIS de persistir: senão o e-mail sairia
+        // referenciando uma mensagem que não gravou (e o texto se perderia mudo).
+        if (!persisted) {
+          showToast('Não foi possível salvar a resposta — verifique a conexão e tente de novo. Seu texto foi mantido.', 5000);
+          return;
+        }
         // Responder SEMPRE dispara o e-mail (o propósito do modo é notificar o
         // solicitante/interessados). Dá feedback se o e-mail não sair (não é
         // fire-and-forget silencioso).
@@ -1318,13 +1330,18 @@ export function InboxView() {
           visibility: 'internal',
           attachments: uploadedReplyAttachments.length > 0 ? uploadedReplyAttachments : undefined,
         };
-        updateTicket(activeTicket.id, {
+        const persisted = await updateTicket(activeTicket.id, {
           attachments:
             uploadedReplyAttachments.length > 0
               ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
               : activeTicket.attachments,
           history: [...activeTicket.history, item],
         });
+        // Só notifica a Diretoria DEPOIS de persistir.
+        if (!persisted) {
+          showToast('Não foi possível salvar a mensagem — verifique a conexão e tente de novo. Seu texto foi mantido.', 5000);
+          return;
+        }
         // Diretoria SEMPRE dispara o e-mail (o propósito do modo é notificar).
         notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments)
           .then(result => {
