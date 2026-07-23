@@ -1,4 +1,21 @@
 rules_version = '2';
+// MODELO DE CONTROLE DE ACESSO A ANEXOS (postura deliberada — não é um gap esquecido):
+//
+// Estas regras são um BACKSTOP GROSSO por papel (deny-by-default + manager/diretor).
+// O ESCOPO TERRITORIAL (região/sede) NÃO é aplicado aqui, de propósito:
+//   1. O token só carrega `role`/`appRole` (ver api/users.js) — não os regionIds/
+//      siteIds do usuário. Casar território exigiria embutir o escopo nas custom
+//      claims (risco do limite de 1 KB) + um firestore.get do ticket por acesso, e
+//      migrar/re-emitir claims de todos os usuários (durante a transição, gestor sem
+//      a claim nova seria BLOQUEADO até re-login — risco de travar acesso legítimo).
+//   2. A leitura real do app usa a `url` GRAVADA no anexo (getDownloadURL/signed URL),
+//      que ignora estas regras — então endurecê-las não muda o caminho de leitura.
+//
+// A autorização territorial de verdade vive na API (`canUserAccessTicket` em
+// api/_lib/ticketAccess.js) e o alvo arquitetural é rotear os downloads pelo PROXY
+// autenticado (api/_lib/attachmentProxy.js), que revalida o acesso por token no
+// servidor. Enquanto o proxy não for adotado, um gestor consegue ler anexos de outra
+// sede via SDK direto — risco conhecido e aceito como defense-in-depth documentado.
 service firebase.storage {
   match /b/{bucket}/o {
     function isAuthenticated() {
