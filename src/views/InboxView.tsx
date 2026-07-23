@@ -1726,7 +1726,12 @@ export function InboxView() {
     const updates: Partial<Ticket> = { history: nextHistory };
     if (isOriginating) updates.time = nextTime;
 
-    updateTicket(activeTicket.id, updates);
+    // `updates.history` só serve pro update otimista local — o servidor ignora
+    // (merge por-id) e aplica a edição pontualmente via `historyTimeEdit`, sem
+    // reescrever os horários das outras entradas.
+    updateTicket(activeTicket.id, updates, {
+      historyTimeEdit: currentItem.id ? { id: currentItem.id, time: nextTime.toISOString() } : undefined,
+    });
     showToast(isOriginating ? 'Data da OS e da mensagem atualizadas.' : 'Data da mensagem atualizada.', 2000);
   }, [canManageStatus, isSending, activeTicket, updateTicket, showToast]);
   const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;

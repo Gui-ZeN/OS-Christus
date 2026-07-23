@@ -14,6 +14,10 @@ import { InboxFilter, Ticket, ViewState } from '../types';
 
 interface TicketUpdateOptions {
   sendEmailUpdate?: boolean;
+  /** Edição pontual do horário de UMA entrada de histórico já existente
+   *  (o servidor aplica só o `time` da entrada; o array em `updates.history` é
+   *  usado apenas para o update otimista local). */
+  historyTimeEdit?: { id: string; time: string };
 }
 
 interface AppContextType {
@@ -459,7 +463,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       try {
-        await patchTicketInApi(id, updates);
+        await patchTicketInApi(id, updates, options?.historyTimeEdit ? { historyTimeEdit: options.historyTimeEdit } : undefined);
         clearPendingTicketUpdate(id);
       } catch (error) {
         clearPendingTicketUpdate(id);

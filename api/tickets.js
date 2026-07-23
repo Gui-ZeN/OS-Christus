@@ -853,7 +853,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const body = await readJsonBody(req);
-      if (!body?.updates && !body?.publicMessage) {
+      if (!body?.updates && !body?.publicMessage && !body?.historyTimeEdit) {
         return sendJson(res, 400, { ok: false, error: 'updates são obrigatórios.' });
       }
 
@@ -1071,6 +1071,21 @@ export default async function handler(req, res) {
             ...freshHistory,
             buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status),
           ];
+        }
+
+        // Edição de horário de UMA entrada JÁ existente (caminho dedicado): o
+        // cliente manda {id, time}, não o array inteiro — o merge dedup-por-id
+        // ignoraria a alteração. SÓ o campo `time` da entrada muda; texto/sender/
+        // type/visibility permanecem imutáveis, e as demais entradas não são
+        // tocadas (sem o clobber de reescrever todos os horários da visão do cliente).
+        if (body.historyTimeEdit && body.historyTimeEdit.id) {
+          const editTime = new Date(body.historyTimeEdit.time);
+          if (!Number.isNaN(editTime.getTime())) {
+            const base = Array.isArray(payload.history) ? payload.history : freshHistory;
+            payload.history = base.map(entry =>
+              entry?.id === body.historyTimeEdit.id ? { ...entry, time: editTime } : entry
+            );
+          }
         }
 
         tx.set(docRef, payload, { merge: true });

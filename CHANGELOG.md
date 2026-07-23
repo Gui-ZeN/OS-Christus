@@ -5,6 +5,9 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-10 (P0 — robustez)
 
+### ⏱️ Editar horário de mensagem volta a persistir (#3)
+Editar o horário de uma mensagem do histórico não gravava: o front reenviava o array inteiro e o merge dedup-por-id do servidor ignorava a alteração. Agora o front manda um campo dedicado `historyTimeEdit: {id, time}` (o array segue só para o update otimista local) e o servidor aplica **só o `time` daquela entrada** na transação — texto/sender/type/visibility imutáveis, e as demais entradas **não** são reescritas (sem o clobber de last-writer-wins que ocorreria ao reconciliar todos os horários da visão do cliente). `patchTicketInApi`/`updateTicket` ganham o extra; `handleUpdateHistoryItemTime` usa o novo caminho.
+
 ### 🧬 Duplicação server-side (fecha a forja de histórico no POST)
 Fecha o último buraco que o Fable apontou: o POST autenticado aceitava `history` do cliente, então dava pra criar uma OS nova com histórico "oficial" inteiramente forjado. Agora:
 - **Duplicação** manda só `duplicateFromTicketId`; o servidor lê a OS de origem (com **checagem de acesso territorial**, igual ao GET), copia a conversa **real** e adiciona a entrada de sistema. A duplicata começa **limpa**: reseta `status`, `closureChecklist`, `executionProgress`, `guarantee`, `preliminaryActions`, `viewingBy`.

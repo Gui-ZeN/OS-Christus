@@ -284,12 +284,17 @@ export async function createTicketWithFilesInApi(ticket: Partial<Ticket>, files:
   return hydrateTicket(json.ticket as ApiTicket);
 }
 
-export async function patchTicketInApi(id: string, updates: Partial<Ticket>) {
+export interface TicketPatchExtras {
+  /** Edição pontual do horário de UMA entrada de histórico já existente. */
+  historyTimeEdit?: { id: string; time: string };
+}
+
+export async function patchTicketInApi(id: string, updates: Partial<Ticket>, extras?: TicketPatchExtras) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/tickets', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify({ id, updates }),
+    body: JSON.stringify({ id, updates, ...(extras?.historyTimeEdit ? { historyTimeEdit: extras.historyTimeEdit } : {}) }),
   });
   await expectApiJson(response, 'Falha ao atualizar ticket na API.');
 }
