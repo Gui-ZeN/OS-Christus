@@ -116,6 +116,25 @@ function calculateProgressPercentFromGross(grossAmount: number, baselineValue: n
   return roundProgressPercent((grossAmount / baselineValue) * 100);
 }
 
+// Bruto acumulado da obra. Prioriza a SOMA REAL dos grossValue das medições (sem
+// drift de arredondamento — reconstruir de `baseline × percent` com o percent a 2
+// casas fazia o erro compor: 30k + três 10k dava 33,33→66,66→99,99, travando a obra
+// 100% paga em 99,99%). Math.max com a reconstrução é a rede para dados LEGADOS:
+// medições antigas sem `grossValue` (ou contrato sem baseline) fariam a soma zerar e
+// o guard travar a OS — nesse caso a reconstrução (maior) prevalece (comportamento antigo).
+function resolveAccumulatedGross(
+  measurements: MeasurementRecord[],
+  baselineValue: number,
+  currentPercent: number
+) {
+  const exactSum = (measurements || []).reduce(
+    (sum, measurement) => sum + parseCurrency(measurement?.grossValue || ''),
+    0
+  );
+  const reconstructed = baselineValue > 0 ? (baselineValue * (currentPercent || 0)) / 100 : 0;
+  return Math.max(exactSum, reconstructed);
+}
+
 function getBudgetSourceLabel(source: 'initial' | 'additive' | null | undefined) {
   return source === 'additive' ? 'Aditivo' : 'Orçamento inicial';
 }
@@ -819,7 +838,13 @@ export function FinanceView() {
     const contract = contractsByTicket[ticket.id];
     const baselineValue = resolveExpectedBaselineValue(contract, existingPayments);
     const currentProgress = Math.max(0, Number(ticket.executionProgress?.currentPercent || 0));
-    const currentAccumulatedGross = baselineValue > 0 ? (baselineValue * currentProgress) / 100 : 0;
+    // Mesma base do save (resolveAccumulatedGross): sem isto o preview mostraria
+    // 99,99% enquanto o save grava 100,00% (drift só no preview).
+    const currentAccumulatedGross = resolveAccumulatedGross(
+      measurementsByTicket[ticket.id] || [],
+      baselineValue,
+      currentProgress
+    );
     const progressPercent = calculateProgressPercentFromGross(currentAccumulatedGross + grossAmount, baselineValue);
     const releasePercent = Math.max(0, roundProgressPercent(progressPercent - currentProgress));
     return {
@@ -1010,7 +1035,7 @@ export function FinanceView() {
     }
 
     const currentProgress = Number(targetTicket.executionProgress?.currentPercent || 0);
-    const currentAccumulatedGross = (baselineValue * currentProgress) / 100;
+    const currentAccumulatedGross = resolveAccumulatedGross(existingMeasurements, baselineValue, currentProgress);
     const accumulatedGross = currentAccumulatedGross + grossAmount;
     const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
     if (!targetTicket.executionProgress?.paymentFlowParts) {
