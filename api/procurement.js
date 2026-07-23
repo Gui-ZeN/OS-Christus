@@ -410,9 +410,19 @@ export default async function handler(req, res) {
           ...quote,
           classification: quote?.classification || classification || null,
         }));
-        const additiveQuotes = quotes.filter(quote => (quote?.category === 'additive'));
-        if (additiveQuotes.length > 1) {
-          return sendJson(res, 400, { ok: false, error: 'Aditivo deve conter somente 1 cotação.' });
+        // Cada RODADA de aditivo (additiveIndex) admite no máx. 1 cotação — mas
+        // várias rodadas de aditivo coexistem no mesmo payload (o ApprovalsView
+        // reenvia TODAS as cotações da OS). Contar aditivos globalmente travava com
+        // 400 a aprovação/reprovação do 2º aditivo em diante, depois que os ids
+        // passaram a ser únicos por rodada (antes o 2º sobrescrevia o 1º e escondia isso).
+        const additiveCountByRound = new Map();
+        for (const quote of quotes) {
+          if (quote?.category !== 'additive') continue;
+          const roundIndex = Number(quote?.additiveIndex || 1);
+          additiveCountByRound.set(roundIndex, (additiveCountByRound.get(roundIndex) || 0) + 1);
+        }
+        if ([...additiveCountByRound.values()].some(count => count > 1)) {
+          return sendJson(res, 400, { ok: false, error: 'Cada rodada de aditivo deve conter somente 1 cotação.' });
         }
         await writeQuotes(db, ticketId, quotes);
         const approvedQuote = quotes.find(quote => String(quote?.status || '').trim() === 'approved');

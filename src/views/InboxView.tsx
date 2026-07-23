@@ -2311,7 +2311,12 @@ export function InboxView() {
         const resolvedTotal = resolveQuoteDraftSubmittedTotal(quote).trim();
         const resolvedValue = quote.value.trim() || resolvedTotal;
         return ({
-        id: `quote-${index + 1}`,
+        // Id ÚNICO POR RODADA (não `quote-N` do zero): o servidor chaveia os docs por
+        // quote.id (procurement.js), então `quote-1` regenerado a cada rodada fazia a
+        // rodada nova / o aditivo SOBRESCREVER os docs da rodada anterior (perda de
+        // auditoria/comparação). roundAttachmentKey já é único por rodada
+        // (initial-<n> / additive-<n>) — mesmo esquema já usado nos paths de anexo.
+        id: `${roundAttachmentKey}-quote-${index + 1}`,
         vendor: quote.vendor.trim(),
         value: resolvedValue,
         laborValue: quote.laborValue || summary.laborValue,
