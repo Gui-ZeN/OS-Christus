@@ -770,8 +770,53 @@ export default async function handler(req, res) {
         });
       }
 
-      const ticket = user ? normalizeTicketForStorage(ticketPayload) : await preparePublicTicketCreate(db, ticketPayload);
       const now = new Date();
+
+      // Duplicação autenticada manda `duplicateFromTicketId`: o servidor copia a
+      // conversa REAL da origem (o cliente não dita mais o histórico — era
+      // forjável). QUALQUER outra criação — pública OU o "Nova OS" do painel de um
+      // gestor logado (mesmo PublicFormView) — passa pelo rebuild completo de
+      // preparePublicTicketCreate (allow-list de campos + histórico reconstruído a
+      // partir da descrição do solicitante).
+      const duplicateFromId = user ? String(ticketPayload.duplicateFromTicketId || '').trim().toUpperCase() : '';
+      let ticket;
+      if (duplicateFromId) {
+        const sourceSnap = await col.doc(duplicateFromId).get();
+        if (!sourceSnap.exists) {
+          return sendJson(res, 404, { ok: false, error: 'OS de origem da duplicação não encontrada.' });
+        }
+        const sourceData = sourceSnap.data() || {};
+        const territory = user.role === 'Admin' ? { regions: [], sites: [] } : await readTerritoryCatalog(db);
+        if (!canUserAccessTicket(user, { id: sourceSnap.id, ...sourceData }, territory.regions, territory.sites)) {
+          return sendJson(res, 403, { ok: false, error: 'Você não tem acesso à OS de origem da duplicação.' });
+        }
+        ticket = normalizeTicketForStorage(ticketPayload);
+        delete ticket.duplicateFromTicketId;
+        // Duplicata começa LIMPA: reseta o estado de workflow (o cliente não dita
+        // status/aprovações/execução da OS nova). Só a requisição (assunto/sede/
+        // solicitante) + a conversa copiada da origem seguem.
+        ticket.status = 'Nova OS';
+        delete ticket.closureChecklist;
+        delete ticket.executionProgress;
+        delete ticket.guarantee;
+        delete ticket.preliminaryActions; // datas de planejamento antigas não valem na cópia
+        delete ticket.viewingBy;          // "quem está vendo" da origem é stale
+        const sourceHistory = Array.isArray(sourceData.history) ? sourceData.history : [];
+        ticket.history = [
+          ...sourceHistory,
+          {
+            id: `dup-${randomUUID()}`,
+            type: 'system',
+            sender: 'Sistema',
+            time: now,
+            text: `OS duplicada de ${duplicateFromId} e reiniciada para triagem.`,
+            visibility: 'internal',
+          },
+        ];
+      } else {
+        ticket = await preparePublicTicketCreate(db, ticketPayload);
+      }
+
       const ticketId = await reserveNextTicketId(db);
       // trackingToken é capacidade de acesso público à OS — SEMPRE gerado no
       // servidor, nunca aceito do cliente. Aceitá-lo permitia criar uma OS com o

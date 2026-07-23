@@ -2488,23 +2488,17 @@ export function InboxView() {
     setIsSending(true);
     const now = new Date();
 
-    const duplicated: Ticket = {
+    // O histórico é copiado NO SERVIDOR a partir da OS de origem — o cliente não
+    // dita mais o histórico (era forjável). Só sinalizamos a origem por id.
+    const duplicated = {
       ...activeTicket,
       id: '',
       trackingToken: '',
       status: TICKET_STATUS.NEW,
       time: now,
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: 'Sistema',
-          time: now,
-          text: `OS duplicada de ${activeTicket.id} e reiniciada para triagem.`,
-        },
-      ],
-    };
+      duplicateFromTicketId: activeTicket.id,
+      history: [],
+    } as Ticket & { duplicateFromTicketId: string };
 
     try {
       const createdTicket = await addTicket(duplicated);

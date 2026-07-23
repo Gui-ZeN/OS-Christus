@@ -5,6 +5,13 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-10 (P0 — robustez)
 
+### 🧬 Duplicação server-side (fecha a forja de histórico no POST)
+Fecha o último buraco que o Fable apontou: o POST autenticado aceitava `history` do cliente, então dava pra criar uma OS nova com histórico "oficial" inteiramente forjado. Agora:
+- **Duplicação** manda só `duplicateFromTicketId`; o servidor lê a OS de origem (com **checagem de acesso territorial**, igual ao GET), copia a conversa **real** e adiciona a entrada de sistema. A duplicata começa **limpa**: reseta `status`, `closureChecklist`, `executionProgress`, `guarantee`, `preliminaryActions`, `viewingBy`.
+- **Criação avulsa autenticada** (o "Nova OS" do painel, que usa o mesmo `PublicFormView`) agora passa pelo **rebuild completo** de `preparePublicTicketCreate` — antes ia por `normalizeTicketForStorage` cru (sem allow-list). Isso corrigiu de quebra uma **regressão de perda de dados** que o Fable pegou (o ramo inicial descartava a descrição do solicitante → página de acompanhamento vazia).
+- `trackingToken` do cliente nunca é persistido; `duplicateFromTicketId` não vira campo do doc.
+- Residual registrado (baixa, pré-existente): na duplicação os metadados (assunto/sede/solicitante) ainda vêm do payload do cliente — fechar isso exige copiar tudo da origem server-side.
+
 ### 🛡️ Blindagem do POST /api/tickets + sanitização de histórico (achados do Fable)
 Auditoria adversarial (Fable, 3 rodadas) do fluxo de criação/edição de OS:
 - **POST autenticado sem gate de papel** → qualquer 'Usuario' logado criava OS pelo caminho autenticado (sem rebuild, sem validação). Agora só **Admin/Gestor/Diretor** usam o caminho autenticado; papel não-gestor (ou sessão persistida no navegador que cai no formulário público) segue pelo caminho **público** (rebuild server-side + rate limit), não 403.
