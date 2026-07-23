@@ -21,6 +21,7 @@ import {
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
 import { isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
+import { matchSiteCode } from './_lib/siteMatch.js';
 import { firstEmail, parseEmailList } from './_lib/email.js';
 import { sendWithSendGrid } from './_lib/sendgrid.js';
 
@@ -1217,78 +1218,16 @@ async function releaseInboundMessageLock(ref) {
     console.error('[mail] falha ao liberar lock de mensagem inbound', error);
   }
 }
-// Apelidos que o pessoal REALMENTE escreve no [ ] do assunto e que não são o
-// código da sede no catálogo. Sem isto o e-mail não casa nenhuma sede e a OS
-// simplesmente não é criada (o inbound descarta em silêncio) — foi o que estava
-// engolindo os e-mails de CESIU, PRÉ SUL e Pré-Nunes.
-// Chave: apelido já em `tightKey` (sem acento/espaço/pontuação). Valor: código canônico.
-export const SITE_ALIASES = {
-  cesiu: 'ALD',
-  cvu: 'ALD',
-  presul: 'PSUL',
-  prenunes: 'PNV',
-  dt1: 'DT',
-  // "SUL" sozinho é a SUL1. Sem o apelido, o fallback por substring casava em
-  // PSUL (o nome "psul" contém "sul") — sede errada.
-  sul: 'SUL1',
-  jv: 'PJF',
-  prejovita: 'PJF',
-  // "PQL 2/3" (área compartilhada citada com as duas) → PQL3, por decisão do time.
-  pql23: 'PQL3',
-};
-
+// Os apelidos de sede e o matcher do [SEDE] vivem em ./_lib/siteMatch.js
+// (lógica pura + testada — foi a origem de vários bugs de inbound).
 async function resolveSiteContext(db, siteCode) {
-  const normalized = normalizeKey(siteCode);
   // Cacheado (TTL ~60s): roda por e-mail de entrada (e por-doc no reprocess).
   const [sites, regions] = await Promise.all([
     getCachedSites(db),
     getCachedRegions(db),
   ]);
-  // Casamento "apertado": remove tudo que não é letra/dígito e zera leading
-  // zeros nos grupos numéricos, para que "PQL 3", "PQL03", "PQL 03" e "D.L"
-  // casem com os códigos canônicos "PQL3" e "DL" do catálogo.
-  const tightKey = value =>
-    normalizeKey(value).replace(/[^a-z0-9]/g, '').replace(/\d+/g, match => String(Number(match)));
-  const normalizedTight = tightKey(siteCode);
-  const site = (() => {
-    if (!normalized) return null;
-    const exact =
-      sites.find(item =>
-        [item.id, item.code, item.name].some(value => normalizeKey(value) === normalized)
-      ) ||
-      (normalizedTight
-        ? sites.find(item => [item.id, item.code].some(value => tightKey(value) === normalizedTight))
-        : null);
-    if (exact) return exact;
-
-    // Apelido conhecido (CESIU/CVU → ALD, PRÉ SUL → PSUL, ...): resolve direto no
-    // código canônico. Vem antes do fallback por substring, que é aproximado.
-    const aliasCode = SITE_ALIASES[normalizedTight];
-    if (aliasCode) {
-      const aliased = sites.find(item => tightKey(item.code) === tightKey(aliasCode));
-      if (aliased) return aliased;
-    }
-
-    // Fallback para assuntos com nome de sede parcial/completo (ex.: "(aldeota)").
-    const ranked = sites
-      .map(item => {
-        const id = normalizeKey(item.id);
-        const code = normalizeKey(item.code);
-        const name = normalizeKey(item.name);
-        let score = 0;
-        if (code && normalized.includes(code)) score = Math.max(score, 95);
-        if (name && normalized.includes(name)) score = Math.max(score, 92);
-        if (name && name.includes(normalized)) score = Math.max(score, 90);
-        if (code && code.includes(normalized)) score = Math.max(score, 88);
-        if (id && (id === normalized || normalized.includes(id) || id.includes(normalized))) score = Math.max(score, 85);
-        return { item, score };
-      })
-      .filter(entry => entry.score > 0)
-      .sort((a, b) => b.score - a.score);
-    return ranked[0]?.item || null;
-  })();
+  const site = matchSiteCode(siteCode, sites);
   const region = site ? regions.find(item => item.id === site.regionId) || null : null;
-
   return { site, region };
 }
 

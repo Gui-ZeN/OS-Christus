@@ -4,7 +4,6 @@ import {
   parseTicketId,
   isLikelyThreadReply,
   stripReplyForwardPrefixes,
-  SITE_ALIASES,
 } from '../../api/mail.js';
 
 describe('parseNewTicketSubject', () => {
@@ -78,18 +77,3 @@ describe('stripReplyForwardPrefixes', () => {
   });
 });
 
-describe('SITE_ALIASES (apelidos de sede)', () => {
-  it('mapeia os apelidos confirmados pelo time', () => {
-    expect(SITE_ALIASES).toMatchObject({
-      cesiu: 'ALD',
-      cvu: 'ALD',
-      presul: 'PSUL',
-      prenunes: 'PNV',
-      dt1: 'DT',
-      sul: 'SUL1',
-      jv: 'PJF',
-      prejovita: 'PJF',
-      pql23: 'PQL3',
-    });
-  });
-});

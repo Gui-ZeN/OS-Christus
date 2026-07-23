@@ -5,6 +5,9 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-23 (P1 — testes)
 
+### 🧩 Matcher de sede extraído para módulo puro e testado (`_lib/siteMatch.js`)
+A lógica que casa o `[SEDE]` do assunto com o catálogo — origem de vários bugs de inbound (CESIU, PRÉ SUL, DT1, PQL 2/3…) — saiu do god-file `mail.js` (2.6k linhas) para `api/_lib/siteMatch.js`, pura e isolada: `matchSiteCode(siteCode, sites)`, `tightKey`, `SITE_ALIASES`. `resolveSiteContext` no `mail.js` agora só carrega o catálogo (cache) e delega. +17 testes cobrindo exato/apertado/apelido/substring/ruído. Comportamento idêntico (suíte confirma) — passo mecânico, mesmo padrão que dá pra repetir para fatiar o resto do `mail.js`.
+
 ### 🚫 Fim do erro engolido em silêncio — 8 `catch {}` agora deixam rastro
 O padrão-raiz de quase todos os bugs da maratona: falha de operação engolida sem log. Varredura dos 17 `catch {}` do backend — **8 que engoliam falha real** (gravação de auditoria, log de evento de e-mail, notificação ao gestor, download/upload de anexo, exclusão no Storage, limpeza de lock) agora fazem `console.error` com contexto (vai pros logs da Vercel), mantendo o comportamento não-bloqueante. Os outros 9 são fallbacks legítimos (re-throw de `HttpError`, parse seguro de JSON/URL/MIME que retorna valor padrão) — deixados de propósito. Destaque: `auditLogs.js` (a própria auditoria falhava muda — apontado pelo Fable).
 
