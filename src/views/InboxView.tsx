@@ -2125,7 +2125,7 @@ export function InboxView() {
   const handleRemoveInlineImage = (att: TicketAttachment) => {
     setInlineImages(prev => prev.filter(item => item.id !== att.id));
     // Remove também a linha de link correspondente no corpo.
-    setReplyTextValue(getReplyText().split('\n').filter(line => !line.includes(att.url || ' ')).join('\n'));
+    setReplyTextValue(getReplyText().split('\n').filter(line => !line.includes(att.url || '\u0000')).join('\n'));
   };
 
   // Pessoas sugeridas no @menção (diretório com nome + e-mail).

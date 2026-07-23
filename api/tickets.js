@@ -18,6 +18,24 @@ const STATUS_WAITING_PAYMENT = 'Aguardando pagamento';
 const STATUS_CLOSED = 'Encerrada';
 const STATUS_CANCELED = 'Cancelada';
 
+// Allow-list dos campos que o PATCH do painel pode gravar. Enumerado a partir de
+// TODAS as chamadas updateTicket() do front. Tudo fora daqui é descartado — em vez
+// de uma deny-list (que só bloqueia o que alguém lembrou e deixava requesterEmail,
+// requester, subject, time... editáveis por qualquer perfil com acesso à OS).
+// id / trackingToken / createdAt / updatedAt ficam DE FORA de propósito
+// (identidade e campos controlados pelo servidor). As transições territoriais
+// (regionId/siteId/region/sede) entram na lista mas são restritas a Admin abaixo.
+const ALLOWED_TICKET_PATCH_FIELDS = new Set([
+  'status', 'priority', 'sector', 'location', 'time', 'waterIssue',
+  'assignedTeam', 'assignedEmail',
+  'macroServiceId', 'macroServiceName', 'serviceCatalogId', 'serviceCatalogName',
+  'directorIds', 'directorEmails', 'directorCcEmails', 'requesterCcEmails',
+  'attachments', 'history', 'viewingBy',
+  'preliminaryActions', 'closureChecklist', 'executionProgress', 'guarantee',
+  // reclassificação territorial — só Admin (gate logo abaixo, no handler)
+  'regionId', 'siteId', 'region', 'sede',
+]);
+
 function sortTimeValue(value) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
@@ -887,14 +905,25 @@ export default async function handler(req, res) {
         return sendJson(res, 400, { ok: false, error: 'id e updates são obrigatórios.' });
       }
 
-      const updates = normalizeTicketForStorage(body.updates);
-      // Campos de identidade/imutáveis nunca podem ser alterados via PATCH do
-      // painel (evita sequestro de trackingToken público e forja de id/data).
-      delete updates.id;
-      delete updates.trackingToken;
-      delete updates.createdAt;
-      // regionId/siteId só podem ser reclassificados por Admin (senão um perfil
-      // escopado poderia mover a OS para fora/dentro do próprio território).
+      const rawUpdates = body.updates && typeof body.updates === 'object' ? body.updates : {};
+      const normalizedUpdates = normalizeTicketForStorage(rawUpdates);
+      // Allow-list: só passa campo que (a) está na lista E (b) o cliente REALMENTE
+      // enviou. O `hasOwnProperty(rawUpdates, field)` é essencial: o normalizer
+      // injeta `time: agora` quando ausente — sem o guard, TODO PATCH parcial
+      // (inclusive o heartbeat de viewingBy de 45s) sobrescreveria a data de
+      // abertura da OS. Identidade (id/trackingToken/createdAt), campos do servidor
+      // (updatedAt) e sensíveis (requesterEmail/requester/subject) ficam fora da lista.
+      const updates = {};
+      for (const field of Object.keys(normalizedUpdates)) {
+        if (
+          ALLOWED_TICKET_PATCH_FIELDS.has(field) &&
+          Object.prototype.hasOwnProperty.call(rawUpdates, field)
+        ) {
+          updates[field] = normalizedUpdates[field];
+        }
+      }
+      // Reclassificação territorial só por Admin (senão um perfil escopado poderia
+      // mover a OS para dentro/fora do próprio território).
       if (user.role !== 'Admin') {
         delete updates.regionId;
         delete updates.siteId;
