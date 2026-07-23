@@ -6,7 +6,6 @@ import {
   Home,
   Image as ImageIcon,
   Inbox,
-  Loader2,
   LogOut,
   Palette,
   ScrollText,
@@ -112,7 +111,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    // eslint-disable-next-line no-console
+     
     console.error('Erro não tratado na view:', error, info);
   }
 
@@ -235,17 +234,6 @@ export default function App() {
       .map(part => part[0]?.toUpperCase() || '')
       .join('') || 'RG';
 
-  const canOpenView = (view: ViewState) => {
-    if (view === VIEWS.INBOX) return canAccessInbox;
-    if (view === VIEWS.OS_BOARD) return canAccessOsBoard;
-    if (view === VIEWS.APPROVALS) return canAccessApprovals;
-    if (view === VIEWS.FINANCE) return canAccessFinance;
-    if (view === VIEWS.EMAIL_HEALTH) return canAccessEmailHealth;
-    if (view === VIEWS.AUDIT_LOGS) return canAccessAudit;
-    if (view === VIEWS.KPI) return canAccessKpi;
-    if (view === VIEWS.SETTINGS) return canAccessSettings;
-    return true;
-  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

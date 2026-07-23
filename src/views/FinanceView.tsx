@@ -1525,7 +1525,7 @@ export function FinanceView() {
             )}
           </div>
 
-          {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, expectedBaselineValue, totalValue, totalReleased, plannedValue, paidValue, remainingValue, pendingInstallments, nextPendingInstallment, nextMilestonePercent }) => {
+          {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, expectedBaselineValue, totalValue, totalReleased, plannedValue, paidValue, remainingValue, nextMilestonePercent }) => {
             const ticketProcessing = processingId === ticket.id || processingId?.startsWith(`${ticket.id}:`);
             const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
             const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';

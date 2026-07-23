@@ -172,26 +172,6 @@ export function useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteM
 
   const buildQuoteEditorItemKey = (quoteIndex: number, itemId: string) => `${quoteIndex}:${itemId}`;
 
-  const isQuoteItemExpanded = (quoteIndex: number, itemId: string) =>
-    expandedQuoteItems[buildQuoteEditorItemKey(quoteIndex, itemId)] ?? false;
-
-  const toggleQuoteItemExpanded = (quoteIndex: number, itemId: string) => {
-    const key = buildQuoteEditorItemKey(quoteIndex, itemId);
-    setExpandedQuoteItems(current => ({ ...current, [key]: !current[key] }));
-  };
-
-  const setAllQuoteItemsExpanded = (quoteIndex: number, expanded: boolean) => {
-    setExpandedQuoteItems(current => {
-      const next = { ...current };
-      const quote = quotes[quoteIndex];
-      if (!quote) return next;
-      quote.items.forEach(item => {
-        next[buildQuoteEditorItemKey(quoteIndex, item.id)] = expanded;
-      });
-      return next;
-    });
-  };
-
   const handleQuoteItemUnitSelect = (quoteIndex: number, itemId: string, selectedValue: string) => {
     const itemKey = buildQuoteItemUnitKey(quoteIndex, itemId);
     if (selectedValue === CUSTOM_QUOTE_UNIT_VALUE) {

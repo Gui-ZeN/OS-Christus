@@ -1,10 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
 
-function parseTicketSequence(value) {
-  const match = String(value || '').match(/^OS-(\d+)$/i);
-  return match ? Number(match[1] || 0) : 0;
-}
-
 function isIsoDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
 }

@@ -12,7 +12,6 @@ import { appendTicketHistory, reserveNextTicketId } from './_lib/tickets.js';
 import {
   decodeMimeHeader,
   gmailGetMessage,
-  gmailGetProfile,
   gmailListHistory,
   gmailListRecentInbox,
   gmailSend,
@@ -295,15 +294,6 @@ function filterCopyRecipients(input, excluded = []) {
 
 function mergeEmailLists(...inputs) {
   return [...new Set(inputs.flatMap(input => parseEmailList(input)))];
-}
-
-function sameRecipientSet(current, previous) {
-  if (!Array.isArray(current) || !Array.isArray(previous)) return false;
-  if (current.length !== previous.length) return false;
-  const left = [...new Set(current)].sort();
-  const right = [...new Set(previous)].sort();
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
 }
 
 async function resolveEmailTemplate(db, trigger) {

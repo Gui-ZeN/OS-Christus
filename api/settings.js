@@ -1,4 +1,4 @@
-import { requireAdminUser, requireUserWithRoles , resolveActor } from './_lib/authz.js';
+import { requireUserWithRoles , resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, readJsonBody, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';

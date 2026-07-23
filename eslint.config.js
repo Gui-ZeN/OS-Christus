@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import unusedImports from 'eslint-plugin-unused-imports';
 
 // Config enxuto: foco em BUGS reais (variável/undefined, chaves duplicadas,
 // código inalcançável), estilo relaxado. O `tsc --noEmit` (npm run lint) segue
@@ -20,10 +21,15 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
   },
   {
+    plugins: { 'unused-imports': unusedImports },
     rules: {
       // Ruído de estilo/migração desligado; mantém só o que aponta bug.
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      '@typescript-eslint/no-unused-vars': 'off',
+      // Import não-usado é erro (auto-fixável com --fix); variável não-usada é
+      // warn (prefixe com _ para manter de propósito).
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': ['warn', { vars: 'all', varsIgnorePattern: '^_', args: 'after-used', argsIgnorePattern: '^_', caughtErrors: 'none' }],
       '@typescript-eslint/no-explicit-any': 'off',
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'eqeqeq': ['warn', 'smart'],

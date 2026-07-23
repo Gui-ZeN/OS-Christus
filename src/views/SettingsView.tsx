@@ -562,7 +562,7 @@ export function SettingsView() {
   const handleDeleteCatalogItem = async (
     entity: 'regions' | 'sites' | 'macroServices' | 'serviceCatalog' | 'materials',
     id: string,
-    label: string
+    _label: string
   ) => {
     setCatalogDeleting(true);
     try {

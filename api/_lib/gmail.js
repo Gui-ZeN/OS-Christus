@@ -38,6 +38,7 @@ function fromBase64Url(input) {
 function encodeMimeHeader(value) {
   const input = String(value || '');
   if (!input) return '';
+  // eslint-disable-next-line no-control-regex -- range ASCII \x00-\x7F é intencional
   if (!/[^\x00-\x7F]/.test(input)) return input;
   return `=?UTF-8?B?${Buffer.from(input, 'utf8').toString('base64')}?=`;
 }

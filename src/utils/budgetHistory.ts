@@ -172,7 +172,7 @@ export function buildBudgetHistorySummary(
   currentTicket: Ticket | null | undefined,
   tickets: Ticket[],
   quotesByTicket: QuoteMap,
-  directoryVendors: BudgetHistoryVendor[] = []
+  _directoryVendors: BudgetHistoryVendor[] = []
 ): BudgetHistorySummary {
   if (!currentTicket) {
     return {

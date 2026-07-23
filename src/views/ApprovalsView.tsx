@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, Download, FileText, Image as ImageIcon, Loader2, Shield, X } from 'lucide-react';
+import { CheckCircle, Download, FileText, Loader2, Shield } from 'lucide-react';
 import { useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAttachmentPreview } from '../context/AttachmentPreviewContext';

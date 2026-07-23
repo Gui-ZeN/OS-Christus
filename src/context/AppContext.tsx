@@ -1,5 +1,4 @@
 ﻿import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
-import { TICKET_STATUS } from '../constants/ticketStatus';
 import { APP_THEMES, AppThemeId, AppThemeOption, DEFAULT_APP_THEME } from '../constants/themes';
 import {
   DirectoryUser,
@@ -152,8 +151,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
-  const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
-  const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
+  const [, setCatalogRegions] = useState<CatalogRegion[]>([]);
+  const [, setCatalogSites] = useState<CatalogSite[]>([]);
   const [theme, setThemeState] = useState<AppThemeId>(getInitialTheme);
 
   const refreshCountRef = useRef(0);

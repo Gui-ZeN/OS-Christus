@@ -247,7 +247,6 @@ export function buildTicketEmailTemplate({
   detailCards,
 }) {
   const stage = getStageMeta(trigger, status);
-  const isCommunication = normalizeToken(trigger).includes('mensagem');
   const cleanedBody = stripSignature(bodyText);
   const messageParts = [cleanedBody || intro || ''].filter(Boolean);
   const messageHtml = renderBodyText(messageParts.join('\n\n'));

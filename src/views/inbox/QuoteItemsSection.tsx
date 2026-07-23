@@ -22,10 +22,8 @@ interface QuoteItemsSectionProps {
  */
 export function QuoteItemsSection({ quote, i, suggestedQuoteMaterials, itemReferences }: QuoteItemsSectionProps) {
   const {
-    pendingCustomUnitByItem, setPendingCustomUnitByItem, quoteUnitOptions,
+    pendingCustomUnitByItem,
     handleAddQuoteItem, handleAddMultipleQuoteItems, handleQuoteItemChange,
-    handleRemoveQuoteItem, handleQuoteItemUnitSelect, handleQuoteItemCurrencyBlur,
-    handleQuoteItemCustomUnitSave,
   } = useQuoteEditorContext();
   return (
     <div className="rounded-sm border border-roman-border bg-roman-surface p-3">

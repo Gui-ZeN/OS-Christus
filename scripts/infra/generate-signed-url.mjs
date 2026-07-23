@@ -12,7 +12,7 @@ function ensureEnv(name) {
 }
 
 function sanitizeName(fileName) {
-  return fileName.replace(/[^\w.\-]/g, '_');
+  return fileName.replace(/[^\w.-]/g, '_');
 }
 
 async function main() {

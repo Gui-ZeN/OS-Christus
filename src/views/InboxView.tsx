@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, Clock, User, Image as ImageIcon, ChevronDown, ChevronLeft, ChevronRight, Calendar, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -10,7 +10,7 @@ import { useApp } from '../context/AppContext';
 import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useToast } from '../hooks/useToast';
-import { ContractRecord, InboxFilter, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, QuoteItem, Ticket, TicketAttachment } from '../types';
+import { ContractRecord, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, Ticket, TicketAttachment } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
@@ -21,16 +21,15 @@ import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { uploadContractAttachment, uploadMeasurementAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
-import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
+import { buildBudgetHistorySummary } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
 import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
-import { cleanForwardedMessageText } from '../utils/text';
 import { getAvailableAdditiveRounds, getAvailableInitialRounds, getEditableInitialRoundIndex, getQuotesByRound, isRejectedQuoteRound, normalizeQuoteStatus } from './inbox/quoteRounds';
-import { calculateProgressPercentFromGross, getBudgetSourceLabel, isLegacyFlowPlaceholderPayment, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
-import { DateTimePicker, buildInputDateTime, formatDateTimeDisplay, formatInputDate, formatInputDateTime, formatShortDate, parseInputDateTime } from './inbox/DateTimePicker';
+import { calculateProgressPercentFromGross, getBudgetSourceLabel, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
+import { DateTimePicker, formatInputDate, formatInputDateTime, formatShortDate, parseInputDateTime } from './inbox/DateTimePicker';
 import { getExecutionNextActionLabel, getStageGuidance } from './inbox/stageGuidance';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { ContractDispatchModal } from './inbox/ContractDispatchModal';
@@ -38,29 +37,25 @@ import { PreliminaryActionsModal } from './inbox/PreliminaryActionsModal';
 import { ExecutionSetupModal } from './inbox/ExecutionSetupModal';
 import { ProgressUpdateModal } from './inbox/ProgressUpdateModal';
 import { DirectorInterestsPanel } from './inbox/DirectorInterestsPanel';
-import { MessageBody } from './inbox/MessageBody';
 import { TicketHistory } from './inbox/TicketHistory';
 import { AdditiveReferenceCard } from './inbox/AdditiveReferenceCard';
-import { QuoteHistoryMetrics } from './inbox/QuoteHistoryMetrics';
 import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
 import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
 import { useQuoteEditor } from './inbox/useQuoteEditor';
 import { QuoteEditorProvider } from './inbox/QuoteEditorContext';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
-import { CUSTOM_QUOTE_UNIT_VALUE, INITIAL_MIN_QUOTE_SLOTS, QUOTE_SECTION_OPTIONS, buildQuoteItemUnitKey, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, normalizeUnitAbbreviation, summarizeQuoteDraft } from './inbox/quotes';
-import { QuoteItemRow } from './inbox/QuoteItemRow';
+import { INITIAL_MIN_QUOTE_SLOTS, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, summarizeQuoteDraft } from './inbox/quotes';
 import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
 import { QuoteVendorFields } from './inbox/QuoteVendorFields';
 import { QuoteConsolidatedView } from './inbox/QuoteConsolidatedView';
 import { QuoteItemsSection } from './inbox/QuoteItemsSection';
-import type { ProposalHeaderDraft, QuoteDraft } from './inbox/types';
+import type { QuoteDraft } from './inbox/types';
 import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
 import {
   formatCurrency as formatCurrencyInput,
   normalizeCurrencyInput,
   parseCurrency as parseCurrencyInput,
-  sanitizeCurrencyTypingInput,
 } from '../utils/currency';
 
 
@@ -1665,8 +1660,7 @@ export function InboxView() {
   const {
     showQuotesModal, setShowQuotesModal,
     quoteAttachments, setQuoteAttachments,
-    pendingCustomUnitByItem, setPendingCustomUnitByItem,
-    additionalQuoteUnits, setAdditionalQuoteUnits,
+    setPendingCustomUnitByItem,
     quotes, setQuotes,
     quoteRoundType, setQuoteRoundType,
     quoteInitialRoundIndex, setQuoteInitialRoundIndex,
@@ -1677,13 +1671,12 @@ export function InboxView() {
     showQuoteComparisonPanel, setShowQuoteComparisonPanel,
     showAdditiveReference, setShowAdditiveReference,
     quoteEditorFocus, setQuoteEditorFocus,
-    expandedQuoteItems, setExpandedQuoteItems,
+    setExpandedQuoteItems,
     proposalHeader, setProposalHeader,
     handleProposalHeaderChange, handleProposalCurrencyBlur,
-    handleQuoteItemChange, handleQuoteItemCurrencyBlur, handleQuoteItemUnitSelect, handleQuoteItemCustomUnitSave,
-    handleAddQuoteItem, handleAddMultipleQuoteItems, handleRemoveQuoteItem, handleQuoteAttachmentChange,
+    handleQuoteAttachmentChange,
     handleAddQuoteSlot, handleRemoveQuoteSlot,
-    quoteUnitOptions, quoteGrandTotals, visibleQuoteEditors,
+    quoteGrandTotals, visibleQuoteEditors,
   } = quoteEditor;
   const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
   const [showPrelimModal, setShowPrelimModal] = useState(false);

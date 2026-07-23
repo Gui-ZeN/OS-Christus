@@ -36,7 +36,7 @@ export function parseNewTicketSubject(text) {
   // O separador depois do [SEDE] é opcional: aceita "[PE] - assunto", "[PE]: assunto"
   // e também "[PE] assunto" (sem traço logo após o colchete — caso comum). O traço
   // interno do assunto ("texto - texto") é preservado.
-  const match = normalizedSubject.match(/^\s*[\[\(\{]([^\]\)\}]+)[\]\)\}]\s*[-–—:]?\s*(.+?)\s*$/i);
+  const match = normalizedSubject.match(/^\s*[[({]([^\])}]+)[\])}]\s*[-–—:]?\s*(.+?)\s*$/i);
   if (!match) return null;
   return {
     siteCode: String(match[1] || '').trim(),

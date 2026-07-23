@@ -327,7 +327,6 @@ export function KpiView() {
   }, [filteredTickets, sites]);
 
   const backlogPorEtapa = useMemo(() => {
-    const grouped = new Map<string, { name: string; abertas: number; fechadas: number }>();
     const buckets = [
       { name: 'Nova OS', match: (status: string) => status === TICKET_STATUS.NEW },
       { name: 'Triagem', match: (status: string) => status === TICKET_STATUS.WAITING_TECH_OPINION || status === TICKET_STATUS.WAITING_SOLUTION_APPROVAL },
