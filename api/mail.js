@@ -487,8 +487,9 @@ async function resolveRequesterThreadSubject(threadRef, thread, ticketId) {
       });
     const inboundSubject = inboundMessages.find(message => !isTicketConversationSubject(ticketId, message.subject))?.subject;
     if (inboundSubject) return repairMojibake(String(inboundSubject));
-  } catch {
-    // Mantém fallback abaixo quando não for possível ler o histórico.
+  } catch (error) {
+    // Mantém o fallback abaixo, mas registra a falha de leitura do histórico.
+    console.error('[mail] falha ao ler histórico para resolver o assunto da thread', error);
   }
 
   return storedSubject;
@@ -1210,8 +1211,10 @@ async function releaseInboundMessageLock(ref) {
   if (!ref) return;
   try {
     await ref.delete();
-  } catch {
-    // Ignora falha na limpeza do lock para permitir novo processamento.
+  } catch (error) {
+    // Não bloqueia (permite novo processamento), mas registra: falha recorrente
+    // aqui pode indicar problema no lock de deduplicação.
+    console.error('[mail] falha ao liberar lock de mensagem inbound', error);
   }
 }
 // Apelidos que o pessoal REALMENTE escreve no [ ] do assunto e que não são o
@@ -1378,8 +1381,10 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
           replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
         });
       }
-    } catch {
-      // Não bloqueia criação da OS se a notificação ao gestor falhar.
+    } catch (error) {
+      // Não bloqueia a criação da OS, mas registra: sem isto, o gestor não é
+      // notificado da nova OS e ninguém percebe a falha.
+      console.error('[mail] falha ao notificar gestor de nova OS por e-mail', error);
     }
   }
 }
@@ -2228,7 +2233,8 @@ async function resolveOutboundAttachments(attachments) {
         const [downloaded] = await bucket.file(path).download();
         buffer = downloaded;
       }
-    } catch {
+    } catch (error) {
+      console.error('[mail] falha ao baixar anexo do Storage para reenvio', error);
       buffer = null;
     }
 
@@ -2239,7 +2245,8 @@ async function resolveOutboundAttachments(attachments) {
           const arrayBuffer = await response.arrayBuffer();
           buffer = Buffer.from(arrayBuffer);
         }
-      } catch {
+      } catch (error) {
+        console.error('[mail] falha ao buscar anexo pela URL para reenvio', error);
         buffer = null;
       }
     }

@@ -14,7 +14,9 @@ export async function logEmailEvent(event) {
       ttlAt: new Date(now.getTime() + EMAIL_EVENT_TTL_MS),
       ...event,
     });
-  } catch {
-    // Não interrompe o fluxo principal.
+  } catch (error) {
+    // Não interrompe o fluxo principal, mas registra: sem isto, perder um evento
+    // de e-mail (a observabilidade da inbox) some sem rastro.
+    console.error('[emailLogs] falha ao registrar evento de e-mail', event?.type, event?.status, error);
   }
 }

@@ -485,8 +485,9 @@ async function deleteStoragePaths(paths) {
     try {
       await bucket.file(path).delete({ ignoreNotFound: true });
       deleted += 1;
-    } catch {
-      // Não interrompe a exclusão da OS por falha pontual no Storage.
+    } catch (error) {
+      // Não interrompe a exclusão da OS, mas registra: o arquivo pode ficar órfão.
+      console.error('[tickets] falha ao apagar anexo do Storage', path, error);
     }
   }
 

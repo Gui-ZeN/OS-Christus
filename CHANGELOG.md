@@ -5,6 +5,12 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-23 (P1 — testes)
 
+### 🚫 Fim do erro engolido em silêncio — 8 `catch {}` agora deixam rastro
+O padrão-raiz de quase todos os bugs da maratona: falha de operação engolida sem log. Varredura dos 17 `catch {}` do backend — **8 que engoliam falha real** (gravação de auditoria, log de evento de e-mail, notificação ao gestor, download/upload de anexo, exclusão no Storage, limpeza de lock) agora fazem `console.error` com contexto (vai pros logs da Vercel), mantendo o comportamento não-bloqueante. Os outros 9 são fallbacks legítimos (re-throw de `HttpError`, parse seguro de JSON/URL/MIME que retorna valor padrão) — deixados de propósito. Destaque: `auditLogs.js` (a própria auditoria falhava muda — apontado pelo Fable).
+
+### 🤖 CI: `npm test` + typecheck + build a cada push (GitHub Actions)
+Novo workflow `.github/workflows/tests.yml`: em push/PR na `main`, roda `npm ci` → `tsc --noEmit` → `vitest run` → `vite build` no Node 20. A regressão trava **antes do merge**, não em produção.
+
 ### 🧪 Suíte de testes unitários (vitest) dos módulos puros
 Primeiro conjunto de testes unitários do repo — trava como regressão permanente (no CI, não em produção) a lógica que gerou os bugs desta maratona. **40 testes, 4 arquivos**, ambiente node, sem emulador. `npm test` (`vitest run`) + `npm run test:watch`.
 - **Parsing do inbound** (`api/mail.js`): `parseNewTicketSubject` (incl. prefixos `Re:/Fwd:` e `Título:/Assunto:`), `parseTicketId`, `isLikelyThreadReply`, e o mapa `SITE_ALIASES` (CESIU→ALD, PRÉ SUL→PSUL, JV→PJF, PQL 2/3→PQL3…).

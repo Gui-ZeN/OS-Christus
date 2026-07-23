@@ -13,7 +13,9 @@ export async function writeAuditLog(entry) {
       metadata: entry.metadata || null,
       createdAt: new Date(),
     });
-  } catch {
-    // Auditoria não deve quebrar o fluxo principal.
+  } catch (error) {
+    // Auditoria não deve quebrar o fluxo principal — mas o erro PRECISA deixar
+    // rastro nos logs (senão uma trilha de auditoria perdida passa despercebida).
+    console.error('[auditLogs] falha ao gravar log de auditoria', entry?.action, error);
   }
 }
