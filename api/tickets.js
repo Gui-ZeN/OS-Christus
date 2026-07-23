@@ -48,6 +48,36 @@ function buildActorLabel(user, fallbackActor) {
   return 'Sistema';
 }
 
+// Tipos válidos de entrada de histórico (espelha HistoryItem em src/types/index.ts).
+const HISTORY_ENTRY_TYPES = new Set(['customer', 'system', 'tech', 'internal', 'field_change']);
+
+// Rótulo do remetente derivado do usuário autenticado, no MESMO formato que o
+// front usa ("Nome (Papel)"). Forçar isto como sender das entradas NOVAS impede
+// forjar remetentes oficiais ('Diretoria'/'Sistema') que apareceriam na página
+// pública como comunicação do sistema — sem alterar o rótulo legítimo (que já é
+// exatamente "Nome (Papel)").
+function actorHistoryLabel(user, fallbackActor) {
+  const name = user?.name || fallbackActor || user?.email || 'Gestor';
+  return user?.role ? `${name} (${user.role})` : name;
+}
+
+// Sanitiza uma entrada de histórico NOVA vinda do cliente: coage type inválido e
+// força o sender ao ator. NÃO toca em `visibility` ausente — a página pública
+// decide por marcador de texto quando ela não vem (coagir para 'internal'
+// esconderia marcos como "Triagem concluída"/"Execução iniciada"). Só coage uma
+// visibility inválida que veio preenchida.
+function sanitizeClientHistoryEntry(entry, senderLabel) {
+  const sanitized = {
+    ...entry,
+    type: HISTORY_ENTRY_TYPES.has(entry?.type) ? entry.type : 'internal',
+    sender: senderLabel,
+  };
+  if (entry?.visibility !== undefined && entry.visibility !== 'public' && entry.visibility !== 'internal') {
+    sanitized.visibility = 'internal';
+  }
+  return sanitized;
+}
+
 function buildAutomaticStatusHistoryEntry(sender, previousStatus, nextStatus) {
   const publicStatusMessages = {
     [STATUS_WAITING_MAINTENANCE_APPROVAL]: 'Execução concluída.',
@@ -720,23 +750,34 @@ export default async function handler(req, res) {
       let user = null;
       const hasAuthHeader = String(req.headers.authorization || '').trim().length > 0;
       if (hasAuthHeader) {
-        user = await requireAuthenticatedUser(req);
-      } else {
-        // Criação pública (sem autenticação): limita abuso/spam por IP.
+        const authedUser = await requireAuthenticatedUser(req);
+        // Só papéis de gestão usam o caminho AUTENTICADO (ticket completo, história
+        // do cliente, duplicação). Um 'Usuario' logado — ou qualquer sessão Firebase
+        // persistida no navegador que caia no formulário público (o actorHeaders
+        // anexa o token sempre que há sessão) — segue pelo caminho PÚBLICO (rebuild
+        // server-side + rate limit), NÃO 403: senão o form público quebraria.
+        if (authedUser.role === 'Admin' || authedUser.role === 'Gestor' || authedUser.role === 'Diretor') {
+          user = authedUser;
+        }
+      }
+      if (!user) {
+        // Criação pública (ou não-gestor autenticado): limita abuso/spam por IP.
         await enforceRateLimit(req, {
           bucket: 'ticket-create',
           limit: 5,
           windowMs: 10 * 60 * 1000,
           message: 'Muitas solicitações enviadas. Aguarde alguns minutos e tente novamente.',
         });
-        user = null;
       }
 
       const ticket = user ? normalizeTicketForStorage(ticketPayload) : await preparePublicTicketCreate(db, ticketPayload);
       const now = new Date();
       const ticketId = await reserveNextTicketId(db);
-      const trackingToken =
-        String(ticket.trackingToken || '').trim() || `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+      // trackingToken é capacidade de acesso público à OS — SEMPRE gerado no
+      // servidor, nunca aceito do cliente. Aceitá-lo permitia criar uma OS com o
+      // token de OUTRA (GET/PATCH público usam limit(1) → o link do solicitante
+      // viraria não determinístico). A duplicação ganha um token novo — o certo.
+      const trackingToken = `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
       const uploadedAttachments = await uploadTicketAttachments(
         ticketId,
         Array.isArray(parsedBody?.attachments) ? parsedBody.attachments : []
@@ -966,12 +1007,20 @@ export default async function handler(req, res) {
 
         if (Array.isArray(updates.history)) {
           // Cliente enviou histórico (ex.: nova mensagem). Mescla só as entradas
-          // novas (por id) sobre o histórico fresco + a entrada de status auto.
+          // NOVAS (por id) sobre o histórico fresco + a entrada de status auto.
+          // Sanitiza só as novas (as já existentes o merge ignora): type inválido
+          // coagido e sender FORÇADO ao ator — impede forjar entrada "oficial"
+          // (type:'system'/sender:'Diretoria') na página pública de acompanhamento.
+          const senderLabel = actorHistoryLabel(user, actor);
+          const existingIds = new Set(freshHistory.map(entry => entry?.id).filter(Boolean));
+          const sanitizedNew = updates.history
+            .filter(entry => entry?.id && !existingIds.has(entry.id))
+            .map(entry => sanitizeClientHistoryEntry(entry, senderLabel));
           const statusEntry =
             statusChanged && shouldAppendAutomaticHistory(data.history, updates.history)
               ? [buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status)]
               : [];
-          payload.history = mergeTicketHistory(freshHistory, [...updates.history, ...statusEntry]).merged;
+          payload.history = mergeTicketHistory(freshHistory, [...sanitizedNew, ...statusEntry]).merged;
         } else if (statusChanged) {
           payload.history = [
             ...freshHistory,

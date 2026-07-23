@@ -157,7 +157,13 @@ export function ApprovalsView() {
   const { openAttachment } = useAttachmentPreview();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
-  const directorActorName = String(currentUser?.name || '').trim() || 'Diretoria';
+  // Inclui o sufixo "(Papel)" para casar o sender que o servidor força nas
+  // entradas novas (actorHistoryLabel) — senão a etiqueta piscaria de "Nome" para
+  // "Nome (Diretor)" após o refetch, inclusive nos marcos públicos.
+  const directorActorName = (() => {
+    const base = String(currentUser?.name || '').trim() || 'Diretoria';
+    return currentUser?.role ? `${base} (${currentUser.role})` : base;
+  })();
   const canCurrentDirectorAccessTicket = (ticket: Ticket) => {
     if (currentUser?.role !== 'Diretor') return true;
     const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
