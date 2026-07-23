@@ -726,6 +726,15 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const trackingToken = String(req.query?.tracking || '').trim();
       if (trackingToken) {
+        // Rate-limit por IP no acompanhamento público. O token tem 64 bits (brute
+        // force inviável), mas o GET era o único caminho público sem teto — folgado
+        // o bastante para o polling da página, só barra varredura/abuso sem custo.
+        await enforceRateLimit(req, {
+          bucket: 'ticket-tracking-get',
+          limit: 300,
+          windowMs: 5 * 60 * 1000,
+          message: 'Muitas consultas de acompanhamento. Aguarde alguns instantes e tente novamente.',
+        });
         const trackingSnap = await col.where('trackingToken', '==', trackingToken).limit(1).get();
         if (trackingSnap.empty) {
           return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });

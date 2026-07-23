@@ -180,6 +180,10 @@ export function ApprovalsView() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  // Intenção capturada ao ABRIR o modal (não re-derivada no confirm). Sem isto, se o
+  // refresh silencioso tirar o ticket de budgets/contracts entre abrir e confirmar,
+  // uma reprovação de orçamento/contrato caía no else e CANCELAVA a OS inteira.
+  const [rejectTargetKind, setRejectTargetKind] = useState<'solution' | 'budget' | 'contract'>('solution');
   const { toast, showToast } = useToast();
   const [quotesByTicket, setQuotesByTicket] = useState<Record<string, Quote[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
@@ -413,9 +417,10 @@ export function ApprovalsView() {
     }
   };
 
-  const openRejectModal = (id: string) => {
+  const openRejectModal = (id: string, kind: 'solution' | 'budget' | 'contract') => {
     if (!canApprove) return;
     setRejectTargetId(id);
+    setRejectTargetKind(kind);
     setRejectModalOpen(true);
   };
 
@@ -430,7 +435,11 @@ export function ApprovalsView() {
     const targetContract = contracts.find(contract => contract.id === rejectTargetId) || null;
 
     try {
-      if (targetBudget && targetTicket) {
+      if (rejectTargetKind === 'budget') {
+        if (!targetBudget || !targetTicket) {
+          showToast('Este orçamento não está mais pendente de aprovação (outra ação pode ter ocorrido). Recarregue o painel.', 4000);
+          return;
+        }
         const currentQuotes = quotesByTicket[rejectTargetId] || [];
         const rejectedQuotes = currentQuotes.map(quote => {
           const sameCategory = (quote.category === 'additive' ? 'additive' : 'initial') === targetBudget.roundCategory;
@@ -476,7 +485,11 @@ export function ApprovalsView() {
             : `${budgetLabel} reprovado. Ticket devolvido para nova rodada de cotações.`,
           3500
         );
-      } else if (targetContract && targetTicket) {
+      } else if (rejectTargetKind === 'contract') {
+        if (!targetContract || !targetTicket) {
+          showToast('Este contrato não está mais pendente de aprovação. Recarregue o painel.', 4000);
+          return;
+        }
         const currentContract = contractsByTicket[rejectTargetId];
         const nextContract: ContractRecord = {
           ...currentContract,
@@ -515,6 +528,13 @@ export function ApprovalsView() {
         });
         showToast('Contrato reprovado. Ticket devolvido para reenvio do contrato.', 3500);
       } else {
+        // rejectTargetKind === 'solution': reprovar a solução técnica CANCELA a OS
+        // (intencional). Só cai aqui quando a intenção capturada foi 'solution' —
+        // nunca por orçamento/contrato que sumiu do memo (esses abortam acima).
+        if (!targetTicket) {
+          showToast('Esta solução não está mais pendente de aprovação. Recarregue o painel.', 4000);
+          return;
+        }
         const historyItem = {
           id: crypto.randomUUID(),
           type: 'system' as const,
@@ -525,7 +545,7 @@ export function ApprovalsView() {
         updateTicket(rejectTargetId, {
           status: TICKET_STATUS.CANCELED,
           viewingBy: null,
-          history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+          history: [...targetTicket.history, historyItem],
         });
       }
     } catch (error) {
@@ -710,9 +730,12 @@ export function ApprovalsView() {
           if (!isBudgetStage) return null;
           const allQuotes = quotesByTicket[ticket.id] ?? [];
           const pendingRound = resolvePendingRound(allQuotes);
-          const shouldInclude =
-            ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL ||
-            Boolean(pendingRound);
+          // Só rodadas FORMALMENTE submetidas à diretoria (WAITING_BUDGET_APPROVAL).
+          // Incluir WAITING_BUDGET (rascunho do gestor com quotes 'pending') deixava o
+          // diretor aprovar uma rodada não submetida — e como a aprovação só avança o
+          // status a partir de WAITING_BUDGET_APPROVAL, a OS ficava travada em
+          // WAITING_BUDGET com quotes aprovadas/rejeitadas por baixo do gestor.
+          const shouldInclude = ticket.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL;
           if (!shouldInclude) return null;
 
           const currentRound = pendingRound
@@ -1065,7 +1088,7 @@ export function ApprovalsView() {
                 )}
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => openRejectModal(solution.id)} disabled={processingId === solution.id} className="px-5 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-xl font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                <button onClick={() => openRejectModal(solution.id, 'solution')} disabled={processingId === solution.id} className="px-5 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-xl font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50">
                   Reprovar Solução (Arquivar)
                 </button>
                 <button onClick={() => handleApprove(solution.id, 'solutions')} disabled={processingId === solution.id} className="px-5 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-xl font-medium transition-colors text-sm flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
@@ -1140,7 +1163,7 @@ export function ApprovalsView() {
                     <Download size={14} /> Exportar CSV
                   </button>
                   <button
-                    onClick={() => openRejectModal(budget.id)}
+                    onClick={() => openRejectModal(budget.id, 'budget')}
                     disabled={processingId === budget.id}
                     className="px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -1516,7 +1539,7 @@ export function ApprovalsView() {
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                   <button
-                    onClick={() => openRejectModal(contract.id)}
+                    onClick={() => openRejectModal(contract.id, 'contract')}
                     disabled={processingId === contract.id}
                     className="flex-1 md:flex-none px-4 py-2 border border-red-200 text-red-700 hover:bg-red-50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >

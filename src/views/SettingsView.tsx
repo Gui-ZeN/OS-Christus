@@ -1031,6 +1031,11 @@ export function SettingsView() {
                                   <iframe
                                     title="Prévia do e-mail"
                                     srcDoc={renderedTemplatePreview}
+                                    // sandbox sem allow-scripts: a prévia renderiza um template
+                                    // editável (por Gestor); sem isto, um <script> no corpo
+                                    // executaria na origem do app na sessão de quem visualiza
+                                    // (vetor de XSS Gestor→Admin).
+                                    sandbox=""
                                     className="h-[620px] w-full bg-transparent"
                                   />
                                 </div>

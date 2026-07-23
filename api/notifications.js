@@ -139,8 +139,23 @@ export default async function handler(req, res) {
         const ref = db.collection('notifications').doc(id);
         const snap = await ref.get();
         if (!snap.exists) return sendJson(res, 404, { ok: false, error: 'Notificação não encontrada.' });
-        if (!canUserSeeNotification(user, snap.data()) || !(await canUserAccessNotificationTicket(db, user, snap.data()))) {
+        const notificationData = snap.data();
+        if (!canUserSeeNotification(user, notificationData) || !(await canUserAccessNotificationTicket(db, user, notificationData))) {
           return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
+        }
+        // O doc de notificação é COMPARTILHADO: dismiss faz ref.delete(), então
+        // dispensar um aviso GERAL (sem audienceRoles e sem ticketId) o apagaria para
+        // TODOS, inclusive Admins. Restringe esse caso a Admin/Gestor; avisos
+        // escopados (por papel/OS) seguem dispensáveis por quem tem acesso.
+        // Mesma normalização de canUserSeeNotification (trim/filter): um doc
+        // malformado com audienceRoles:[''] é geral de fato (visível a todos), então
+        // não pode ser classificado como "escopado" e escapar da checagem.
+        const normalizedAudience = Array.isArray(notificationData?.audienceRoles)
+          ? notificationData.audienceRoles.map(role => String(role || '').trim()).filter(Boolean)
+          : [];
+        const isGeneralNotification = normalizedAudience.length === 0 && !resolveNotificationTicketId(notificationData);
+        if (isGeneralNotification && user?.role !== 'Admin' && user?.role !== 'Gestor') {
+          return sendJson(res, 403, { ok: false, error: 'Apenas Admin ou Gestor podem dispensar avisos gerais (o aviso é compartilhado por todos).' });
         }
         await ref.delete();
         await writeAuditLog({
