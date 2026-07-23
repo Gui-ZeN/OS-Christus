@@ -315,7 +315,8 @@ export function SettingsView() {
   const [thirdPartyTags, setThirdPartyTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
   const [regionDraft, setRegionDraft] = useState({ id: '', code: '', name: '', group: 'operacao' });
-  const [siteDraft, setSiteDraft] = useState({ id: '', code: '', name: '', regionId: '' });
+  // `aliases` é editado como texto separado por vírgula; vira array no save.
+  const [siteDraft, setSiteDraft] = useState({ id: '', code: '', name: '', regionId: '', aliases: '' });
   const [macroDraft, setMacroDraft] = useState({ id: '', code: '', name: '' });
   const [serviceDraft, setServiceDraft] = useState({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
   const [materialDraft, setMaterialDraft] = useState({ id: '', code: '', name: '', unit: '' });
@@ -541,13 +542,14 @@ export function SettingsView() {
   const handleSaveSite = async () => {
     setCatalogSavingEntity('sites');
     try {
-      const catalog = await saveCatalogEntry('sites', siteDraft);
+      const aliases = siteDraft.aliases.split(',').map(value => value.trim()).filter(Boolean);
+      const catalog = await saveCatalogEntry('sites', { ...siteDraft, aliases });
       setRegions(catalog.regions);
       setSites(catalog.sites);
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setSiteDraft({ id: '', code: '', name: '', regionId: '' });
+      setSiteDraft({ id: '', code: '', name: '', regionId: '', aliases: '' });
       setCatalogSaved('Sede salva.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -574,7 +576,7 @@ export function SettingsView() {
         setRegionDraft({ id: '', code: '', name: '', group: 'operacao' });
       }
       if (entity === 'sites' && siteDraft.id === id) {
-        setSiteDraft({ id: '', code: '', name: '', regionId: '' });
+        setSiteDraft({ id: '', code: '', name: '', regionId: '', aliases: '' });
       }
       if (entity === 'macroServices' && macroDraft.id === id) {
         setMacroDraft({ id: '', code: '', name: '' });
@@ -888,9 +890,16 @@ export function SettingsView() {
                                 <div>
                                   <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
                                   <div className="text-[11px] text-roman-text-sub">{item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}</div>
+                                  {Array.isArray(item.aliases) && item.aliases.length > 0 && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {item.aliases.map(alias => (
+                                        <span key={alias} className="inline-flex items-center rounded-full bg-roman-primary/10 px-2 py-0.5 text-[10px] font-medium text-roman-primary">{alias}</span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                  <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId, aliases: (item.aliases || []).join(', ') })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
                                   <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
@@ -908,6 +917,17 @@ export function SettingsView() {
                               {catalogSavingEntity === 'sites' ? <Loader2 size={14} className="animate-spin" /> : null}
                               {catalogSavingEntity === 'sites' ? 'Salvando...' : siteDraft.id ? 'Salvar' : 'Criar'}
                             </button>
+                          </div>
+                          <div className="pt-3">
+                            <label className="mb-1 block text-[11px] font-medium text-roman-text-sub">Apelidos no assunto do e-mail (separados por vírgula)</label>
+                            <input
+                              type="text"
+                              value={siteDraft.aliases}
+                              onChange={event => setSiteDraft(current => ({ ...current, aliases: event.target.value }))}
+                              placeholder="ex.: CESIU, CVU"
+                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            />
+                            <p className="mt-1 text-[11px] text-roman-text-sub">Quando um e-mail chega com <span className="font-mono">[APELIDO]</span> no assunto, a OS entra nesta sede — sem precisar de deploy.</p>
                           </div>
                         </section>
                       </div>

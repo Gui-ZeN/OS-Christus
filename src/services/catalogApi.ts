@@ -15,6 +15,8 @@ export interface CatalogSite {
   name: string;
   regionId: string;
   active?: boolean;
+  /** Apelidos que o pessoal escreve no [SEDE] do e-mail (ex.: CESIU numa sede ALD). */
+  aliases?: string[];
 }
 
 export interface CatalogMacroService {

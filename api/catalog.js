@@ -237,6 +237,12 @@ function normalizeCatalogRecord(entity, record) {
     return {
       ...base,
       regionId,
+      // Apelidos que o pessoal escreve no [SEDE] do e-mail e que não são o código
+      // (ex.: CESIU/CVU numa sede de código ALD). O matcher do inbound (siteMatch)
+      // casa por eles — assim apelido novo não exige deploy.
+      aliases: Array.isArray(record?.aliases)
+        ? [...new Set(record.aliases.map(value => String(value || '').trim()).filter(Boolean))]
+        : [],
     };
   }
 
