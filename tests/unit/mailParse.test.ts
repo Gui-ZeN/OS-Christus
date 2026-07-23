@@ -4,7 +4,7 @@ import {
   parseTicketId,
   isLikelyThreadReply,
   stripReplyForwardPrefixes,
-} from '../../api/mail.js';
+} from '../../api/_lib/inboundSubject.js';
 
 describe('parseNewTicketSubject', () => {
   it('extrai [SEDE] no início, com e sem separador', () => {

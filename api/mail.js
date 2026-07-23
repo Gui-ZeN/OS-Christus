@@ -22,6 +22,7 @@ import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
 import { isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
 import { matchSiteCode } from './_lib/siteMatch.js';
+import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject, isLikelyThreadReply } from './_lib/inboundSubject.js';
 import { firstEmail, parseEmailList } from './_lib/email.js';
 import { sendWithSendGrid } from './_lib/sendgrid.js';
 
@@ -32,45 +33,8 @@ function required(input, name) {
   return String(input).trim();
 }
 
-export function parseTicketId(text) {
-  if (!text) return null;
-  const match = String(text).match(/\bOS-\d{3,}\b/i);
-  return match ? match[0].toUpperCase() : null;
-}
-
-export function stripReplyForwardPrefixes(text) {
-  let next = String(text || '').trim();
-  let previous = '';
-  while (next && previous !== next) {
-    previous = next;
-    next = next.replace(/^\s*(?:(?:re|fw|fwd)\s*:\s*)+/i, '').trim();
-  }
-  return next;
-}
-
-export function parseNewTicketSubject(text) {
-  if (!text) return null;
-  // Remove prefixos de resposta/encaminhamento E um rótulo "Título:/Assunto:" que
-  // alguns e-mails colocam antes do [SEDE] (ex.: "Re: Título: [BS] ..."), em
-  // qualquer ordem, até estabilizar — assim o colchete volta ao início e casa.
-  let normalizedSubject = String(text).trim();
-  let previous = '';
-  while (normalizedSubject && previous !== normalizedSubject) {
-    previous = normalizedSubject;
-    normalizedSubject = stripReplyForwardPrefixes(normalizedSubject)
-      .replace(/^\s*(?:t[ií]tulo|assunto|subject)\s*:\s*/i, '')
-      .trim();
-  }
-  // O separador depois do [SEDE] é opcional: aceita "[PE] - assunto", "[PE]: assunto"
-  // e também "[PE] assunto" (sem traço logo após o colchete — caso comum). O traço
-  // interno do assunto ("texto - texto") é preservado.
-  const match = normalizedSubject.match(/^\s*[\[\(\{]([^\]\)\}]+)[\]\)\}]\s*[-–—:]?\s*(.+?)\s*$/i);
-  if (!match) return null;
-  return {
-    siteCode: String(match[1] || '').trim(),
-    subject: String(match[2] || '').trim(),
-  };
-}
+// parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject e
+// isLikelyThreadReply vivem em ./_lib/inboundSubject.js (parsing puro + testado).
 
 function displayNameFromEmail(raw) {
   const input = decodeMimeHeader(String(raw || '')).trim();
@@ -654,19 +618,6 @@ async function resolveTicketIdByGmailThread(db, threadId) {
     .get();
   if (snap.empty) return null;
   return String(snap.docs[0].data()?.ticketId || '').trim() || null;
-}
-
-// Prefixo Re:/Fw: no assunto OU headers de thread (In-Reply-To/References) = a
-// mensagem é resposta a uma conversa existente, não uma OS nova.
-export function isLikelyThreadReply(message) {
-  const hasThreadHeaders = Boolean(
-    message.inReplyTo ||
-      (Array.isArray(message.references)
-        ? message.references.length > 0
-        : String(message.references || '').trim())
-  );
-  if (hasThreadHeaders) return true;
-  return /^\s*(?:(?:re|res|fw|fwd|enc)\s*:\s*)+/i.test(String(message.subject || ''));
 }
 
 const CLOSED_TICKET_STATUSES = new Set(['Encerrada', 'Cancelada']);

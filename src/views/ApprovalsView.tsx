@@ -679,7 +679,7 @@ export function ApprovalsView() {
             date: ticket.time,
             viewingBy: ticket.viewingBy || null,
             technicalOpinion: latestTechnicalEntry?.text ?? 'Parecer não disponível.',
-            technicalAttachments: (Array.isArray(latestTechnicalEntry?.attachments) ? latestTechnicalEntry?.attachments : [])
+            technicalAttachments: (latestTechnicalEntry?.attachments ?? [])
               .filter(attachment => attachment?.url),
           };
         }),

@@ -5,6 +5,12 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
 ## 2026-07-23 (P1 — testes)
 
+### 🧹 ESLint (foco em bugs) + statusFlow travado + mais fatia do `mail.js`
+Três melhorias estruturais:
+- **ESLint** (o projeto não tinha): flat config enxuto, **foco em bug real** (variável/undefined, chaves duplicadas, código inalcançável, optional-chaining inseguro) com estilo relaxado — o `tsc` segue como gate de tipos, este é o de lógica. Rodou → 1 bug real corrigido (`no-unsafe-optional-chaining` no `ApprovalsView`, um `(Array.isArray(x?.a)?x?.a:[]).filter` que virou `(x?.a ?? []).filter`), 0 erros, ~69 warnings (quase tudo variável não-usada — backlog visível, não bloqueia). `npm run lint:eslint` + passo no CI (falha só em erro).
+- **statusFlow — fonte única na prática**: o enum de status vive em 2 lugares (front `as const` para o tipo-união, back JS puro; deploys separados impedem um arquivo único sem acoplar builds). Novo teste **trava os dois em sincronia** — mudar um status de um lado só = CI vermelho antes do merge.
+- **`mail.js` −103 linhas**: parsing de assunto (`parseNewTicketSubject`/`parseTicketId`/`stripReplyForwardPrefixes`/`isLikelyThreadReply`) extraído para `api/_lib/inboundSubject.js` (puro + testado), mesmo padrão do matcher. God-file de 2.660 → 2.557 linhas.
+
 ### 🧩 Matcher de sede extraído para módulo puro e testado (`_lib/siteMatch.js`)
 A lógica que casa o `[SEDE]` do assunto com o catálogo — origem de vários bugs de inbound (CESIU, PRÉ SUL, DT1, PQL 2/3…) — saiu do god-file `mail.js` (2.6k linhas) para `api/_lib/siteMatch.js`, pura e isolada: `matchSiteCode(siteCode, sites)`, `tightKey`, `SITE_ALIASES`. `resolveSiteContext` no `mail.js` agora só carrega o catálogo (cache) e delega. +19 testes cobrindo exato/apertado/apelido/substring/ruído. Comportamento idêntico (suíte confirma) — passo mecânico, mesmo padrão que dá pra repetir para fatiar o resto do `mail.js`.
 - **Apelido por-sede no catálogo** (`site.aliases[]`): o matcher passa a casar por apelidos gravados no próprio doc da sede, com precedência sobre o mapa hardcoded — ou seja, **apelido novo sem precisar de deploy** (a dor recorrente: CESIU, PRÉ SUL, JV, PQL 2/3 exigiram deploy). Aditivo e seguro (nenhuma sede tem o campo hoje).
