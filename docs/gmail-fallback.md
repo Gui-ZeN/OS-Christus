@@ -41,6 +41,21 @@ Secrets necessários no GitHub:
 - `SYNC_URL` (ex.: `https://seu-app.vercel.app/api/email/gmail-sync`)
 - `CRON_SECRET` (mesmo segredo definido no projeto)
 
+## Worker da fila de e-mails
+
+Pagamentos confirmados são gravados primeiro e o e-mail correspondente entra em
+uma outbox. O workflow `.github/workflows/email-outbox.yml` processa essa fila a
+cada cinco minutos, sem depender de uma tela do Serv3 aberta.
+
+Secret adicional no GitHub Environment `Production`:
+
+- `OUTBOX_URL` (em produção:
+  `https://serv3.vercel.app/api/email/outbox-worker`)
+
+O `CRON_SECRET` deve ser exatamente o mesmo configurado na Vercel. O worker
+recupera tentativas interrompidas, aplica espera progressiva e envia para
+intervenção administrativa após seis falhas.
+
 O endpoint também aceita `GMAIL_SYNC_SECRET` via query/header para execução manual.
 
 ## Limitações

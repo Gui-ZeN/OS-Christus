@@ -9,10 +9,15 @@ import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
-import { fetchProcurementData, saveMeasurement, savePayment } from '../services/procurementApi';
+import { fetchProcurementData, savePayment } from '../services/procurementApi';
+import {
+  fetchFinanceOutbox,
+  runFinanceCommand,
+  type FinanceEmailOutboxItem,
+} from '../services/financeApi';
 import { fetchSettings } from '../services/settingsApi';
 import { deleteTicketAttachment, uploadClosureDocument, uploadMeasurementAttachment, uploadPaymentAttachment } from '../services/ticketStorage';
-import { notifyPaymentDispatch } from '../services/ticketEmail';
+import { dispatchPaymentOutbox } from '../services/ticketEmail';
 import { mergeClosureChecklist } from '../utils/closureChecklist';
 import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
 import { buildProcurementClassification } from '../utils/procurementClassification';
@@ -144,6 +149,14 @@ function formatDateLabel(date?: Date | null) {
   return date.toLocaleDateString('pt-BR');
 }
 
+function getAttachmentPreviewKind(contentType?: string | null, name?: string | null) {
+  const normalizedType = String(contentType || '').toLowerCase();
+  const normalizedName = String(name || '').toLowerCase();
+  if (normalizedType.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/.test(normalizedName)) return 'image' as const;
+  if (normalizedType === 'application/pdf' || normalizedName.endsWith('.pdf')) return 'pdf' as const;
+  return 'file' as const;
+}
+
 function formatInputDate(date?: Date | null) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
@@ -254,12 +267,6 @@ function upsertDynamicPayment(rawPayments: PaymentRecord[], nextPayment: Payment
     return updated.sort(sortPaymentsByInstallment);
   }
   return [...nonLegacyPayments, nextPayment].sort(sortPaymentsByInstallment);
-}
-
-function addMonths(date: Date, months: number) {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + months);
-  return next;
 }
 
 function startOfToday() {
@@ -395,7 +402,7 @@ function buildClosureExportHtml(
         .map(
           document => `
             <li>
-              <a href="${escapeHtml(document.url)}" target="_blank" rel="noreferrer">${escapeHtml(document.name)}</a>
+              ${escapeHtml(document.name)} (disponível no Serv3)
               - ${escapeHtml(formatDateLabel(document.uploadedAt))}
             </li>
           `
@@ -518,21 +525,17 @@ function getFinalInstallmentBlockingReasons(ticket: Ticket, closureDraft: Closur
   return reasons;
 }
 
-function shouldEnforceClosingChecklist(ticket: Ticket) {
-  return ticket.status === TICKET_STATUS.WAITING_PAYMENT || ticket.status === TICKET_STATUS.CLOSED;
-}
-
 export function FinanceView() {
   const { activeTicketId, currentView, updateTicket, tickets, currentUser, refreshTickets } = useApp();
   const { openAttachment } = useAttachmentPreview();
-  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const canPay = canAccess;
-  const actorLabel = currentUser?.role ? `${currentUser.name} (${currentUser.role})` : currentUser?.name || 'Financeiro';
   const [processingId, setProcessingId] = useState<string | null>(null);
   const { toast, showToast } = useToast();
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [measurementsByTicket, setMeasurementsByTicket] = useState<Record<string, MeasurementRecord[]>>({});
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
+  const [emailOutboxByTicket, setEmailOutboxByTicket] = useState<Record<string, FinanceEmailOutboxItem[]>>({});
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [measurementDraftByTicket, setMeasurementDraftByTicket] = useState<Record<string, MeasurementFormState>>({});
@@ -548,19 +551,44 @@ export function FinanceView() {
   const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
   const [paymentFlowTabByTicket, setPaymentFlowTabByTicket] = useState<Record<string, PaymentFlowListTab>>({});
   const [paymentEmailModal, setPaymentEmailModal] = useState<PaymentEmailModalState | null>(null);
+  const financeCommandKeysRef = useRef<Map<string, string>>(new Map());
+
+  const getFinanceCommandKey = (scope: string) => {
+    const existing = financeCommandKeysRef.current.get(scope);
+    if (existing) return existing;
+    const next = crypto.randomUUID();
+    financeCommandKeysRef.current.set(scope, next);
+    return next;
+  };
+
+  const refreshFinanceState = useCallback(async () => {
+    await refreshTickets({ silent: true });
+    const [data, outbox] = await Promise.all([
+      fetchProcurementData(),
+      fetchFinanceOutbox(),
+    ]);
+    setPaymentsByTicket(data.paymentsByTicket);
+    setMeasurementsByTicket(data.measurementsByTicket);
+    setContractsByTicket(data.contractsByTicket);
+    setEmailOutboxByTicket(outbox);
+  }, [refreshTickets]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const catalog = await fetchCatalog();
-        const data = await fetchProcurementData();
+        const [data, outbox] = await Promise.all([
+          fetchProcurementData(),
+          fetchFinanceOutbox(),
+        ]);
         if (!cancelled) {
           setRegions(catalog.regions);
           setSites(catalog.sites);
           setPaymentsByTicket(data.paymentsByTicket);
           setMeasurementsByTicket(data.measurementsByTicket);
           setContractsByTicket(data.contractsByTicket);
+          setEmailOutboxByTicket(outbox);
         }
       } catch {
         if (!cancelled) {
@@ -569,6 +597,7 @@ export function FinanceView() {
           setPaymentsByTicket({});
           setMeasurementsByTicket({});
           setContractsByTicket({});
+          setEmailOutboxByTicket({});
         }
       }
     })();
@@ -585,11 +614,15 @@ export function FinanceView() {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       await refreshTickets({ silent: true });
       try {
-        const data = await fetchProcurementData();
+        const [data, outbox] = await Promise.all([
+          fetchProcurementData(),
+          fetchFinanceOutbox(),
+        ]);
         if (!cancelled) {
           setPaymentsByTicket(data.paymentsByTicket);
           setMeasurementsByTicket(data.measurementsByTicket);
           setContractsByTicket(data.contractsByTicket);
+          setEmailOutboxByTicket(outbox);
         }
       } catch {
         // Mantém o estado atual quando a sincronização silenciosa falhar.
@@ -914,7 +947,7 @@ export function FinanceView() {
     try {
       const uploaded = await uploadClosureDocument(ticketId, file);
       const currentDocuments = targetTicket.closureChecklist?.documents || [];
-      updateTicket(ticketId, {
+      const persisted = await updateTicket(ticketId, {
         closureChecklist: mergeClosureChecklist(targetTicket, { documents: [uploaded, ...currentDocuments] }),
         history: [
           ...targetTicket.history,
@@ -927,6 +960,7 @@ export function FinanceView() {
           },
         ],
       });
+      if (!persisted) throw new Error('O arquivo foi enviado, mas não foi possível registrar o documento na OS.');
       showToast(`Documento ${uploaded.name} anexado com sucesso.`, 3000);
     } catch (error) {
       showToast(`Erro: ${error instanceof Error ? error.message : 'falha no upload do documento.'}`, 4000);
@@ -947,7 +981,7 @@ export function FinanceView() {
     try {
       await deleteTicketAttachment(targetDocument.path);
       const nextDocuments = currentDocuments.filter(document => document.id !== documentId);
-      updateTicket(ticketId, {
+      const persisted = await updateTicket(ticketId, {
         closureChecklist: mergeClosureChecklist(targetTicket, { documents: nextDocuments }),
         history: [
           ...targetTicket.history,
@@ -960,6 +994,7 @@ export function FinanceView() {
           },
         ],
       });
+      if (!persisted) throw new Error('O arquivo foi removido, mas não foi possível atualizar o histórico da OS.');
       showToast(`Documento ${targetDocument.name} removido com sucesso.`, 3000);
     } catch (error) {
       showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover o documento.'}`, 4000);
@@ -1020,7 +1055,6 @@ export function FinanceView() {
 
     const grossAmount = parseCurrency(draft.grossAmount || '');
     const budgetSource = draft.budgetSource === 'additive' ? 'additive' : 'initial';
-    const budgetSourceLabel = getBudgetSourceLabel(budgetSource);
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
       showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
       return;
@@ -1068,10 +1102,12 @@ export function FinanceView() {
     const configuredFlowParts = Number(targetTicket.executionProgress.paymentFlowParts || 0);
     const formattedGrossAmount = formatCurrency(grossAmount);
     const paymentLabel = `Lançamento ${nextInstallmentNumber}`;
-    const measurementId = `measurement-${Date.now()}`;
+    const commandScope = `recordMeasurement:${ticketId}`;
+    const commandKey = getFinanceCommandKey(commandScope);
+    const measurementId = `measurement-${commandKey}`;
     const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
     const nextPayment: PaymentRecord = {
-      id: `payment-${Date.now()}-${nextInstallmentNumber}`,
+      id: `payment-${commandKey}-${nextInstallmentNumber}`,
       vendor,
       value: formattedGrossAmount,
       grossValue: formattedGrossAmount,
@@ -1105,13 +1141,9 @@ export function FinanceView() {
       requestedAt: now,
       approvedAt: now,
     };
-    const nextStatus = targetTicket.status;
-    const nextClosureChecklist = targetTicket.closureChecklist;
-    const historyNotesSuffix = draft.notes.trim() ? ` ${draft.notes.trim()}` : '';
     const reportFiles: File[] = Array.isArray(draft.reportFiles)
       ? draft.reportFiles.filter((file): file is File => file instanceof File)
       : [];
-    const reportAttachmentsSuffix = reportFiles.length > 0 ? ` ${reportFiles.length} anexo(s) de relatório.` : '';
 
     setProcessingId(ticketId);
     try {
@@ -1120,42 +1152,17 @@ export function FinanceView() {
         const uploaded = await uploadMeasurementAttachment(ticketId, measurementId, file);
         uploadedMeasurementAttachments.push(uploaded);
       }
-      await savePayment(ticketId, nextPayment, classification);
       measurement.attachments = uploadedMeasurementAttachments;
-      await saveMeasurement(ticketId, measurement, classification);
-      setMeasurementsByTicket(prev => ({
-        ...prev,
-        [ticketId]: [measurement, ...(prev[ticketId] || [])],
-      }));
-      setPaymentsByTicket(prev => ({
-        ...prev,
-        [ticketId]: upsertDynamicPayment(prev[ticketId] || [], {
-          ...nextPayment,
-          expectedBaselineValue: expectedBaselineFormatted,
-        }),
-      }));
-      updateTicket(ticketId, {
-        status: nextStatus,
-        closureChecklist: nextClosureChecklist,
-        executionProgress: {
-          paymentFlowParts: targetTicket.executionProgress.paymentFlowParts,
-          currentPercent: normalizedProgress,
-          releasedPercent: roundProgressPercent(Math.max(Number(targetTicket.executionProgress?.releasedPercent || 0), normalizedProgress)),
-          measurementSheetUrl: targetTicket.executionProgress.measurementSheetUrl || null,
-          startedAt: targetTicket.executionProgress.startedAt || targetTicket.preliminaryActions?.actualStartAt || now,
-          lastUpdatedAt: now,
-        },
-        history: [
-          ...targetTicket.history,
-          {
-            id: crypto.randomUUID(),
-            type: 'system',
-            sender: actorLabel,
-            time: now,
-            text: `Andamento atualizado para ${measurement.progressPercent}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrency(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${historyNotesSuffix}${reportAttachmentsSuffix}`,
-          },
-        ],
+      await runFinanceCommand({
+        action: 'recordMeasurement',
+        ticketId,
+        idempotencyKey: commandKey,
+        payment: nextPayment,
+        measurement,
+        classification,
       });
+      await refreshFinanceState();
+      financeCommandKeysRef.current.delete(commandScope);
       clearMeasurementDraft(ticketId);
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
       showToast(`${paymentLabel} registrada e liberada para pagamento.`, 3000);
@@ -1223,6 +1230,26 @@ export function FinanceView() {
       showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lançamento.'}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
+    }
+  };
+
+  const handleRetryPaymentEmail = async (ticketId: string, outboxKey: string) => {
+    const processingKey = `email:${ticketId}:${outboxKey}`;
+    setProcessingId(processingKey);
+    try {
+      await dispatchPaymentOutbox(ticketId, outboxKey);
+      await refreshFinanceState();
+      showToast('E-mail financeiro enviado com sucesso.', 3000);
+    } catch (error) {
+      await refreshFinanceState().catch(() => undefined);
+      showToast(
+        `Pagamento preservado, mas o e-mail continua pendente: ${
+          error instanceof Error ? error.message : 'falha desconhecida.'
+        }`,
+        5000
+      );
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -1309,7 +1336,7 @@ export function FinanceView() {
 
   const handleConfirmPaymentEmail = async () => {
     if (!paymentEmailModal) return;
-    const { ticketId, payment, grossAmount, taxAmount, netAmount, recipients } = paymentEmailModal;
+    const { ticketId, payment, grossAmount, taxAmount, recipients } = paymentEmailModal;
     if (recipients.length === 0) {
       showToast('Erro: adicione pelo menos um destinatário antes de enviar.', 3000);
       return;
@@ -1318,93 +1345,32 @@ export function FinanceView() {
     const targetTicket = tickets.find(ticket => ticket.id === ticketId);
     if (!targetTicket) return;
 
-    const existingMeasurements = measurementsByTicket[ticketId] || [];
-    const rawPayments = paymentsByTicket[ticketId] || [];
-    const vendorForFlow =
-      contractsByTicket[ticketId]?.vendor ||
-      payment.vendor ||
-      targetTicket.assignedTeam ||
-      'Fornecedor não definido';
-    const existingPayments = getEffectiveDynamicPayments(
-      rawPayments,
-      existingMeasurements,
-      vendorForFlow,
-      Number(targetTicket.executionProgress?.paymentFlowParts || 0)
-    );
     const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
+    const commandScope = `settlePayment:${ticketId}:${payment.id}`;
+    const commandKey = getFinanceCommandKey(commandScope);
 
     setPaymentEmailModal(prev => prev ? { ...prev, isSending: true, sendFeedbackType: null, sendFeedbackMessage: '' } : null);
     setProcessingId(`${ticketId}:${payment.id}`);
+    let paymentRecorded = false;
     try {
-      await notifyPaymentDispatch(targetTicket, payment, grossAmount, taxAmount, netAmount, recipients);
+      const result = await runFinanceCommand({
+        action: 'settlePayment',
+        ticketId,
+        idempotencyKey: commandKey,
+        paymentId: payment.id,
+        payment,
+        grossAmount,
+        taxAmount,
+        recipients,
+        closureDraft,
+      });
+      paymentRecorded = true;
       writeStoredFinanceRecipients(recipients);
-
-      const nextPayment: PaymentRecord = {
-        ...payment,
-        status: 'paid',
-        paidAt: new Date(),
-        grossValue: formatCurrency(grossAmount),
-        taxValue: formatCurrency(taxAmount),
-        netValue: formatCurrency(netAmount),
-        attachments: payment.attachments || [],
-      };
-      await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
-      const nextPayments = existingPayments.map(item => (item.id === payment.id ? nextPayment : item));
-      setPaymentsByTicket(prev => ({ ...prev, [ticketId]: nextPayments }));
+      if (!result.outboxKey) throw new Error('Pagamento registrado sem chave de entrega do e-mail.');
+      await dispatchPaymentOutbox(ticketId, result.outboxKey);
+      await refreshFinanceState();
+      financeCommandKeysRef.current.delete(commandScope);
       clearPaymentDraft(ticketId, payment.id);
-
-      const allPaid = nextPayments.every(item => item.status === 'paid');
-      const remainingPendingPayments = nextPayments.filter(item => item.status !== 'paid').length;
-      const inFinalFinancialStage = shouldEnforceClosingChecklist(targetTicket);
-      const canCloseTicket = allPaid && inFinalFinancialStage;
-      if (targetTicket) {
-        const guaranteeMonths = Number(closureDraft.guaranteeMonths || 12);
-        const serviceStartedAt = closureDraft.serviceStartedAt ? new Date(`${closureDraft.serviceStartedAt}T12:00:00`) : null;
-        const serviceCompletedAt = closureDraft.serviceCompletedAt ? new Date(`${closureDraft.serviceCompletedAt}T12:00:00`) : null;
-        const closedAt = canCloseTicket ? new Date() : targetTicket.closureChecklist?.closedAt || null;
-        const closureChecklist: ClosureChecklist | undefined = canCloseTicket
-          ? mergeClosureChecklist(targetTicket, {
-              infrastructureApprovalPrimary: closureDraft.infrastructureApprovalPrimary,
-              infrastructureApprovalSecondary: closureDraft.infrastructureApprovalSecondary,
-              closureNotes: closureDraft.closureNotes.trim(),
-              serviceStartedAt,
-              serviceCompletedAt,
-              closedAt,
-            })
-          : targetTicket.closureChecklist;
-        const guarantee: GuaranteeInfo | undefined = canCloseTicket && serviceCompletedAt
-          ? {
-              startAt: serviceCompletedAt,
-              endAt: addMonths(serviceCompletedAt, guaranteeMonths),
-              months: guaranteeMonths,
-              status: addMonths(serviceCompletedAt, guaranteeMonths).getTime() < Date.now() ? 'expired' : 'active',
-            }
-          : targetTicket.guarantee;
-
-        updateTicket(ticketId, {
-          status: canCloseTicket
-            ? TICKET_STATUS.CLOSED
-            : inFinalFinancialStage
-              ? TICKET_STATUS.WAITING_PAYMENT
-              : targetTicket.status,
-          closureChecklist,
-          guarantee,
-          history: [
-            ...targetTicket.history,
-            {
-              id: crypto.randomUUID(),
-              type: 'system',
-              sender: actorLabel,
-              time: new Date(),
-              text: canCloseTicket
-                ? `${payment.label || 'Pagamento'} confirmado com bruto ${formatCurrency(grossAmount)}, imposto ${formatCurrency(taxAmount)} e líquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lançamentos foram quitados, checklist concluído e garantia iniciada.`
-                : remainingPendingPayments > 0
-                  ? `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Restam ${remainingPendingPayments} lançamento(s) pendente(s).`
-                  : `${payment.label || 'Pagamento'} confirmado com líquido ${formatCurrency(netAmount)}. Email de pagamento disparado para ${recipients.join(', ')}. Todos os lançamentos atuais foram quitados.`,
-            },
-          ],
-        });
-      }
       setPaymentEmailModal(prev =>
         prev
           ? {
@@ -1421,20 +1387,34 @@ export function FinanceView() {
         );
       }, 1400);
       showToast(
-        canCloseTicket
+        result.closed
           ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
-          : `${payment.label || 'Lançamento'} confirmado e email disparado.`
+          : `${payment.label || 'Lançamento'} confirmado e e-mail disparado.`
       , 3000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'falha desconhecida.';
-      showToast(`Erro ao processar pagamento: ${errorMessage}`, 4000);
+      if (!paymentRecorded) {
+        const outbox = await fetchFinanceOutbox().catch(() => null);
+        paymentRecorded = Boolean(
+          outbox?.[ticketId]?.some(item => item.id === commandKey)
+        );
+      }
+      await refreshFinanceState().catch(() => undefined);
+      showToast(
+        paymentRecorded
+          ? `Pagamento registrado, mas o e-mail ficou pendente: ${errorMessage}`
+          : `Erro ao processar pagamento: ${errorMessage}`,
+        5000
+      );
       setPaymentEmailModal(prev =>
         prev
           ? {
               ...prev,
               isSending: false,
               sendFeedbackType: 'error',
-              sendFeedbackMessage: `Falha ao enviar e-mail: ${errorMessage}`,
+              sendFeedbackMessage: paymentRecorded
+                ? `Pagamento já registrado. Tente novamente para reenviar somente o e-mail: ${errorMessage}`
+                : `Falha ao registrar pagamento: ${errorMessage}`,
             }
           : null
       );
@@ -1450,7 +1430,7 @@ export function FinanceView() {
           <EmptyState
             icon={DollarSign}
             title="Acesso restrito"
-            description="Apenas Diretor e Admin podem acessar o painel financeiro."
+            description="Apenas Gestor e Admin podem acessar o painel financeiro."
           />
         </div>
       </div>
@@ -1961,16 +1941,24 @@ export function FinanceView() {
                               {Array.isArray(measurement.attachments) && measurement.attachments.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">
                                   {measurement.attachments.map((attachment, index) => (
-                                    <a
+                                    <button
                                       key={`${measurement.id}-attachment-${attachment.id || index}`}
-                                      href={attachment.url}
-                                      target="_blank"
-                                      rel="noreferrer"
+                                      type="button"
+                                      onClick={() => openAttachment(
+                                        attachment.name || 'Anexo da medição',
+                                        getAttachmentPreviewKind(attachment.contentType, attachment.name),
+                                        {
+                                          url: attachment.url,
+                                          ticketId: ticket.id,
+                                          path: attachment.path,
+                                          driveFileId: attachment.driveFileId,
+                                        }
+                                      )}
                                       className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
                                     >
                                       <FileText size={12} />
                                       <span className="max-w-[220px] truncate">{attachment.name || 'Anexo'}</span>
-                                    </a>
+                                    </button>
                                   ))}
                                 </div>
                               )}
@@ -2067,6 +2055,7 @@ export function FinanceView() {
                           {(() => {
                             const pendingPayments = payments.filter(item => item.status !== 'paid');
                             const paidPayments = payments.filter(item => item.status === 'paid');
+                            const pendingEmailCount = (emailOutboxByTicket[ticket.id] || []).length;
                             const selectedTab = paymentFlowTabByTicket[ticket.id] || 'pending';
                             const visiblePayments = selectedTab === 'paid' ? paidPayments : pendingPayments;
 
@@ -2095,6 +2084,7 @@ export function FinanceView() {
                                       }`}
                                     >
                                       Pagos ({paidPayments.length})
+                                      {pendingEmailCount > 0 ? ` • E-mail (${pendingEmailCount})` : ''}
                                     </button>
                                   </div>
                                   <div className="text-xs text-roman-text-sub">
@@ -2127,6 +2117,11 @@ export function FinanceView() {
                               const netPreview = Math.max(0, grossPreview - taxPreview);
                               const paymentKey = getPaymentDraftKey(ticket.id, payment.id);
                               const isUploadingPaymentAttachment = uploadingPaymentKey === paymentKey;
+                              const paymentOutbox = (emailOutboxByTicket[ticket.id] || [])
+                                .find(item => item.paymentId === payment.id);
+                              const outboxProcessingKey = paymentOutbox
+                                ? `email:${ticket.id}:${paymentOutbox.id}`
+                                : '';
 
                               return (
                             <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 space-y-3">
@@ -2208,7 +2203,16 @@ export function FinanceView() {
                                         <div className="flex items-center gap-3">
                                           <button
                                             type="button"
-                                            onClick={() => window.open(attachment.url, '_blank', 'noopener,noreferrer')}
+                                            onClick={() => openAttachment(
+                                              attachment.name || 'Anexo do pagamento',
+                                              getAttachmentPreviewKind(attachment.contentType, attachment.name),
+                                              {
+                                                url: attachment.url,
+                                                ticketId: ticket.id,
+                                                path: attachment.path,
+                                                driveFileId: attachment.driveFileId,
+                                              }
+                                            )}
                                             className="text-roman-primary hover:underline"
                                           >
                                             Abrir
@@ -2227,6 +2231,39 @@ export function FinanceView() {
                                   </div>
                                 )}
                               </div>
+
+                              {paymentOutbox && (
+                                <div className="flex flex-col gap-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                                  <div>
+                                    <div className="font-medium">
+                                      {paymentOutbox.status === 'processing'
+                                        ? 'E-mail financeiro em processamento'
+                                        : paymentOutbox.status === 'dead-letter'
+                                          ? 'E-mail exige intervenção administrativa'
+                                        : 'Pagamento registrado; e-mail financeiro pendente'}
+                                    </div>
+                                    <div className="mt-0.5 text-amber-800">
+                                      {paymentOutbox.lastError ||
+                                        `Destinatários: ${paymentOutbox.recipients.join(', ')}`}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRetryPaymentEmail(ticket.id, paymentOutbox.id)}
+                                    disabled={
+                                      paymentOutbox.status === 'processing' ||
+                                      processingId === outboxProcessingKey
+                                    }
+                                    className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-sm border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {processingId === outboxProcessingKey ? (
+                                      <><Loader2 size={14} className="animate-spin" /> Reenviando...</>
+                                    ) : (
+                                      <><Mail size={14} /> Reenviar e-mail</>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
 
                               <div className="flex items-center justify-between gap-3">
                                 <span className={`text-xs font-medium px-2 py-1 rounded-sm border ${
@@ -2396,7 +2433,16 @@ export function FinanceView() {
                                     <span className="text-xs text-roman-text-sub">{formatDateLabel(document.uploadedAt)}</span>
                                     <button
                                       type="button"
-                                      onClick={() => window.open(document.url, '_blank', 'noopener,noreferrer')}
+                                      onClick={() => openAttachment(
+                                        document.name || 'Documento de encerramento',
+                                        getAttachmentPreviewKind(document.contentType, document.name),
+                                        {
+                                          url: document.url,
+                                          ticketId: ticket.id,
+                                          path: document.path,
+                                          driveFileId: document.driveFileId,
+                                        }
+                                      )}
                                       className="text-sm font-medium text-roman-primary hover:underline"
                                     >
                                       Abrir
@@ -2593,4 +2639,3 @@ export function FinanceView() {
     </div>
   );
 }
-

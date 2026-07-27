@@ -30,8 +30,10 @@ interface AppContextType {
   setInboxFilter: (filter: InboxFilter) => void;
   tickets: Ticket[];
   ticketsLoading: boolean;
+  ticketsError: string | null;
   refreshTickets: (options?: { silent?: boolean }) => Promise<void>;
   updateTicket: (id: string, updates: Partial<Ticket>, options?: TicketUpdateOptions) => Promise<boolean>;
+  mergeTicketHistoryPage: (id: string, history: Ticket['history'], nextCursor: string | null) => void;
   addTicket: (ticket: Ticket, files?: File[]) => Promise<Ticket>;
   currentUser: DirectoryUser | null;
   currentUserEmail: string;
@@ -121,7 +123,9 @@ function ticketSignature(t: Ticket): string {
   const updated = t.updatedAt instanceof Date ? t.updatedAt.getTime() : String(t.updatedAt ?? '');
   const viewingAt = t.viewingBy?.at instanceof Date ? t.viewingBy.at.getTime() : (t.viewingBy?.at ?? '');
   const viewing = t.viewingBy ? `${t.viewingBy.name}@${viewingAt}` : '';
-  return `${t.id}|${updated}|${t.history?.length ?? 0}|${t.status}|${t.priority}|${viewing}`;
+  const historyCursor = t.historyPagination?.nextCursor || '';
+  const historyComplete = t.historyPagination?.isComplete ? 'complete' : 'partial';
+  return `${t.id}|${updated}|${t.history?.length ?? 0}|${historyCursor}|${historyComplete}|${t.status}|${t.priority}|${viewing}`;
 }
 
 // Evita re-render do app a cada poll de 10s quando nada relevante mudou. Antes
@@ -149,6 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmailState] = useState(getInitialUserEmail());
   const [currentUser, setCurrentUser] = useState<DirectoryUser | null>(null);
   const [, setCatalogRegions] = useState<CatalogRegion[]>([]);
@@ -196,12 +201,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return merged;
   };
 
+  const mergeTicketHistory = (current: Ticket | undefined, remote: Ticket) => {
+    if (!current?.historyPagination || !remote.historyPagination) return remote;
+    const byId = new Map<string, Ticket['history'][number]>();
+    for (const entry of [...current.history, ...remote.history]) {
+      if (entry?.id) byId.set(entry.id, entry);
+    }
+    const history = [...byId.values()].sort((a, b) => a.time.getTime() - b.time.getTime());
+    const isComplete = current.historyPagination.isComplete;
+    return {
+      ...remote,
+      history,
+      historyPagination: {
+        nextCursor: isComplete ? null : current.historyPagination.nextCursor || remote.historyPagination.nextCursor,
+        isComplete,
+      },
+    };
+  };
+
   // Aplica o delta (só OS alteradas) sobre a lista atual: substitui as existentes
   // por id, acrescenta as novas e reordena por data desc (mesma ordem do backend).
   const applyTicketDelta = (current: Ticket[], delta: Ticket[]) => {
     if (delta.length === 0) return current;
     const byId = new Map(current.map(ticket => [ticket.id, ticket]));
-    for (const ticket of delta) byId.set(ticket.id, ticket);
+    for (const ticket of delta) byId.set(ticket.id, mergeTicketHistory(byId.get(ticket.id), ticket));
     const timeMs = (t: Ticket) => {
       const value = t.time instanceof Date ? t.time.getTime() : new Date(t.time as unknown as string).getTime();
       return Number.isNaN(value) ? 0 : value;
@@ -220,6 +243,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       lastSyncTimeRef.current = null;
       lastFullSyncAtRef.current = 0;
       setAllTickets([]);
+      setTicketsError(null);
       if (!silent) {
         setTicketsLoading(false);
       }
@@ -228,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!authEnabled) {
       setAllTickets([]);
+      setTicketsError(null);
       if (!silent) {
         setTicketsLoading(false);
       }
@@ -250,6 +275,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const result = await fetchTicketsFromApi(forceFull ? null : lastSyncTimeRef.current);
       if (generation !== refreshCountRef.current) return;
+      setTicketsError(null);
       if (result.serverTime) lastSyncTimeRef.current = result.serverTime;
 
       if (result.mode === 'delta') {
@@ -261,12 +287,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       } else {
         lastFullSyncAtRef.current = now;
-        const merged = mergeRemoteWithPendingTickets(result.tickets);
-        setAllTickets(prev => (areTicketListsEqual(prev, merged) ? prev : merged));
+        setAllTickets(prev => {
+          const merged = mergeRemoteWithPendingTickets(result.tickets.map(ticket =>
+            mergeTicketHistory(prev.find(current => current.id === ticket.id), ticket)
+          ));
+          return areTicketListsEqual(prev, merged) ? prev : merged;
+        });
       }
-    } catch {
-      if (!silent && generation === refreshCountRef.current) {
-        setAllTickets([]);
+    } catch (error) {
+      if (generation === refreshCountRef.current) {
+        setTicketsError(
+          error instanceof Error && error.message
+            ? error.message
+            : 'Não foi possível atualizar os tickets.'
+        );
       }
     } finally {
       if (!silent && generation === refreshCountRef.current) {
@@ -486,6 +520,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   };
 
+  const mergeTicketHistoryPage = (id: string, history: Ticket['history'], nextCursor: string | null) => {
+    setAllTickets(prev => prev.map(ticket => {
+      if (ticket.id !== id) return ticket;
+      const byId = new Map(ticket.history.map(entry => [entry.id, entry]));
+      for (const entry of history) byId.set(entry.id, entry);
+      return {
+        ...ticket,
+        history: [...byId.values()].sort((a, b) => a.time.getTime() - b.time.getTime()),
+        historyPagination: { nextCursor, isComplete: !nextCursor },
+      };
+    }));
+  };
+
   const addTicket = async (ticket: Ticket, files: File[] = []) => {
     const createdTicket = files.length > 0 ? await createTicketWithFilesInApi(ticket, files) : await createTicketInApi(ticket);
     setAllTickets(prev => [createdTicket, ...prev.filter(item => item.id !== createdTicket.id)]);
@@ -669,8 +716,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setInboxFilter,
         tickets,
         ticketsLoading,
+        ticketsError,
         refreshTickets,
         updateTicket,
+        mergeTicketHistoryPage,
         addTicket,
         currentUser,
         currentUserEmail,
@@ -701,9 +750,5 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
-
-
-
-
 
 

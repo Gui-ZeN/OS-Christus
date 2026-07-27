@@ -4,8 +4,9 @@ import { getStorage } from 'firebase-admin/storage';
 import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { runFirestoreLegacyBackfill } from './_lib/firestoreBackfill.js';
+import { backfillTicketHistoryBatch } from './_lib/ticketHistoryBackfill.js';
 import { gmailGetProfile } from './_lib/gmail.js';
-import { sendJson } from './_lib/http.js';
+import { readJsonBody, sendJson } from './_lib/http.js';
 
 const LEGACY_ROLE_MAP = {
   'Gestor de OS': 'Usuario',
@@ -319,14 +320,39 @@ async function handleBackfill(req, res) {
   }
 }
 
+async function handleTicketHistoryBackfill(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    const admin = await requireAdminUser(req);
+    const body = await readJsonBody(req);
+    const result = await backfillTicketHistoryBatch(getAdminDb(), {
+      limit: body?.limit,
+      cursor: body?.cursor,
+    });
+    return sendJson(res, 200, {
+      ok: true,
+      actor: { email: admin.email, name: admin.name },
+      result,
+    });
+  } catch (error) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: error.message || 'Falha ao copiar histórico para a nova estrutura.',
+    });
+  }
+}
+
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
 
   if (route === 'integrations-health') return handleIntegrationsHealth(req, res);
   if (route === 'legacy-health') return handleLegacyHealth(req, res);
   if (route === 'backfill') return handleBackfill(req, res);
+  if (route === 'ticket-history-backfill') return handleTicketHistoryBackfill(req, res);
 
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota administrativa inválida.' });
 }
-

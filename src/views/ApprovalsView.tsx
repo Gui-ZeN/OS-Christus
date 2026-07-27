@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Download, FileText, Loader2, Shield } from 'lucide-react';
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
@@ -8,21 +8,15 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import type { ContractRecord, PaymentRecord, Quote, QuoteProposalHeader, Ticket, TicketStatus } from '../types';
-import { fetchProcurementData, saveContract, savePayment, saveQuotes } from '../services/procurementApi';
+import type { ContractRecord, Quote, QuoteProposalHeader, Ticket } from '../types';
+import { fetchProcurementData } from '../services/procurementApi';
+import { runApprovalCommand } from '../services/approvalApi';
 import { buildBudgetHistorySummary, formatBudgetHistoryValue } from '../utils/budgetHistory';
-import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
-import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
 import { stripAttachmentLinksFromMessage } from '../utils/text';
 import { buildQuoteComparison, getQuoteSectionLabel } from './inbox/quotes';
 
 const REVIEW_ACTIVE_WINDOW_MS = 2 * 60 * 1000;
-
-// Mantém o clamp em 0 do comportamento original, delegando a formatação ao util.
-function formatCurrencyValue(value: number) {
-  return formatCurrency(Math.max(0, value || 0));
-}
 
 function createEmptyProposalHeader(): QuoteProposalHeader {
   return {
@@ -59,24 +53,6 @@ function resolveAttachmentLabel(fileName?: string | null, fileUrl?: string | nul
   } catch {
     return 'Arquivo anexado';
   }
-}
-
-const APPROVAL_STATUS: Record<'solutions' | 'budgets' | 'contracts', TicketStatus> = {
-  solutions: TICKET_STATUS.WAITING_BUDGET,
-  budgets: TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-  contracts: TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-};
-
-function resolveAdditiveReturnStatus(ticket?: Ticket | null): TicketStatus {
-  if (!ticket) return TICKET_STATUS.IN_PROGRESS;
-  const hasExecutionStarted =
-    Boolean(ticket.executionProgress?.startedAt) ||
-    Number(ticket.executionProgress?.currentPercent || 0) > 0 ||
-    Boolean(ticket.preliminaryActions?.actualStartAt) ||
-    Boolean(ticket.closureChecklist?.serviceStartedAt);
-
-  if (hasExecutionStarted) return TICKET_STATUS.IN_PROGRESS;
-  return TICKET_STATUS.WAITING_PRELIM_ACTIONS;
 }
 
 function isQuoteFilled(quote: Quote) {
@@ -116,21 +92,40 @@ function getQuoteRoundIndex(quote: Quote) {
   return Number(quote.additiveIndex || 1);
 }
 
-function filterQuotesByRound(quotes: Quote[], category: 'initial' | 'additive', additiveIndex: number | null = null) {
+function getInitialQuoteRoundIndex(quote: Quote) {
+  return Number(quote.initialRoundIndex || 1);
+}
+
+function filterQuotesByRound(
+  quotes: Quote[],
+  category: 'initial' | 'additive',
+  initialRoundIndex: number | null = null,
+  additiveIndex: number | null = null
+) {
   return (Array.isArray(quotes) ? quotes : []).filter(quote => {
     if (getQuoteRoundCategory(quote) !== category) return false;
     if (category === 'additive') {
       return getQuoteRoundIndex(quote) === Number(additiveIndex || 1);
     }
-    return true;
+    return getInitialQuoteRoundIndex(quote) === Number(initialRoundIndex || 1);
   });
 }
 
 function resolvePendingRound(quotes: Quote[]) {
   const list = Array.isArray(quotes) ? quotes : [];
-  const initialPending = filterQuotesByRound(list, 'initial').filter(quote => (quote.status || 'pending') === 'pending');
+  const initialPending = list.filter(
+    quote =>
+      getQuoteRoundCategory(quote) === 'initial' &&
+      (quote.status || 'pending') === 'pending'
+  );
   if (initialPending.length > 0) {
-    return { category: 'initial' as const, additiveIndex: null, quotes: initialPending };
+    const initialRoundIndex = Math.max(...initialPending.map(getInitialQuoteRoundIndex));
+    return {
+      category: 'initial' as const,
+      initialRoundIndex,
+      additiveIndex: null,
+      quotes: initialPending.filter(quote => getInitialQuoteRoundIndex(quote) === initialRoundIndex),
+    };
   }
 
   const additiveIndices = Array.from(
@@ -143,9 +138,9 @@ function resolvePendingRound(quotes: Quote[]) {
   ).sort((a, b) => b - a);
 
   for (const additiveIndex of additiveIndices) {
-    const roundQuotes = filterQuotesByRound(list, 'additive', additiveIndex);
+    const roundQuotes = filterQuotesByRound(list, 'additive', null, additiveIndex);
     if (roundQuotes.some(quote => (quote.status || 'pending') === 'pending')) {
-      return { category: 'additive' as const, additiveIndex, quotes: roundQuotes };
+      return { category: 'additive' as const, initialRoundIndex: null, additiveIndex, quotes: roundQuotes };
     }
   }
 
@@ -157,13 +152,6 @@ export function ApprovalsView() {
   const { openAttachment } = useAttachmentPreview();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const canApprove = canAccess;
-  // Inclui o sufixo "(Papel)" para casar o sender que o servidor força nas
-  // entradas novas (actorHistoryLabel) — senão a etiqueta piscaria de "Nome" para
-  // "Nome (Diretor)" após o refetch, inclusive nos marcos públicos.
-  const directorActorName = (() => {
-    const base = String(currentUser?.name || '').trim() || 'Diretoria';
-    return currentUser?.role ? `${base} (${currentUser.role})` : base;
-  })();
   const canCurrentDirectorAccessTicket = (ticket: Ticket) => {
     if (currentUser?.role !== 'Diretor') return true;
     const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds : [];
@@ -189,6 +177,22 @@ export function ApprovalsView() {
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const reviewingTicketIdRef = useRef<string | null>(null);
   const approvalQueryAppliedRef = useRef(false);
+  const commandKeysRef = useRef<Map<string, string>>(new Map());
+
+  const getCommandKey = (scope: string) => {
+    const existing = commandKeysRef.current.get(scope);
+    if (existing) return existing;
+    const next = crypto.randomUUID();
+    commandKeysRef.current.set(scope, next);
+    return next;
+  };
+
+  const refreshApprovalState = useCallback(async () => {
+    await refreshTickets({ silent: true });
+    const data = await fetchProcurementData();
+    setQuotesByTicket(data.quotesByTicket);
+    setContractsByTicket(data.contractsByTicket);
+  }, [refreshTickets]);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,169 +250,36 @@ export function ApprovalsView() {
   const handleApprove = async (id: string, tab: 'solutions' | 'budgets', selectedQuote?: Quote) => {
     if (!canApprove) return;
     setProcessingId(id);
+    const commandScope = tab === 'budgets'
+      ? `approveBudget:${id}:${String(selectedQuote?.id || '')}`
+      : `approveSolution:${id}`;
     try {
-      const targetTicket = tickets.find(ticket => ticket.id === id);
-      let budgetApprovalContext: {
-        isAdditive: boolean;
-        winner: string;
-        shouldMoveStatus: boolean;
-        additivePaymentCreated: boolean;
-      } | null = null;
-
       if (tab === 'budgets') {
-        const currentQuotes = quotesByTicket[id] || [];
-        const selectedCategory = selectedQuote?.category === 'additive' ? 'additive' : 'initial';
-        const selectedAdditiveIndex = selectedCategory === 'additive' ? Number(selectedQuote?.additiveIndex || 1) : null;
-        const nextQuotes = currentQuotes.map(quote => {
-          const quoteCategory = quote.category === 'additive' ? 'additive' : 'initial';
-          const quoteAdditiveIndex = quoteCategory === 'additive' ? Number(quote.additiveIndex || 1) : null;
-          const isSameRound =
-            quoteCategory === selectedCategory &&
-            (quoteCategory === 'initial' || quoteAdditiveIndex === selectedAdditiveIndex);
-
-          if (!isSameRound) return quote;
-          return {
-            ...quote,
-            recommended: quote.id === selectedQuote?.id,
-            status: quote.id === selectedQuote?.id ? 'approved' : 'rejected',
-          };
+        if (!selectedQuote) throw new Error('Selecione uma cotação para aprovar.');
+        const result = await runApprovalCommand({
+          action: 'approveBudget',
+          ticketId: id,
+          selectedQuoteId: String(selectedQuote.id),
+          idempotencyKey: getCommandKey(commandScope),
         });
-        const approvedQuote = nextQuotes.find(quote => quote.id === selectedQuote?.id) || null;
-        const isAdditive = selectedCategory === 'additive';
-        const approvedQuoteValue = parseCurrencyInput(approvedQuote?.totalValue || approvedQuote?.value || '0');
-        const currentContract = contractsByTicket[id];
-        const currentInitialValue = parseCurrencyInput(currentContract?.initialPlannedValue || currentContract?.value || '0');
-        // realizedValue DERIVADO do conjunto de cotações aprovadas (não acumulado a
-        // partir do estado local). Sem isto, um refresh silencioso que revertesse as
-        // quotes para 'pending' fazia o card do aditivo reaparecer e um 2º clique
-        // somava o valor DE NOVO (50k→60k→70k). Derivar torna a aprovação idempotente:
-        // reprocessar a mesma aprovação dá sempre o mesmo total.
-        const approvedInitialQuote = nextQuotes.find(
-          quote => quote.category !== 'additive' && quote.status === 'approved'
+        await refreshApprovalState();
+        commandKeysRef.current.delete(commandScope);
+        showToast(
+          result.additivePaymentCreated
+            ? `Aditivo de ${selectedQuote.vendor} aprovado e lançamento financeiro criado.`
+            : `Orçamento de ${selectedQuote.vendor} aprovado.`,
+          4000
         );
-        const initialFromQuotes = approvedInitialQuote
-          ? parseCurrencyInput(approvedInitialQuote.totalValue || approvedInitialQuote.value || '0')
-          : currentInitialValue;
-        const approvedAdditivesTotal = nextQuotes
-          .filter(quote => quote.category === 'additive' && quote.status === 'approved')
-          .reduce((sum, quote) => sum + parseCurrencyInput(quote.totalValue || quote.value || '0'), 0);
-        const nextInitialValue = isAdditive ? initialFromQuotes : approvedQuoteValue;
-        const nextRealizedValue = isAdditive
-          ? initialFromQuotes + approvedAdditivesTotal
-          : approvedQuoteValue;
-        const nextContractValue = nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : approvedQuote?.value || currentContract?.value || 'A confirmar';
-        let additivePaymentCreated = false;
-
-        await saveQuotes(id, nextQuotes, targetTicket ? buildProcurementClassification(targetTicket) : undefined);
-        if (approvedQuote) {
-          await saveContract(
-            id,
-            {
-              id: currentContract?.id || 'contract-1',
-              vendor: approvedQuote.vendor,
-              value: nextContractValue,
-              initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
-              realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
-              status: 'pending_upload',
-              viewingBy: null,
-              signedFileName: currentContract?.signedFileName || null,
-              signedFileUrl: currentContract?.signedFileUrl || null,
-              signedFilePath: currentContract?.signedFilePath || null,
-              signedFileContentType: currentContract?.signedFileContentType || null,
-              signedFileSize: currentContract?.signedFileSize ?? null,
-              items: approvedQuote.items || [],
-            },
-            targetTicket ? buildProcurementClassification(targetTicket) : undefined
-          );
-
-          if (isAdditive && targetTicket && approvedQuoteValue > 0) {
-            const additiveIndex = Math.max(1, Number(selectedAdditiveIndex || 1));
-            const additiveValue = formatCurrencyValue(approvedQuoteValue);
-            const now = new Date();
-            const autoPayment: PaymentRecord = {
-              id: `payment-additive-${additiveIndex}`,
-              vendor: approvedQuote.vendor || currentContract?.vendor || 'Fornecedor não definido',
-              value: additiveValue,
-              grossValue: additiveValue,
-              budgetSource: 'additive',
-              taxValue: '',
-              netValue: additiveValue,
-              progressPercent: Number(targetTicket.executionProgress?.currentPercent || 0),
-              expectedBaselineValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
-              status: 'approved',
-              label: `Lançamento de aditivo ${additiveIndex}`,
-              installmentNumber: null,
-              totalInstallments: null,
-              dueAt: now,
-              measurementId: `additive-${additiveIndex}`,
-              releasedPercent: 0,
-              milestonePercent: null,
-              attachments: [],
-              receiptFileName: null,
-            };
-            await savePayment(
-              id,
-              autoPayment,
-              buildProcurementClassification(targetTicket)
-            );
-            additivePaymentCreated = true;
-          }
-        }
-        setQuotesByTicket(prev => ({ ...prev, [id]: nextQuotes }));
-        if (approvedQuote) {
-          setContractsByTicket(prev => ({
-            ...prev,
-            [id]: {
-              id: currentContract?.id || 'contract-1',
-              vendor: approvedQuote.vendor,
-              value: nextContractValue,
-              initialPlannedValue: nextInitialValue > 0 ? formatCurrencyValue(nextInitialValue) : null,
-              realizedValue: nextRealizedValue > 0 ? formatCurrencyValue(nextRealizedValue) : null,
-              status: 'pending_upload',
-              viewingBy: null,
-              signedFileName: currentContract?.signedFileName || null,
-              signedFileUrl: currentContract?.signedFileUrl || null,
-              signedFilePath: currentContract?.signedFilePath || null,
-              signedFileContentType: currentContract?.signedFileContentType || null,
-              signedFileSize: currentContract?.signedFileSize ?? null,
-              items: approvedQuote.items || [],
-            },
-          }));
-        }
-        const winner = selectedQuote?.vendor || 'Fornecedor vencedor';
-        budgetApprovalContext = {
-          isAdditive,
-          winner,
-          shouldMoveStatus: targetTicket?.status === TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-          additivePaymentCreated,
-        };
-        showToast(`Automação: aprovação enviada para ${winner}.`, 4000);
+      } else {
+        await runApprovalCommand({
+          action: 'approveSolution',
+          ticketId: id,
+          idempotencyKey: getCommandKey(commandScope),
+        });
+        await refreshApprovalState();
+        commandKeysRef.current.delete(commandScope);
+        showToast('Solução técnica aprovada.', 3500);
       }
-
-      const historyItem = {
-        id: crypto.randomUUID(),
-        type: 'system' as const,
-        sender: directorActorName,
-        time: new Date(),
-        text:
-          tab === 'budgets'
-            ? budgetApprovalContext?.isAdditive
-              ? `Aditivo aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido para atualização do valor realizado.${budgetApprovalContext?.additivePaymentCreated ? ' Lançamento financeiro criado automaticamente.' : ''}`
-              : `Orçamento aprovado por ${directorActorName}. ${budgetApprovalContext?.winner || selectedQuote?.vendor || 'Fornecedor vencedor'} definido; aguardando anexo do contrato pelo gestor.`
-            : `Solução técnica aprovada por ${directorActorName}. OS liberada para a etapa de orçamentação.`,
-      };
-      updateTicket(id, {
-        status:
-          tab === 'budgets'
-            ? budgetApprovalContext?.isAdditive
-              ? resolveAdditiveReturnStatus(targetTicket)
-              : budgetApprovalContext?.shouldMoveStatus
-                ? APPROVAL_STATUS[tab]
-                : targetTicket?.status || APPROVAL_STATUS[tab]
-            : APPROVAL_STATUS[tab],
-        viewingBy: null,
-        history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
-      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao concluir aprovação.';
       showToast(message, 3500);
@@ -433,6 +304,11 @@ export function ApprovalsView() {
     const reasonText = reason.trim() || 'Motivo não informado.';
     const targetBudget = budgets.find(budget => budget.id === rejectTargetId) || null;
     const targetContract = contracts.find(contract => contract.id === rejectTargetId) || null;
+    const commandScope = `${rejectTargetKind}:${rejectTargetId}:${
+      rejectTargetKind === 'budget'
+        ? `${targetBudget?.roundCategory || 'initial'}:${targetBudget?.roundInitialIndex || 0}:${targetBudget?.roundAdditiveIndex || 0}`
+        : contractsByTicket[rejectTargetId]?.id || 'contract-1'
+    }`;
 
     try {
       if (rejectTargetKind === 'budget') {
@@ -440,45 +316,19 @@ export function ApprovalsView() {
           showToast('Este orçamento não está mais pendente de aprovação (outra ação pode ter ocorrido). Recarregue o painel.', 4000);
           return;
         }
-        const currentQuotes = quotesByTicket[rejectTargetId] || [];
-        const rejectedQuotes = currentQuotes.map(quote => {
-          const sameCategory = (quote.category === 'additive' ? 'additive' : 'initial') === targetBudget.roundCategory;
-          const sameAdditiveIndex =
-            targetBudget.roundCategory !== 'additive' ||
-            Number(quote.additiveIndex || 1) === Number(targetBudget.roundAdditiveIndex || 1);
-
-          if (!sameCategory || !sameAdditiveIndex) return quote;
-          return {
-            ...quote,
-            recommended: false,
-            status: 'rejected',
-          };
-        });
-
-        await saveQuotes(
-          rejectTargetId,
-          rejectedQuotes,
-          buildProcurementClassification(targetTicket)
-        );
-        setQuotesByTicket(prev => ({ ...prev, [rejectTargetId]: rejectedQuotes }));
-
         const isAdditiveRound = targetBudget.roundCategory === 'additive';
         const budgetLabel = isAdditiveRound ? `Aditivo ${targetBudget.roundAdditiveIndex || 1}` : 'Orçamento';
-        const historyItem = {
-          id: crypto.randomUUID(),
-          type: 'system' as const,
-          sender: directorActorName,
-          time: new Date(),
-          text: isAdditiveRound
-            ? `${budgetLabel} reprovado por ${directorActorName}. Motivo: ${reasonText}. Nova rodada de aditivo liberada para o gestor.`
-            : `${budgetLabel} reprovado por ${directorActorName}. Motivo: ${reasonText}. Nova rodada de cotações liberada para o gestor.`,
-        };
-
-        updateTicket(rejectTargetId, {
-          status: isAdditiveRound ? resolveAdditiveReturnStatus(targetTicket) : TICKET_STATUS.WAITING_BUDGET,
-          viewingBy: null,
-          history: [...targetTicket.history, historyItem],
+        await runApprovalCommand({
+          action: 'rejectBudget',
+          ticketId: rejectTargetId,
+          idempotencyKey: getCommandKey(commandScope),
+          reason: reasonText,
+          roundCategory: targetBudget.roundCategory,
+          roundInitialIndex: targetBudget.roundInitialIndex,
+          roundAdditiveIndex: targetBudget.roundAdditiveIndex,
         });
+        await refreshApprovalState();
+        commandKeysRef.current.delete(commandScope);
         showToast(
           isAdditiveRound
             ? `${budgetLabel} reprovado. Nova rodada de aditivo liberada para o gestor.`
@@ -490,42 +340,15 @@ export function ApprovalsView() {
           showToast('Este contrato não está mais pendente de aprovação. Recarregue o painel.', 4000);
           return;
         }
-        const currentContract = contractsByTicket[rejectTargetId];
-        const nextContract: ContractRecord = {
-          ...currentContract,
-          id: currentContract?.id || 'contract-1',
-          vendor: currentContract?.vendor || targetContract.vendor || 'A confirmar',
-          value: currentContract?.value || targetContract.value || 'A confirmar',
-          status: 'pending_upload',
-          viewingBy: null,
-          signedFileName: currentContract?.signedFileName ?? null,
-          signedFileUrl: currentContract?.signedFileUrl ?? null,
-          signedFilePath: currentContract?.signedFilePath ?? null,
-          signedFileContentType: currentContract?.signedFileContentType ?? null,
-          signedFileSize: currentContract?.signedFileSize ?? null,
-          items: currentContract?.items || targetContract.items || [],
-        };
-
-        await saveContract(
-          rejectTargetId,
-          nextContract,
-          buildProcurementClassification(targetTicket)
-        );
-        setContractsByTicket(prev => ({ ...prev, [rejectTargetId]: nextContract }));
-
-        const historyItem = {
-          id: crypto.randomUUID(),
-          type: 'system' as const,
-          sender: directorActorName,
-          time: new Date(),
-          text: `Contrato reprovado por ${directorActorName}. Motivo: ${reasonText}. Gestor deve reenviar o contrato para nova aprovação da Diretoria.`,
-        };
-
-        updateTicket(rejectTargetId, {
-          status: TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-          viewingBy: null,
-          history: [...targetTicket.history, historyItem],
+        await runApprovalCommand({
+          action: 'rejectContract',
+          ticketId: rejectTargetId,
+          contractId: contractsByTicket[rejectTargetId]?.id || 'contract-1',
+          idempotencyKey: getCommandKey(commandScope),
+          reason: reasonText,
         });
+        await refreshApprovalState();
+        commandKeysRef.current.delete(commandScope);
         showToast('Contrato reprovado. Ticket devolvido para reenvio do contrato.', 3500);
       } else {
         // rejectTargetKind === 'solution': reprovar a solução técnica CANCELA a OS
@@ -535,18 +358,15 @@ export function ApprovalsView() {
           showToast('Esta solução não está mais pendente de aprovação. Recarregue o painel.', 4000);
           return;
         }
-        const historyItem = {
-          id: crypto.randomUUID(),
-          type: 'system' as const,
-          sender: directorActorName,
-          time: new Date(),
-          text: `OS cancelada por ${directorActorName}. Motivo: ${reasonText}`,
-        };
-        updateTicket(rejectTargetId, {
-          status: TICKET_STATUS.CANCELED,
-          viewingBy: null,
-          history: [...targetTicket.history, historyItem],
+        await runApprovalCommand({
+          action: 'rejectSolution',
+          ticketId: rejectTargetId,
+          idempotencyKey: getCommandKey(commandScope),
+          reason: reasonText,
         });
+        await refreshApprovalState();
+        commandKeysRef.current.delete(commandScope);
+        showToast('Solução técnica reprovada e OS cancelada.', 3500);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao reprovar a etapa.';
@@ -560,8 +380,11 @@ export function ApprovalsView() {
   const handleApproveContract = async (id: string) => {
     if (!canApprove) return;
     const currentContract = contractsByTicket[id];
-    const targetTicket = tickets.find(ticket => ticket.id === id);
-    const hasSignedAttachment = Boolean(currentContract?.signedFileName || currentContract?.signedFileUrl);
+    const hasSignedAttachment = Boolean(
+      currentContract?.signedFileName ||
+      currentContract?.signedFilePath ||
+      currentContract?.signedFileUrl
+    );
     if (!hasSignedAttachment) {
       showToast('Erro: gestor ainda não anexou o contrato. Aprovação indisponível.', 3000);
       return;
@@ -569,28 +392,16 @@ export function ApprovalsView() {
 
     setProcessingId(id);
     try {
-      const nextContract: ContractRecord = {
-        ...currentContract,
-        status: 'approved',
-        viewingBy: null,
-      };
-      await saveContract(
-        id,
-        nextContract,
-        targetTicket ? buildProcurementClassification(targetTicket) : undefined
-      );
-      setContractsByTicket(prev => ({ ...prev, [id]: nextContract }));
-      const historyItem = {
-        id: crypto.randomUUID(),
-        type: 'system' as const,
-        sender: directorActorName,
-        time: new Date(),
-        text: `Contrato aprovado por ${directorActorName}${nextContract.signedFileName ? ` (${nextContract.signedFileName})` : '.'}`,
-      };
-      updateTicket(id, {
-        status: APPROVAL_STATUS.contracts,
-        history: targetTicket ? [...targetTicket.history, historyItem] : undefined,
+      const commandScope = `approveContract:${id}:${currentContract.id}`;
+      await runApprovalCommand({
+        action: 'approveContract',
+        ticketId: id,
+        contractId: currentContract.id,
+        idempotencyKey: getCommandKey(commandScope),
       });
+      await refreshApprovalState();
+      commandKeysRef.current.delete(commandScope);
+      showToast('Contrato aprovado.', 3500);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao aprovar contrato.';
       showToast(message, 3500);
@@ -713,7 +524,7 @@ export function ApprovalsView() {
             viewingBy: ticket.viewingBy || null,
             technicalOpinion: latestTechnicalEntry?.text ?? 'Parecer não disponível.',
             technicalAttachments: (latestTechnicalEntry?.attachments ?? [])
-              .filter(attachment => attachment?.url),
+              .filter(attachment => attachment?.path || attachment?.driveFileId || attachment?.url),
           };
         }),
     [currentUser, tickets]
@@ -742,8 +553,9 @@ export function ApprovalsView() {
             ? pendingRound
             : {
                 category: 'initial' as const,
+                initialRoundIndex: 1,
                 additiveIndex: null,
-                quotes: filterQuotesByRound(allQuotes, 'initial'),
+                quotes: filterQuotesByRound(allQuotes, 'initial', 1),
               };
 
           const roundQuotes = currentRound.quotes.filter(isQuoteFilled);
@@ -759,6 +571,7 @@ export function ApprovalsView() {
             serviceCatalogName: ticket.serviceCatalogName ?? null,
             quotes: roundQuotes,
             roundCategory: currentRound.category,
+            roundInitialIndex: currentRound.initialRoundIndex,
             roundAdditiveIndex: currentRound.additiveIndex,
             additiveReason:
               currentRound.category === 'additive'
@@ -778,6 +591,7 @@ export function ApprovalsView() {
           serviceCatalogName: string | null;
           quotes: Quote[];
           roundCategory: 'initial' | 'additive';
+          roundInitialIndex: number | null;
           roundAdditiveIndex: number | null;
           additiveReason: string;
           proposalHeader: QuoteProposalHeader;
@@ -906,6 +720,8 @@ export function ApprovalsView() {
           vendor: contractsByTicket[ticket.id]?.vendor ?? 'A confirmar',
           signedFileName: contractsByTicket[ticket.id]?.signedFileName ?? null,
           signedFileUrl: contractsByTicket[ticket.id]?.signedFileUrl ?? null,
+          signedFilePath: contractsByTicket[ticket.id]?.signedFilePath ?? null,
+          signedFileContentType: contractsByTicket[ticket.id]?.signedFileContentType ?? null,
           items: contractsByTicket[ticket.id]?.items ?? [],
         })),
     [contractsByTicket, currentUser, tickets]
@@ -1076,6 +892,9 @@ export function ApprovalsView() {
                         onClick={() =>
                           openAttachment(`Parecer: ${attachment.name}`, attachment.contentType?.includes('pdf') ? 'pdf' : 'image', {
                             url: attachment.url || null,
+                            ticketId: solution.id,
+                            path: attachment.path,
+                            driveFileId: attachment.driveFileId,
                           })
                         }
                         className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
@@ -1328,11 +1147,15 @@ export function ApprovalsView() {
                     )}
                     <div className="mt-auto flex flex-col gap-2">
                       <button
-                        onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf', { url: quote.attachmentUrl || null })}
-                        disabled={!quote.attachmentUrl}
+                        onClick={() => openAttachment(`Orçamento: ${quote.vendor}`, 'pdf', {
+                          url: quote.attachmentUrl || null,
+                          ticketId: budget.id,
+                          path: quote.attachmentPath || null,
+                        })}
+                        disabled={!(quote.attachmentPath || quote.attachmentUrl)}
                         className="flex items-center justify-center gap-2 text-roman-text-sub hover:text-roman-text-main text-xs font-medium border border-roman-border bg-roman-surface py-1.5 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <FileText size={14} /> {quote.attachmentUrl ? 'Ver PDF' : 'PDF indisponível'}
+                        <FileText size={14} /> {quote.attachmentPath || quote.attachmentUrl ? 'Ver PDF' : 'PDF indisponível'}
                       </button>
                       <button
                         onClick={() => handleApprove(budget.id, 'budgets', quote)}
@@ -1488,10 +1311,10 @@ export function ApprovalsView() {
                 <div className="mb-3 text-xs text-stone-600">
                   Arquivo anexado pelo gestor:{' '}
                   <span className="font-medium text-stone-800">
-                    {resolveAttachmentLabel(contract.signedFileName, contract.signedFileUrl)}
+                    {resolveAttachmentLabel(contract.signedFileName, contract.signedFileUrl || contract.signedFilePath)}
                   </span>
                 </div>
-                {!(contract.signedFileName || contract.signedFileUrl) && (
+                {!(contract.signedFileName || contract.signedFilePath || contract.signedFileUrl) && (
                   <div className="mb-3 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     Contrato sem anexo válido. Peça ao gestor para reenviar pela Inbox em “Anexar Contrato e Enviar para Diretoria”.
                   </div>
@@ -1524,8 +1347,12 @@ export function ApprovalsView() {
                   </div>
                 )}
                 <button
-                  onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', { url: contract.signedFileUrl || null })}
-                  disabled={!contract.signedFileUrl}
+                  onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', {
+                    url: contract.signedFileUrl || null,
+                    ticketId: contract.id,
+                    path: contract.signedFilePath || null,
+                  })}
+                  disabled={!(contract.signedFilePath || contract.signedFileUrl)}
                   className="flex items-center gap-2 text-stone-800 hover:underline text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
                 >
                   <FileText size={16} /> Ver contrato anexado (PDF)
@@ -1546,15 +1373,19 @@ export function ApprovalsView() {
                     Reprovar Contrato
                   </button>
                   <button
-                    onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', { url: contract.signedFileUrl || null })}
-                    disabled={!contract.signedFileUrl}
+                    onClick={() => openAttachment(`Contrato: ${contract.vendor}`, 'pdf', {
+                      url: contract.signedFileUrl || null,
+                      ticketId: contract.id,
+                      path: contract.signedFilePath || null,
+                    })}
+                    disabled={!(contract.signedFilePath || contract.signedFileUrl)}
                     className="flex-1 md:flex-none px-4 py-2 border border-stone-300 text-stone-700 hover:bg-white/50 rounded-sm font-medium transition-colors text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Revisar
                   </button>
                   <button
                     onClick={() => handleApproveContract(contract.id)}
-                    disabled={processingId === contract.id || !(contract.signedFileName || contract.signedFileUrl)}
+                    disabled={processingId === contract.id || !(contract.signedFileName || contract.signedFilePath || contract.signedFileUrl)}
                     className="flex-1 md:flex-none px-6 py-2 bg-roman-primary hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {processingId === contract.id ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
@@ -1598,4 +1429,3 @@ export function ApprovalsView() {
     </div>
   );
 }
-

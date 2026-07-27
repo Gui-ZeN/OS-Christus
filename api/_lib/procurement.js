@@ -9,6 +9,19 @@ function toArray(payload) {
   return Array.isArray(payload) ? payload : payload ? [payload] : [];
 }
 
+function protectAttachmentUrls(data) {
+  const next = { ...data };
+  if (next.attachmentPath) next.attachmentUrl = null;
+  if (next.signedFilePath) next.signedFileUrl = null;
+  if (Array.isArray(next.attachments)) {
+    next.attachments = next.attachments.map(item => ({
+      ...item,
+      url: item?.path ? '' : String(item?.url || ''),
+    }));
+  }
+  return next;
+}
+
 export async function seedProcurementDefaults(db) {
   const batch = db.batch();
   const now = new Date();
@@ -64,7 +77,7 @@ export async function readProcurement(db) {
 
   const quotesByTicket = {};
   for (const doc of quotesSnap.docs) {
-    const data = { id: doc.id, ...doc.data() };
+    const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
     const ticketId = data.ticketId;
     if (!ticketId) continue;
     if (!quotesByTicket[ticketId]) quotesByTicket[ticketId] = [];
@@ -73,7 +86,7 @@ export async function readProcurement(db) {
 
   const contractsByTicket = {};
   for (const doc of contractsSnap.docs) {
-    const data = { id: doc.id, ...doc.data() };
+    const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
     const ticketId = data.ticketId;
     if (!ticketId) continue;
     contractsByTicket[ticketId] = data;
@@ -81,7 +94,7 @@ export async function readProcurement(db) {
 
   const paymentsByTicket = {};
   for (const doc of paymentsSnap.docs) {
-    const data = { id: doc.id, ...doc.data() };
+    const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
     const ticketId = data.ticketId;
     if (!ticketId) continue;
     if (!paymentsByTicket[ticketId]) paymentsByTicket[ticketId] = [];
@@ -98,7 +111,7 @@ export async function readProcurement(db) {
 
   const measurementsByTicket = {};
   for (const doc of measurementsSnap.docs) {
-    const data = { id: doc.id, ...doc.data() };
+    const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
     const ticketId = data.ticketId;
     if (!ticketId) continue;
     if (!measurementsByTicket[ticketId]) measurementsByTicket[ticketId] = [];
@@ -138,7 +151,7 @@ export async function readProcurementForTicketIds(db, ticketIds) {
   const quotesByTicket = {};
   for (const snapshot of quotesSnapshots) {
     for (const doc of snapshot.docs) {
-      const data = { id: doc.id, ...doc.data() };
+      const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
       const ticketId = data.ticketId;
       if (!ticketId) continue;
       if (!quotesByTicket[ticketId]) quotesByTicket[ticketId] = [];
@@ -149,7 +162,7 @@ export async function readProcurementForTicketIds(db, ticketIds) {
   const contractsByTicket = {};
   for (const snapshot of contractsSnapshots) {
     for (const doc of snapshot.docs) {
-      const data = { id: doc.id, ...doc.data() };
+      const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
       const ticketId = data.ticketId;
       if (!ticketId) continue;
       contractsByTicket[ticketId] = data;
@@ -159,7 +172,7 @@ export async function readProcurementForTicketIds(db, ticketIds) {
   const paymentsByTicket = {};
   for (const snapshot of paymentsSnapshots) {
     for (const doc of snapshot.docs) {
-      const data = { id: doc.id, ...doc.data() };
+      const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
       const ticketId = data.ticketId;
       if (!ticketId) continue;
       if (!paymentsByTicket[ticketId]) paymentsByTicket[ticketId] = [];
@@ -174,7 +187,7 @@ export async function readProcurementForTicketIds(db, ticketIds) {
   const measurementsByTicket = {};
   for (const snapshot of measurementsSnapshots) {
     for (const doc of snapshot.docs) {
-      const data = { id: doc.id, ...doc.data() };
+      const data = protectAttachmentUrls({ id: doc.id, ...doc.data() });
       const ticketId = data.ticketId;
       if (!ticketId) continue;
       if (!measurementsByTicket[ticketId]) measurementsByTicket[ticketId] = [];

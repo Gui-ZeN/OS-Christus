@@ -26,16 +26,13 @@ describe('canTransitionStatus', () => {
     expect(canTransitionStatus('Usuario', TICKET_STATUS.NEW, TICKET_STATUS.NEW)).toBe(true);
   });
 
-  it('Diretor só aciona as transições do fluxo dele', () => {
-    // aprovação da solução → orçamento (permitido)
-    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_SOLUTION_APPROVAL, TICKET_STATUS.WAITING_BUDGET)).toBe(true);
-    // aprovação do orçamento → anexo de contrato (permitido)
-    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_BUDGET_APPROVAL, TICKET_STATUS.WAITING_CONTRACT_UPLOAD)).toBe(true);
-    // qualquer papel de aprovação pode cancelar
-    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_SOLUTION_APPROVAL, TICKET_STATUS.CANCELED)).toBe(true);
-    // transição fora do fluxo do Diretor (bloqueada)
+  it('Diretor decide somente pelos comandos transacionais de aprovação', () => {
+    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_SOLUTION_APPROVAL, TICKET_STATUS.WAITING_BUDGET)).toBe(false);
+    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_BUDGET_APPROVAL, TICKET_STATUS.WAITING_CONTRACT_UPLOAD)).toBe(false);
+    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_SOLUTION_APPROVAL, TICKET_STATUS.CANCELED)).toBe(false);
     expect(canTransitionStatus('Diretor', TICKET_STATUS.NEW, TICKET_STATUS.IN_PROGRESS)).toBe(false);
     expect(canTransitionStatus('Diretor', TICKET_STATUS.NEW, TICKET_STATUS.CLOSED)).toBe(false);
+    expect(canTransitionStatus('Diretor', TICKET_STATUS.WAITING_PAYMENT, TICKET_STATUS.CLOSED)).toBe(false);
   });
 
   it('papéis sem gestão não transicionam pelo painel', () => {

@@ -1,49 +1,14 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { google } from 'googleapis';
 import { HttpError } from './http.js';
 import { parseServiceAccountFromEnv } from './firebaseAdmin.js';
 
 /**
- * Proxy de anexos arquivados no Google Drive (modelo "token-capacidade", ver
- * [[Serv3 — Arquivamento de Anexos]]).
- *
- * Depois que um anexo de OS encerrada é movido pro Drive e apagado do Storage, o
- * `url` do anexo passa a apontar pra `/api/attachments?f=<driveFileId>&t=<token>`.
- * O arquivo no Drive fica PRIVADO (só a service account alcança); o Serv3 é quem
- * serve, validando um token assinado (HMAC) e não-adivinhável — mesmo "nível de
- * porta" das URLs de hoje (quem tem a URL abre), porém revogável (basta girar o
- * segredo) e com o arquivo-fonte privado. Determinístico (sem expiração) pra a URL
- * poder ficar gravada, igual às URLs longas de hoje.
+ * Streaming de anexos arquivados no Google Drive. A autorização acontece no
+ * endpoint `api/attachments.js`, antes desta função ser chamada.
  */
 
-function getProxySecret() {
-  const secret = process.env.ATTACHMENT_PROXY_SECRET;
-  if (!secret) {
-    throw new HttpError(500, 'ATTACHMENT_PROXY_SECRET não configurado no servidor.');
-  }
-  return secret;
-}
-
-/** Token determinístico e não-adivinhável de um arquivo do Drive. */
-export function signAttachmentToken(driveFileId) {
-  return createHmac('sha256', getProxySecret()).update(String(driveFileId)).digest('base64url');
-}
-
-/** Confere o token em tempo constante. Retorna false (nunca lança) em token inválido. */
-export function verifyAttachmentToken(driveFileId, token) {
-  if (!driveFileId || !token) return false;
-  const expected = Buffer.from(signAttachmentToken(driveFileId));
-  const provided = Buffer.from(String(token));
-  return expected.length === provided.length && timingSafeEqual(expected, provided);
-}
-
-/** URL do proxy pra gravar no `url` do anexo (usado pelo job de migração — F2). */
-export function buildAttachmentProxyUrl(driveFileId) {
-  return `/api/attachments?f=${encodeURIComponent(driveFileId)}&t=${signAttachmentToken(driveFileId)}`;
-}
-
-// Cliente Drive memoizado. Escopo `drive` (o job de migração escreve; o proxy só lê,
-// mas compartilham o cliente). A service account precisa ter acesso ao Shared Drive.
+// Cliente Drive memoizado e somente leitura. A service account precisa ter acesso
+// ao Shared Drive onde os anexos arquivados são mantidos.
 let driveClient = null;
 function getDriveClient() {
   if (driveClient) return driveClient;
@@ -56,7 +21,7 @@ function getDriveClient() {
   const auth = new google.auth.JWT({
     email: serviceAccount.client_email,
     key: serviceAccount.private_key,
-    scopes: ['https://www.googleapis.com/auth/drive'],
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
   });
   driveClient = google.drive({ version: 'v3', auth });
   return driveClient;
@@ -75,6 +40,13 @@ export async function streamDriveFile(driveFileId, res) {
     supportsAllDrives: true,
   });
   const { name, mimeType } = meta.data;
+  const filename = String(name || 'anexo').replace(/[\r\n"]/g, '').trim().slice(0, 180) || 'anexo';
+  const asciiFilename = filename
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '_');
+  const contentType = mimeType || 'application/octet-stream';
+  const inline = (contentType.startsWith('image/') && contentType !== 'image/svg+xml') || contentType === 'application/pdf';
 
   const media = await drive.files.get(
     { fileId: driveFileId, alt: 'media', supportsAllDrives: true },
@@ -82,9 +54,13 @@ export async function streamDriveFile(driveFileId, res) {
   );
 
   res.statusCode = 200;
-  res.setHeader('Content-Type', mimeType || 'application/octet-stream');
-  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name || 'anexo')}"`);
-  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader(
+    'Content-Disposition',
+    `${inline ? 'inline' : 'attachment'}; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+  );
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
   await new Promise((resolve, reject) => {
     media.data.on('end', resolve).on('error', reject).pipe(res);

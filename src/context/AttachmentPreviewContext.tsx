@@ -8,11 +8,17 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
  */
 export type AttachmentPreviewKind = 'image' | 'pdf' | 'file';
 
-export interface AttachmentPreview {
+export interface AttachmentPreviewItem {
   title: string;
   type: AttachmentPreviewKind;
   url?: string | null;
-  items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }>;
+  ticketId?: string | null;
+  path?: string | null;
+  driveFileId?: string | null;
+}
+
+export interface AttachmentPreview extends AttachmentPreviewItem {
+  items?: AttachmentPreviewItem[];
 }
 
 interface AttachmentPreviewContextType {
@@ -20,7 +26,7 @@ interface AttachmentPreviewContextType {
   openAttachment: (
     title: string,
     type: AttachmentPreviewKind,
-    options?: { url?: string | null; items?: Array<{ title: string; type: AttachmentPreviewKind; url?: string | null }> }
+    options?: Omit<AttachmentPreview, 'title' | 'type'>
   ) => void;
   closeAttachment: () => void;
 }
@@ -35,6 +41,9 @@ export function AttachmentPreviewProvider({ children }: { children: ReactNode })
       title,
       type,
       url: options?.url || null,
+      ticketId: options?.ticketId || null,
+      path: options?.path || null,
+      driveFileId: options?.driveFileId || null,
       items: options?.items || [],
     });
   };

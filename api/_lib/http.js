@@ -19,7 +19,11 @@ export function sendError(res, error, fallbackMessage = 'Falha interna do servid
   const statusCode =
     error instanceof HttpError && Number.isInteger(error.statusCode) ? error.statusCode : 500;
   const message =
-    error instanceof Error && error.message ? error.message : fallbackMessage;
+    error instanceof HttpError && error.message ? error.message : fallbackMessage;
+
+  if (!(error instanceof HttpError)) {
+    console.error('[http] erro inesperado na API', error);
+  }
 
   return sendJson(res, statusCode, { ok: false, error: message });
 }
@@ -64,7 +68,7 @@ export function readRawBody(req) {
   });
 }
 
-export async function parseInboundBody(req) {
+export async function parseInboundBody(req, options = {}) {
   const contentType = req.headers['content-type'] || '';
 
   if (contentType.includes('application/json')) {
@@ -77,19 +81,84 @@ export async function parseInboundBody(req) {
   }
 
   if (contentType.includes('multipart/form-data')) {
-    return parseMultipartForm(req);
+    return parseMultipartForm(req, options.multipartLimits);
   }
 
   return {};
 }
 
-function parseMultipartForm(req) {
+export const DEFAULT_MULTIPART_LIMITS = Object.freeze({
+  maxFiles: 25,
+  maxFileSizeBytes: 25 * 1024 * 1024,
+  maxTotalFileBytes: 50 * 1024 * 1024,
+  maxFields: 64,
+  maxFieldSizeBytes: 5 * 1024 * 1024,
+  maxParts: 100,
+  maxRequestSizeBytes: 60 * 1024 * 1024,
+});
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function resolveMultipartLimits(overrides = {}) {
+  return {
+    maxFiles: positiveInteger(overrides.maxFiles, DEFAULT_MULTIPART_LIMITS.maxFiles),
+    maxFileSizeBytes: positiveInteger(overrides.maxFileSizeBytes, DEFAULT_MULTIPART_LIMITS.maxFileSizeBytes),
+    maxTotalFileBytes: positiveInteger(overrides.maxTotalFileBytes, DEFAULT_MULTIPART_LIMITS.maxTotalFileBytes),
+    maxFields: positiveInteger(overrides.maxFields, DEFAULT_MULTIPART_LIMITS.maxFields),
+    maxFieldSizeBytes: positiveInteger(overrides.maxFieldSizeBytes, DEFAULT_MULTIPART_LIMITS.maxFieldSizeBytes),
+    maxParts: positiveInteger(overrides.maxParts, DEFAULT_MULTIPART_LIMITS.maxParts),
+    maxRequestSizeBytes: positiveInteger(overrides.maxRequestSizeBytes, DEFAULT_MULTIPART_LIMITS.maxRequestSizeBytes),
+  };
+}
+
+function parseMultipartForm(req, overrides = {}) {
+  const limits = resolveMultipartLimits(overrides);
+  const contentLength = Number(req.headers['content-length']);
+  if (Number.isFinite(contentLength) && contentLength > limits.maxRequestSizeBytes) {
+    return Promise.reject(new HttpError(413, 'Formulário e anexos excedem o tamanho máximo permitido.'));
+  }
+
   return new Promise((resolve, reject) => {
     const fields = {};
     const attachments = [];
-    const busboy = Busboy({ headers: req.headers });
+    let totalFileBytes = 0;
+    let limitError = null;
+    let settled = false;
+    let busboy;
 
-    busboy.on('field', (name, value) => {
+    const finishWithError = error => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
+    const recordLimitError = message => {
+      if (!limitError) limitError = new HttpError(413, message);
+    };
+
+    try {
+      busboy = Busboy({
+        headers: req.headers,
+        limits: {
+          files: limits.maxFiles,
+          fileSize: limits.maxFileSizeBytes,
+          fields: limits.maxFields,
+          fieldSize: limits.maxFieldSizeBytes,
+          parts: limits.maxParts,
+        },
+      });
+    } catch {
+      return finishWithError(new HttpError(400, 'Formulário multipart inválido.'));
+    }
+
+    busboy.on('field', (name, value, info) => {
+      if (info?.valueTruncated) {
+        recordLimitError(`O campo "${name}" excede o tamanho máximo permitido.`);
+        return;
+      }
       fields[name] = value;
     });
 
@@ -97,13 +166,22 @@ function parseMultipartForm(req) {
       const chunks = [];
       let size = 0;
 
+      file.on('limit', () => {
+        recordLimitError(`O arquivo "${info?.filename || name}" excede o tamanho máximo permitido.`);
+      });
+
       file.on('data', chunk => {
-        chunks.push(chunk);
         size += chunk.length;
+        totalFileBytes += chunk.length;
+        if (totalFileBytes > limits.maxTotalFileBytes) {
+          recordLimitError('A soma dos anexos excede o tamanho máximo permitido.');
+          return;
+        }
+        if (!limitError) chunks.push(chunk);
       });
 
       file.on('end', () => {
-        if (size === 0) return;
+        if (size === 0 || limitError || file.truncated) return;
         attachments.push({
           fieldName: name,
           filename: info?.filename || `${name}-${attachments.length + 1}`,
@@ -115,8 +193,33 @@ function parseMultipartForm(req) {
       });
     });
 
-    busboy.on('finish', () => resolve({ ...fields, attachments }));
-    busboy.on('error', reject);
+    busboy.on('filesLimit', () => {
+      recordLimitError(`Máximo de ${limits.maxFiles} anexos por envio.`);
+    });
+    busboy.on('fieldsLimit', () => {
+      recordLimitError(`Máximo de ${limits.maxFields} campos por envio.`);
+    });
+    busboy.on('partsLimit', () => {
+      recordLimitError('O formulário possui partes demais.');
+    });
+    busboy.on('finish', () => {
+      if (settled) return;
+      settled = true;
+      if (limitError) {
+        reject(limitError);
+        return;
+      }
+      resolve({ ...fields, attachments });
+    });
+    busboy.on('error', () => {
+      finishWithError(new HttpError(400, 'Formulário multipart inválido.'));
+    });
+    req.on('aborted', () => {
+      finishWithError(new HttpError(400, 'Envio interrompido antes da conclusão.'));
+    });
+    req.on('error', () => {
+      finishWithError(new HttpError(400, 'Falha ao receber o corpo da requisição.'));
+    });
     req.pipe(busboy);
   });
 }

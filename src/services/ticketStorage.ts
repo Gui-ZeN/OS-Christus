@@ -1,15 +1,6 @@
-﻿import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
-import { getFirebaseClientApp } from '../lib/firebaseClient';
 import type { TicketAttachment } from '../types';
-
-function sanitizeFileName(value: string) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
+import { getAuthenticatedActorHeaders } from './actorHeaders';
+import { expectApiJson } from './apiClient';
 
 function resolveContentType(file: File, fallback = 'application/octet-stream') {
   const explicit = String(file.type || '').trim().toLowerCase();
@@ -32,90 +23,66 @@ function resolveContentType(file: File, fallback = 'application/octet-stream') {
   return fallback;
 }
 
-export async function uploadClosureDocument(ticketId: string, file: File): Promise<TicketAttachment> {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
-  }
+type AttachmentUploadScope = 'closure' | 'payment' | 'measurement' | 'quote' | 'contract' | 'message';
 
-  const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/pdf');
-  const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
-  const isPdf = contentType === 'application/pdf';
-  const baseFolder = isPdf ? 'attachments/tickets/pdfs' : 'attachments/tickets/images';
-  const path = `${baseFolder}/${ticketId}/closure-${Date.now()}-${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType,
+interface AttachmentUploadOptions {
+  paymentId?: string;
+  measurementId?: string;
+  roundKey?: string;
+  quoteId?: string;
+  channel?: 'internal' | 'public' | 'director';
+}
+
+type ApiAttachment = Omit<TicketAttachment, 'uploadedAt'> & { uploadedAt?: string | null };
+
+async function uploadProtectedAttachment(
+  ticketId: string,
+  scope: AttachmentUploadScope,
+  file: File,
+  options: AttachmentUploadOptions = {}
+): Promise<TicketAttachment> {
+  const contentType = resolveContentType(file);
+  // Some browsers omit File.type. Keep filename-derived metadata only so the
+  // server can still validate the actual file signature before storage.
+  const uploadFile = contentType === file.type
+    ? file
+    : new File([file], file.name, { type: contentType, lastModified: file.lastModified });
+  const body = new FormData();
+  body.set('ticketId', ticketId);
+  body.set('scope', scope);
+  if (options.paymentId) body.set('paymentId', options.paymentId);
+  if (options.measurementId) body.set('measurementId', options.measurementId);
+  if (options.roundKey) body.set('roundKey', options.roundKey);
+  if (options.quoteId) body.set('quoteId', options.quoteId);
+  if (options.channel) body.set('channel', options.channel);
+  body.set('attachment', uploadFile);
+
+  const response = await fetch('/api/attachments', {
+    method: 'POST',
+    headers: await getAuthenticatedActorHeaders(),
+    body,
   });
-  const url = await getDownloadURL(storageRef);
-
+  const json = await expectApiJson<{ ok: boolean; attachment?: ApiAttachment }>(
+    response,
+    'Falha ao enviar o anexo.'
+  );
+  if (!json.ok || !json.attachment) throw new Error('Resposta invalida ao enviar o anexo.');
   return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    path,
-    url,
-    contentType,
-    size: file.size,
-    uploadedAt: new Date(),
-    category: isPdf ? 'closure_report' : 'closure_evidence',
+    ...json.attachment,
+    uploadedAt: json.attachment.uploadedAt ? new Date(json.attachment.uploadedAt) : new Date(),
   };
+}
+
+export async function uploadClosureDocument(ticketId: string, file: File): Promise<TicketAttachment> {
+  return uploadProtectedAttachment(ticketId, 'closure', file);
 }
 
 export async function uploadPaymentAttachment(ticketId: string, paymentId: string, file: File): Promise<TicketAttachment> {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
-  }
-
-  const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/octet-stream');
-  const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
-  const path = `attachments/tickets/payments/${ticketId}/${paymentId}/${Date.now()}-${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType,
-  });
-  const url = await getDownloadURL(storageRef);
-
-  return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    path,
-    url,
-    contentType,
-    size: file.size,
-    uploadedAt: new Date(),
-    category: 'attachment',
-  };
+  return uploadProtectedAttachment(ticketId, 'payment', file, { paymentId });
 }
 
 export async function uploadMeasurementAttachment(ticketId: string, measurementId: string, file: File): Promise<TicketAttachment> {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
-  }
-
-  const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/octet-stream');
-  const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
-  const path = `attachments/tickets/measurements/${ticketId}/${measurementId}/${Date.now()}-${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType,
-  });
-  const url = await getDownloadURL(storageRef);
-
-  return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    path,
-    url,
-    contentType,
-    size: file.size,
-    uploadedAt: new Date(),
-    category: 'attachment',
-  };
+  return uploadProtectedAttachment(ticketId, 'measurement', file, { measurementId });
 }
 
 export async function uploadQuoteAttachment(
@@ -124,59 +91,11 @@ export async function uploadQuoteAttachment(
   quoteId: string,
   file: File
 ): Promise<TicketAttachment> {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
-  }
-
-  const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/pdf');
-  const safeName = sanitizeFileName(file.name) || `anexo-${Date.now()}`;
-  const path = `attachments/tickets/quotes/${ticketId}/${roundKey}/${quoteId}/${Date.now()}-${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType,
-  });
-  const url = await getDownloadURL(storageRef);
-
-  return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    path,
-    url,
-    contentType,
-    size: file.size,
-    uploadedAt: new Date(),
-    category: 'attachment',
-  };
+  return uploadProtectedAttachment(ticketId, 'quote', file, { roundKey, quoteId });
 }
 
 export async function uploadContractAttachment(ticketId: string, file: File): Promise<TicketAttachment> {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
-  }
-
-  const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/pdf');
-  const safeName = sanitizeFileName(file.name) || `contrato-${Date.now()}`;
-  const path = `attachments/tickets/contracts/${ticketId}/${Date.now()}-${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType,
-  });
-  const url = await getDownloadURL(storageRef);
-
-  return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    path,
-    url,
-    contentType,
-    size: file.size,
-    uploadedAt: new Date(),
-    category: 'attachment',
-  };
+  return uploadProtectedAttachment(ticketId, 'contract', file);
 }
 
 export async function uploadMessageAttachment(
@@ -184,39 +103,20 @@ export async function uploadMessageAttachment(
   channel: 'internal' | 'public' | 'director',
   file: File
 ): Promise<TicketAttachment> {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
-  }
-
-  const storage = getStorage(app);
-  const contentType = resolveContentType(file, 'application/pdf');
-  const safeName = sanitizeFileName(file.name) || `mensagem-${Date.now()}`;
-  const path = `attachments/tickets/messages/${ticketId}/${channel}/${Date.now()}-${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, {
-    contentType,
-  });
-  const url = await getDownloadURL(storageRef);
-
-  return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    path,
-    url,
-    contentType,
-    size: file.size,
-    uploadedAt: new Date(),
-    category: 'attachment',
-  };
+  return uploadProtectedAttachment(ticketId, 'message', file, { channel });
 }
 
 export async function deleteTicketAttachment(path: string) {
-  const app = getFirebaseClientApp();
-  if (!app) {
-    throw new Error('Firebase Storage não configurado no frontend.');
+  const normalizedPath = String(path || '').trim();
+  const parts = normalizedPath.split('/');
+  const ticketId = parts[3] || '';
+  if (!ticketId || parts[0] !== 'attachments' || parts[1] !== 'tickets') {
+    throw new Error('Caminho de anexo invalido.');
   }
-
-  const storage = getStorage(app);
-  await deleteObject(ref(storage, path));
+  const query = new URLSearchParams({ ticketId, path: normalizedPath });
+  const response = await fetch(`/api/attachments?${query.toString()}`, {
+    method: 'DELETE',
+    headers: await getAuthenticatedActorHeaders(),
+  });
+  await expectApiJson(response, 'Falha ao excluir o anexo.');
 }

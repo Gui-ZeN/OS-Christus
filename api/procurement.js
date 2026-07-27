@@ -1,13 +1,11 @@
 ﻿import { randomUUID } from 'node:crypto';
-import { requireAuthenticatedUser, requireUserWithRoles , resolveActor } from './_lib/authz.js';
+import { requireAuthenticatedUser, resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readProcurement, readProcurementForTicketIds, seedProcurementDefaults } from './_lib/procurement.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
-import { normalizeKey, slugify } from './_lib/text.js';
-
-const REVIEW_LOCK_WINDOW_MS = 20 * 60 * 1000;
+import { assertProcurementMutationAllowed } from './_lib/procurementAccess.js';
 
 // Converte para número finito ou null — evita gravar NaN no Firestore quando o
 // cliente manda string não-numérica em campos numéricos.
@@ -17,178 +15,44 @@ function finiteOrNull(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseCurrency(value) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\.(?=\d{3}(\D|$))/g, '')
-    .replace(',', '.');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function isReviewActive(review) {
-  if (!review?.at) return false;
-  const reviewedAt = new Date(review.at);
-  if (Number.isNaN(reviewedAt.getTime())) return false;
-  return reviewedAt.getTime() + REVIEW_LOCK_WINDOW_MS > Date.now();
-}
-
-async function ensureBudgetReviewLock(db, ticketId, reviewerName) {
-  const ticketRef = db.collection('tickets').doc(ticketId);
-  // Transação: check-then-set atômico do lock (evita 2 revisores simultâneos).
-  await db.runTransaction(async tx => {
-    const snap = await tx.get(ticketRef);
-    if (!snap.exists) {
-      throw new HttpError(404, 'Ticket não encontrado para revisão de orçamento.');
-    }
-
-    const review = snap.data()?.viewingBy || null;
-    if (review && isReviewActive(review) && normalizeKey(review.name) !== normalizeKey(reviewerName)) {
-      throw new HttpError(409, `${review.name} já está revisando este orçamento.`);
-    }
-
-    tx.set(
-      ticketRef,
-      {
-        viewingBy: { name: reviewerName, at: new Date() },
-        updatedAt: new Date(),
-      },
-      { merge: true }
-    );
-  });
-}
-
 /** Upsert que preserva o createdAt original de forma atômica (read+set em transação). */
-async function upsertWithCreatedAt(db, ref, data, now) {
+async function upsertWithCreatedAt(db, ref, data, now, options = {}) {
   await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
-    const createdAt = (snap.exists && snap.data()?.createdAt) || now;
+    const existing = snap.data() || {};
+    const currentStatus = String(existing.status || '');
+    const isImmutable =
+      snap.exists && Array.isArray(options.immutableStatuses) && options.immutableStatuses.includes(currentStatus);
+
+    if (isImmutable && !Array.isArray(options.mutableWhenImmutable)) {
+      throw new HttpError(409, options.immutableMessage || 'Este registro já recebeu uma decisão e não pode mais ser editado.');
+    }
+
+    if (isImmutable) {
+      // Doc imutável (ex.: pagamento já 'paid'), mas alguns campos seguem editáveis
+      // (anexo/recibo). Preserva TODO o resto do doc existente — sem isto, reenviar
+      // o pagamento inteiro só pra anexar um arquivo reescrevia valor/status/etc de
+      // um pagamento já quitado (o vetor de fraude financeira do caminho antigo).
+      const patch = { updatedAt: data.updatedAt || now };
+      for (const field of options.mutableWhenImmutable) {
+        if (Object.prototype.hasOwnProperty.call(data, field)) patch[field] = data[field];
+      }
+      tx.set(ref, patch, { merge: true });
+      return;
+    }
+
+    const createdAt = existing.createdAt || now;
     tx.set(ref, { ...data, createdAt }, { merge: true });
   });
 }
 
-function getItemUnitPrice(item) {
-  const explicit = parseCurrency(item?.unitPrice);
-  if (explicit !== null) return explicit;
-
-  const quantity = item?.quantity != null ? Number(item.quantity) : null;
-  const total = parseCurrency(item?.totalPrice);
-  if (quantity && quantity > 0 && total !== null) {
-    return total / quantity;
-  }
-  return null;
-}
-
-function buildPreferenceEvents(ticketId, approvedQuote, classification) {
-  const vendor = String(approvedQuote?.vendor || '').trim();
-  if (!vendor) return [];
-
-  const approvedValue = parseCurrency(approvedQuote?.value);
-  const serviceCatalogId = classification?.serviceCatalogId ? String(classification.serviceCatalogId).trim() : '';
-  const serviceCatalogName = classification?.serviceCatalogName ? String(classification.serviceCatalogName).trim() : '';
-  const macroServiceId = classification?.macroServiceId ? String(classification.macroServiceId).trim() : '';
-  const macroServiceName = classification?.macroServiceName ? String(classification.macroServiceName).trim() : '';
-  const vendorSlug = slugify(vendor) || 'fornecedor';
-
-  const events = [];
-  if (serviceCatalogId || macroServiceId) {
-    const scopeType = serviceCatalogId ? 'service' : 'macroService';
-    const scopeId = serviceCatalogId || macroServiceId;
-    const scopeName = serviceCatalogName || macroServiceName || scopeId;
-    events.push({
-      id: `${scopeType}__${scopeId}__${ticketId}`,
-      ticketId,
-      scopeType,
-      scopeId,
-      scopeName,
-      vendor,
-      vendorSlug,
-      serviceCatalogId: serviceCatalogId || null,
-      serviceCatalogName: serviceCatalogName || null,
-      macroServiceId: macroServiceId || null,
-      macroServiceName: macroServiceName || null,
-      materialId: null,
-      materialName: null,
-      unit: null,
-      approvedValue,
-      unitPrice: null,
-      regionId: classification?.regionId || null,
-      regionName: classification?.regionName || null,
-      siteId: classification?.siteId || null,
-      siteName: classification?.siteName || null,
-      sector: classification?.sector || null,
-    });
-  }
-
-  for (const item of Array.isArray(approvedQuote?.items) ? approvedQuote.items : []) {
-    const materialKey = String(item?.materialId || item?.materialName || item?.description || '').trim();
-    if (!materialKey) continue;
-    const normalizedMaterialKey = slugify(materialKey);
-    if (!normalizedMaterialKey) continue;
-
-    events.push({
-      id: `material__${normalizedMaterialKey}__${ticketId}`,
-      ticketId,
-      scopeType: 'material',
-      scopeId: normalizedMaterialKey,
-      scopeName: String(item?.materialName || item?.description || materialKey).trim(),
-      vendor,
-      vendorSlug,
-      serviceCatalogId: serviceCatalogId || null,
-      serviceCatalogName: serviceCatalogName || null,
-      macroServiceId: macroServiceId || null,
-      macroServiceName: macroServiceName || null,
-      materialId: item?.materialId ? String(item.materialId).trim() : null,
-      materialName: item?.materialName ? String(item.materialName).trim() : String(item?.description || '').trim() || null,
-      unit: item?.unit ? String(item.unit).trim() : null,
-      approvedValue,
-      unitPrice: getItemUnitPrice(item),
-      regionId: classification?.regionId || null,
-      regionName: classification?.regionName || null,
-      siteId: classification?.siteId || null,
-      siteName: classification?.siteName || null,
-      sector: classification?.sector || null,
-    });
-  }
-
-  return events;
-}
-
-async function syncVendorPreferenceEvents(db, ticketId, approvedQuote, classification) {
-  const events = buildPreferenceEvents(ticketId, approvedQuote, classification);
-  const existingSnap = await db.collection('vendorPreferenceEvents').where('ticketId', '==', ticketId).get();
-  const desiredIds = new Set(events.map(event => event.id));
-  const now = new Date();
-  const batch = db.batch();
-
-  existingSnap.docs.forEach(doc => {
-    if (!desiredIds.has(doc.id)) {
-      batch.delete(doc.ref);
-    }
-  });
-
-  events.forEach(event => {
-    batch.set(
-      db.collection('vendorPreferenceEvents').doc(event.id),
-      {
-        ...event,
-        approvedAt: now,
-        updatedAt: now,
-      },
-      { merge: true }
-    );
-  });
-
-  await batch.commit();
-}
-
-async function writeQuotes(db, ticketId, quotes) {
+async function writeQuotes(db, ticketId, quotes, submittedBy) {
   const now = new Date();
   const classification = quotes[0]?.classification || null;
 
   const quotesCol = db.collection('tickets').doc(ticketId).collection('quotes');
   const entries = quotes.map((quote, index) => {
-    const id = quote.id || `quote-${index + 1}`;
+    const id = String(quote.id || `quote-${index + 1}`);
     return { id, ref: quotesCol.doc(id), data: {
         id,
         ticketId,
@@ -203,10 +67,12 @@ async function writeQuotes(db, ticketId, quotes) {
         initialRoundIndex: finiteOrNull(quote.initialRoundIndex),
         additiveReason: quote.additiveReason != null ? String(quote.additiveReason).trim() : null,
         recommended: Boolean(quote.recommended),
-        status: String(quote.status || 'pending'),
+        status: 'pending',
         attachmentName: quote.attachmentName ? String(quote.attachmentName) : null,
         // Anexo da proposta (URL/caminho): sem isso, o PDF some ao recarregar.
-        attachmentUrl: quote.attachmentUrl ? String(quote.attachmentUrl).trim() : null,
+        attachmentUrl: quote.attachmentPath
+          ? null
+          : quote.attachmentUrl ? String(quote.attachmentUrl).trim() : null,
         attachmentPath: quote.attachmentPath ? String(quote.attachmentPath).trim() : null,
         proposalHeader: quote.proposalHeader
           ? {
@@ -232,39 +98,58 @@ async function writeQuotes(db, ticketId, quotes) {
             }))
           : [],
         classification: quote.classification || classification,
+        submittedBy,
+        submittedAt: now,
         updatedAt: now,
       } };
   });
   if (entries.length === 0) return;
 
-  // Grava TODAS as cotações num único batch atômico (antes era 1 transação por
-  // cotação → falha no meio deixava o orçamento parcial). Pré-lê o createdAt de
-  // cada doc para preservá-lo.
-  const existing = await db.getAll(...entries.map(entry => entry.ref));
-  const createdAtById = new Map();
-  existing.forEach(snap => {
-    if (snap.exists) createdAtById.set(snap.id, snap.data()?.createdAt || null);
+  // A rodada inteira participa da mesma transação da leitura. Assim, uma
+  // aprovação concorrente força retry e nunca volta uma cotação decidida para
+  // "pending".
+  await db.runTransaction(async tx => {
+    const existing = await Promise.all(entries.map(entry => tx.get(entry.ref)));
+    const existingById = new Map(
+      existing.filter(snap => snap.exists).map(snap => [snap.id, snap.data() || {}])
+    );
+
+    for (const entry of entries) {
+      const previous = existingById.get(String(entry.id)) || {};
+      const hasDecision = previous.status === 'approved' || previous.status === 'rejected';
+      if (hasDecision) continue;
+      tx.set(entry.ref, {
+        ...entry.data,
+        createdAt: previous.createdAt || now,
+      }, { merge: true });
+    }
   });
-  const batch = db.batch();
-  for (const entry of entries) {
-    batch.set(entry.ref, { ...entry.data, createdAt: createdAtById.get(entry.id) || now }, { merge: true });
-  }
-  await batch.commit();
 }
 
-async function writeContract(db, ticketId, contract, classification) {
+async function writeContract(db, ticketId, contract, classification, submittedBy) {
   const now = new Date();
-  const id = contract.id || 'contract-1';
+  // Id FIXO 'contract-1' (ignora contract.id do cliente): há UM contrato por OS e
+  // todos os leitores usam .limit(1) ordenado por doc id. Aceitar id arbitrário
+  // deixava o Gestor criar um contrato-SOMBRA ('a-contrato' < 'contract-1' vence a
+  // ordenação) SEM passar pela imutabilidade do 'contract-1' aprovado — reabrindo a
+  // inflação do baseline de medição que o fix do aditivo fechou.
+  const id = 'contract-1';
   const contractRef = db.collection('tickets').doc(ticketId).collection('contracts').doc(id);
   await upsertWithCreatedAt(db, contractRef, {
       id,
       ticketId,
       vendor: String(contract.vendor || '').trim(),
       value: String(contract.value || '').trim(),
-      status: String(contract.status || 'pending_signature'),
+      initialPlannedValue: contract.initialPlannedValue != null ? String(contract.initialPlannedValue).trim() : null,
+      realizedValue: contract.realizedValue != null ? String(contract.realizedValue).trim() : null,
+      status: ['pending_signature', 'pending_upload', 'pending_approval'].includes(String(contract.status || ''))
+        ? String(contract.status)
+        : 'pending_upload',
       viewingBy: contract.viewingBy ? String(contract.viewingBy) : null,
       signedFileName: contract.signedFileName ? String(contract.signedFileName) : null,
-      signedFileUrl: contract.signedFileUrl ? String(contract.signedFileUrl) : null,
+      signedFileUrl: contract.signedFilePath
+        ? null
+        : contract.signedFileUrl ? String(contract.signedFileUrl) : null,
       signedFilePath: contract.signedFilePath ? String(contract.signedFilePath) : null,
       signedFileContentType: contract.signedFileContentType ? String(contract.signedFileContentType) : null,
       signedFileSize: finiteOrNull(contract.signedFileSize),
@@ -281,11 +166,16 @@ async function writeContract(db, ticketId, contract, classification) {
           }))
         : [],
       classification: contract.classification || classification || null,
+      submittedBy,
+      submittedAt: now,
       updatedAt: now,
-    }, now);
+    }, now, {
+      immutableStatuses: ['approved'],
+      immutableMessage: 'O contrato já foi aprovado e não pode mais ser alterado.',
+    });
 }
 
-async function writePayment(db, ticketId, payment, classification) {
+async function writePayment(db, ticketId, payment, classification, submittedBy) {
   const now = new Date();
   const id = payment.id || 'payment-1';
   const paymentRef = db.collection('tickets').doc(ticketId).collection('payments').doc(id);
@@ -300,7 +190,9 @@ async function writePayment(db, ticketId, payment, classification) {
       netValue: payment.netValue != null ? String(payment.netValue).trim() : null,
       progressPercent: finiteOrNull(payment.progressPercent),
       expectedBaselineValue: payment.expectedBaselineValue != null ? String(payment.expectedBaselineValue).trim() : null,
-      status: String(payment.status || 'pending'),
+      // 'paid' só é setado pelo comando settlePayment (transação + snapshot). Este
+      // caminho legado não pode CRIAR um pagamento já quitado com valores forjados.
+      status: String(payment.status) === 'paid' ? 'approved' : String(payment.status || 'pending'),
       label: payment.label ? String(payment.label) : null,
       installmentNumber: finiteOrNull(payment.installmentNumber),
       totalInstallments: finiteOrNull(payment.totalInstallments),
@@ -314,7 +206,7 @@ async function writePayment(db, ticketId, payment, classification) {
             id: String(item?.id || '').trim() || `payment-attachment-${randomUUID()}`,
             name: String(item?.name || '').trim() || 'Anexo',
             path: String(item?.path || '').trim() || '',
-            url: String(item?.url || '').trim() || '',
+            url: item?.path ? '' : String(item?.url || '').trim() || '',
             contentType: item?.contentType ? String(item.contentType).trim() : null,
             size: finiteOrNull(item?.size),
             uploadedAt: item?.uploadedAt ? new Date(item.uploadedAt) : null,
@@ -323,11 +215,21 @@ async function writePayment(db, ticketId, payment, classification) {
         : [],
       paidAt: payment.paidAt ? new Date(payment.paidAt) : null,
       classification: payment.classification || classification || null,
+      submittedBy,
+      submittedAt: now,
       updatedAt: now,
-    }, now);
+    }, now, {
+      // Pagamento já 'paid' (quitado pelo settlePayment) é imutável nos financeiros —
+      // reenviar o pagamento inteiro só atualiza anexo/recibo, nunca valor/status.
+      // `paidAt` fica FORA da lista (só o settle o define, server-side) — senão o
+      // Gestor retro-dataria a data de pagamento de um pagamento quitado.
+      immutableStatuses: ['paid'],
+      mutableWhenImmutable: ['attachments', 'receiptFileName'],
+      immutableMessage: 'Pagamento já quitado — apenas anexos podem ser atualizados.',
+    });
 }
 
-async function writeMeasurement(db, ticketId, measurement, classification) {
+async function writeMeasurement(db, ticketId, measurement, classification, submittedBy) {
   const now = new Date();
   const id = measurement.id || `measurement-${randomUUID()}`;
   const measurementRef = db.collection('tickets').doc(ticketId).collection('measurements').doc(id);
@@ -346,7 +248,7 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
             id: String(item?.id || '').trim() || `measurement-attachment-${randomUUID()}`,
             name: String(item?.name || '').trim() || 'Anexo',
             path: String(item?.path || '').trim() || '',
-            url: String(item?.url || '').trim() || '',
+            url: item?.path ? '' : String(item?.url || '').trim() || '',
             contentType: item?.contentType ? String(item.contentType).trim() : null,
             size: finiteOrNull(item?.size),
             uploadedAt: item?.uploadedAt ? new Date(item.uploadedAt) : null,
@@ -356,8 +258,17 @@ async function writeMeasurement(db, ticketId, measurement, classification) {
       requestedAt: measurement.requestedAt ? new Date(measurement.requestedAt) : now,
       approvedAt: measurement.approvedAt ? new Date(measurement.approvedAt) : null,
       classification: measurement.classification || classification || null,
+      submittedBy,
+      submittedAt: now,
       updatedAt: now,
-    }, now);
+    }, now, {
+      // Medição já registrada ('approved') é imutável no valor/percentual (é uma
+      // leitura pontual da obra) — a CRIAÇÃO segue livre (doc inexistente); só a
+      // reescrita fica restrita a anexos/notas, fechando a adulteração do baseline.
+      immutableStatuses: ['approved'],
+      mutableWhenImmutable: ['attachments', 'notes'],
+      immutableMessage: 'Medição já registrada — apenas anexos podem ser atualizados.',
+    });
 }
 
 export default async function handler(req, res) {
@@ -378,14 +289,24 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const user = await requireUserWithRoles(req, ['Admin', 'Diretor']);
+      const user = await requireAuthenticatedUser(req);
       const actor = resolveActor(user);
+      const submitter = {
+        id: user.id || null,
+        name: user.name || user.email || actor,
+        email: user.email || null,
+        role: user.role || null,
+      };
       const body = await readJsonBody(req);
       const ticketId = String(body?.ticketId || '').trim();
       const type = String(body?.type || '').trim();
       const classification = body?.classification || null;
 
-      if (!ticketId || !type) {
+      if (!type) {
+        return sendJson(res, 400, { ok: false, error: 'ticketId e type são obrigatórios.' });
+      }
+      assertProcurementMutationAllowed(user.role, type);
+      if (type !== 'seedDefaults' && !ticketId) {
         return sendJson(res, 400, { ok: false, error: 'ticketId e type são obrigatórios.' });
       }
 
@@ -405,7 +326,6 @@ export default async function handler(req, res) {
       }
 
       if (type === 'quotes') {
-        await ensureBudgetReviewLock(db, ticketId, user.name || actor);
         const quotes = (Array.isArray(body?.quotes) ? body.quotes : []).map(quote => ({
           ...quote,
           classification: quote?.classification || classification || null,
@@ -424,11 +344,7 @@ export default async function handler(req, res) {
         if ([...additiveCountByRound.values()].some(count => count > 1)) {
           return sendJson(res, 400, { ok: false, error: 'Cada rodada de aditivo deve conter somente 1 cotação.' });
         }
-        await writeQuotes(db, ticketId, quotes);
-        const approvedQuote = quotes.find(quote => String(quote?.status || '').trim() === 'approved');
-        if (approvedQuote) {
-          await syncVendorPreferenceEvents(db, ticketId, approvedQuote, approvedQuote.classification || classification || null);
-        }
+        await writeQuotes(db, ticketId, quotes, submitter);
         await writeAuditLog({
           actor,
           action: 'procurement.quotes.save',
@@ -440,7 +356,7 @@ export default async function handler(req, res) {
       }
 
       if (type === 'contract') {
-        await writeContract(db, ticketId, body?.contract || {}, classification);
+        await writeContract(db, ticketId, body?.contract || {}, classification, submitter);
         await writeAuditLog({
           actor,
           action: 'procurement.contract.save',
@@ -452,7 +368,7 @@ export default async function handler(req, res) {
       }
 
       if (type === 'payment') {
-        await writePayment(db, ticketId, body?.payment || {}, classification);
+        await writePayment(db, ticketId, body?.payment || {}, classification, submitter);
         await writeAuditLog({
           actor,
           action: 'procurement.payment.save',
@@ -464,7 +380,7 @@ export default async function handler(req, res) {
       }
 
       if (type === 'measurement') {
-        await writeMeasurement(db, ticketId, body?.measurement || {}, classification);
+        await writeMeasurement(db, ticketId, body?.measurement || {}, classification, submitter);
         await writeAuditLog({
           actor,
           action: 'procurement.measurement.save',
@@ -490,4 +406,3 @@ export default async function handler(req, res) {
     return sendError(res, error, 'Falha no procurement.');
   }
 }
-

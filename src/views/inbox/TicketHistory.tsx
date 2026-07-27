@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Clock, FileText } from 'lucide-react';
+import { Clock, FileText, Loader2 } from 'lucide-react';
 import type { HistoryItem } from '../../types';
 import { cleanForwardedMessageText } from '../../utils/text';
 import { formatDateTimeSafe } from '../../utils/date';
@@ -18,14 +18,31 @@ function resolveAttachmentPreviewType(contentType?: string | null, fileName?: st
 }
 
 interface TicketHistoryProps {
+  ticketId: string;
   history: HistoryItem[];
   canManageStatus: boolean;
   isSending: boolean;
+  hasOlderHistory?: boolean;
+  isLoadingOlderHistory?: boolean;
+  onLoadOlderHistory?: () => void;
   onUpdateItemTime: (originalIndex: number, value: string) => void;
   onOpenAttachment: (
     title: string,
     type: PreviewKind,
-    options?: { url?: string | null; items?: Array<{ title: string; type: PreviewKind; url?: string | null }> }
+    options?: {
+      url?: string | null;
+      ticketId?: string | null;
+      path?: string | null;
+      driveFileId?: string | null;
+      items?: Array<{
+        title: string;
+        type: PreviewKind;
+        url?: string | null;
+        ticketId?: string | null;
+        path?: string | null;
+        driveFileId?: string | null;
+      }>;
+    }
   ) => void;
 }
 
@@ -34,9 +51,22 @@ interface TicketHistoryProps {
  * `history` e os callbacks estáveis, não re-renderiza a cada tecla no composer
  * (era a maior parte do custo da "travada" ao digitar).
  */
-function TicketHistoryComponent({ history, canManageStatus, isSending, onUpdateItemTime, onOpenAttachment }: TicketHistoryProps) {
+function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending, hasOlderHistory = false, isLoadingOlderHistory = false, onLoadOlderHistory, onUpdateItemTime, onOpenAttachment }: TicketHistoryProps) {
   return (
     <div className="space-y-3 pb-2">
+      {hasOlderHistory && (
+        <div className="flex justify-center pb-1">
+          <button
+            type="button"
+            onClick={onLoadOlderHistory}
+            disabled={isLoadingOlderHistory || !onLoadOlderHistory}
+            className="inline-flex min-h-9 items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60"
+          >
+            {isLoadingOlderHistory && <Loader2 size={14} className="animate-spin" />}
+            {isLoadingOlderHistory ? 'Carregando mensagens...' : 'Carregar mensagens anteriores'}
+          </button>
+        </div>
+      )}
       {history
         .map((item, originalIndex) => ({ item, originalIndex }))
         .sort((a, b) => a.item.time.getTime() - b.item.time.getTime())
@@ -100,11 +130,14 @@ function TicketHistoryComponent({ history, canManageStatus, isSending, onUpdateI
           const isInternalNote = item.visibility === 'internal' || item.type === 'internal';
           const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
           const messageAttachmentItems = (Array.isArray(item.attachments) ? item.attachments : [])
-            .filter(attachment => attachment?.url)
+            .filter(attachment => attachment?.path || attachment?.driveFileId || attachment?.url)
             .map(attachment => ({
               title: attachment.name,
               type: resolveAttachmentPreviewType(attachment.contentType, attachment.name),
               url: attachment.url,
+              ticketId,
+              path: attachment.path,
+              driveFileId: attachment.driveFileId,
             }));
 
           return (
@@ -155,7 +188,13 @@ function TicketHistoryComponent({ history, canManageStatus, isSending, onUpdateI
                           <button
                             key={`${item.id}-attachment-${attachmentIndex}`}
                             type="button"
-                            onClick={() => onOpenAttachment(attachment.title, attachment.type, { url: attachment.url, items: messageAttachmentItems })}
+                            onClick={() => onOpenAttachment(attachment.title, attachment.type, {
+                              url: attachment.url,
+                              ticketId: attachment.ticketId,
+                              path: attachment.path,
+                              driveFileId: attachment.driveFileId,
+                              items: messageAttachmentItems,
+                            })}
                             className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white/70 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
                           >
                             <FileText size={12} />

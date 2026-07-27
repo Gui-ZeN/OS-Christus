@@ -1,13 +1,16 @@
 ﻿import React, { Component, lazy, ReactNode, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   BarChart2,
+  AlertTriangle,
   DollarSign,
   FileText,
   Home,
   Image as ImageIcon,
   Inbox,
+  Loader2,
   LogOut,
   Palette,
+  RefreshCw,
   ScrollText,
   Settings,
   Shield,
@@ -16,10 +19,13 @@ import {
 } from 'lucide-react';
 
 import { SidebarIcon } from './components/ui/SidebarIcon';
+import { NotificationsPopover } from './components/NotificationsPopover';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { CURRENT_RELEASE, hasSeenRelease, markReleaseSeen } from './constants/releaseNotes';
 import { useApp } from './context/AppContext';
 import { useAttachmentPreview } from './context/AttachmentPreviewContext';
+import type { AttachmentPreviewItem } from './context/AttachmentPreviewContext';
+import { resolveAttachmentUrl } from './services/attachmentAccess';
 import { ViewState } from './types';
 
 const CHUNK_RELOAD_KEY = 'os-chunk-reloaded-once';
@@ -168,6 +174,8 @@ export default function App() {
     trackingTicketToken,
     setActiveTicketId,
     tickets,
+    ticketsError,
+    refreshTickets,
     updateTicket,
     login,
     loginWithGoogleAccount,
@@ -187,12 +195,15 @@ export default function App() {
   const attachmentContentRef = useRef<HTMLDivElement>(null);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showAllAttachmentNames, setShowAllAttachmentNames] = useState(false);
+  const [resolvedAttachmentItems, setResolvedAttachmentItems] = useState<AttachmentPreviewItem[]>([]);
+  const [attachmentResolveLoading, setAttachmentResolveLoading] = useState(false);
+  const [attachmentResolveError, setAttachmentResolveError] = useState<string | null>(null);
   const currentRole = currentUser?.role || '';
   const isRequesterRole = currentRole === 'Usuario';
   const canAccessInbox = !isRequesterRole;
   const canAccessOsBoard = currentRole === 'Admin' || currentRole === 'Gestor';
   const canAccessApprovals = currentRole === 'Admin' || currentRole === 'Diretor';
-  const canAccessFinance = currentRole === 'Admin' || currentRole === 'Diretor';
+  const canAccessFinance = currentRole === 'Admin' || currentRole === 'Gestor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessAudit = currentRole === 'Admin';
   const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor' || currentRole === 'Usuario';
@@ -273,6 +284,64 @@ export default function App() {
     });
     return () => {
       document.body.style.overflow = previousOverflow;
+    };
+  }, [attachmentPreview]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!attachmentPreview) {
+      setResolvedAttachmentItems([]);
+      setAttachmentResolveLoading(false);
+      setAttachmentResolveError(null);
+      return;
+    }
+
+    const rawItems = attachmentPreview.items && attachmentPreview.items.length > 0
+      ? attachmentPreview.items
+      : [{
+          title: attachmentPreview.title,
+          type: attachmentPreview.type,
+          url: attachmentPreview.url || null,
+          ticketId: attachmentPreview.ticketId || null,
+          path: attachmentPreview.path || null,
+          driveFileId: attachmentPreview.driveFileId || null,
+        }];
+    const visibleItems = rawItems.filter(item => {
+      const fileRef = `${String(item.title || '')} ${String(item.url || '')} ${String(item.path || '')}`.toLowerCase();
+      return !fileRef.includes('.gif');
+    });
+
+    setAttachmentResolveLoading(true);
+    setAttachmentResolveError(null);
+    setResolvedAttachmentItems([]);
+    void Promise.all(
+      visibleItems.map(async item => {
+        try {
+          const url = await resolveAttachmentUrl(item);
+          return { item: { ...item, url }, error: null };
+        } catch (error) {
+          return {
+            item: { ...item, url: null },
+            error: error instanceof Error ? error.message : 'Não foi possível abrir o anexo.',
+          };
+        }
+      })
+    ).then(results => {
+      if (cancelled) return;
+      setResolvedAttachmentItems(results.map(result => result.item));
+      const failed = results.filter(result => result.error);
+      if (failed.length > 0) {
+        setAttachmentResolveError(
+          failed.length === results.length
+            ? failed[0].error
+            : `${failed.length} anexo(s) não puderam ser carregados.`
+        );
+      }
+      setAttachmentResolveLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
     };
   }, [attachmentPreview]);
 
@@ -419,6 +488,7 @@ export default function App() {
           {canAccessSettings && <SidebarIcon icon={<Settings size={20} />} active={currentView === VIEWS.SETTINGS} onClick={() => navigateTo(VIEWS.SETTINGS)} title="Configurações" />}
         </nav>
         <div className="mt-auto flex flex-col gap-3 px-2.5">
+          {currentUser?.id && <NotificationsPopover userKey={currentUser.id} />}
           <div className="relative" ref={themeMenuRef}>
             <button
               onClick={event => {
@@ -468,6 +538,24 @@ export default function App() {
       </aside>
 
       <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {ticketsError && (
+          <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:px-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <AlertTriangle size={15} className="shrink-0" />
+              <span className="truncate">
+                Não foi possível atualizar os tickets. Os dados já carregados foram mantidos.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refreshTickets()}
+              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-sm border border-amber-300 bg-white px-2.5 font-medium hover:bg-amber-100"
+            >
+              <RefreshCw size={13} />
+              Tentar novamente
+            </button>
+          </div>
+        )}
         <ErrorBoundary resetKey={currentView}>
           <Suspense fallback={<ViewLoader />}>
             {currentView === VIEWS.HOME && <HomeView />}
@@ -486,14 +574,8 @@ export default function App() {
       <WhatsNewModal isOpen={showWhatsNew} onClose={closeWhatsNew} />
 
       {attachmentPreview && (() => {
-        const rawAttachmentItems = attachmentPreview.items && attachmentPreview.items.length > 0
-          ? attachmentPreview.items
-          : [{ title: attachmentPreview.title, type: attachmentPreview.type, url: attachmentPreview.url || null }];
-        const attachmentItems = rawAttachmentItems.filter(item => {
-          const fileRef = `${String(item.title || '')} ${String(item.url || '')}`.toLowerCase();
-          return !fileRef.includes('.gif');
-        });
-        const previewUrl = attachmentPreview.url || attachmentItems[0]?.url || null;
+        const attachmentItems = resolvedAttachmentItems;
+        const previewUrl = attachmentItems[0]?.url || null;
         const visibleAttachmentNames = showAllAttachmentNames ? attachmentItems : attachmentItems.slice(0, 6);
         const hasMoreAttachmentNames = attachmentItems.length > 6;
 
@@ -537,8 +619,18 @@ export default function App() {
                   )}
                 </div>
               )}
+              {attachmentResolveError && (
+                <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-800" role="alert">
+                  {attachmentResolveError}
+                </div>
+              )}
               <div ref={attachmentContentRef} className="flex-1 bg-roman-bg p-8 overflow-auto">
-                {attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (
+                {attachmentResolveLoading ? (
+                  <div className="flex h-full items-center justify-center gap-2 text-sm text-roman-text-sub">
+                    <Loader2 size={18} className="animate-spin" />
+                    Carregando anexo...
+                  </div>
+                ) : attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     {attachmentItems.map((item, index) => (
                       <div key={`${item.title}-${index}`} className="bg-roman-surface border border-roman-border shadow-lg rounded-sm overflow-hidden">

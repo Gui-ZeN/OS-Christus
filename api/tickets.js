@@ -5,9 +5,18 @@ import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_li
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog, readTicketsChangedSince } from './_lib/ticketAccess.js';
-import { mergeTicketHistory, normalizeTicketForStorage, reserveNextTicketId, serializeTicketForApi } from './_lib/tickets.js';
+import {
+  copyTicketHistoryToSubcollection,
+  mergeTicketHistory,
+  normalizeTicketForStorage,
+  readTicketHistoryPage,
+  readTicketHistoryFromSubcollection,
+  reserveNextTicketId,
+  serializeTicketForApi,
+  writeTicketHistoryEntries,
+} from './_lib/tickets.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
-import { assertAllowedAttachmentMime } from './_lib/attachments.js';
+import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
 import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
@@ -17,6 +26,15 @@ const STATUS_WAITING_MAINTENANCE_APPROVAL = 'Aguardando aprovação da manutenç
 const STATUS_WAITING_PAYMENT = 'Aguardando pagamento';
 const STATUS_CLOSED = 'Encerrada';
 const STATUS_CANCELED = 'Cancelada';
+const TICKET_MULTIPART_LIMITS = Object.freeze({
+  maxFiles: 10,
+  maxFileSizeBytes: 10 * 1024 * 1024,
+  maxTotalFileBytes: 25 * 1024 * 1024,
+  maxFields: 10,
+  maxFieldSizeBytes: 1024 * 1024,
+  maxParts: 20,
+  maxRequestSizeBytes: 30 * 1024 * 1024,
+});
 
 // Allow-list dos campos que o PATCH do painel pode gravar. Enumerado a partir de
 // TODAS as chamadas updateTicket() do front. Tudo fora daqui é descartado — em vez
@@ -96,7 +114,10 @@ export function sanitizeClientHistoryEntry(entry, senderLabel) {
   if (Array.isArray(entry?.attachments)) {
     sanitized.attachments = entry.attachments
       .filter(att => att && typeof att === 'object')
-      .map(att => ({ ...att, url: isSafeAttachmentUrl(att.url) ? String(att.url).trim() : '' }));
+      .map(att => ({
+        ...att,
+        url: att.path ? '' : isSafeAttachmentUrl(att.url) ? String(att.url).trim() : '',
+      }));
   }
   return sanitized;
 }
@@ -275,6 +296,36 @@ function sanitizeTicketForPublicTracking(ticket) {
     executionProgress,
     history,
   };
+}
+
+async function hydrateTicketHistoryForRead(ticket, ticketRef, options = {}) {
+  if (!ticket?.historySubcollectionReady) return ticket;
+  if (options.paginated) {
+    const page = await readTicketHistoryPage(ticketRef, { limit: options.limit || 50 });
+    return {
+      ...ticket,
+      history: [...page.history].reverse(),
+      historyPagination: {
+        nextCursor: page.nextCursor,
+        isComplete: !page.nextCursor,
+      },
+    };
+  }
+  const history = await readTicketHistoryFromSubcollection(ticketRef, ticket.history);
+  return { ...ticket, history };
+}
+
+async function hydrateTicketsHistoryForRead(col, tickets) {
+  const result = [];
+  const list = Array.isArray(tickets) ? tickets : [];
+  for (let start = 0; start < list.length; start += 8) {
+    const batch = list.slice(start, start + 8);
+    const hydrated = await Promise.all(batch.map(ticket =>
+      hydrateTicketHistoryForRead(ticket, col.doc(ticket.id), { paginated: true, limit: 50 })
+    ));
+    result.push(...hydrated);
+  }
+  return result;
 }
 
 function buildPublicTrackingPayload(beforeData, approved) {
@@ -560,7 +611,11 @@ async function uploadTicketAttachments(ticketId, attachments) {
     }
 
     // Allow-list de MIME: rejeita SVG/HTML/executáveis (XSS armazenado).
-    const contentType = assertAllowedAttachmentMime(attachment.mimeType, attachment.filename || `anexo-${index + 1}`);
+    const contentType = assertAllowedAttachmentContent(
+      attachment.buffer,
+      attachment.mimeType,
+      attachment.filename || `anexo-${index + 1}`
+    );
 
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`) || `anexo-${Date.now()}-${index + 1}`;
     const isPdf = contentType === 'application/pdf';
@@ -568,7 +623,6 @@ async function uploadTicketAttachments(ticketId, attachments) {
     const path = `${baseFolder}/${ticketId}/public-${Date.now()}-${index + 1}-${filename}`;
     const file = bucket.file(path);
 
-    let url;
     try {
       await file.save(attachment.buffer, {
         resumable: false,
@@ -578,10 +632,6 @@ async function uploadTicketAttachments(ticketId, attachments) {
         },
       });
 
-      [url] = await file.getSignedUrl({
-        action: 'read',
-        expires: '2035-01-01',
-      });
     } catch (error) {
       if (error instanceof HttpError) throw error;
       throw new HttpError(500, `Nao foi possivel salvar o anexo "${attachment.filename || `anexo-${index + 1}`}". Tente com uma imagem menor ou registre a solicitacao sem foto.`);
@@ -591,7 +641,7 @@ async function uploadTicketAttachments(ticketId, attachments) {
       id: randomUUID(),
       name: attachment.filename || filename,
       path,
-      url,
+      url: '',
       contentType,
       size: Number(attachment.size || attachment.buffer.length || 0),
       uploadedAt,
@@ -617,11 +667,12 @@ async function deleteTicketCascade(db, ticketId) {
     ? ticketData.closureChecklist.documents.map(item => item?.path).filter(Boolean)
     : [];
 
-  const [quotesDeleted, contractsDeleted, paymentsDeleted, measurementsDeleted] = await Promise.all([
+  const [quotesDeleted, contractsDeleted, paymentsDeleted, measurementsDeleted, historyEntriesDeleted] = await Promise.all([
     deleteSubcollection(ticketRef, 'quotes'),
     deleteSubcollection(ticketRef, 'contracts'),
     deleteSubcollection(ticketRef, 'payments'),
     deleteSubcollection(ticketRef, 'measurements'),
+    deleteSubcollection(ticketRef, 'historyEntries'),
   ]);
 
   const threadRef = db.collection('emailThreads').doc(ticketId);
@@ -646,6 +697,7 @@ async function deleteTicketCascade(db, ticketId) {
       contracts: contractsDeleted,
       payments: paymentsDeleted,
       measurements: measurementsDeleted,
+      historyEntries: historyEntriesDeleted,
       threadMessages: threadMessagesDeleted,
       inbound: inboundDeleted,
       emailEvents: emailEventsDeleted,
@@ -656,18 +708,24 @@ async function deleteTicketCascade(db, ticketId) {
 }
 
 async function readPublicTrackingProcurement(ticketRef) {
-  const [contractSnap, paymentsSnap, measurementsSnap] = await Promise.all([
+  // Contrato canônico ('contract-1') com fallback ao legado: o `.limit(1)` sem
+  // orderBy resolve por ID, então um doc com id menor venceria o contrato real.
+  const [canonicalContractSnap, contractSnap, paymentsSnap, measurementsSnap] = await Promise.all([
+    ticketRef.collection('contracts').doc('contract-1').get(),
     ticketRef.collection('contracts').limit(1).get(),
     ticketRef.collection('payments').get(),
     ticketRef.collection('measurements').get(),
   ]);
 
-  const contractRaw = contractSnap.empty
-    ? null
-    : serializeValue({
-        id: contractSnap.docs[0].id,
-        ...contractSnap.docs[0].data(),
-      });
+  const contractDoc = canonicalContractSnap.exists
+    ? canonicalContractSnap
+    : (contractSnap.empty ? null : contractSnap.docs[0]);
+  const contractRaw = contractDoc
+    ? serializeValue({
+        id: contractDoc.id,
+        ...contractDoc.data(),
+      })
+    : null;
 
   const contract = contractRaw
     ? {
@@ -741,13 +799,44 @@ export default async function handler(req, res) {
         }
 
         const trackingDoc = trackingSnap.docs[0];
-        const ticket = sanitizeTicketForPublicTracking(serializeTicketForApi({
+        const hydratedTicket = await hydrateTicketHistoryForRead({
           id: trackingDoc.id,
           ...trackingDoc.data(),
-        }));
+        }, trackingDoc.ref);
+        const ticket = sanitizeTicketForPublicTracking(serializeTicketForApi(hydratedTicket));
         const procurement = await readPublicTrackingProcurement(trackingDoc.ref);
 
         return sendJson(res, 200, { ok: true, ticket, procurement });
+      }
+
+      const historyTicketId = String(req.query?.historyTicketId || '').trim().toUpperCase();
+      if (historyTicketId) {
+        const user = await requireAuthenticatedUser(req);
+        const ticketRef = col.doc(historyTicketId);
+        const ticketSnap = await ticketRef.get();
+        if (!ticketSnap.exists) return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
+        const ticketData = ticketSnap.data() || {};
+        const territory = user.role === 'Admin'
+          ? { regions: [], sites: [] }
+          : await readTerritoryCatalog(db);
+        if (!canUserAccessTicket(user, { id: ticketSnap.id, ...ticketData }, territory.regions, territory.sites)) {
+          return sendJson(res, 403, { ok: false, error: 'Você não tem acesso a esta OS.' });
+        }
+        if (!ticketData.historySubcollectionReady) {
+          return sendJson(res, 409, {
+            ok: false,
+            error: 'O histórico desta OS ainda não foi migrado para paginação.',
+          });
+        }
+        const page = await readTicketHistoryPage(ticketRef, {
+          cursor: req.query?.historyCursor,
+          limit: req.query?.historyLimit,
+        });
+        return sendJson(res, 200, {
+          ok: true,
+          history: serializeTicketForApi({ history: page.history }).history,
+          nextCursor: page.nextCursor,
+        });
       }
 
       const user = await requireAuthenticatedUser(req);
@@ -765,6 +854,7 @@ export default async function handler(req, res) {
         ? await readTicketsChangedSince(db, user, sinceDate)
         : await readAccessibleTickets(db, user);
 
+      const ticketsWithHistory = await hydrateTicketsHistoryForRead(col, tickets);
       return sendJson(
         res,
         200,
@@ -772,7 +862,7 @@ export default async function handler(req, res) {
           ok: true,
           mode: useDelta ? 'delta' : 'full',
           serverTime: serverTime.toISOString(),
-          tickets: tickets
+          tickets: ticketsWithHistory
             .map(serializeTicketForApi)
             .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time)),
         }
@@ -780,7 +870,30 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const parsedBody = await parseInboundBody(req);
+      let user = null;
+      const hasAuthHeader = String(req.headers.authorization || '').trim().length > 0;
+      if (hasAuthHeader) {
+        const authedUser = await requireAuthenticatedUser(req);
+        // Só papéis de gestão usam o caminho autenticado. Usuários comuns seguem
+        // pelo fluxo público e continuam sujeitos ao limite por IP.
+        if (authedUser.role === 'Admin' || authedUser.role === 'Gestor' || authedUser.role === 'Diretor') {
+          user = authedUser;
+        }
+      }
+      if (!user) {
+        // O rate limit vem antes do parse multipart para rejeitar abuso sem
+        // carregar anexos potencialmente grandes em memória.
+        await enforceRateLimit(req, {
+          bucket: 'ticket-create',
+          limit: 5,
+          windowMs: 10 * 60 * 1000,
+          message: 'Muitas solicitações enviadas. Aguarde alguns minutos e tente novamente.',
+        });
+      }
+
+      const parsedBody = await parseInboundBody(req, {
+        multipartLimits: TICKET_MULTIPART_LIMITS,
+      });
       let ticketPayload = parsedBody?.ticket;
       if (typeof ticketPayload === 'string') {
         try {
@@ -792,29 +905,6 @@ export default async function handler(req, res) {
 
       if (!ticketPayload || typeof ticketPayload !== 'object') {
         return sendJson(res, 400, { ok: false, error: 'ticket é obrigatório.' });
-      }
-
-      let user = null;
-      const hasAuthHeader = String(req.headers.authorization || '').trim().length > 0;
-      if (hasAuthHeader) {
-        const authedUser = await requireAuthenticatedUser(req);
-        // Só papéis de gestão usam o caminho AUTENTICADO (ticket completo, história
-        // do cliente, duplicação). Um 'Usuario' logado — ou qualquer sessão Firebase
-        // persistida no navegador que caia no formulário público (o actorHeaders
-        // anexa o token sempre que há sessão) — segue pelo caminho PÚBLICO (rebuild
-        // server-side + rate limit), NÃO 403: senão o form público quebraria.
-        if (authedUser.role === 'Admin' || authedUser.role === 'Gestor' || authedUser.role === 'Diretor') {
-          user = authedUser;
-        }
-      }
-      if (!user) {
-        // Criação pública (ou não-gestor autenticado): limita abuso/spam por IP.
-        await enforceRateLimit(req, {
-          bucket: 'ticket-create',
-          limit: 5,
-          windowMs: 10 * 60 * 1000,
-          message: 'Muitas solicitações enviadas. Aguarde alguns minutos e tente novamente.',
-        });
       }
 
       const now = new Date();
@@ -905,6 +995,8 @@ export default async function handler(req, res) {
         }
         throw error;
       }
+      await copyTicketHistoryToSubcollection(db, col.doc(ticketId), createdTicket.history)
+        .catch(error => console.error('[tickets] falha ao espelhar histórico inicial', { ticketId, error }));
 
       await writeAuditLog({
         actor: user ? buildActorLabel(user, user.email || user.name || 'painel') : 'Sistema',
@@ -960,6 +1052,7 @@ export default async function handler(req, res) {
               return { blocked: true };
             }
             const payload = buildPublicRequesterMessagePayload(data, publicMessage);
+            writeTicketHistoryEntries(tx, trackingDoc.ref, [payload.history.at(-1)]);
             tx.set(trackingDoc.ref, payload, { merge: true });
             return { before: data, payload };
           });
@@ -1023,6 +1116,7 @@ export default async function handler(req, res) {
             return { notAllowed: true };
           }
           const payload = buildPublicTrackingPayload(data, approved);
+          writeTicketHistoryEntries(tx, trackingDoc.ref, [payload.history.at(-1)]);
           tx.set(trackingDoc.ref, payload, { merge: true });
           return { before: data, payload };
         });
@@ -1107,6 +1201,8 @@ export default async function handler(req, res) {
 
         const freshHistory = Array.isArray(data.history) ? data.history : [];
         const payload = { ...updates, updatedAt: new Date() };
+        let newHistoryEntries = [];
+        let editedHistoryEntry = null;
         const statusChanged = updates.status && updates.status !== data.status;
 
         // Integridade do fluxo: rejeita status inexistente e transições fora
@@ -1135,12 +1231,16 @@ export default async function handler(req, res) {
             statusChanged && shouldAppendAutomaticHistory(data.history, updates.history)
               ? [buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status)]
               : [];
+          newHistoryEntries = [...sanitizedNew, ...statusEntry];
           payload.history = mergeTicketHistory(freshHistory, [...sanitizedNew, ...statusEntry]).merged;
         } else if (statusChanged) {
-          payload.history = [
-            ...freshHistory,
-            buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status),
-          ];
+          const statusEntry = buildAutomaticStatusHistoryEntry(
+            buildActorLabel(user, actor),
+            data.status || 'Sem status',
+            updates.status
+          );
+          newHistoryEntries = [statusEntry];
+          payload.history = [...freshHistory, statusEntry];
         }
 
         // Edição de horário de UMA entrada JÁ existente (caminho dedicado): o
@@ -1155,9 +1255,13 @@ export default async function handler(req, res) {
             payload.history = base.map(entry =>
               entry?.id === body.historyTimeEdit.id ? { ...entry, time: editTime } : entry
             );
+            editedHistoryEntry = payload.history.find(entry => entry?.id === body.historyTimeEdit.id) || null;
           }
         }
 
+        if (newHistoryEntries.length > 0 || editedHistoryEntry) {
+          writeTicketHistoryEntries(tx, docRef, [...newHistoryEntries, editedHistoryEntry].filter(Boolean));
+        }
         tx.set(docRef, payload, { merge: true });
         return { before: data, payload };
       });
@@ -1229,4 +1333,3 @@ export default async function handler(req, res) {
     return sendError(res, error, 'Falha no endpoint de tickets.');
   }
 }
-

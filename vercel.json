@@ -13,6 +13,10 @@
       "destination": "/api/mail?route=health"
     },
     {
+      "source": "/api/email/outbox-worker",
+      "destination": "/api/mail?route=outbox-worker"
+    },
+    {
       "source": "/api/email/gmail-sync",
       "destination": "/api/mail?route=gmail-sync"
     },
@@ -31,6 +35,10 @@
     {
       "source": "/api/firestore-backfill",
       "destination": "/api/admin-tools?route=backfill"
+    },
+    {
+      "source": "/api/ticket-history-backfill",
+      "destination": "/api/admin-tools?route=ticket-history-backfill"
     },
     {
       "source": "/api/firestore-legacy-health",

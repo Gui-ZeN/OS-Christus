@@ -65,6 +65,23 @@ function resolveTicketRegionIds(ticket, regions, sites) {
   return matches;
 }
 
+function isDirectorAssignedToTicket(user, ticket) {
+  if (user?.role !== 'Diretor') return false;
+  const directorIds = Array.isArray(ticket?.directorIds)
+    ? ticket.directorIds.map(value => String(value || '').trim()).filter(Boolean)
+    : [];
+  const directorEmails = Array.isArray(ticket?.directorEmails)
+    ? ticket.directorEmails.map(value => String(value || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  const userId = String(user?.id || '').trim();
+  const userEmail = String(user?.email || '').trim().toLowerCase();
+
+  return Boolean(
+    (userId && directorIds.includes(userId)) ||
+    (userEmail && directorEmails.includes(userEmail))
+  );
+}
+
 function canUserAccessTicket(user, ticket, regions, sites) {
   if (!user) return false;
   if (user.role === 'Admin') return true;
@@ -77,10 +94,7 @@ function canUserAccessTicket(user, ticket, regions, sites) {
       : [];
     // OS com diretores designados: somente eles têm acesso (mesmo fora do território).
     if (directorIds.length > 0 || directorEmails.length > 0) {
-      const userId = String(user.id || '').trim();
-      const userEmail = String(user.email || '').trim().toLowerCase();
-      if (userId && directorIds.includes(userId)) return true;
-      if (userEmail && directorEmails.includes(userEmail)) return true;
+      if (isDirectorAssignedToTicket(user, ticket)) return true;
       return false;
     }
     // OS sem diretor designado: cai no escopo territorial (regionIds/siteIds),
@@ -259,6 +273,7 @@ export {
   normalizeKey,
   resolveTicketSiteIds,
   resolveTicketRegionIds,
+  isDirectorAssignedToTicket,
   canUserAccessTicket,
   readTerritoryCatalog,
   readAccessibleTickets,

@@ -17,6 +17,12 @@ type EmailHealthResponse = {
     sync: number;
     byProvider: Record<string, number>;
   };
+  outbox: {
+    pending: number;
+    processing: number;
+    failed: number;
+    'dead-letter': number;
+  };
   recentErrors: Array<{
     id: string;
     createdAt: string | { _seconds?: number };
@@ -225,6 +231,20 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           <div key={card.label} className={`rounded-2xl border p-4 ${embedded ? 'border-stone-200 bg-white' : 'border-roman-border bg-roman-surface'}`}>
             <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
             <div className="mt-2 text-2xl font-serif text-roman-text-main">{loading ? '...' : card.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'Fila pendente', value: data?.outbox.pending ?? 0 },
+          { label: 'Em processamento', value: data?.outbox.processing ?? 0 },
+          { label: 'Falhas com retry', value: data?.outbox.failed ?? 0 },
+          { label: 'Intervenção necessária', value: data?.outbox['dead-letter'] ?? 0 },
+        ].map(card => (
+          <div key={card.label} className={`border p-3 ${embedded ? 'rounded-xl border-stone-200 bg-white' : 'rounded-sm border-roman-border bg-roman-surface'}`}>
+            <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
+            <div className="mt-1 text-xl font-serif text-roman-text-main">{loading ? '...' : card.value}</div>
           </div>
         ))}
       </div>

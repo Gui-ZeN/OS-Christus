@@ -1,6 +1,6 @@
 ﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
-import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
+import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 import { repairMojibake } from '../utils/text';
 
@@ -250,6 +250,44 @@ export async function fetchTrackingTicketFromApi(trackingToken: string): Promise
   return payload.ticket;
 }
 
+export interface TicketHistoryPage {
+  history: HistoryItem[];
+  nextCursor: string | null;
+}
+
+export async function fetchTicketHistoryPage(
+  ticketId: string,
+  options: { cursor?: string | null; limit?: number } = {}
+): Promise<TicketHistoryPage> {
+  const query = new URLSearchParams({
+    historyTicketId: ticketId,
+    historyLimit: String(options.limit || 50),
+  });
+  if (options.cursor) query.set('historyCursor', options.cursor);
+  const response = await fetch(`/api/tickets?${query.toString()}`, {
+    cache: 'no-store',
+    headers: await getAuthenticatedActorHeaders(),
+  });
+  const json = await expectApiJson<{ ok: boolean; history?: ApiTicket['history']; nextCursor?: string | null }>(
+    response,
+    'Falha ao carregar histórico da OS.'
+  );
+  if (!json.ok || !Array.isArray(json.history)) throw new Error('Resposta inválida do histórico da OS.');
+  return {
+    history: json.history.map(item => ({
+      ...item,
+      time: coerceDate(item.time),
+      attachments: Array.isArray(item.attachments)
+        ? item.attachments.map(attachment => ({
+            ...attachment,
+            uploadedAt: attachment.uploadedAt ? coerceDate(attachment.uploadedAt) : null,
+          }))
+        : undefined,
+    })),
+    nextCursor: typeof json.nextCursor === 'string' ? json.nextCursor : null,
+  };
+}
+
 export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket> {
   const authHeaders = await getAuthenticatedActorHeaders().catch(() => ({}));
   const response = await fetch('/api/tickets', {
@@ -326,6 +364,5 @@ export async function deleteTicketInApi(id: string) {
   });
   await expectApiJson(response, 'Falha ao excluir ticket na API.');
 }
-
 
 

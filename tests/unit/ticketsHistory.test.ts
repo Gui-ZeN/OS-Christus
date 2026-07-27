@@ -5,7 +5,13 @@ import {
   ALLOWED_TICKET_PATCH_FIELDS,
   HISTORY_ENTRY_TYPES,
 } from '../../api/tickets.js';
-import { mergeTicketHistory, normalizeTicketForStorage } from '../../api/_lib/tickets.js';
+import {
+  mergeTicketHistory,
+  normalizeTicketForStorage,
+  serializeTicketForApi,
+  ticketHistoryEntryDocumentId,
+  writeTicketHistoryEntries,
+} from '../../api/_lib/tickets.js';
 
 describe('actorHistoryLabel', () => {
   it('formato "Nome (Papel)" — casa o displayActorLabel do front', () => {
@@ -46,6 +52,17 @@ describe('sanitizeClientHistoryEntry (anti-forja)', () => {
   it('preserva o texto (conteúdo livre — atribuído ao ator real)', () => {
     expect(sanitizeClientHistoryEntry({ id: 'x', text: 'olá' }, SENDER).text).toBe('olá');
   });
+
+  it('não persiste URL permanente quando o anexo possui path protegido', () => {
+    const out = sanitizeClientHistoryEntry({
+      id: 'x',
+      attachments: [{
+        path: 'attachments/tickets/messages/OS-0100/public/foto.jpg',
+        url: 'https://storage.example/token-permanente',
+      }],
+    }, SENDER);
+    expect(out.attachments[0].url).toBe('');
+  });
 });
 
 describe('ALLOWED_TICKET_PATCH_FIELDS', () => {
@@ -83,6 +100,48 @@ describe('mergeTicketHistory (dedup por id)', () => {
   });
 });
 
+describe('ticketHistoryEntryDocumentId', () => {
+  it('gera ID estável, seguro para subcoleção e distinto por OS', () => {
+    const first = ticketHistoryEntryDocumentId('OS-0001', 'message/a');
+    expect(first).toBe(ticketHistoryEntryDocumentId('OS-0001', 'message/a'));
+    expect(first).not.toContain('/');
+    expect(first).not.toBe(ticketHistoryEntryDocumentId('OS-0002', 'message/a'));
+  });
+});
+
+describe('writeTicketHistoryEntries (não perde entrada legada sem id)', () => {
+  function mockRefAndTx() {
+    const writes: Array<{ docId: string; data: Record<string, unknown> }> = [];
+    const ticketRef = {
+      id: 'OS-0001',
+      collection: () => ({ doc: (docId: string) => ({ docId }) }),
+    };
+    const tx = { set: (ref: { docId: string }, data: Record<string, unknown>) => writes.push({ docId: ref.docId, data }) };
+    return { writes, ticketRef, tx };
+  }
+
+  it('gera id determinístico para entrada SEM id (antes era descartada)', () => {
+    const { writes, ticketRef, tx } = mockRefAndTx();
+    const count = writeTicketHistoryEntries(tx as never, ticketRef as never, [
+      { time: '2026-05-20T10:00:00.000Z', type: 'system', sender: 'Sistema', text: 'entrada legada sem id' },
+    ]);
+    expect(count).toBe(1);
+    expect(writes).toHaveLength(1);
+    expect(String(writes[0].data.id)).toMatch(/^legacy-/);
+  });
+
+  it('id determinístico é idempotente (mesmo conteúdo → mesmo doc, sem duplicar)', () => {
+    const entry = { time: '2026-05-20T10:00:00.000Z', type: 'system', sender: 'Sistema', text: 'x' };
+    const a = mockRefAndTx();
+    writeTicketHistoryEntries(a.tx as never, a.ticketRef as never, [entry]);
+    const b = mockRefAndTx();
+    writeTicketHistoryEntries(b.tx as never, b.ticketRef as never, [entry, { ...entry }]);
+    expect(b.writes).toHaveLength(1); // dedup por id gerado
+    expect(b.writes[0].docId).toBe(a.writes[0].docId);
+    expect(b.writes[0].data.id).toBe(a.writes[0].data.id);
+  });
+});
+
 describe('normalizeTicketForStorage', () => {
   it('converte time de string ISO para Date, inclusive nas entradas de histórico', () => {
     const out = normalizeTicketForStorage({
@@ -92,5 +151,29 @@ describe('normalizeTicketForStorage', () => {
     expect(out.time).toBeInstanceOf(Date);
     expect(out.history[0].time).toBeInstanceOf(Date);
     expect(out.history[0].time.toISOString()).toBe('2026-05-20T11:00:00.000Z');
+  });
+
+  it('remove URL permanente de anexos com path ao normalizar', () => {
+    const out = normalizeTicketForStorage({
+      attachments: [{
+        path: 'attachments/tickets/images/OS-0100/foto.jpg',
+        url: 'https://storage.example/token-permanente',
+      }],
+    });
+    expect(out.attachments[0].url).toBe('');
+  });
+});
+
+describe('serializeTicketForApi', () => {
+  it('não expõe URL legada quando existe path protegido', () => {
+    const out = serializeTicketForApi({
+      id: 'OS-0100',
+      attachments: [{
+        path: 'attachments/tickets/images/OS-0100/foto.jpg',
+        url: 'https://storage.example/token-permanente',
+      }],
+      history: [],
+    });
+    expect(out.attachments[0].url).toBe('');
   });
 });

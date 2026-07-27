@@ -1,6 +1,11 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Boxes, CheckCircle, Database, Loader2, Mail, MapPinned, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
-import { runFirestoreLegacyBackfill, type FirestoreBackfillResult } from '../services/adminActionsApi';
+import {
+  runFirestoreLegacyBackfill,
+  runTicketHistoryBackfill,
+  type FirestoreBackfillResult,
+  type TicketHistoryBackfillResult,
+} from '../services/adminActionsApi';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApp } from '../context/AppContext';
 import { isFirebaseAuthConfigured } from '../lib/firebaseClient';
@@ -293,6 +298,9 @@ export function SettingsView() {
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillError, setBackfillError] = useState<string | null>(null);
   const [backfillResult, setBackfillResult] = useState<FirestoreBackfillResult | null>(null);
+  const [historyBackfillLoading, setHistoryBackfillLoading] = useState(false);
+  const [historyBackfillError, setHistoryBackfillError] = useState<string | null>(null);
+  const [historyBackfillResult, setHistoryBackfillResult] = useState<TicketHistoryBackfillResult | null>(null);
   const [legacyHealth, setLegacyHealth] = useState<FirestoreLegacyHealth | null>(null);
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationsHealthResponse | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
@@ -460,6 +468,19 @@ export function SettingsView() {
       setBackfillError(error instanceof Error ? error.message : 'Falha ao executar backfill.');
     } finally {
       setBackfillLoading(false);
+    }
+  };
+
+  const handleRunHistoryBackfill = async () => {
+    setHistoryBackfillLoading(true);
+    setHistoryBackfillError(null);
+    try {
+      const response = await runTicketHistoryBackfill(historyBackfillResult?.nextCursor);
+      setHistoryBackfillResult(response.result);
+    } catch (error) {
+      setHistoryBackfillError(error instanceof Error ? error.message : 'Falha ao copiar o histórico das OS.');
+    } finally {
+      setHistoryBackfillLoading(false);
     }
   };
 
@@ -1652,6 +1673,14 @@ export function SettingsView() {
                           Executar Backfill
                         </button>
                         <button
+                          onClick={() => void handleRunHistoryBackfill()}
+                          className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2 disabled:opacity-60"
+                          disabled={historyBackfillLoading || backfillLoading || integrationsLoading}
+                        >
+                          {historyBackfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+                          {historyBackfillResult?.nextCursor ? 'Próximo lote do histórico' : 'Copiar histórico das OS'}
+                        </button>
+                        <button
                           onClick={() => void loadIntegrations()}
                           className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2"
                           disabled={integrationsLoading || backfillLoading}
@@ -1665,6 +1694,7 @@ export function SettingsView() {
                     <div className="mb-4 space-y-3">
                       {integrationsError && <FeedbackBanner tone="error">{integrationsError}</FeedbackBanner>}
                       {backfillError && <FeedbackBanner tone="error">{backfillError}</FeedbackBanner>}
+                      {historyBackfillError && <FeedbackBanner tone="error">{historyBackfillError}</FeedbackBanner>}
                       {backfillResult && (
                         <FeedbackBanner tone="success">
                           <div>
@@ -1674,6 +1704,17 @@ export function SettingsView() {
                               <div>Tickets: {backfillResult.updatedTickets}</div>
                               <div>Notificações: {backfillResult.updatedNotifications}</div>
                               <div>Prioridades legadas: {backfillResult.updatedSla}</div>
+                            </div>
+                          </div>
+                        </FeedbackBanner>
+                      )}
+                      {historyBackfillResult && (
+                        <FeedbackBanner tone="success">
+                          <div>
+                            <div className="font-medium">Lote de histórico copiado.</div>
+                            <div className="mt-1 text-xs">
+                              OS verificadas: {historyBackfillResult.scannedTickets} · OS com histórico: {historyBackfillResult.ticketsWithHistory} · entradas: {historyBackfillResult.copiedEntries}
+                              {historyBackfillResult.nextCursor ? ' · há mais lotes para copiar.' : ' · migração inicial concluída.'}
                             </div>
                           </div>
                         </FeedbackBanner>
@@ -1803,4 +1844,3 @@ export function SettingsView() {
     </>
   );
 }
-

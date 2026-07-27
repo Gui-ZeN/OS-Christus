@@ -1,5 +1,5 @@
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import { ContractRecord, PaymentRecord, Quote, Ticket, TicketAttachment } from '../types';
+import { ContractRecord, Quote, Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
 import { fetchDirectory } from './directoryApi';
@@ -319,8 +319,8 @@ async function buildDirectorContractContext(ticket: Ticket) {
 
 function buildAttachmentList(attachments: TicketAttachment[]) {
   return attachments
-    .filter(item => String(item?.url || '').trim())
-    .map(item => `- ${item.name || 'Arquivo'}: ${item.url}`);
+    .filter(item => String(item?.path || item?.url || '').trim())
+    .map(item => `- ${item.name || 'Arquivo'}`);
 }
 
 function resolveLatestInternalTechEntry(ticket: Ticket) {
@@ -881,65 +881,9 @@ export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: nu
   });
 }
 
-export async function notifyPaymentDispatch(
-  ticket: Ticket,
-  payment: PaymentRecord,
-  grossAmount: number,
-  taxAmount: number,
-  netAmount: number,
-  recipients: string[]
-) {
-  if (recipients.length === 0) return;
-
-  const lancamentoLabel = payment.label || `Lançamento ${payment.installmentNumber || 1}`;
-  const subject = `${ticket.id} - Pagamento - ${lancamentoLabel}`;
-  const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
-  const summaryList = buildDirectorTicketSummary(ticket);
-  const normalizedAttachments = normalizeEmailAttachments(payment.attachments || []);
-  const formatMoney = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  const bodyLines = [
-    `Segue o lançamento de pagamento referente à OS ${ticket.id}.`,
-    '',
-    'Resumo da OS:',
-    '',
-    summaryList,
-  ];
-  if (measurementSheetUrl) {
-    bodyLines.push('', `Planilha de medição: ${measurementSheetUrl}`);
-  }
-  if (normalizedAttachments.length > 0) {
-    bodyLines.push('', `Anexos do lançamento: ${normalizedAttachments.map(item => item.name || 'Arquivo').join(', ')}`);
-  }
-  const bodyText = bodyLines.join('\n');
-
-  const variables = await buildVariables(ticket, {
-    message: { sender: 'Financeiro', body: bodyText },
-  });
-
+export async function dispatchPaymentOutbox(ticketId: string, outboxKey: string) {
   await postEmail({
-    ticketId: ticket.id,
-    trackingToken: ticket.trackingToken,
-    toEmail: recipients.join(', '),
-    trigger: 'EMAIL-FINANCEIRO-PAGAMENTO',
-    subject,
-    attachments: normalizedAttachments,
-    variables,
-    templateData: {
-      title: subject,
-      intro: `Lançamento de pagamento para a OS ${ticket.id}.`,
-      ticketSubject: ticket.subject,
-      status: ticket.status,
-      bodyText,
-      metricRows: [
-        { label: 'Lançamento', value: lancamentoLabel },
-        { label: 'Valor bruto', value: formatMoney(grossAmount) },
-        { label: 'Imposto', value: formatMoney(taxAmount) },
-        { label: 'Valor a pagar', value: formatMoney(netAmount) },
-      ],
-      ctaUrl: buildFinanceReviewUrl(ticket),
-      ctaLabel: 'Abrir financeiro',
-    },
+    ticketId,
+    outboxKey,
   }, { throwOnError: true });
 }
-

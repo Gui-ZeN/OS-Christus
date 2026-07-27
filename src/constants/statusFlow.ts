@@ -46,12 +46,13 @@ const FLOW_TRANSITIONS: Record<AppActorRole, Partial<Record<FlowScreen, Transiti
   Gestor: {
     inbox: ADMIN_INBOX_TRANSITIONS,
     approvals: DIRECTOR_APPROVAL_TRANSITIONS,
+    finance: FINANCE_TRANSITIONS,
     tracking: TRACKING_TRANSITIONS,
   },
   Diretor: {
-    approvals: DIRECTOR_APPROVAL_TRANSITIONS,
-    finance: FINANCE_TRANSITIONS,
-    tracking: TRACKING_TRANSITIONS,
+    approvals: {},
+    finance: {},
+    tracking: {},
   },
   Usuario: {},
 };

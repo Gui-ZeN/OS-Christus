@@ -2,8 +2,14 @@ import { requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
-import { DEFAULT_NOTIFICATIONS } from './_lib/notificationDefaults.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
+import {
+  canUserSeeNotification,
+  getNotificationStateCollection,
+  isNotificationDismissed,
+  mergeNotificationState,
+  resolveNotificationTicketId,
+} from './_lib/notificationState.js';
 
 function toDate(value) {
   if (!value) return null;
@@ -17,42 +23,9 @@ function toDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-async function ensureDefaults(db) {
-  const batch = db.batch();
-  const now = new Date();
-  for (let index = 0; index < DEFAULT_NOTIFICATIONS.length; index += 1) {
-    const item = DEFAULT_NOTIFICATIONS[index];
-    batch.set(
-      db.collection('notifications').doc(item.id),
-      {
-        ...item,
-        time: new Date(now.getTime() - index * 2 * 60 * 60 * 1000),
-        updatedAt: now,
-        createdAt: now,
-      },
-      { merge: true }
-    );
-  }
-  await batch.commit();
-}
-
-// Notificação sem audienceRoles é geral (visível a todos). Com audienceRoles,
-// só é visível a usuários cujo papel esteja na lista.
-function canUserSeeNotification(user, notification) {
-  const audience = Array.isArray(notification?.audienceRoles)
-    ? notification.audienceRoles.map(role => String(role || '').trim()).filter(Boolean)
-    : [];
-  if (audience.length === 0) return true;
-  return audience.includes(user?.role);
-}
-
 // Escopo territorial de uma notificação ligada a uma OS. Admin vê tudo;
 // notificação sem ticketId é geral. Demais perfis só veem se a OS referenciada
 // estiver no seu escopo (região/sede).
-function resolveNotificationTicketId(notification) {
-  return String(notification?.ticketId || notification?.action?.ticketId || '').trim();
-}
-
 async function canUserAccessNotificationTicket(db, user, notification, territory) {
   if (user?.role === 'Admin') return true;
   const ticketId = resolveNotificationTicketId(notification);
@@ -64,17 +37,20 @@ async function canUserAccessNotificationTicket(db, user, notification, territory
 }
 
 async function readNotifications(db, user) {
-  let snap = await db.collection('notifications').get();
-  // Seed dos defaults só quando a coleção está GLOBALMENTE vazia (uma vez) — não
-  // quando o resultado FILTRADO do usuário está vazio. Antes, o handler refazia a
-  // leitura toda vez que um usuário não tinha notificação no escopo (2x por poll).
-  if (snap.empty) {
-    await ensureDefaults(db);
-    snap = await db.collection('notifications').get();
-  }
+  const [snap, stateSnap] = await Promise.all([
+    db.collection('notifications').get(),
+    getNotificationStateCollection(db, user.id).get(),
+  ]);
+  const stateByNotificationId = new Map(
+    stateSnap.docs.map(doc => [doc.id, doc.data()])
+  );
   const visibleByRole = snap.docs
-    .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(notification => canUserSeeNotification(user, notification));
+    .map(doc => {
+      const notification = { id: doc.id, ...doc.data() };
+      return mergeNotificationState(notification, stateByNotificationId.get(doc.id));
+    })
+    .filter(notification => canUserSeeNotification(user, notification))
+    .filter(notification => !isNotificationDismissed(stateByNotificationId.get(notification.id)));
 
   // Admin não precisa de escopo territorial; demais perfis filtram por OS acessível.
   if (user?.role === 'Admin') {
@@ -129,7 +105,16 @@ export default async function handler(req, res) {
         if (!canUserSeeNotification(user, snap.data()) || !(await canUserAccessNotificationTicket(db, user, snap.data()))) {
           return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
         }
-        await ref.set({ read: true, updatedAt: new Date() }, { merge: true });
+        const now = new Date();
+        await getNotificationStateCollection(db, user.id).doc(id).set(
+          {
+            notificationId: id,
+            userId: user.id,
+            readAt: now,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
         return sendJson(res, 200, { ok: true });
       }
 
@@ -143,26 +128,22 @@ export default async function handler(req, res) {
         if (!canUserSeeNotification(user, notificationData) || !(await canUserAccessNotificationTicket(db, user, notificationData))) {
           return sendJson(res, 403, { ok: false, error: 'Permissão insuficiente.' });
         }
-        // O doc de notificação é COMPARTILHADO: dismiss faz ref.delete(), então
-        // dispensar um aviso GERAL (sem audienceRoles e sem ticketId) o apagaria para
-        // TODOS, inclusive Admins. Restringe esse caso a Admin/Gestor; avisos
-        // escopados (por papel/OS) seguem dispensáveis por quem tem acesso.
-        // Mesma normalização de canUserSeeNotification (trim/filter): um doc
-        // malformado com audienceRoles:[''] é geral de fato (visível a todos), então
-        // não pode ser classificado como "escopado" e escapar da checagem.
-        const normalizedAudience = Array.isArray(notificationData?.audienceRoles)
-          ? notificationData.audienceRoles.map(role => String(role || '').trim()).filter(Boolean)
-          : [];
-        const isGeneralNotification = normalizedAudience.length === 0 && !resolveNotificationTicketId(notificationData);
-        if (isGeneralNotification && user?.role !== 'Admin' && user?.role !== 'Gestor') {
-          return sendJson(res, 403, { ok: false, error: 'Apenas Admin ou Gestor podem dispensar avisos gerais (o aviso é compartilhado por todos).' });
-        }
-        await ref.delete();
+        const now = new Date();
+        await getNotificationStateCollection(db, user.id).doc(id).set(
+          {
+            notificationId: id,
+            userId: user.id,
+            dismissedAt: now,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
         await writeAuditLog({
           actor,
           action: 'notifications.dismiss',
           entity: 'notification',
           entityId: id,
+          metadata: { userId: user.id },
         });
         return sendJson(res, 200, { ok: true });
       }
@@ -170,11 +151,24 @@ export default async function handler(req, res) {
       if (action === 'markAllRead') {
         // Marca apenas as notificações visíveis ao usuário.
         const notifications = await readNotifications(db, user);
-        const batch = db.batch();
-        for (const item of notifications) {
-          batch.set(db.collection('notifications').doc(item.id), { read: true, updatedAt: new Date() }, { merge: true });
+        const now = new Date();
+        const stateCollection = getNotificationStateCollection(db, user.id);
+        for (let start = 0; start < notifications.length; start += 400) {
+          const batch = db.batch();
+          for (const item of notifications.slice(start, start + 400)) {
+            batch.set(
+              stateCollection.doc(item.id),
+              {
+                notificationId: item.id,
+                userId: user.id,
+                readAt: now,
+                updatedAt: now,
+              },
+              { merge: true }
+            );
+          }
+          await batch.commit();
         }
-        await batch.commit();
         return sendJson(res, 200, { ok: true });
       }
 
@@ -187,4 +181,3 @@ export default async function handler(req, res) {
     return sendError(res, error, 'Falha nas notificações.');
   }
 }
-

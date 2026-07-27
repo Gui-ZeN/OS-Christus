@@ -34,10 +34,9 @@ export interface TicketAttachment {
   uploadedAt?: Date | null;
   category?: 'closure_report' | 'closure_evidence' | 'attachment';
   /**
-   * Arquivamento no Drive (OS encerrada há +30d): quando `archived`, o arquivo foi
-   * movido pro Google Drive e apagado do Firebase Storage; `url` passa a apontar pro
-   * proxy do Serv3 (`/api/attachments?f=…&t=…`) e `driveFileId` guarda o arquivo no
-   * Drive. `path` (origem no Storage) é mantido pós-delete só pra auditoria.
+   * Arquivamento no Drive: `driveFileId` identifica o arquivo privado e `path`
+   * preserva a origem e o vínculo com a OS. A interface baixa o conteúdo pela API
+   * autenticada; `url` só permanece para compatibilidade com anexos legados.
    */
   archived?: boolean;
   driveFileId?: string | null;
@@ -128,6 +127,10 @@ export interface Ticket {
   priority: string;
   waterIssue?: boolean;
   history: HistoryItem[];
+  historyPagination?: {
+    nextCursor: string | null;
+    isComplete: boolean;
+  };
   viewingBy?: { name: string; at: Date } | null;
   preliminaryActions?: PreliminaryActions;
   closureChecklist?: ClosureChecklist;
@@ -249,11 +252,12 @@ export interface User {
 
 export interface AppNotification {
   id: string;
-  type: 'info' | 'actionable' | 'alert';
+  type: 'info' | 'actionable' | 'alert' | 'requester-message' | 'email-bounce';
   title: string;
   body: string;
   time: Date;
   read: boolean;
+  ticketId?: string;
   action?: {
     label: string;
     view: ViewState;

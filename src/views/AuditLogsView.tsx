@@ -37,6 +37,14 @@ const ACTION_LABELS: Record<string, string> = {
   'procurement.payment.save': 'Atualização de lançamento',
   'procurement.measurement.save': 'Registro de medição',
   'procurement.update': 'Atualização de orçamento/contrato',
+  'approval.approveSolution': 'Aprovação da solução técnica',
+  'approval.rejectSolution': 'Reprovação da solução técnica',
+  'approval.approveBudget': 'Aprovação de orçamento/aditivo',
+  'approval.rejectBudget': 'Reprovação de orçamento/aditivo',
+  'approval.approveContract': 'Aprovação de contrato',
+  'approval.rejectContract': 'Reprovação de contrato',
+  'finance.recordMeasurement': 'Registro de medição e lançamento',
+  'finance.settlePayment': 'Confirmação de pagamento',
   'notifications.dismiss': 'Notificação dispensada',
 };
 
@@ -86,6 +94,8 @@ function getAuditCategory(log: AuditLogEntry): AuditCategory {
   if (action.includes('delete')) return 'exclusao';
   if (action === 'tickets.status.change' || action === 'tickets.update') return 'status';
   if (action.startsWith('procurement.payment') || action.startsWith('procurement.measurement')) return 'financeiro';
+  if (action.startsWith('finance.')) return 'financeiro';
+  if (action.startsWith('approval.')) return 'aprovacao';
   if (action.startsWith('procurement.quotes') || action.startsWith('procurement.contract')) return 'aprovacao';
   if (action.startsWith('users.') || action.startsWith('catalog.')) return 'cadastro';
   if (action.startsWith('settings.') || action.startsWith('notifications.')) return 'configuracao';

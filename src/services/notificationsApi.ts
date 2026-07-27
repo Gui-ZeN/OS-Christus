@@ -3,7 +3,7 @@ import { expectApiJson } from './apiClient';
 import { AppNotification } from '../types';
 import { coerceDate } from '../utils/date';
 
-type NotificationApi = Omit<AppNotification, 'time'> & { time: string };
+type NotificationApi = Omit<AppNotification, 'time'> & { time: unknown };
 
 export async function fetchNotifications() {
   const response = await fetch('/api/notifications', {

@@ -31,6 +31,9 @@ export function HomeView() {
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const greetingName = buildGreetingName(currentUser?.name, currentUserEmail);
   const isExecutive = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canApprove = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canOperate = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
+  const hasOperationalActions = canApprove || canOperate;
   const isRequester = currentUser?.role === 'Usuario';
 
   const openInboxWithStatus = (statuses: string[]) => {
@@ -108,30 +111,30 @@ export function HomeView() {
   }), [scopedTickets]);
 
   const executiveNextActions = useMemo(() => {
-    if (!isExecutive) return [];
+    if (!hasOperationalActions) return [];
     return [
-      {
+      canApprove ? {
         key: 'approvals',
         title: 'Aprovar soluções e contratos',
         subtitle: 'Itens parados em decisão formal.',
         count: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprova')).length,
         action: () => navigateTo('approvals'),
-      },
-      {
+      } : null,
+      canOperate ? {
         key: 'budget',
         title: 'Cobrar orçamento e aditivos',
         subtitle: 'OS aguardando composição financeira.',
         count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
         action: () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]),
-      },
-      {
+      } : null,
+      canOperate ? {
         key: 'payment',
         title: 'Liberar pagamentos',
         subtitle: 'Lançamento ou quitação pendente.',
         count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
         action: () => navigateTo('finance'),
-      },
-      {
+      } : null,
+      canOperate ? {
         key: 'execution',
         title: 'Acompanhar obras em campo',
         subtitle: 'Execução ativa ou aguardando fechamento.',
@@ -145,12 +148,12 @@ export function HomeView() {
           TICKET_STATUS.IN_PROGRESS,
           TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
         ]),
-      },
+      } : null,
     ]
-      .filter(item => item.count > 0)
+      .filter((item): item is NonNullable<typeof item> => Boolean(item) && item.count > 0)
       .sort((a, b) => b.count - a.count)
       .slice(0, 4);
-  }, [isExecutive, navigateTo, openInboxWithStatus, scopedTickets]);
+  }, [canApprove, canOperate, hasOperationalActions, navigateTo, openInboxWithStatus, scopedTickets]);
 
   const requesterOpenTickets = useMemo(
     () => (isRequester ? scopedTickets.filter(ticket => isOpenStatus(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
@@ -223,10 +226,10 @@ export function HomeView() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-          <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.NEW]) : undefined} />
-          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]) : undefined} />
-          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente" onClick={isExecutive ? () => navigateTo('approvals') : undefined} />
-          <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={isExecutive ? () => openInboxWithStatus([TICKET_STATUS.CLOSED]) : undefined} />
+          <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.NEW]) : undefined} />
+          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]) : undefined} />
+          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente" onClick={canApprove ? () => navigateTo('approvals') : undefined} />
+          <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.CLOSED]) : undefined} />
         </div>
 
         {isRequester && (
@@ -407,7 +410,7 @@ export function HomeView() {
             )}
           </div>
         )}
-        {isExecutive && (
+        {hasOperationalActions && (
           <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-roman-border pb-3">
               <div>

@@ -134,7 +134,6 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (invalidInterestedEmail) newErrors.interestedEmails = `E-mail inválido: ${invalidInterestedEmail}`;
     if (!formData.subject.trim()) newErrors.subject = 'Assunto é obrigatório';
     if (!formData.description.trim()) newErrors.description = 'Descrição é obrigatória';
-    if (!formData.type) newErrors.type = 'Selecione o tipo';
     if (!formData.sector.trim()) newErrors.sector = 'Local é obrigatório';
     if (!formData.location.trim()) newErrors.location = 'Detalhe do local é obrigatório';
     if (!formData.region) newErrors.region = 'Selecione a região';
@@ -162,7 +161,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         requesterCcEmails: interestedEmails,
         time: now,
         status: TICKET_STATUS.NEW,
-        type: formData.type,
+        type: formData.type || 'Não informado',
         macroServiceId: selectedMacroService?.id,
         macroServiceName: selectedMacroService?.name,
         serviceCatalogId: selectedServiceItem?.id,
@@ -230,13 +229,22 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     // Acumula e limpa o value para permitir adicionar fotos uma a uma
     // (no celular o usuário tira/anexa uma de cada vez).
     const next = Array.from(e.target.files || []);
-    if (next.length > 0) setFiles(prev => [...prev, ...next]);
+    if (next.length > 0) {
+      const accepted = next.slice(0, Math.max(10 - files.length, 0));
+      setFiles(prev => [...prev, ...accepted]);
+      setErrors(current => {
+        const updated = { ...current };
+        if (accepted.length < next.length) updated.files = 'Você pode anexar no máximo 10 imagens.';
+        else delete updated.files;
+        return updated;
+      });
+    }
     e.target.value = '';
   };
 
   return (
     <div className="h-screen w-full bg-roman-surface overflow-y-auto">
-      <div className="max-w-2xl mx-auto px-6 py-12">
+      <div className="max-w-2xl mx-auto px-4 py-6 sm:px-6 sm:py-10 md:py-12">
         <div className="mb-10">
           <button
             onClick={onBack}
@@ -293,6 +301,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           </div>
         ) : (
           <form
+            className="[&_input]:min-h-11 [&_select]:min-h-11"
             onSubmit={event => {
               event.preventDefault();
               void handleSubmit();
@@ -380,7 +389,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="pf-type" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de Manutenção</label>
+                  <label htmlFor="pf-type" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de Manutenção (opcional)</label>
                   <select
                     id="pf-type"
                     name="type"
@@ -393,7 +402,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     <option value="Preventiva">Preventiva</option>
                     <option value="Melhoria">Melhoria</option>
                   </select>
-                  {errors.type && <span className="text-xs text-red-500 mt-1 block">{errors.type}</span>}
+                  <span className="mt-1 block text-xs text-roman-text-sub">Se não souber, deixe em branco. A equipe classifica na triagem.</span>
                 </div>
                 <div>
                   <label htmlFor="pf-macroservice" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço (opcional)</label>
@@ -541,6 +550,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   ))}
                 </div>
               )}
+              {errors.files && <span className="mt-2 block text-xs text-red-500">{errors.files}</span>}
             </div>
 
             {submitError && (

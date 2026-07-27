@@ -19,7 +19,7 @@ import { DirectoryTeam, DirectoryUser, DirectoryVendor, fetchDirectory, upsertVe
 import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { uploadContractAttachment, uploadMeasurementAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
-import { deleteTicketInApi } from '../services/ticketsApi';
+import { deleteTicketInApi, fetchTicketHistoryPage } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { buildBudgetHistorySummary } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
@@ -297,6 +297,7 @@ export function InboxView() {
     tickets,
     refreshTickets,
     updateTicket,
+    mergeTicketHistoryPage,
     addTicket,
     currentUser,
   } = useApp();
@@ -1710,7 +1711,24 @@ export function InboxView() {
   const [prelimForm, setPrelimForm] = useState<PreliminaryFormState>(createPreliminaryFormState());
   const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
   const [progressUpdateForm, setProgressUpdateForm] = useState<ProgressUpdateFormState>(createProgressUpdateFormState());
+  const [historyLoadingTicketId, setHistoryLoadingTicketId] = useState<string | null>(null);
   const { toast, showToast } = useToast();
+
+  const handleLoadOlderHistory = useCallback(async () => {
+    const cursor = activeTicket.historyPagination?.nextCursor;
+    if (!activeTicket.id || !cursor || historyLoadingTicketId) return;
+
+    setHistoryLoadingTicketId(activeTicket.id);
+    try {
+      const page = await fetchTicketHistoryPage(activeTicket.id, { cursor, limit: 50 });
+      mergeTicketHistoryPage(activeTicket.id, page.history, page.nextCursor);
+    } catch (error) {
+      console.error('[InboxView] Failed to load older ticket history', activeTicket.id, error);
+      showToast('Não foi possível carregar mensagens anteriores. Tente novamente.', 3000);
+    } finally {
+      setHistoryLoadingTicketId(null);
+    }
+  }, [activeTicket, historyLoadingTicketId, mergeTicketHistoryPage, showToast]);
 
   const handleUpdateHistoryItemTime = useCallback((originalIndex: number, value: string) => {
     if (!canManageStatus || isSending) return;
@@ -1763,11 +1781,14 @@ export function InboxView() {
   const projectedAccumulatedGross = currentAccumulatedGross + draftGrossAmount;
   const draftProgressPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeExpectedBaselineValue);
   const ticketAttachmentItems = (activeTicket.attachments || [])
-    .filter(attachment => attachment?.url)
+    .filter(attachment => attachment?.path || attachment?.driveFileId || attachment?.url)
     .map(attachment => ({
       title: attachment.name,
       type: resolveAttachmentPreviewType(attachment.contentType, attachment.name),
       url: attachment.url,
+      ticketId: activeTicket.id,
+      path: attachment.path,
+      driveFileId: attachment.driveFileId,
     }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
   const shouldLockBodyScroll =
@@ -2919,6 +2940,9 @@ export function InboxView() {
                         if (ticketAttachmentItems.length === 0) return;
                         openAttachment(`Anexos: ${activeTicket.subject}`, ticketAttachmentItems[0].type, {
                           url: ticketAttachmentItems[0].url,
+                          ticketId: ticketAttachmentItems[0].ticketId,
+                          path: ticketAttachmentItems[0].path,
+                          driveFileId: ticketAttachmentItems[0].driveFileId,
                           items: ticketAttachmentItems,
                         });
                       }}
@@ -3016,9 +3040,13 @@ export function InboxView() {
             {/* Messages — ordenados cronologicamente (mais antigo em cima) */}
             <div className="min-h-0 overflow-y-auto p-3 2xl:p-4">
               <TicketHistory
+                ticketId={activeTicket.id}
                 history={activeTicket.history}
                 canManageStatus={canManageStatus}
                 isSending={isSending}
+                hasOlderHistory={Boolean(activeTicket.historyPagination?.nextCursor)}
+                isLoadingOlderHistory={historyLoadingTicketId === activeTicket.id}
+                onLoadOlderHistory={handleLoadOlderHistory}
                 onUpdateItemTime={handleUpdateHistoryItemTime}
                 onOpenAttachment={openAttachment}
               />

@@ -8,7 +8,11 @@ import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCach
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { appendTicketHistory, reserveNextTicketId } from './_lib/tickets.js';
+import {
+  appendTicketHistory,
+  copyTicketHistoryToSubcollection,
+  reserveNextTicketId,
+} from './_lib/tickets.js';
 import {
   decodeMimeHeader,
   gmailGetMessage,
@@ -18,18 +22,152 @@ import {
   gmailStartWatch,
 } from './_lib/gmail.js';
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
-import { isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
+import { isAttachmentContentCompatible, isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
 import { matchSiteCode } from './_lib/siteMatch.js';
 import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject, isLikelyThreadReply } from './_lib/inboundSubject.js';
 import { firstEmail, parseEmailList } from './_lib/email.js';
 import { sendWithSendGrid } from './_lib/sendgrid.js';
+import {
+  claimEmailOutbox,
+  EMAIL_OUTBOX_TYPES,
+  markEmailOutboxFailed,
+  markEmailOutboxSent,
+} from './_lib/emailOutbox.js';
+import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
   return String(input).trim();
+}
+
+function formatFinanceMoney(value) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+function buildFinanceOutboxPayload(ticket, outbox) {
+  const payment = outbox?.payment || {};
+  const financial = outbox?.financial || {};
+  const label = String(payment.label || 'Lançamento');
+  const baseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://serv3.vercel.app';
+  const params = new URLSearchParams({ view: 'finance', ticketId: ticket.id });
+  const subject = `${ticket.id} - Pagamento - ${label}`;
+  const bodyText = [
+    `Segue o lançamento de pagamento referente à OS ${ticket.id}.`,
+    '',
+    `Assunto: ${ticket.subject || 'Não informado'}`,
+    `Solicitante: ${ticket.requester || 'Não informado'}`,
+    `Sede: ${ticket.sede || 'Não definida'}`,
+    `Local: ${ticket.sector || 'Não informado'}`,
+    `Fornecedor: ${payment.vendor || 'Não definido'}`,
+  ].join('\n');
+
+  return {
+    ticketId: ticket.id,
+    trackingToken: ticket.trackingToken || null,
+    toEmail: Array.isArray(outbox?.recipients) ? outbox.recipients.join(', ') : '',
+    trigger: 'EMAIL-FINANCEIRO-PAGAMENTO',
+    subject,
+    attachments: Array.isArray(payment.attachments) ? payment.attachments : [],
+    variables: {
+      requester: {
+        name: String(ticket.requester || 'Solicitante'),
+        email: String(ticket.requesterEmail || ''),
+      },
+      ticket: {
+        id: ticket.id,
+        subject: String(ticket.subject || ''),
+        status: String(ticket.status || ''),
+        region: String(ticket.region || ''),
+        sede: String(ticket.sede || ''),
+        sector: String(ticket.sector || ''),
+        location: String(ticket.location || ''),
+        macroService: String(ticket.macroServiceName || ''),
+        service: String(ticket.serviceCatalogName || ''),
+      },
+      message: { sender: 'Financeiro', body: bodyText },
+    },
+    templateData: {
+      title: subject,
+      intro: `Lançamento de pagamento para a OS ${ticket.id}.`,
+      ticketSubject: ticket.subject || '',
+      status: ticket.status || '',
+      bodyText,
+      metricRows: [
+        { label: 'Lançamento', value: label },
+        { label: 'Valor bruto', value: formatFinanceMoney(financial.grossAmount) },
+        { label: 'Imposto', value: formatFinanceMoney(financial.taxAmount) },
+        { label: 'Valor a pagar', value: formatFinanceMoney(financial.netAmount) },
+      ],
+      ctaUrl: `${baseUrl}/?${params.toString()}`,
+      ctaLabel: 'Abrir financeiro',
+    },
+  };
+}
+
+// Renderiza o aviso de NOVA OS ao gestor a partir do doc da outbox — mesmo conteúdo
+// que antes saía direto no loop do inbound (agora entregue pela fila, com retry).
+function buildManagerNotificationEmail(ticket) {
+  const baseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://serv3.vercel.app';
+  const ctaUrl = ticket?.trackingToken
+    ? `${baseUrl}/?tracking=${encodeURIComponent(ticket.trackingToken)}`
+    : '';
+  const template = buildTicketEmailTemplate({
+    trigger: 'EMAIL-NOVA-OS-GESTOR',
+    title: `Nova solicitação recebida (${ticket.id || 'OS'})`,
+    intro: 'Uma nova solicitação de OS foi registrada por e-mail para sua estrutura.',
+    ticketId: ticket.id || '-',
+    status: ticket.status || 'Nova OS',
+    ctaUrl: ctaUrl || null,
+    ctaLabel: 'Acompanhar solicitação',
+    bodyText: [
+      `Assunto: ${ticket.subject || '-'}`,
+      `Solicitante: ${ticket.requester || '-'} (${ticket.requesterEmail || '-'})`,
+      `Sede: ${ticket.sede || '-'}`,
+      `Região: ${ticket.region || '-'}`,
+    ].join('\n'),
+  });
+  return { subject: `Nova OS recebida - ${ticket.id || 'Sem ID'}`, text: template.text, html: template.html };
+}
+
+/**
+ * Entrega AVULSA (sem thread, sem CC de conversa) para tipos da outbox que são
+ * comunicação INTERNA. Não pode passar pela máquina de thread do handleSend: lá o
+ * e-mail herdaria a thread do solicitante e o CC da conversa — vazando a triagem
+ * interna para o cliente.
+ */
+async function deliverStandaloneEmail({ toEmail, subject, text, html, ticketId, trackingToken }) {
+  const provider = resolveConfiguredEmailProvider();
+  if (provider === 'gmail') {
+    const result = await gmailSend({
+      toEmail,
+      subject,
+      text,
+      html,
+      ticketId: ticketId || 'new-ticket',
+      trackingToken: trackingToken || undefined,
+      inReplyTo: undefined,
+      references: [],
+      threadId: undefined,
+    });
+    return { provider, messageId: result?.messageId || result?.id || null };
+  }
+  const result = await sendWithSendGrid({
+    toEmail,
+    subject,
+    text,
+    html,
+    templateId: null,
+    templateData: null,
+    headers: null,
+    replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+  });
+  return { provider, messageId: result?.messageId || result?.id || null };
 }
 
 // parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject e
@@ -647,7 +785,9 @@ async function resolveTicketIdByRequesterSubject(db, fromEmail, subject) {
 function buildInboundHistoryEntry(message, options = {}) {
   const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
   const text = extractInboundMessageBody(message.text, message.html) || 'Resposta recebida por e-mail.';
-  const attachments = Array.isArray(message.attachments) ? message.attachments.filter(item => item?.url) : [];
+  const attachments = Array.isArray(message.attachments)
+    ? message.attachments.filter(item => item?.path || item?.driveFileId || item?.url)
+    : [];
   return {
     id: buildInboundHistoryId(message.messageId || message.id, sender),
     type: options.type || 'customer',
@@ -740,6 +880,27 @@ function secretsMatch(provided, expected) {
 
 function matchesAnySecret(provided, secrets) {
   return secrets.some(secret => secretsMatch(provided, secret));
+}
+
+async function authorizeEmailOutboxDelivery(req) {
+  const authHeader = String(req.headers.authorization || '');
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && secretsMatch(bearer, cronSecret)) {
+    return { automated: true, user: null };
+  }
+  return {
+    automated: false,
+    user: await requireUserWithRoles(req, ['Admin', 'Gestor']),
+  };
+}
+
+async function authorizeEmailOutboxWorker(req) {
+  const authHeader = String(req.headers.authorization || '');
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && secretsMatch(bearer, cronSecret)) return;
+  await requireUserWithRoles(req, ['Admin']);
 }
 
 // `allowedRoles` só vale para a via "usuário logado pelo painel"; a via do
@@ -1237,63 +1398,39 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
       return !copiedRecipients.has(email);
     });
 
-  if (gestores.length === 0) return;
+  const ticketId = String(ticket?.id || '').trim();
+  if (gestores.length === 0 || !ticketId) return;
 
-  const provider = resolveConfiguredEmailProvider();
-  const ctaUrl = ticket?.trackingToken
-    ? `${process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || 'https://serv3.vercel.app'}/?tracking=${encodeURIComponent(ticket.trackingToken)}`
-    : '';
-  const subject = `Nova OS recebida - ${ticket.id || 'Sem ID'}`;
-  const template = buildTicketEmailTemplate({
-    trigger: 'EMAIL-NOVA-OS-GESTOR',
-    title: `Nova solicitação recebida (${ticket.id || 'OS'})`,
-    intro: 'Uma nova solicitação de OS foi registrada por e-mail para sua estrutura.',
-    ticketId: ticket.id || '-',
-    status: ticket.status || 'Nova OS',
-    ctaUrl: ctaUrl || null,
-    ctaLabel: 'Acompanhar solicitação',
-    bodyText: [
-      `Assunto: ${ticket.subject || '-'}`,
-      `Solicitante: ${ticket.requester || '-'} (${ticket.requesterEmail || '-'})`,
-      `Sede: ${ticket.sede || '-'}`,
-      `Região: ${ticket.region || '-'}`,
-    ].join('\n'),
-  });
-
-  for (const gestor of gestores) {
+  // ENFILEIRA (não envia direto): antes eram N envios SÍNCRONOS no caminho do
+  // inbound — uma rajada de OS batia no rate limit do Gmail e o catch engolia a
+  // falha, então o gestor simplesmente não era avisado e ninguém percebia. Agora
+  // cada aviso é um item da outbox, com retry/backoff e dead-letter alertado; o
+  // worker drena com throttle. A chave é determinística por (OS, gestor) e usamos
+  // create(): reprocessar a mesma mensagem inbound não duplica o aviso.
+  const now = new Date();
+  await Promise.all(gestores.map(async gestor => {
     const toEmail = firstEmail(gestor.email);
-    if (!toEmail) continue;
+    if (!toEmail) return;
+    const outboxKey = `mgrnotify-${createHash('sha256').update(toEmail.toLowerCase()).digest('hex').slice(0, 16)}`;
     try {
-      if (provider === 'gmail') {
-        await gmailSend({
-          toEmail,
-          subject,
-          text: template.text,
-          html: template.html,
-          ticketId: ticket.id || 'new-ticket',
-          trackingToken: ticket.trackingToken || undefined,
-          inReplyTo: undefined,
-          references: [],
-          threadId: undefined,
-        });
-      } else {
-        await sendWithSendGrid({
-          toEmail,
-          subject,
-          text: template.text,
-          html: template.html,
-          templateId: null,
-          templateData: null,
-          headers: null,
-          replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
-        });
-      }
+      await db.collection('emailOutbox').doc(`${ticketId}__${outboxKey}`).create({
+        id: outboxKey,
+        commandKey: outboxKey,
+        type: EMAIL_OUTBOX_TYPES.MANAGER_NEW_TICKET,
+        ticketId,
+        trigger: 'EMAIL-NOVA-OS-GESTOR',
+        recipients: [toEmail],
+        status: 'pending',
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
     } catch (error) {
-      // Não bloqueia a criação da OS, mas registra: sem isto, o gestor não é
-      // notificado da nova OS e ninguém percebe a falha.
-      console.error('[mail] falha ao notificar gestor de nova OS por e-mail', error);
+      // Já enfileirado (reprocessamento da mesma mensagem) — não duplica o aviso.
+      if (isAlreadyExistsError(error)) return;
+      console.error('[mail] falha ao enfileirar aviso de nova OS ao gestor', error);
     }
-  }
+  }));
 }
 
 const MAX_ATTACHMENTS = 10;
@@ -1328,6 +1465,7 @@ async function uploadInboundAttachments(ticketId, attachments) {
     // Allow-list de MIME: anexos não permitidos (SVG/HTML/executáveis) são
     // ignorados sem interromper o processamento do e-mail inbound.
     if (!isAllowedAttachmentMime(attachment.mimeType)) continue;
+    if (!isAttachmentContentCompatible(attachment.buffer, attachment.mimeType)) continue;
     const contentType = normalizeMimeType(attachment.mimeType);
 
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`);
@@ -1342,16 +1480,11 @@ async function uploadInboundAttachments(ticketId, attachments) {
       },
     });
 
-    const [url] = await file.getSignedUrl({
-      action: 'read',
-      expires: '2035-01-01',
-    });
-
     results.push({
       id: randomUUID(),
       name: attachment.filename || filename,
       path,
-      url,
+      url: '',
       contentType,
       size: Number(attachment.size || attachment.buffer.length || 0),
       uploadedAt,
@@ -1431,8 +1564,15 @@ async function createTicketFromInbound(db, message) {
     createdAt: now,
     updatedAt: now,
   });
+  await copyTicketHistoryToSubcollection(db, db.collection('tickets').doc(ticketId), ticket.history)
+    .catch(error => console.error('[mail] falha ao espelhar histórico inicial', { ticketId, error }));
 
-  await notifyScopedManagersNewInboundTicket(db, ticket, message).catch(() => undefined);
+  // Não bloqueia a criação da OS, mas registra: uma falha TOTAL do enfileiramento
+  // (ex.: leitura do diretório de usuários indisponível) deixaria os gestores sem
+  // aviso — silenciosamente, se este catch continuasse mudo.
+  await notifyScopedManagersNewInboundTicket(db, ticket, message).catch(error => {
+    console.error('[mail] falha ao enfileirar avisos de nova OS aos gestores', error);
+  });
 
   return ticket;
 }
@@ -1440,6 +1580,9 @@ async function createTicketFromInbound(db, message) {
 async function handleSend(req, res) {
   let ticketIdForLog = null;
   let toEmailForLog = null;
+  let outboxRefForDelivery = null;
+  let outboxLeaseToken = null;
+  let outboxDeliveryConfirmed = false;
   const providerForLog = resolveConfiguredEmailProvider();
 
   try {
@@ -1448,7 +1591,126 @@ async function handleSend(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
-    const body = await readJsonBody(req);
+    let body = await readJsonBody(req);
+    const db = getAdminDb();
+    let preauthenticatedUser = null;
+    let automatedOutboxDelivery = false;
+    const requestedOutboxKey = String(body?.outboxKey || '').trim();
+    if (requestedOutboxKey) {
+      const authorization = await authorizeEmailOutboxDelivery(req);
+      preauthenticatedUser = authorization.user;
+      automatedOutboxDelivery = authorization.automated;
+      const requestedTicketId = required(body.ticketId, 'ticketId');
+      const requestedTicketSnap = await db.collection('tickets').doc(requestedTicketId).get();
+      if (!requestedTicketSnap.exists) {
+        return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
+      }
+      const requestedTicket = { id: requestedTicketSnap.id, ...requestedTicketSnap.data() };
+      if (preauthenticatedUser && preauthenticatedUser.role !== 'Admin') {
+        const territory = await readTerritoryCatalog(db);
+        if (!canUserAccessTicket(
+          preauthenticatedUser,
+          requestedTicket,
+          territory.regions,
+          territory.sites
+        )) {
+          return sendJson(res, 403, { ok: false, error: 'Sem acesso a esta OS.' });
+        }
+      }
+
+      const claim = await claimEmailOutbox(db, requestedTicketId, requestedOutboxKey, {
+        respectSchedule: automatedOutboxDelivery,
+        allowDeadLetterRetry: !automatedOutboxDelivery,
+      });
+      if (claim.state === 'sent') {
+        return sendJson(res, 200, {
+          ok: true,
+          ticketId: requestedTicketId,
+          outboxKey: requestedOutboxKey,
+          alreadySent: true,
+          messageId: claim.data?.messageId || null,
+        });
+      }
+      if (claim.state === 'busy') {
+        return sendJson(res, 409, {
+          ok: false,
+          error: 'Este e-mail já está sendo enviado. Aguarde alguns instantes.',
+        });
+      }
+      if (claim.state === 'deferred') {
+        return sendJson(res, 200, {
+          ok: true,
+          ticketId: requestedTicketId,
+          outboxKey: requestedOutboxKey,
+          skipped: 'backoff-active',
+        });
+      }
+      if (claim.state === 'dead-letter') {
+        return sendJson(res, 409, {
+          ok: false,
+          error: 'Este e-mail atingiu o limite de tentativas e requer intervenção administrativa.',
+        });
+      }
+
+      outboxRefForDelivery = claim.ref;
+      outboxLeaseToken = claim.leaseToken;
+
+      // Tipos de comunicação INTERNA saem por entrega avulsa (sem thread/CC da
+      // conversa do solicitante). Passá-los pelo corpo do handleSend faria o aviso
+      // herdar a thread e o CC do cliente — vazamento de triagem interna.
+      if (claim.data.type === EMAIL_OUTBOX_TYPES.MANAGER_NEW_TICKET) {
+        const recipient = firstEmail(
+          Array.isArray(claim.data.recipients) ? claim.data.recipients[0] : claim.data.recipients
+        );
+        if (!recipient) {
+          await markEmailOutboxSent(claim.ref, claim.leaseToken, { messageId: null, provider: 'skipped' });
+          return sendJson(res, 200, {
+            ok: true,
+            ticketId: requestedTicketId,
+            outboxKey: requestedOutboxKey,
+            skipped: 'no-recipient',
+          });
+        }
+        const managerEmail = buildManagerNotificationEmail(requestedTicket);
+        toEmailForLog = recipient;
+        const delivery = await deliverStandaloneEmail({
+          toEmail: recipient,
+          subject: managerEmail.subject,
+          text: managerEmail.text,
+          html: managerEmail.html,
+          ticketId: requestedTicketId,
+          trackingToken: requestedTicket.trackingToken,
+        });
+        await markEmailOutboxSent(claim.ref, claim.leaseToken, delivery);
+        outboxDeliveryConfirmed = true;
+        await logEmailEvent({
+          type: 'outbound',
+          status: 'success',
+          provider: delivery.provider,
+          ticketId: requestedTicketId,
+          toEmail: recipient,
+          subject: managerEmail.subject,
+        });
+        return sendJson(res, 200, {
+          ok: true,
+          ticketId: requestedTicketId,
+          outboxKey: requestedOutboxKey,
+          messageId: delivery.messageId,
+        });
+      }
+
+      // Guarda para quem adicionar o PRÓXIMO tipo: sem ramo próprio acima, o item
+      // cairia no renderizador financeiro (payload vazio + máquina de thread do
+      // solicitante). Falha explícito em vez de enviar um e-mail errado.
+      if (claim.data.type !== EMAIL_OUTBOX_TYPES.FINANCE_PAYMENT) {
+        throw new Error(`Tipo de e-mail sem renderizador dedicado: ${claim.data.type}`);
+      }
+      body = {
+        ...buildFinanceOutboxPayload(requestedTicket, claim.data),
+        outboxKey: requestedOutboxKey,
+      };
+    }
+
     const ticketId = required(body.ticketId, 'ticketId');
     ticketIdForLog = ticketId;
 
@@ -1474,7 +1736,6 @@ async function handleSend(req, res) {
       throw new Error('Informe text, html, templateId ou trigger para envio.');
     }
 
-    const db = getAdminDb();
     const ticketSnapForSend = await db.collection('tickets').doc(ticketId).get();
     const ticketDataForSend = ticketSnapForSend.exists
       ? { id: ticketSnapForSend.id, ...ticketSnapForSend.data() }
@@ -1484,11 +1745,13 @@ async function handleSend(req, res) {
       (await canSendPublicCreationEmail(db, ticketId, firstEmail(toEmailInput) || '', internalCopy));
 
     if (!isPublicCreationEmail) {
-      const user = await requireAuthenticatedUser(req);
+      const user = automatedOutboxDelivery
+        ? null
+        : preauthenticatedUser || await requireAuthenticatedUser(req);
       // Perfis não-Admin só disparam e-mail de OS dentro do seu escopo
       // territorial — evita usar o remetente corporativo como relay para OS de
       // outra região (texto/destinatário controlados pelo chamador).
-      if (user.role !== 'Admin' && ticketId) {
+      if (user && user.role !== 'Admin' && ticketId) {
         if (!ticketDataForSend) {
           return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
         }
@@ -1833,6 +2096,13 @@ async function handleSend(req, res) {
 
     const now = new Date();
     const messageId = sendResult.messageId || sendResult.id || `<os-${ticketId}-${now.getTime()}@serv3>`;
+    if (outboxRefForDelivery && outboxLeaseToken) {
+      await markEmailOutboxSent(outboxRefForDelivery, outboxLeaseToken, {
+        messageId,
+        provider,
+      });
+      outboxDeliveryConfirmed = true;
+    }
     const effectiveRootMessageId = storedRootMessageId || (recoveredThread ? messageId : rootMessageId);
     const mergedReferences = [...new Set([effectiveRootMessageId, ...effectiveReferences, messageId].filter(Boolean))].slice(-20);
     const persistedHeaders = {
@@ -1909,6 +2179,11 @@ async function handleSend(req, res) {
       recoveredThread,
     });
   } catch (error) {
+    if (outboxRefForDelivery && outboxLeaseToken && !outboxDeliveryConfirmed) {
+      await markEmailOutboxFailed(outboxRefForDelivery, outboxLeaseToken, error).catch(markError => {
+        console.error('[mail] falha ao registrar erro da outbox', markError);
+      });
+    }
     await logEmailEvent({
       type: 'outbound',
       status: 'error',
@@ -1932,12 +2207,19 @@ async function handleHealth(req, res) {
 
     const db = getAdminDb();
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const snap = await db
-      .collection('emailEvents')
-      .where('createdAt', '>=', since)
-      .orderBy('createdAt', 'desc')
-      .limit(200)
-      .get();
+    const [snap, outboxSnap] = await Promise.all([
+      db
+        .collection('emailEvents')
+        .where('createdAt', '>=', since)
+        .orderBy('createdAt', 'desc')
+        .limit(200)
+        .get(),
+      db
+        .collection('emailOutbox')
+        .where('status', 'in', ['pending', 'processing', 'failed', 'dead-letter'])
+        .limit(500)
+        .get(),
+    ]);
 
     const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const total = events.length;
@@ -1951,6 +2233,29 @@ async function handleHealth(req, res) {
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
+    const outbox = outboxSnap.docs.reduce((acc, doc) => {
+      const status = String(doc.data()?.status || 'pending');
+      if (status in acc) acc[status] += 1;
+      return acc;
+    }, { pending: 0, processing: 0, failed: 0, 'dead-letter': 0 });
+
+    // Idade do item mais antigo AINDA NÃO ENTREGUE. O worker roda por cron externo
+    // (GitHub Actions), que é best-effort e é DESATIVADO após ~60 dias sem push —
+    // se ele morrer, nada falha alto e os e-mails simplesmente param. Uma fila cuja
+    // cabeça envelhece (minutos virando horas) é o sintoma visível disso.
+    const nowMs = Date.now();
+    let oldestPendingMinutes = null;
+    for (const doc of outboxSnap.docs) {
+      const data = doc.data() || {};
+      if (data.status === 'dead-letter') continue;
+      const createdAt = data.createdAt?.toDate?.() || (data.createdAt ? new Date(data.createdAt) : null);
+      if (!createdAt || Number.isNaN(createdAt.getTime())) continue;
+      const ageMinutes = Math.floor((nowMs - createdAt.getTime()) / 60000);
+      if (oldestPendingMinutes === null || ageMinutes > oldestPendingMinutes) {
+        oldestPendingMinutes = ageMinutes;
+      }
+    }
+    outbox.oldestPendingMinutes = oldestPendingMinutes;
 
     return sendJson(res, 200, {
       ok: true,
@@ -1964,6 +2269,7 @@ async function handleHealth(req, res) {
         sync,
         byProvider,
       },
+      outbox,
       recentErrors: events
         .filter(event => event.status === 'error')
         .slice(0, 20)
@@ -1978,6 +2284,62 @@ async function handleHealth(req, res) {
     });
   } catch (error) {
     return sendJson(res, 500, { ok: false, error: error.message || 'Falha ao ler saúde de e-mail.' });
+  }
+}
+
+function getOutboxSendUrl() {
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${String(process.env.VERCEL_URL).replace(/^https?:\/\//, '')}`
+    : process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL;
+  if (!baseUrl) throw new Error('URL interna do Serv3 não configurada para processar a outbox.');
+  return new URL('/api/mail?route=send', baseUrl).toString();
+}
+
+async function dispatchAutomatedOutboxItem(item) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) throw new Error('CRON_SECRET não configurado.');
+
+  const response = await fetch(getOutboxSendUrl(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cronSecret}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ticketId: item.ticketId,
+      outboxKey: item.outboxKey,
+    }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (response.status === 409 && /sendo enviado|aguarde/i.test(String(payload?.error || ''))) {
+    return { ok: true, skipped: 'lease-active' };
+  }
+  if (!response.ok) {
+    throw new Error(payload?.error || `Falha HTTP ${response.status} ao entregar e-mail.`);
+  }
+  return payload;
+}
+
+async function handleEmailOutboxWorker(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+    const result = await processEmailOutboxBatch({
+      db: getAdminDb(),
+      dispatch: dispatchAutomatedOutboxItem,
+      batchSize: 8,
+    });
+    return sendJson(res, 200, result);
+  } catch (error) {
+    console.error('[mail] falha no worker da outbox', error);
+    return sendJson(res, 500, {
+      ok: false,
+      error: 'Falha ao processar a fila de e-mails.',
+    });
   }
 }
 
@@ -2656,6 +3018,7 @@ export default async function handler(req, res) {
 
   if (route === 'send') return handleSend(req, res);
   if (route === 'health') return handleHealth(req, res);
+  if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
   if (route === 'gmail-watch') return handleGmailWatch(req, res);
@@ -2665,11 +3028,3 @@ export default async function handler(req, res) {
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota de mail inválida.' });
 }
-
-
-
-
-
-
-
-
