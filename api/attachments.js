@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { getStorage } from 'firebase-admin/storage';
 
-import { findAttachmentReference, isAttachmentPathInTicketScope } from './_lib/attachmentAccess.js';
+import { canRoleReadAttachmentPath, findAttachmentReference, isAttachmentPathInTicketScope } from './_lib/attachmentAccess.js';
 import { streamDriveFile } from './_lib/attachmentProxy.js';
 import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { requireUserWithRoles } from './_lib/authz.js';
@@ -235,6 +235,11 @@ export default async function handler(req, res) {
     }
     if (!isAttachmentPathInTicketScope(path, ticketId)) {
       throw new HttpError(400, 'Caminho de anexo inválido para esta OS.');
+    }
+    // Escopo por PAPEL na leitura (o upload já restringia): ter acesso à OS não
+    // implica poder abrir qualquer anexo dela. Ver a matriz em attachmentAccess.js.
+    if (!canRoleReadAttachmentPath(user.role, path)) {
+      throw new HttpError(403, 'Seu perfil não tem acesso a este tipo de anexo.');
     }
 
     const db = getAdminDb();
