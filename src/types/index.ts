@@ -127,6 +127,7 @@ export interface Ticket {
   priority: string;
   waterIssue?: boolean;
   history: HistoryItem[];
+  historySubcollectionReady?: boolean;
   historyPagination?: {
     nextCursor: string | null;
     isComplete: boolean;

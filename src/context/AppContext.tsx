@@ -7,7 +7,13 @@ import {
 import { isAuthEnabled, loginWithEmailPassword, loginWithGoogle, logoutFirebaseAuth, subscribeToAuthState } from '../services/authClient';
 import { CatalogRegion, CatalogSite, fetchCatalog } from '../services/catalogApi';
 import { notifyTicketStatusChange } from '../services/ticketEmail';
-import { createTicketInApi, createTicketWithFilesInApi, fetchTicketsFromApi, patchTicketInApi } from '../services/ticketsApi';
+import {
+  createTicketInApi,
+  createTicketWithFilesInApi,
+  fetchTicketHistoryPage,
+  fetchTicketsFromApi,
+  patchTicketInApi,
+} from '../services/ticketsApi';
 import { requestPasswordResetInApi } from '../services/passwordResetApi';
 import { InboxFilter, Ticket, ViewState } from '../types';
 
@@ -165,6 +171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Leitura incremental: `since` do último poll e quando foi a última carga completa.
   const lastSyncTimeRef = useRef<string | null>(null);
   const lastFullSyncAtRef = useRef<number>(0);
+  const historyPageRequestsRef = useRef<Set<string>>(new Set());
 
   const prunePendingTicketUpdates = () => {
     const now = Date.now();
@@ -202,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const mergeTicketHistory = (current: Ticket | undefined, remote: Ticket) => {
-    if (!current?.historyPagination || !remote.historyPagination) return remote;
+    if (!current?.historyPagination) return remote;
     const byId = new Map<string, Ticket['history'][number]>();
     for (const entry of [...current.history, ...remote.history]) {
       if (entry?.id) byId.set(entry.id, entry);
@@ -213,7 +220,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...remote,
       history,
       historyPagination: {
-        nextCursor: isComplete ? null : current.historyPagination.nextCursor || remote.historyPagination.nextCursor,
+        nextCursor:
+          isComplete
+            ? null
+            : current.historyPagination.nextCursor || remote.historyPagination?.nextCursor || null,
         isComplete,
       },
     };
@@ -520,7 +530,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
   };
 
-  const mergeTicketHistoryPage = (id: string, history: Ticket['history'], nextCursor: string | null) => {
+  const mergeTicketHistoryPage = useCallback((id: string, history: Ticket['history'], nextCursor: string | null) => {
     setAllTickets(prev => prev.map(ticket => {
       if (ticket.id !== id) return ticket;
       const byId = new Map(ticket.history.map(entry => [entry.id, entry]));
@@ -531,7 +541,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
         historyPagination: { nextCursor, isComplete: !nextCursor },
       };
     }));
-  };
+  }, []);
+
+  useEffect(() => {
+    if (currentView !== 'inbox' || !activeTicketId) return;
+    const ticket = allTickets.find(item => item.id === activeTicketId);
+    if (
+      !ticket?.historySubcollectionReady ||
+      ticket.historyPagination ||
+      historyPageRequestsRef.current.has(activeTicketId)
+    ) {
+      return;
+    }
+
+    historyPageRequestsRef.current.add(activeTicketId);
+    void fetchTicketHistoryPage(activeTicketId, { limit: 50 })
+      .then(page => {
+        mergeTicketHistoryPage(activeTicketId, page.history, page.nextCursor);
+      })
+      .catch(error => {
+        console.error('[AppContext] Failed to load active ticket history', activeTicketId, error);
+      })
+      .finally(() => {
+        historyPageRequestsRef.current.delete(activeTicketId);
+      });
+  }, [activeTicketId, allTickets, currentView, mergeTicketHistoryPage]);
 
   const addTicket = async (ticket: Ticket, files: File[] = []) => {
     const createdTicket = files.length > 0 ? await createTicketWithFilesInApi(ticket, files) : await createTicketInApi(ticket);
@@ -750,5 +784,4 @@ export function useAppContext() {
 }
 
 export const useApp = useAppContext;
-
 

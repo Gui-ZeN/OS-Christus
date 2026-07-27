@@ -5,8 +5,10 @@ import { requireAdminUser } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { runFirestoreLegacyBackfill } from './_lib/firestoreBackfill.js';
 import { backfillTicketHistoryBatch } from './_lib/ticketHistoryBackfill.js';
+import { migrateLegacyAttachmentBatch } from './_lib/attachmentMigration.js';
 import { gmailGetProfile } from './_lib/gmail.js';
 import { readJsonBody, sendJson } from './_lib/http.js';
+import { writeAuditLog } from './_lib/auditLogs.js';
 
 const LEGACY_ROLE_MAP = {
   'Gestor de OS': 'Usuario',
@@ -347,6 +349,61 @@ async function handleTicketHistoryBackfill(req, res) {
   }
 }
 
+async function handleAttachmentMigration(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    const admin = await requireAdminUser(req);
+    const body = await readJsonBody(req);
+    getAdminDb();
+    const app = getApps()[0];
+    const bucketName = app?.options?.storageBucket || process.env.FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) {
+      return sendJson(res, 409, {
+        ok: false,
+        error: 'FIREBASE_STORAGE_BUCKET não configurado para inspecionar os tokens.',
+      });
+    }
+
+    const result = await migrateLegacyAttachmentBatch(
+      getAdminDb(),
+      getStorage(app).bucket(bucketName),
+      {
+        limit: body?.limit,
+        cursor: body?.cursor,
+        dryRun: body?.dryRun !== false,
+      }
+    );
+    await writeAuditLog({
+      actor: admin,
+      action: result.dryRun ? 'attachments.migration.dry-run' : 'attachments.migration.apply',
+      entity: 'attachments',
+      entityId: result.nextCursor || 'complete',
+      metadata: {
+        scannedTickets: result.scannedTickets,
+        changedDocuments: result.changedDocuments,
+        removedUrlFields: result.removedUrlFields,
+        unresolvedUrls: result.unresolvedUrls,
+        invalidStoragePaths: result.invalidStoragePaths,
+        tokenizedObjects: result.storage.tokenizedObjects,
+        revokedTokens: result.storage.revokedTokens,
+      },
+    });
+    return sendJson(res, 200, {
+      ok: true,
+      actor: { email: admin.email, name: admin.name },
+      result,
+    });
+  } catch (error) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: error.message || 'Falha ao migrar anexos legados.',
+    });
+  }
+}
+
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
 
@@ -354,6 +411,7 @@ export default async function handler(req, res) {
   if (route === 'legacy-health') return handleLegacyHealth(req, res);
   if (route === 'backfill') return handleBackfill(req, res);
   if (route === 'ticket-history-backfill') return handleTicketHistoryBackfill(req, res);
+  if (route === 'attachment-migration') return handleAttachmentMigration(req, res);
 
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota administrativa inválida.' });

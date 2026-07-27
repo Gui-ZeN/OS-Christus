@@ -15,12 +15,32 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
       - run: npm ci
+      - name: Instalar Chromium do Playwright
+        run: npx playwright install --with-deps chromium
       - name: Typecheck (tsc)
         run: npm run lint
       - name: Lint (eslint — falha só em erro, warnings são backlog)
         run: npm run lint:eslint
       - name: Testes unitários (vitest)
         run: npm test
+      - name: Testes de integração (Firebase Emulator)
+        env:
+          RUN_E2E: 'true'
+        run: npx --yes firebase-tools@14 emulators:exec --only auth,firestore --project os-christus "npm run test:integration:ci"
+      - name: Artefatos do Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Build de produção
         run: npm run build

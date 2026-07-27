@@ -1,8 +1,9 @@
 import { requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
+import { FieldPath } from 'firebase-admin/firestore';
 import {
   canUserSeeNotification,
   getNotificationStateCollection,
@@ -36,15 +37,53 @@ async function canUserAccessNotificationTicket(db, user, notification, territory
   return canUserAccessTicket(user, { id: ticketSnap.id, ...ticketSnap.data() }, cat.regions, cat.sites);
 }
 
-async function readNotifications(db, user) {
-  const [snap, stateSnap] = await Promise.all([
-    db.collection('notifications').get(),
-    getNotificationStateCollection(db, user.id).get(),
-  ]);
+function normalizePageLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return 50;
+  return Math.min(parsed, 100);
+}
+
+function encodeCursor(notificationDoc) {
+  const createdAt = toDate(notificationDoc?.data()?.createdAt);
+  if (!createdAt || !notificationDoc?.id) return null;
+  return Buffer.from(JSON.stringify({
+    createdAt: createdAt.toISOString(),
+    id: notificationDoc.id,
+  })).toString('base64url');
+}
+
+function decodeCursor(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(String(value), 'base64url').toString('utf8'));
+    const createdAt = new Date(parsed?.createdAt);
+    const id = String(parsed?.id || '').trim();
+    if (Number.isNaN(createdAt.getTime()) || !id) throw new Error('invalid cursor');
+    return { createdAt, id };
+  } catch {
+    throw new HttpError(400, 'Cursor de notificações inválido.');
+  }
+}
+
+async function readNotifications(db, user, options = {}) {
+  const limit = normalizePageLimit(options.limit);
+  const cursor = decodeCursor(options.cursor);
+  let query = db.collection('notifications')
+    .orderBy('createdAt', 'desc')
+    .orderBy(FieldPath.documentId(), 'desc')
+    .limit(limit + 1);
+  if (cursor) query = query.startAfter(cursor.createdAt, cursor.id);
+
+  const snap = await query.get();
+  const pageDocs = snap.docs.slice(0, limit);
+  const stateCollection = getNotificationStateCollection(db, user.id);
+  const stateSnaps = pageDocs.length > 0
+    ? await db.getAll(...pageDocs.map(doc => stateCollection.doc(doc.id)))
+    : [];
   const stateByNotificationId = new Map(
-    stateSnap.docs.map(doc => [doc.id, doc.data()])
+    stateSnaps.filter(doc => doc.exists).map(doc => [doc.id, doc.data()])
   );
-  const visibleByRole = snap.docs
+  const visibleByRole = pageDocs
     .map(doc => {
       const notification = { id: doc.id, ...doc.data() };
       return mergeNotificationState(notification, stateByNotificationId.get(doc.id));
@@ -54,7 +93,10 @@ async function readNotifications(db, user) {
 
   // Admin não precisa de escopo territorial; demais perfis filtram por OS acessível.
   if (user?.role === 'Admin') {
-    return visibleByRole.sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
+    return {
+      notifications: visibleByRole,
+      nextCursor: snap.docs.length > limit ? encodeCursor(pageDocs.at(-1)) : null,
+    };
   }
 
   // Escopo territorial em lote: busca todos os tickets referenciados de uma vez
@@ -77,7 +119,10 @@ async function readNotifications(db, user) {
     if (!ticket) return false; // OS inexistente → fail-closed
     return canUserAccessTicket(user, ticket, territory.regions, territory.sites);
   });
-  return scoped.sort((a, b) => (toDate(b.time)?.getTime() || 0) - (toDate(a.time)?.getTime() || 0));
+  return {
+    notifications: scoped,
+    nextCursor: snap.docs.length > limit ? encodeCursor(pageDocs.at(-1)) : null,
+  };
 }
 
 export default async function handler(req, res) {
@@ -86,8 +131,11 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const user = await requireAuthenticatedUser(req);
-      const notifications = await readNotifications(db, user);
-      return sendJson(res, 200, { ok: true, notifications });
+      const page = await readNotifications(db, user, {
+        cursor: req.query?.cursor,
+        limit: req.query?.limit,
+      });
+      return sendJson(res, 200, { ok: true, ...page });
     }
 
     if (req.method === 'POST') {
@@ -149,13 +197,14 @@ export default async function handler(req, res) {
       }
 
       if (action === 'markAllRead') {
-        // Marca apenas as notificações visíveis ao usuário.
-        const notifications = await readNotifications(db, user);
+        // Percorre todas as páginas visíveis; a leitura comum continua limitada.
         const now = new Date();
         const stateCollection = getNotificationStateCollection(db, user.id);
-        for (let start = 0; start < notifications.length; start += 400) {
+        let cursor = null;
+        do {
+          const page = await readNotifications(db, user, { cursor, limit: 100 });
           const batch = db.batch();
-          for (const item of notifications.slice(start, start + 400)) {
+          for (const item of page.notifications) {
             batch.set(
               stateCollection.doc(item.id),
               {
@@ -167,8 +216,9 @@ export default async function handler(req, res) {
               { merge: true }
             );
           }
-          await batch.commit();
-        }
+          if (page.notifications.length > 0) await batch.commit();
+          cursor = page.nextCursor;
+        } while (cursor);
         return sendJson(res, 200, { ok: true });
       }
 

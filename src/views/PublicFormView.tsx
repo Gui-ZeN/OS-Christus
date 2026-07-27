@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Landmark, ArrowRight, ArrowLeft, Loader2, CheckCircle, FileText, ImageIcon } from 'lucide-react';
+import { Landmark, ArrowRight, ArrowLeft, Loader2, CheckCircle, FileText, ImageIcon, X, ChevronDown } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Ticket, HistoryItem } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
@@ -14,6 +14,15 @@ import {
 
 interface PublicFormViewProps {
   onBack: () => void;
+}
+
+const MAX_PUBLIC_FILES = 10;
+const MAX_PUBLIC_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_PUBLIC_TOTAL_BYTES = 25 * 1024 * 1024;
+const PUBLIC_IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|heic|heif)$/i;
+
+function isSupportedPublicImage(file: File) {
+  return PUBLIC_IMAGE_EXTENSION.test(file.name) && file.type !== 'image/gif';
 }
 
 function parseEmailList(input: string) {
@@ -73,9 +82,16 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
   const [catalogServiceItems, setCatalogServiceItems] = useState<CatalogServiceItem[]>([]);
+  // Sem isto a falha do catálogo era MUDA: os selects de região/sede ficavam vazios,
+  // o usuário preenchia tudo e só recebia "Selecione a região" — sem nada para
+  // selecionar e sem entender o porquê.
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setCatalogLoading(true);
     (async () => {
       try {
         const catalog = await fetchCatalog();
@@ -84,6 +100,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           setCatalogSites(catalog.sites);
           setCatalogMacroServices(catalog.macroServices);
           setCatalogServiceItems(catalog.serviceCatalog);
+          setCatalogFailed(false);
         }
       } catch {
         if (!cancelled) {
@@ -91,14 +108,17 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           setCatalogSites([]);
           setCatalogMacroServices([]);
           setCatalogServiceItems([]);
+          setCatalogFailed(true);
         }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [catalogReloadKey]);
 
   const selectedRegion = useMemo(
     () => catalogRegions.find(region => region.name === formData.region),
@@ -139,10 +159,26 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     if (!formData.region) newErrors.region = 'Selecione a região';
     if (!formData.sede) newErrors.sede = 'Selecione a sede';
     setErrors(newErrors);
+    const firstInvalidField = Object.keys(newErrors)[0];
+    if (firstInvalidField) {
+      const fieldId: Record<string, string> = {
+        name: 'pf-name',
+        email: 'pf-email',
+        interestedEmails: 'pf-interested-emails',
+        subject: 'pf-subject',
+        description: 'pf-description',
+        sector: 'pf-sector',
+        location: 'pf-location',
+        region: 'pf-region',
+        sede: 'pf-sede',
+      };
+      requestAnimationFrame(() => document.getElementById(fieldId[firstInvalidField])?.focus());
+    }
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!validateForm()) return;
     setIsSubmitting(true);
     setSubmitError(null);
@@ -225,21 +261,57 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Acumula e limpa o value para permitir adicionar fotos uma a uma
-    // (no celular o usuário tira/anexa uma de cada vez).
-    const next = Array.from(e.target.files || []);
-    if (next.length > 0) {
-      const accepted = next.slice(0, Math.max(10 - files.length, 0));
-      setFiles(prev => [...prev, ...accepted]);
-      setErrors(current => {
-        const updated = { ...current };
-        if (accepted.length < next.length) updated.files = 'Você pode anexar no máximo 10 imagens.';
-        else delete updated.files;
-        return updated;
-      });
+  const addFiles = (incoming: File[]) => {
+    const accepted: File[] = [];
+    let totalBytes = files.reduce((total, file) => total + file.size, 0);
+    let fileError = '';
+
+    for (const file of incoming) {
+      if (files.length + accepted.length >= MAX_PUBLIC_FILES) {
+        fileError = `Você pode anexar no máximo ${MAX_PUBLIC_FILES} imagens.`;
+        break;
+      }
+      if (!isSupportedPublicImage(file)) {
+        fileError = 'Use imagens JPG, PNG, WebP, HEIC ou HEIF. Arquivos GIF não são aceitos.';
+        continue;
+      }
+      if (file.size > MAX_PUBLIC_FILE_BYTES) {
+        fileError = `A imagem ${file.name} ultrapassa o limite de 10 MB.`;
+        continue;
+      }
+      if (totalBytes + file.size > MAX_PUBLIC_TOTAL_BYTES) {
+        fileError = 'Os anexos juntos não podem ultrapassar 25 MB.';
+        break;
+      }
+      const duplicate = [...files, ...accepted].some(
+        current => current.name === file.name && current.size === file.size && current.lastModified === file.lastModified
+      );
+      if (duplicate) continue;
+      accepted.push(file);
+      totalBytes += file.size;
     }
+
+    if (accepted.length > 0) setFiles(current => [...current, ...accepted]);
+    setErrors(current => {
+      const updated = { ...current };
+      if (fileError) updated.files = fileError;
+      else delete updated.files;
+      return updated;
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files || []));
     e.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(current => current.filter((_, currentIndex) => currentIndex !== index));
+    setErrors(current => {
+      const updated = { ...current };
+      delete updated.files;
+      return updated;
+    });
   };
 
   return (
@@ -248,7 +320,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
         <div className="mb-10">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-roman-text-sub hover:text-roman-text-main text-sm mb-8 transition-colors group"
+            className="mb-8 flex min-h-11 items-center gap-2 text-sm text-roman-text-sub transition-colors hover:text-roman-text-main group"
           >
             <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
             Voltar
@@ -280,20 +352,20 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                 {window.location.origin}/?tracking={createdToken}
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 onClick={() => {
                   setIsSubmitted(false);
                   setCreatedId('');
                   setCreatedToken('');
                 }}
-                className="flex-1 bg-roman-sidebar hover:bg-roman-sidebar-light text-white py-3 rounded-sm font-medium transition-colors"
+                className="min-h-11 flex-1 bg-roman-sidebar hover:bg-roman-sidebar-light text-white py-3 rounded-sm font-medium transition-colors"
               >
                 Abrir Nova OS
               </button>
               <button
                 onClick={onBack}
-                className="flex-1 border border-roman-border hover:bg-roman-bg text-roman-text-main py-3 rounded-sm font-medium transition-colors"
+                className="min-h-11 flex-1 border border-roman-border hover:bg-roman-bg text-roman-text-main py-3 rounded-sm font-medium transition-colors"
               >
                 Página Inicial
               </button>
@@ -301,7 +373,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
           </div>
         ) : (
           <form
-            className="[&_input]:min-h-11 [&_select]:min-h-11"
+            className="[&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11"
             onSubmit={event => {
               event.preventDefault();
               void handleSubmit();
@@ -309,6 +381,26 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             noValidate
           >
           <div className="space-y-8">
+            {catalogFailed && (
+              <div
+                role="alert"
+                className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              >
+                <p className="font-medium">Não foi possível carregar a lista de unidades.</p>
+                <p className="mt-1 text-xs">
+                  Sem ela não dá para escolher região e sede. Verifique sua conexão e tente de novo — o
+                  que você já preencheu será mantido.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCatalogReloadKey(key => key + 1)}
+                  disabled={catalogLoading}
+                  className="mt-2 inline-flex min-h-11 items-center rounded-lg border border-amber-400 px-4 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {catalogLoading ? 'Carregando…' : 'Tentar novamente'}
+                </button>
+              </div>
+            )}
             <div className="pb-6 border-b border-roman-border">
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Sua Identificação</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -321,9 +413,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     value={formData.name}
                     onChange={handleInputChange}
                     placeholder="Ex: João Silva"
+                    aria-invalid={Boolean(errors.name)}
+                    aria-describedby={errors.name ? 'pf-name-error' : undefined}
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.name ? 'border-red-500' : 'border-roman-border'}`}
                   />
-                  {errors.name && <span className="text-xs text-red-500 mt-1 block">{errors.name}</span>}
+                  {errors.name && <span id="pf-name-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.name}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-email" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu E-mail (Para receber o link)</label>
@@ -334,9 +428,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     value={formData.email}
                     onChange={handleInputChange}
                     placeholder="nome@dominio.com"
+                    aria-invalid={Boolean(errors.email)}
+                    aria-describedby={errors.email ? 'pf-email-error' : undefined}
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-red-500' : 'border-roman-border'}`}
                   />
-                  {errors.email && <span className="text-xs text-red-500 mt-1 block">{errors.email}</span>}
+                  {errors.email && <span id="pf-email-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.email}</span>}
                 </div>
                 <div className="md:col-span-2">
                   <label htmlFor="pf-interested-emails" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Pessoas interessadas na OS (opcional)</label>
@@ -346,12 +442,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     value={formData.interestedEmails}
                     onChange={handleInputChange}
                     placeholder={`email1@dominio.com, email2@dominio.com\nou um e-mail por linha`}
+                    aria-invalid={Boolean(errors.interestedEmails)}
+                    aria-describedby="pf-interested-emails-help"
                     className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.interestedEmails ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.interestedEmails ? (
-                    <span className="text-xs text-red-500 mt-1 block">{errors.interestedEmails}</span>
+                    <span id="pf-interested-emails-help" role="alert" className="text-xs text-red-500 mt-1 block">{errors.interestedEmails}</span>
                   ) : (
-                    <span className="mt-1 block text-xs text-roman-text-sub">Separe por vírgula ou coloque um e-mail por linha. Essas pessoas receberão as atualizações públicas junto com o solicitante.</span>
+                    <span id="pf-interested-emails-help" className="mt-1 block text-xs text-roman-text-sub">Separe por vírgula ou coloque um e-mail por linha. Essas pessoas receberão as atualizações públicas junto com o solicitante.</span>
                   )}
                 </div>
               </div>
@@ -369,9 +467,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   value={formData.subject}
                   onChange={handleInputChange}
                   placeholder="Ex: Lâmpada queimada na recepção"
+                  aria-invalid={Boolean(errors.subject)}
+                  aria-describedby={errors.subject ? 'pf-subject-error' : undefined}
                   className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.subject ? 'border-red-500' : 'border-roman-border'}`}
                 />
-                {errors.subject && <span className="text-xs text-red-500 mt-1 block">{errors.subject}</span>}
+                {errors.subject && <span id="pf-subject-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.subject}</span>}
               </div>
 
               <div>
@@ -382,61 +482,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   value={formData.description}
                   onChange={handleInputChange}
                   placeholder="Resuma o problema brevemente..."
+                  aria-invalid={Boolean(errors.description)}
+                  aria-describedby={errors.description ? 'pf-description-error' : undefined}
                   className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.description ? 'border-red-500' : 'border-roman-border'}`}
                 />
-                {errors.description && <span className="text-xs text-red-500 mt-1 block">{errors.description}</span>}
+                {errors.description && <span id="pf-description-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.description}</span>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="pf-type" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de Manutenção (opcional)</label>
-                  <select
-                    id="pf-type"
-                    name="type"
-                    value={formData.type}
-                    onChange={handleInputChange}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.type ? 'border-red-500' : 'border-roman-border'}`}
-                  >
-                    <option value="">Selecione...</option>
-                    <option value="Corretiva">Corretiva (Conserto)</option>
-                    <option value="Preventiva">Preventiva</option>
-                    <option value="Melhoria">Melhoria</option>
-                  </select>
-                  <span className="mt-1 block text-xs text-roman-text-sub">Se não souber, deixe em branco. A equipe classifica na triagem.</span>
-                </div>
-                <div>
-                  <label htmlFor="pf-macroservice" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço (opcional)</label>
-                  <select
-                    id="pf-macroservice"
-                    name="macroServiceId"
-                    value={formData.macroServiceId}
-                    onChange={handleInputChange}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.macroServiceId ? 'border-red-500' : 'border-roman-border'}`}
-                  >
-                    <option value="">Selecione...</option>
-                    {catalogMacroServices.map(item => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                  <span className="mt-1 block text-xs text-roman-text-sub">Se não souber classificar, deixe em branco. A equipe define isso na triagem.</span>
-                </div>
-                <div>
-                  <label htmlFor="pf-service" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço (opcional)</label>
-                  <select
-                    id="pf-service"
-                    name="serviceCatalogId"
-                    value={formData.serviceCatalogId}
-                    onChange={handleInputChange}
-                    disabled={!formData.macroServiceId}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.serviceCatalogId ? 'border-red-500' : 'border-roman-border'}`}
-                  >
-                    <option value="">Selecione...</option>
-                    {availableServiceItems.map(item => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                  <span className="mt-1 block text-xs text-roman-text-sub">O administrador pode complementar essa informação depois.</span>
-                </div>
                 <div>
                   <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Local</label>
                   <input
@@ -446,9 +499,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     value={formData.sector}
                     onChange={handleInputChange}
                     placeholder="Ex: Recepção, Infantil, Coordenação"
+                    aria-invalid={Boolean(errors.sector)}
+                    aria-describedby={errors.sector ? 'pf-sector-error' : undefined}
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-red-500' : 'border-roman-border'}`}
                   />
-                  {errors.sector && <span className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
+                  {errors.sector && <span id="pf-sector-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-location" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Detalhe do local</label>
@@ -459,12 +514,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     value={formData.location}
                     onChange={handleInputChange}
                     placeholder="Ex: Bloco A, sala 12, corredor"
+                    aria-invalid={Boolean(errors.location)}
+                    aria-describedby={errors.location ? 'pf-location-error' : undefined}
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.location ? 'border-red-500' : 'border-roman-border'}`}
                   />
-                  {errors.location && <span className="text-xs text-red-500 mt-1 block">{errors.location}</span>}
-                </div>
-                <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
-                  A classificação operacional do chamado é validada pela triagem interna. Se não souber o macroserviço ou o serviço exato, deixe os campos em branco e descreva bem o problema.
+                  {errors.location && <span id="pf-location-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.location}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-region" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>
@@ -473,6 +527,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     name="region"
                     value={formData.region}
                     onChange={handleInputChange}
+                    aria-invalid={Boolean(errors.region)}
+                    aria-describedby={errors.region ? 'pf-region-error' : undefined}
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.region ? 'border-red-500' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
@@ -480,7 +536,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                       <option key={region.id} value={region.name}>{region.name}</option>
                     ))}
                   </select>
-                  {errors.region && <span className="text-xs text-red-500 mt-1 block">{errors.region}</span>}
+                  {errors.region && <span id="pf-region-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.region}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-sede" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Sede</label>
@@ -490,6 +546,8 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     value={formData.sede}
                     onChange={handleInputChange}
                     disabled={!formData.region}
+                    aria-invalid={Boolean(errors.sede)}
+                    aria-describedby={errors.sede ? 'pf-sede-error' : undefined}
                     className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.sede ? 'border-red-500' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
@@ -497,20 +555,80 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                       <option key={site.id} value={site.code}>{site.name}</option>
                     ))}
                   </select>
-                  {errors.sede && <span className="text-xs text-red-500 mt-1 block">{errors.sede}</span>}
+                  {errors.sede && <span id="pf-sede-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.sede}</span>}
                 </div>
               </div>
+
+              <details className="group rounded-sm border border-roman-border bg-roman-bg">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-medium text-roman-text-main">
+                  Classificação opcional
+                  <ChevronDown size={17} className="shrink-0 text-roman-text-sub transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="grid grid-cols-1 gap-4 border-t border-roman-border px-4 py-4 md:grid-cols-2">
+                  <div>
+                    <label htmlFor="pf-type" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de manutenção</label>
+                    <select
+                      id="pf-type"
+                      name="type"
+                      value={formData.type}
+                      onChange={handleInputChange}
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                    >
+                      <option value="">Não sei informar</option>
+                      <option value="Corretiva">Corretiva (Conserto)</option>
+                      <option value="Preventiva">Preventiva</option>
+                      <option value="Melhoria">Melhoria</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="pf-macroservice" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço</label>
+                    <select
+                      id="pf-macroservice"
+                      name="macroServiceId"
+                      value={formData.macroServiceId}
+                      onChange={handleInputChange}
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                    >
+                      <option value="">Não sei informar</option>
+                      {catalogMacroServices.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="pf-service" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço</label>
+                    <select
+                      id="pf-service"
+                      name="serviceCatalogId"
+                      value={formData.serviceCatalogId}
+                      onChange={handleInputChange}
+                      disabled={!formData.macroServiceId}
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                    >
+                      <option value="">Não sei informar</option>
+                      {availableServiceItems.map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </details>
             </div>
 
             <div className="pb-6">
               <h3 className="font-serif text-lg text-roman-text-main mb-2">Fotos do Problema</h3>
               <p className="text-xs text-roman-text-sub mb-4">
-                Anexe pelo menos uma foto de perto e uma de longe para facilitar a identificação.
+                Se possível, envie uma foto de perto e outra de longe. Máximo de 10 imagens, 10 MB cada e 25 MB no total.
               </p>
               <button
                 type="button"
                 className="w-full border-2 border-dashed border-roman-border rounded-sm p-8 text-center bg-roman-bg hover:bg-roman-border-light transition-colors cursor-pointer relative"
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={event => event.preventDefault()}
+                onDrop={event => {
+                  event.preventDefault();
+                  addFiles(Array.from(event.dataTransfer.files || []));
+                }}
                 onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
@@ -522,7 +640,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                 <input
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept=".jpg,.jpeg,.png,.webp,.heic,.heif"
                   className="hidden"
                   ref={fileInputRef}
                   onChange={handleFileChange}
@@ -544,17 +662,27 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               {files.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {files.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 text-xs text-roman-text-sub">
-                      <FileText size={12} /> {file.name}
+                    <div key={`${file.name}-${file.lastModified}-${index}`} className="flex min-h-11 items-center gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 text-xs text-roman-text-sub">
+                      <FileText size={14} className="shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-roman-text-sub hover:text-red-700"
+                        title={`Remover ${file.name}`}
+                        aria-label={`Remover ${file.name}`}
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
-              {errors.files && <span className="mt-2 block text-xs text-red-500">{errors.files}</span>}
+              {errors.files && <span role="alert" className="mt-2 block text-xs text-red-500">{errors.files}</span>}
             </div>
 
             {submitError && (
-              <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div role="alert" className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {submitError}
               </div>
             )}

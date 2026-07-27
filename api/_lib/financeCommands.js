@@ -124,6 +124,82 @@ function isLegacyMilestonePlaceholder(payment) {
   );
 }
 
+export function resolveLegacyMeasurementPayment({
+  paymentId,
+  fallback,
+  payments,
+  measurements,
+}) {
+  const measurementId = String(fallback?.measurementId || '').trim();
+  const measurement = (Array.isArray(measurements) ? measurements : [])
+    .find(item => String(item?.id || '').trim() === measurementId);
+  if (!measurement) {
+    throw new HttpError(404, 'Lançamento financeiro não encontrado.');
+  }
+
+  const expectedPaymentId = `measurement-payment-${measurementId}`;
+  if (paymentId !== expectedPaymentId) {
+    throw new HttpError(409, 'Identificador inválido para o lançamento legado.');
+  }
+
+  const duplicate = (Array.isArray(payments) ? payments : [])
+    .find(item => String(item?.measurementId || '').trim() === measurementId);
+  if (duplicate) {
+    throw new HttpError(409, 'Esta medição já possui um lançamento financeiro.');
+  }
+
+  const grossValue = String(measurement.grossValue || '').trim();
+  const status = String(measurement.status || 'pending').trim();
+  const createdAt =
+    toDate(measurement.requestedAt) ||
+    toDate(measurement.approvedAt) ||
+    toDate(measurement.createdAt) ||
+    new Date();
+
+  return {
+    id: expectedPaymentId,
+    ticketId: String(measurement.ticketId || fallback?.ticketId || '').trim() || null,
+    vendor: String(fallback?.vendor || '').trim() || 'Fornecedor não definido',
+    value: grossValue,
+    grossValue,
+    taxValue: '',
+    netValue: grossValue,
+    progressPercent: finiteNumber(measurement.progressPercent),
+    expectedBaselineValue: null,
+    status,
+    label: String(fallback?.label || measurement.label || '').trim() || 'Lançamento legado',
+    installmentNumber: finiteNumber(fallback?.installmentNumber),
+    totalInstallments: finiteNumber(fallback?.totalInstallments),
+    dueAt: toDate(fallback?.dueAt) || createdAt,
+    measurementId,
+    releasedPercent: finiteNumber(measurement.releasePercent),
+    milestonePercent: finiteNumber(measurement.progressPercent),
+    attachments: Array.isArray(measurement.attachments)
+      ? measurement.attachments.map(item => normalizeAttachment(item))
+      : [],
+    receiptFileName: null,
+    submittedBy: measurement.submittedBy || null,
+    submittedAt: toDate(measurement.submittedAt) || createdAt,
+    createdAt,
+    updatedAt: toDate(measurement.updatedAt) || createdAt,
+  };
+}
+
+export function assertUniquePaymentMeasurement(payments, currentPayment) {
+  const measurementId = String(currentPayment?.measurementId || '').trim();
+  if (!measurementId) return;
+  const duplicate = (Array.isArray(payments) ? payments : []).find(item =>
+    String(item?.id || '').trim() !== String(currentPayment?.id || '').trim() &&
+    String(item?.measurementId || '').trim() === measurementId
+  );
+  if (duplicate) {
+    throw new HttpError(
+      409,
+      'Há mais de um lançamento vinculado a esta medição. Regularize os dados antes de pagar.'
+    );
+  }
+}
+
 function mergeClosureChecklist(ticket, patch = {}) {
   const current = ticket?.closureChecklist || {};
   return {
@@ -447,16 +523,22 @@ async function settlePayment({ db, user, ticketId, commandKey, body }) {
     if (!ticketSnap.exists) throw new HttpError(404, 'OS não encontrada.');
 
     const ticket = ticketSnap.data() || {};
-    const payments = paymentsSnap.docs.map(doc => ({ id: doc.id, ref: doc.ref, ...doc.data() }));
+    const payments = paymentsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id, ref: doc.ref }));
+    const measurements = measurementsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
     let currentPayment = payments.find(item => item.id === paymentId) || null;
     if (!currentPayment) {
-      const fallback = body?.payment || {};
-      const measurementId = String(fallback.measurementId || '').trim();
-      const hasMeasurement = measurementId && measurementsSnap.docs.some(doc => doc.id === measurementId);
-      if (!hasMeasurement) throw new HttpError(404, 'Lançamento financeiro não encontrado.');
-      currentPayment = { id: paymentId, ref: paymentRef, ...fallback };
+      currentPayment = {
+        ...resolveLegacyMeasurementPayment({
+          paymentId,
+          fallback: body?.payment || {},
+          payments,
+          measurements,
+        }),
+        ref: paymentRef,
+      };
       payments.push(currentPayment);
     }
+    assertUniquePaymentMeasurement(payments, currentPayment);
     if (currentPayment.status === 'paid') {
       throw new HttpError(409, 'Este lançamento já foi pago.');
     }

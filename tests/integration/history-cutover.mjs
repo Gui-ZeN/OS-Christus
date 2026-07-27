@@ -85,6 +85,18 @@ const token = await signIn();
 const entries = await seed();
 const ref = db.collection('tickets').doc(TICKET);
 
+// ---------- PERF: listagem não hidrata a subcoleção inteira ----------
+const listRes = await fetch(`${API}/api/tickets`, {
+  headers: { Authorization: `Bearer ${token}` },
+});
+const listJson = await listRes.json().catch(() => ({}));
+const listedTicket = (listJson?.tickets || []).find(ticket => ticket.id === TICKET);
+check(
+  'PERF: listagem devolve somente a janela embutida do histórico',
+  listRes.ok && listedTicket?.history?.length === WINDOW,
+  `HTTP ${listRes.status} histórico=${listedTicket?.history?.length ?? 'ausente'} (janela=${WINDOW})`
+);
+
 // ---------- A1: cliente paginou e reenvia TUDO + 1 nova ----------
 const novaId = `nova-${Date.now()}`;
 const patch = await fetch(`${API}/api/tickets`, {

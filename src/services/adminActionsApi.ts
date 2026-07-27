@@ -26,6 +26,32 @@ export interface TicketHistoryBackfillResult {
   nextCursor: string | null;
 }
 
+export interface AttachmentMigrationResult {
+  dryRun: boolean;
+  scannedTickets: number;
+  scannedDocuments: number;
+  changedDocuments: number;
+  updatedDocuments: number;
+  storagePaths: number;
+  invalidStoragePaths: number;
+  invalidStoragePathSamples: Array<{ ticketId: string; path: string }>;
+  removedUrlFields: number;
+  firebaseTokenUrls: number;
+  signedUrls: number;
+  otherLegacyUrls: number;
+  unresolvedUrls: number;
+  unresolvedSamples: Array<{ location: string; kind: string }>;
+  storage: {
+    inspectedObjects: number;
+    tokenizedObjects: number;
+    revokedTokens: number;
+    missingObjects: number;
+    failedObjects: number;
+    failures: Array<{ path: string; error: string }>;
+  };
+  nextCursor: string | null;
+}
+
 export async function runFirestoreLegacyBackfill() {
   const idToken = await getCurrentIdToken();
   if (!idToken) {
@@ -72,4 +98,26 @@ export async function runTicketHistoryBackfill(
   return json as { ok: true; result: TicketHistoryBackfillResult };
 }
 
+export async function runAttachmentSecurityMigration(
+  cursor?: string | null,
+  options?: { dryRun?: boolean }
+) {
+  const idToken = await getCurrentIdToken();
+  if (!idToken) throw new Error('Sessão inválida. Faça login novamente.');
 
+  const response = await fetch('/api/attachment-security-migration', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      limit: 5,
+      cursor: cursor || null,
+      dryRun: options?.dryRun !== false,
+    }),
+  });
+  const json = await expectApiJson<any>(response, 'Falha ao migrar anexos legados.');
+  if (!json.ok) throw new Error(json.error || 'Falha ao migrar anexos legados.');
+  return json as { ok: true; result: AttachmentMigrationResult };
+}

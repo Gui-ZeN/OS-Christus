@@ -1,40 +1,37 @@
 import { expect, test } from '@playwright/test';
+import { loginWithPassword } from './e2e/login';
 
-const loginEmail = process.env.E2E_LOGIN_EMAIL;
-const loginPassword = process.env.E2E_LOGIN_PASSWORD;
+const loginEmail = process.env.E2E_LOGIN_EMAIL || 'admin@test.local';
+const loginPassword = process.env.E2E_LOGIN_PASSWORD || 'Test@123456';
 
-async function login(page: import('@playwright/test').Page) {
-  test.skip(!loginEmail || !loginPassword, 'Defina E2E_LOGIN_EMAIL e E2E_LOGIN_PASSWORD para executar os smoke tests.');
+test('login e navegação principal do Admin', async ({ page }) => {
+  await loginWithPassword(page, loginEmail, loginPassword);
 
-  await page.goto('/');
-  await page.getByRole('button', { name: /acesso/i }).click();
-  await page.locator('input[type="email"]').fill(loginEmail!);
-  await page.locator('input[type="password"]').fill(loginPassword!);
-  await page.getByRole('button', { name: /acessar o sistema/i }).click();
-  await expect(page.getByText(/olá,/i)).toBeVisible();
-}
+  await page.getByTitle('Caixa de Entrada').click();
+  await expect(page.getByRole('heading', { name: 'Caixa de Entrada' })).toBeVisible();
 
-test('login e navegacao principal', async ({ page }) => {
-  await login(page);
+  await page.getByTitle('Configurações').click();
+  await expect(page.getByRole('heading', { name: 'Estrutura e governança' })).toBeVisible();
 
-  await page.locator('button[title="Caixa de Entrada"]').click();
-  await expect(page.getByText(/Caixa de Entrada/i)).toBeVisible();
-
-  await page.locator('button[title="Configurações"]').click();
-  await expect(page.getByRole('heading', { name: /configurações do sistema/i })).toBeVisible();
-
-  await page.locator('button[title="KPI"]').click();
-  await expect(page.getByRole('heading', { name: /indicadores|kpi/i })).toBeVisible();
+  await page.getByTitle('Indicadores').click();
+  await expect(page.getByRole('heading', { name: 'Painel Executivo' })).toBeVisible();
 });
 
-test('notificacoes e responsividade basica', async ({ page }) => {
+test('notificações e responsividade básica em 390 px', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
+  await loginWithPassword(page, loginEmail, loginPassword);
 
-  await page.locator('button[title="Notificações"]').click();
-  await expect(page.getByRole('heading', { name: /notificações/i })).toBeVisible();
-  await page.getByLabel(/fechar notificações/i).click();
+  // exact: o popover tem também "Atualizar notificações" — sem isto o seletor casa
+  // dois elementos e o Playwright falha por strict mode.
+  const notificationButton = page.getByTitle('Notificações', { exact: true });
+  await notificationButton.click();
+  await expect(page.getByRole('heading', { name: 'Notificações' })).toBeVisible();
+  await notificationButton.click();
 
-  await page.locator('button[title="Caixa de Entrada"]').click();
-  await expect(page.getByText(/Caixa de Entrada/i)).toBeVisible();
+  await page.getByTitle('Caixa de Entrada').click();
+  await expect(page.getByRole('heading', { name: 'Caixa de Entrada' })).toBeVisible();
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+  );
+  expect(hasHorizontalOverflow).toBe(false);
 });

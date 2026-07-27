@@ -321,19 +321,6 @@ async function hydrateTicketHistoryForRead(ticket, ticketRef, options = {}) {
   return { ...ticket, history };
 }
 
-async function hydrateTicketsHistoryForRead(col, tickets) {
-  const result = [];
-  const list = Array.isArray(tickets) ? tickets : [];
-  for (let start = 0; start < list.length; start += 8) {
-    const batch = list.slice(start, start + 8);
-    const hydrated = await Promise.all(batch.map(ticket =>
-      hydrateTicketHistoryForRead(ticket, col.doc(ticket.id), { paginated: true, limit: 50 })
-    ));
-    result.push(...hydrated);
-  }
-  return result;
-}
-
 function buildPublicTrackingPayload(beforeData, approved) {
   const now = new Date();
   const previousChecklist = beforeData?.closureChecklist || {};
@@ -860,7 +847,6 @@ export default async function handler(req, res) {
         ? await readTicketsChangedSince(db, user, sinceDate)
         : await readAccessibleTickets(db, user);
 
-      const ticketsWithHistory = await hydrateTicketsHistoryForRead(col, tickets);
       return sendJson(
         res,
         200,
@@ -868,7 +854,7 @@ export default async function handler(req, res) {
           ok: true,
           mode: useDelta ? 'delta' : 'full',
           serverTime: serverTime.toISOString(),
-          tickets: ticketsWithHistory
+          tickets: tickets
             .map(serializeTicketForApi)
             .sort((a, b) => sortTimeValue(b.time) - sortTimeValue(a.time)),
         }

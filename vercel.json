@@ -41,6 +41,10 @@
       "destination": "/api/admin-tools?route=ticket-history-backfill"
     },
     {
+      "source": "/api/attachment-security-migration",
+      "destination": "/api/admin-tools?route=attachment-migration"
+    },
+    {
       "source": "/api/firestore-legacy-health",
       "destination": "/api/admin-tools?route=legacy-health"
     },

@@ -126,6 +126,15 @@ async function readProcurementAttachmentSources(ticketRef) {
   return sources;
 }
 
+async function readHistoryAttachmentReference(ticketRef, locator) {
+  const historySnap = await ticketRef.collection('historyEntries').get();
+  for (const doc of historySnap.docs) {
+    const reference = findAttachmentReference(doc.data() || {}, locator);
+    if (reference) return reference;
+  }
+  return null;
+}
+
 async function readAccessibleTicket(db, user, ticketId) {
   const ticketRef = db.collection('tickets').doc(ticketId);
   const ticketSnap = await ticketRef.get();
@@ -253,6 +262,11 @@ export default async function handler(req, res) {
         reference = findAttachmentReference(source, locator);
         if (reference) break;
       }
+    }
+    // Após o cutover, anexos antigos podem existir apenas na subcoleção completa;
+    // o documento principal guarda só a janela das 50 entradas mais recentes.
+    if (!reference && ticketData.historySubcollectionReady === true) {
+      reference = await readHistoryAttachmentReference(ticketRef, locator);
     }
     if (!reference) throw new HttpError(404, 'Anexo não encontrado.');
 

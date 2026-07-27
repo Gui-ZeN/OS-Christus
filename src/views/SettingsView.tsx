@@ -1,8 +1,10 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Boxes, CheckCircle, Database, Loader2, Mail, MapPinned, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
 import {
+  runAttachmentSecurityMigration,
   runFirestoreLegacyBackfill,
   runTicketHistoryBackfill,
+  type AttachmentMigrationResult,
   type FirestoreBackfillResult,
   type TicketHistoryBackfillResult,
 } from '../services/adminActionsApi';
@@ -165,6 +167,43 @@ Motivo:
 ];
 const PRIORITY_MARKERS = ['Urgente', 'Alta', 'Trivial'] as const;
 
+function mergeAttachmentMigrationResults(
+  current: AttachmentMigrationResult | null,
+  next: AttachmentMigrationResult
+): AttachmentMigrationResult {
+  if (!current || current.nextCursor === null) return next;
+  return {
+    ...next,
+    scannedTickets: current.scannedTickets + next.scannedTickets,
+    scannedDocuments: current.scannedDocuments + next.scannedDocuments,
+    changedDocuments: current.changedDocuments + next.changedDocuments,
+    updatedDocuments: current.updatedDocuments + next.updatedDocuments,
+    storagePaths: current.storagePaths + next.storagePaths,
+    invalidStoragePaths: current.invalidStoragePaths + next.invalidStoragePaths,
+    invalidStoragePathSamples: [
+      ...current.invalidStoragePathSamples,
+      ...next.invalidStoragePathSamples,
+    ].slice(0, 20),
+    removedUrlFields: current.removedUrlFields + next.removedUrlFields,
+    firebaseTokenUrls: current.firebaseTokenUrls + next.firebaseTokenUrls,
+    signedUrls: current.signedUrls + next.signedUrls,
+    otherLegacyUrls: current.otherLegacyUrls + next.otherLegacyUrls,
+    unresolvedUrls: current.unresolvedUrls + next.unresolvedUrls,
+    unresolvedSamples: [
+      ...current.unresolvedSamples,
+      ...next.unresolvedSamples,
+    ].slice(0, 20),
+    storage: {
+      inspectedObjects: current.storage.inspectedObjects + next.storage.inspectedObjects,
+      tokenizedObjects: current.storage.tokenizedObjects + next.storage.tokenizedObjects,
+      revokedTokens: current.storage.revokedTokens + next.storage.revokedTokens,
+      missingObjects: current.storage.missingObjects + next.storage.missingObjects,
+      failedObjects: current.storage.failedObjects + next.storage.failedObjects,
+      failures: [...current.storage.failures, ...next.storage.failures].slice(0, 20),
+    },
+  };
+}
+
 const SECTION_META: Record<
   SettingsSection,
   {
@@ -301,6 +340,10 @@ export function SettingsView() {
   const [historyBackfillLoading, setHistoryBackfillLoading] = useState(false);
   const [historyBackfillError, setHistoryBackfillError] = useState<string | null>(null);
   const [historyBackfillResult, setHistoryBackfillResult] = useState<TicketHistoryBackfillResult | null>(null);
+  const [attachmentMigrationLoading, setAttachmentMigrationLoading] = useState(false);
+  const [attachmentMigrationError, setAttachmentMigrationError] = useState<string | null>(null);
+  const [attachmentDryRunResult, setAttachmentDryRunResult] = useState<AttachmentMigrationResult | null>(null);
+  const [attachmentApplyResult, setAttachmentApplyResult] = useState<AttachmentMigrationResult | null>(null);
   const [legacyHealth, setLegacyHealth] = useState<FirestoreLegacyHealth | null>(null);
   const [integrationsHealth, setIntegrationsHealth] = useState<IntegrationsHealthResponse | null>(null);
   const [template, setTemplate] = useState<EmailTemplateSettings>(DEFAULT_TEMPLATE);
@@ -483,6 +526,28 @@ export function SettingsView() {
       setHistoryBackfillError(error instanceof Error ? error.message : 'Falha ao copiar o histórico das OS.');
     } finally {
       setHistoryBackfillLoading(false);
+    }
+  };
+
+  const handleRunAttachmentMigration = async (dryRun: boolean) => {
+    setAttachmentMigrationLoading(true);
+    setAttachmentMigrationError(null);
+    try {
+      const previous = dryRun ? attachmentDryRunResult : attachmentApplyResult;
+      const response = await runAttachmentSecurityMigration(previous?.nextCursor, { dryRun });
+      const combined = mergeAttachmentMigrationResults(previous, response.result);
+      if (dryRun) {
+        if (previous?.nextCursor === null) setAttachmentApplyResult(null);
+        setAttachmentDryRunResult(combined);
+      } else {
+        setAttachmentApplyResult(combined);
+      }
+    } catch (error) {
+      setAttachmentMigrationError(
+        error instanceof Error ? error.message : 'Falha ao migrar anexos legados.'
+      );
+    } finally {
+      setAttachmentMigrationLoading(false);
     }
   };
 
@@ -1708,6 +1773,7 @@ export function SettingsView() {
                       {integrationsError && <FeedbackBanner tone="error">{integrationsError}</FeedbackBanner>}
                       {backfillError && <FeedbackBanner tone="error">{backfillError}</FeedbackBanner>}
                       {historyBackfillError && <FeedbackBanner tone="error">{historyBackfillError}</FeedbackBanner>}
+                      {attachmentMigrationError && <FeedbackBanner tone="error">{attachmentMigrationError}</FeedbackBanner>}
                       {backfillResult && (
                         <FeedbackBanner tone="success">
                           <div>
@@ -1749,6 +1815,81 @@ export function SettingsView() {
                           </div>
                         </FeedbackBanner>
                       )}
+                      <div className="border-t border-roman-border pt-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 font-medium text-roman-text-main">
+                              <ShieldCheck size={16} />
+                              Segurança dos anexos legados
+                            </div>
+                            <p className="mt-1 text-xs text-roman-text-sub">
+                              Remove URLs permanentes quando já existe um caminho protegido e revoga tokens do Firebase Storage.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleRunAttachmentMigration(true)}
+                              disabled={attachmentMigrationLoading}
+                              className="inline-flex min-h-10 items-center gap-2 rounded-sm border border-roman-border px-3 py-2 text-xs font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-50"
+                            >
+                              {attachmentMigrationLoading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                              {attachmentDryRunResult?.nextCursor
+                                ? 'Próximo lote do ensaio'
+                                : attachmentDryRunResult
+                                  ? 'Refazer ensaio'
+                                  : 'Simular anexos'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRunAttachmentMigration(false)}
+                              disabled={
+                                attachmentMigrationLoading ||
+                                !attachmentDryRunResult ||
+                                Boolean(attachmentDryRunResult.nextCursor) ||
+                                Boolean(attachmentApplyResult && !attachmentApplyResult.nextCursor)
+                              }
+                              className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:bg-stone-900 disabled:opacity-50"
+                              title="Disponível somente depois de concluir o ensaio de todos os lotes"
+                            >
+                              {attachmentMigrationLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
+                              {attachmentApplyResult?.nextCursor ? 'Aplicar próximo lote' : 'Remover URLs e revogar tokens'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {(attachmentDryRunResult || attachmentApplyResult) && (
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-roman-text-sub md:grid-cols-4">
+                            {attachmentDryRunResult && (
+                              <>
+                                <div>Ensaio: {attachmentDryRunResult.scannedTickets} OS verificadas</div>
+                                <div>Documentos afetados: {attachmentDryRunResult.changedDocuments}</div>
+                                <div>URLs removíveis: {attachmentDryRunResult.removedUrlFields}</div>
+                                <div>Sem path seguro: {attachmentDryRunResult.unresolvedUrls}</div>
+                                {attachmentDryRunResult.invalidStoragePaths > 0 && (
+                                  <div className="text-red-700">
+                                    Paths inválidos: {attachmentDryRunResult.invalidStoragePaths}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            {attachmentApplyResult && (
+                              <>
+                                <div>Atualizados: {attachmentApplyResult.updatedDocuments}</div>
+                                <div>Tokens revogados: {attachmentApplyResult.storage.revokedTokens}</div>
+                                <div>Objetos ausentes: {attachmentApplyResult.storage.missingObjects}</div>
+                                <div>Falhas no Storage: {attachmentApplyResult.storage.failedObjects}</div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {(attachmentDryRunResult?.signedUrls ?? 0) > 0 && (
+                          <p className="mt-2 text-xs text-amber-700">
+                            Signed URLs encontradas: {attachmentDryRunResult?.signedUrls}. Elas serão removidas dos documentos,
+                            mas a revogação externa exige rotação de chave ou migração do objeto.
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     {integrationsLoading && (

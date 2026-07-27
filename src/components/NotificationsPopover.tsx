@@ -24,9 +24,12 @@ function notificationAccent(type: AppNotification['type']) {
 export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
   const { navigateTo, setActiveTicketId } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadedOlderRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +41,15 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
   const refresh = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      const next = await fetchNotifications();
-      setNotifications(next);
+      const page = await fetchNotifications();
+      setNotifications(current => {
+        if (showLoading || current.length === 0) return page.notifications;
+        const byId = new Map(current.map(item => [item.id, item]));
+        for (const item of page.notifications) byId.set(item.id, item);
+        return [...byId.values()].sort((a, b) => b.time.getTime() - a.time.getTime());
+      });
+      if (showLoading) loadedOlderRef.current = false;
+      if (showLoading || !loadedOlderRef.current) setNextCursor(page.nextCursor);
       setError(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Falha ao buscar notificações.');
@@ -50,6 +60,9 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
 
   useEffect(() => {
     setNotifications([]);
+    setNextCursor(null);
+    setLoadingMore(false);
+    loadedOlderRef.current = false;
     setError(null);
     void refresh(true);
 
@@ -129,6 +142,26 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
     }
   }
 
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    loadedOlderRef.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await fetchNotifications(nextCursor);
+      setNotifications(current => {
+        const byId = new Map(current.map(item => [item.id, item]));
+        for (const item of page.notifications) byId.set(item.id, item);
+        return [...byId.values()].sort((a, b) => b.time.getTime() - a.time.getTime());
+      });
+      setNextCursor(page.nextCursor);
+      setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Falha ao carregar notificações anteriores.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -203,7 +236,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
               </div>
             ) : notifications.length === 0 ? (
               <p className="px-4 py-10 text-center font-serif text-sm italic text-roman-text-sub">
-                Nenhuma notificação.
+                Nenhuma notificação nesta página.
               </p>
             ) : (
               notifications.map(notification => {
@@ -248,10 +281,20 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
                 );
               })
             )}
+            {nextCursor && (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="flex min-h-11 w-full items-center justify-center gap-2 border-t border-roman-border px-3 py-2 text-xs font-medium text-roman-primary hover:bg-roman-bg disabled:opacity-50"
+              >
+                {loadingMore && <Loader2 size={14} className="animate-spin" />}
+                Carregar anteriores
+              </button>
+            )}
           </div>
         </section>
       )}
     </div>
   );
 }
-

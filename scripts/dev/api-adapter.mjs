@@ -25,6 +25,7 @@ const REWRITES = {
   '/api/email/inbound': { file: 'mail', query: { route: 'inbound' } },
   '/api/firestore-backfill': { file: 'admin-tools', query: { route: 'backfill' } },
   '/api/ticket-history-backfill': { file: 'admin-tools', query: { route: 'ticket-history-backfill' } },
+  '/api/attachment-security-migration': { file: 'admin-tools', query: { route: 'attachment-migration' } },
   '/api/firestore-legacy-health': { file: 'admin-tools', query: { route: 'legacy-health' } },
   '/api/integrations-health': { file: 'admin-tools', query: { route: 'integrations-health' } },
 };

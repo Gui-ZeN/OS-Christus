@@ -4,6 +4,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { seedLifecycleFixtures } from './lifecycle-fixtures.mjs';
 
 // Aponta o firebase-admin pro emulador (defaults; sobrescrevíveis por env).
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
@@ -16,6 +17,24 @@ const auth = getAuth();
 
 const TEST_EMAIL = 'admin@test.local';
 const TEST_PASSWORD = 'Test@123456';
+const TERRITORY_USER_EMAIL = 'usuario.pe@test.local';
+const DIRECTOR_EMAIL = 'diretor.e2e@test.local';
+const MANAGER_EMAIL = 'gestor.e2e@test.local';
+
+async function ensureAuthUser({ email, displayName, role }) {
+  const existing = await auth.getUserByEmail(email).catch(() => null);
+  const user = existing || (await auth.createUser({
+    email,
+    password: TEST_PASSWORD,
+    emailVerified: true,
+    displayName,
+  }));
+  await auth.setCustomUserClaims(user.uid, {
+    role: role.toLowerCase(),
+    appRole: role,
+  });
+  return user;
+}
 
 // 1) Usuário Auth + diretório
 let uid;
@@ -34,6 +53,78 @@ await db.collection('users').doc('user-admin-test').set({
   role: 'Admin', status: 'Ativo', active: true, regionIds: [], siteIds: [],
 });
 
+let territoryUserUid;
+try {
+  const existing = await auth.getUserByEmail(TERRITORY_USER_EMAIL).catch(() => null);
+  const user = existing || (await auth.createUser({
+    email: TERRITORY_USER_EMAIL,
+    password: TEST_PASSWORD,
+    emailVerified: true,
+    displayName: 'Usuário PE',
+  }));
+  territoryUserUid = user.uid;
+  await auth.setCustomUserClaims(territoryUserUid, { role: 'usuario', appRole: 'Usuario' });
+} catch (e) {
+  console.error('territory user seed failed:', e.message);
+  process.exit(1);
+}
+
+await db.collection('users').doc('user-pe-test').set({
+  name: 'Usuário PE',
+  email: TERRITORY_USER_EMAIL,
+  authUid: territoryUserUid,
+  role: 'Usuario',
+  status: 'Ativo',
+  active: true,
+  regionIds: [],
+  siteIds: ['pe'],
+});
+
+let directorUid;
+let managerUid;
+try {
+  const [director, manager] = await Promise.all([
+    ensureAuthUser({
+      email: DIRECTOR_EMAIL,
+      displayName: 'Diretor E2E',
+      role: 'Diretor',
+    }),
+    ensureAuthUser({
+      email: MANAGER_EMAIL,
+      displayName: 'Gestor E2E',
+      role: 'Gestor',
+    }),
+  ]);
+  directorUid = director.uid;
+  managerUid = manager.uid;
+} catch (e) {
+  console.error('lifecycle users seed failed:', e.message);
+  process.exit(1);
+}
+
+await Promise.all([
+  db.collection('users').doc('user-director-e2e').set({
+    name: 'Diretor E2E',
+    email: DIRECTOR_EMAIL,
+    authUid: directorUid,
+    role: 'Diretor',
+    status: 'Ativo',
+    active: true,
+    regionIds: ['universidade'],
+    siteIds: ['pql3'],
+  }),
+  db.collection('users').doc('user-gestor-e2e').set({
+    name: 'Gestor E2E',
+    email: MANAGER_EMAIL,
+    authUid: managerUid,
+    role: 'Gestor',
+    status: 'Ativo',
+    active: true,
+    regionIds: ['universidade'],
+    siteIds: ['pql3'],
+  }),
+]);
+
 // 2) Regiões e sedes (subconjunto representativo)
 const regions = [
   { id: 'universidade', code: 'UNI', name: 'Universidade', active: true },
@@ -42,6 +133,7 @@ const regions = [
 const sites = [
   { id: 'pql3', code: 'PQL3', name: 'Parquelândia (PQL3)', regionId: 'universidade', active: true },
   { id: 'dl', code: 'DL', name: 'Dom Luís (DL)', regionId: 'universidade', active: true },
+  { id: 'pe', code: 'PE', name: 'Parque Ecológico (PE)', regionId: 'universidade', active: true },
   { id: 'sul3', code: 'SUL3', name: 'SUL3', regionId: 'regiao-sul', active: true },
 ];
 for (const r of regions) await db.collection('regions').doc(r.id).set(r);
@@ -68,6 +160,7 @@ const tickets = [
   { id: 'OS-0004', status: 'Aguardando Aprovação do Orçamento', subject: 'Reforma da copa', site: 'pql3', region: 'universidade', sede: 'PQL3', priority: 'Moderado' },
   { id: 'OS-0005', status: 'Aguardando pagamento', subject: 'Manutenção do ar-condicionado central', site: 'dl', region: 'universidade', sede: 'DL', priority: 'Urgente' },
   { id: 'OS-0006', status: 'Em andamento', subject: 'Pintura do corredor principal', site: 'sul3', region: 'regiao-sul', sede: 'SUL3', priority: 'Trivial' },
+  { id: 'OS-0007', status: 'Nova OS', subject: 'Teste territorial da sede PE', site: 'pe', region: 'universidade', sede: 'PE', priority: 'Trivial' },
 ];
 for (const t of tickets) {
   await db.collection('tickets').doc(t.id).set({
@@ -82,5 +175,22 @@ for (const t of tickets) {
   });
 }
 
-console.log(`seed ok: user ${TEST_EMAIL} (uid ${uid}), ${regions.length} regions, ${sites.length} sites, ${tickets.length} tickets`);
+await seedLifecycleFixtures(db, { directorEmail: DIRECTOR_EMAIL });
+
+// Alinha o contador de OS ao maior id semeado. Sem isto o contador fica em 0 e a
+// PRIMEIRA criação de OS tenta reservar OS-0001 — que já existe — e bate no guard
+// anti-sobrescrita (409). Isso quebrava a duplicação nos testes de integração (e no
+// CI, que roda seed + integração na sequência).
+const seededNumbers = tickets
+  .map(t => Number(String(t.id).replace(/\D/g, '')))
+  .filter(n => Number.isFinite(n) && n > 0);
+await db.collection('config').doc('ticketSequence').set(
+  { lastNumber: seededNumbers.length ? Math.max(...seededNumbers) : 0, updatedAt: now },
+  { merge: true }
+);
+
+console.log(
+  `seed ok: users ${TEST_EMAIL}, ${TERRITORY_USER_EMAIL}, ${DIRECTOR_EMAIL}, ${MANAGER_EMAIL}; ` +
+  `${regions.length} regions, ${sites.length} sites, ${tickets.length + 3} tickets`
+);
 process.exit(0);

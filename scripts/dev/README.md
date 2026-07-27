@@ -39,6 +39,18 @@ VITE_API_PROXY="http://localhost:3001"
 
 ## Login de teste
 - **admin@test.local** / **Test@123456** (papel Admin)
+- **usuario.pe@test.local** / **Test@123456** (papel Usuário, somente sede PE)
+- **diretor.e2e@test.local** / **Test@123456** (papel Diretor, aprovações E2E)
+- **gestor.e2e@test.local** / **Test@123456** (papel Gestor, financeiro E2E)
+
+## Testes de navegador
+
+Com emuladores, seed e API ativos, `npm run test:e2e` executa a suíte
+determinística de login, navegação, mobile, escopo territorial, formulário
+público, aprovação de solução/orçamento e pagamento/encerramento. As fixtures
+críticas são restauradas antes de cada cenário para que retries não reutilizem
+estado mutado. O comando `npm run test:e2e:lifecycle-legacy` mantém os cenários
+antigos baseados em IDs manuais apenas como referência, fora do CI.
 
 ## Como funciona
 - `firebaseAdmin.js` e `firebaseClient.ts` detectam o modo emulador por env

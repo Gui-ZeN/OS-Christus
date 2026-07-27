@@ -1,6 +1,6 @@
 # Backlog técnico do Serv3
 
-Última revisão: 24/07/2026
+Última revisão: 27/07/2026
 
 Este documento concentra os achados da auditoria técnica, as correções já
 implementadas e o trabalho que ainda precisa ser concluído. Os IDs são estáveis e
@@ -24,15 +24,51 @@ devem ser usados em commits, PRs e registros de implantação.
 | NOTIF-01 | P1 | Concluído | Estado de notificação por usuário |
 | RES-01 | P2 | Concluído | Preservar tickets quando a atualização falhar |
 | SEC-API-01 | P1 | Concluído | Limites multipart, rate limit antecipado e erros sanitizados |
+| FIN-LEGACY-01 | P1 | Em andamento | Impedir pagamento duplicado no fallback de medições legadas |
 | SEC-ATT-01 | P1 | Em andamento | Download autenticado de anexos |
 | REL-OUTBOX-01 | P1 | Em andamento | Processamento automático da outbox de e-mail |
 | DATA-HIST-01 | P1 | Em andamento | Migrar histórico da OS para subcoleção |
-| QA-E2E-01 | P2 | Pendente | E2E confiável no CI com emuladores |
+| PERF-HIST-01 | P2 | Em andamento | Carregar histórico somente para a OS ativa |
+| PERF-NOTIF-01 | P2 | Em andamento | Paginar notificações e definir retenção |
+| QA-E2E-01 | P2 | Em andamento | Integração e E2E confiáveis no CI com emuladores |
 | ARCH-01 | P2 | Pendente | Dividir arquivos grandes por domínio |
-| UX-FORM-01 | P2 | Pendente | Simplificar formulário e corrigir alvos de toque |
+| UX-FORM-01 | P2 | Em andamento | Simplificar formulário e corrigir alvos de toque |
 | SEC-FILE-02 | P3 | Em andamento | Validar assinatura real e analisar arquivos |
 
 ## Correções concluídas
+
+### Frente de 27/07/2026 — integridade e escala
+
+**FIN-LEGACY-01**
+
+- O comando de liquidação não aceita mais `status` e valores financeiros de um
+  pagamento legado construído pelo navegador.
+- O servidor reconstrói o lançamento a partir da medição persistida.
+- O ID precisa ser determinístico (`measurement-payment-{measurementId}`).
+- Um segundo pagamento vinculado à mesma medição é rejeitado.
+- Se a base já contiver duplicidade para uma medição, a liquidação é bloqueada
+  até o saneamento dos documentos.
+- Foram adicionados testes unitários para reconstrução segura, ID arbitrário e
+  duplicidade. A frente passa a `Concluído` após a execução da suíte.
+
+**PERF-HIST-01**
+
+- A listagem geral e os polls delta não consultam mais `historyEntries` para cada
+  OS retornada.
+- O documento principal continua trazendo a janela recente.
+- Ao abrir uma OS na Inbox, o frontend carrega a primeira página da subcoleção.
+- Páginas já carregadas são preservadas durante o refresh automático.
+- Falta validar com volume representativo e teste de integração do contrato de
+  listagem para mover a frente a `Concluído`.
+
+**PERF-NOTIF-01**
+
+- A API passou a devolver páginas de até 100 notificações; a interface usa 50.
+- O estado individual é lido somente para os IDs da página, em vez de carregar
+  toda a subcoleção do usuário.
+- A central ganhou a ação `Carregar anteriores`.
+- `Marcar todas como lidas` percorre as páginas no servidor.
+- Ainda falta configurar retenção/TTL e validar a paginação no emulador.
 
 ### RBAC-01 — Segregação de funções em compras
 
@@ -132,6 +168,18 @@ expiração e não tinha endpoint autenticado ativo.
 - APIs de tickets e procurement ocultam URL legada quando existe `path`.
 - Mensagens de e-mail listam o nome do anexo, sem republicar o link permanente.
 - `storage.rules` foi preparado para bloquear leitura direta pelo SDK.
+- Criada migração administrativa paginada com ensaio obrigatório antes da
+  aplicação. Ela cobre ticket, histórico completo, cotações, contratos,
+  pagamentos e medições.
+- A migração remove `url`, `attachmentUrl` e `signedFileUrl` somente quando há
+  `path` protegido equivalente; URLs sem caminho seguro são preservadas e
+  relatadas.
+- Objetos com `firebaseStorageDownloadTokens` são identificados no ensaio e têm
+  o token revogado na aplicação real.
+- Caminhos fora do namespace da própria OS são bloqueados pelo migrador e entram
+  no relatório como inconsistência; a rotina não toca nesses objetos.
+- O proxy passou a procurar anexos antigos também em `historyEntries`, pois eles
+  podem estar fora da janela de 50 entradas do documento principal.
 
 **Ainda necessário para concluir**
 
@@ -139,13 +187,15 @@ expiração e não tinha endpoint autenticado ativo.
 2. Fazer smoke test de imagem, PDF, cotação, contrato, medição e pagamento.
 3. Implantar `storage.rules` junto da API e frontend atualizados; as regras
    passam a bloquear leitura e escrita direta pelo SDK.
-4. Executar migração para apagar `url`, `attachmentUrl` e `signedFileUrl` legados
-   dos documentos que já possuem `path`.
-5. Revogar `firebaseStorageDownloadTokens` antigos nos objetos.
-6. Tratar signed URLs antigas de longa duração. Elas ignoram Storage Rules; para
+4. Executar todos os lotes do ensaio da migração de anexos em produção.
+5. Revisar as URLs relatadas como `sem path seguro` e criar/migrar o objeto antes
+   de removê-las.
+6. Executar todos os lotes da aplicação real e conferir URLs removidas, tokens
+   revogados, objetos ausentes e falhas.
+7. Tratar signed URLs antigas de longa duração. Elas ignoram Storage Rules; para
    revogação integral é necessário migrar o objeto para outro caminho ou rotacionar
    com cuidado a chave da service account que assinou as URLs.
-7. Medir latência/custo em galerias grandes e, se necessário, criar autorização
+8. Medir latência/custo em galerias grandes e, se necessário, criar autorização
    em lote para reduzir leituras.
 
 **Implementação recomendada**
@@ -269,17 +319,51 @@ Planejar junto de `SEC-ATT-01`, pois entradas de histórico também possuem anex
 
 **Situação atual**
 
-O CI executa TypeScript, ESLint, Vitest e build. Os testes Playwright existem, mas
-não são executados no workflow e dependem de IDs/dados fixos.
+O CI executa TypeScript, ESLint, Vitest, integração com Auth/Firestore Emulator,
+uma suíte Playwright determinística e build. Os fluxos críticos possuem fixtures
+próprias; a suíte antiga baseada em dados manuais permanece apenas como referência
+fora do CI.
+
+**Implementado nesta frente**
+
+- O workflow instala Java 21 e sobe Auth + Firestore Emulator de forma isolada.
+- Um executor aguarda o adaptador local da API ficar disponível antes de aplicar
+  o seed e iniciar os testes, sem depender de pausas fixas.
+- O seed determinístico cria Admin, Diretor, Gestor, Usuário territorial, regiões,
+  sedes, equipes e tickets de teste.
+- O seed também cria um Usuário vinculado somente à sede PE e tickets em outras
+  sedes da mesma região, reproduzindo a regressão territorial já observada.
+- Entraram no CI os cenários de corte e backfill de histórico, escopo de leitura
+  de anexos por papel, migração de links legados e paginação de notificações.
+- A listagem de OS é verificada para garantir que devolva somente a janela
+  embutida, sem hidratar uma subcoleção por ticket.
+- A central de notificações é verificada com mais de duas páginas, cursor
+  inválido, ausência de duplicidade e marcação integral como lida.
+- A migração de anexos é validada em dry-run e aplicação real, incluindo
+  revogação de tokens, documentos em `historyEntries`, URL sem caminho seguro e
+  caminho fora do namespace da OS.
+- O Playwright reutiliza os mesmos emuladores e o mesmo adaptador da API.
+- A suíte de navegador cobre login Admin, navegação principal, notificações,
+  ausência de rolagem horizontal em 390 px e isolamento do Usuário da sede PE.
+- O formulário público é enviado de verdade no emulador em 390 px, validando
+  foco no primeiro erro, campos essenciais e classificação interna opcional.
+- Diretor e Gestor usam contas distintas no E2E do ciclo crítico.
+- Aprovação da solução valida transição, ator e snapshot de auditoria.
+- Aprovação do orçamento valida cotação vencedora, rejeição das demais, contrato
+  canônico e congelamento dos valores submetidos pelo Gestor.
+- Pagamento final passa pela API transacional, valida valores, ator, destinatários,
+  garantia e encerramento da OS. Somente a entrega externa do e-mail é simulada.
+- As fixtures são reaplicadas antes de cada cenário, permitindo retry sem depender
+  do estado deixado pela tentativa anterior.
+- Falhas preservam relatório HTML, trace, screenshot e vídeo por 14 dias no
+  GitHub Actions.
 
 **Implementação recomendada**
 
-1. Subir Auth e Firestore Emulator no CI.
-2. Gerar usuários e tickets por seed determinístico.
-3. Remover dependência de IDs fixos de produção.
-4. Executar cenários mínimos: login, escopo territorial, abertura de OS,
-   aprovação, pagamento e notificação individual.
-5. Salvar trace e screenshot quando houver falha.
+1. Validar duas execuções consecutivas do workflow antes de concluir o item.
+2. Adicionar aprovação de contrato com upload protegido em fixture própria.
+3. Cobrir reprovações e concorrência/idempotência no navegador; os comandos já
+   possuem cobertura unitária e transacional.
 
 **Critérios de aceite**
 
@@ -313,16 +397,28 @@ não são executados no workflow e dependem de IDs/dados fixos.
 
 **Problema**
 
-O formulário ainda pede classificações que o solicitante pode não conhecer e
-existem controles abaixo do alvo recomendado de 44 px para uso por toque.
+O fluxo principal foi simplificado, mas ainda precisa de validação visual ampla
+em dispositivos e tecnologias assistivas.
 
-**Implementação recomendada**
+**Implementado nesta frente**
 
-1. Manter para o solicitante apenas problema, descrição, sede, local e anexos.
-2. Deixar macroserviço, serviço e prioridade para triagem ou sugestão opcional.
-3. Aumentar área clicável de botões, checkboxes e seletores.
-4. Validar teclado, foco, mensagens de erro e leitores de tela.
-5. Testar em 360 px, 390 px, tablet e notebook sem rolagem horizontal.
+- Tipo de manutenção, macroserviço e serviço deixaram o fluxo principal e ficam
+  recolhidos em `Classificação opcional`.
+- O formulário direciona o foco para o primeiro campo inválido e associa erros
+  aos respectivos controles com `aria-invalid`/`aria-describedby`.
+- Voltar, ações de sucesso, campos e remoção de anexo possuem pelo menos 44 px.
+- A seleção de imagens valida formatos, máximo de 10 arquivos, 10 MB por imagem
+  e 25 MB no total antes de chamar a API; GIF é recusado.
+- Imagens podem ser removidas individualmente e a área de upload aceita
+  arrastar/soltar de verdade.
+- O Playwright abre uma OS real no emulador em 390 px sem preencher a taxonomia
+  interna e verifica ausência de rolagem horizontal na página.
+
+**Ainda necessário para concluir**
+
+1. Validar visualmente em 360 px, tablet e notebook.
+2. Fazer uma passagem manual com leitor de tela.
+3. Confirmar duas execuções consecutivas do cenário no GitHub Actions.
 
 **Critérios de aceite**
 
@@ -370,13 +466,14 @@ real corresponde ao formato informado.
 
 ## Ordem recomendada
 
-1. `SEC-ATT-01` — concluir implantação e migração dos links legados.
-2. `REL-OUTBOX-01` — garantir comunicação automática.
-3. `DATA-HIST-01` — remover risco de crescimento do documento da OS.
-4. `QA-E2E-01` — proteger as migrações seguintes.
-5. `ARCH-01` — reduzir custo de manutenção.
-6. `UX-FORM-01` — simplificar a experiência do solicitante.
-7. `SEC-FILE-02` — defesa adicional para conteúdo de arquivos.
+1. Validar `FIN-LEGACY-01`, `PERF-HIST-01` e `PERF-NOTIF-01` no emulador.
+2. `SEC-ATT-01` — concluir implantação e migração dos links legados.
+3. `REL-OUTBOX-01` — garantir comunicação automática.
+4. `DATA-HIST-01` — executar e conferir o backfill em produção.
+5. `QA-E2E-01` — proteger as migrações seguintes.
+6. `ARCH-01` — reduzir custo de manutenção.
+7. `UX-FORM-01` — simplificar a experiência do solicitante.
+8. `SEC-FILE-02` — defesa adicional para conteúdo de arquivos.
 
 ## Regra de atualização
 
