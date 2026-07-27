@@ -471,11 +471,13 @@ export function SettingsView() {
     }
   };
 
-  const handleRunHistoryBackfill = async () => {
+  const handleRunHistoryBackfill = async (options?: { dryRun?: boolean }) => {
     setHistoryBackfillLoading(true);
     setHistoryBackfillError(null);
     try {
-      const response = await runTicketHistoryBackfill(historyBackfillResult?.nextCursor);
+      // No ensaio começa sempre do início (não consome o cursor da execução real).
+      const cursor = options?.dryRun ? null : historyBackfillResult?.nextCursor;
+      const response = await runTicketHistoryBackfill(cursor, { dryRun: options?.dryRun });
       setHistoryBackfillResult(response.result);
     } catch (error) {
       setHistoryBackfillError(error instanceof Error ? error.message : 'Falha ao copiar o histórico das OS.');
@@ -1673,12 +1675,23 @@ export function SettingsView() {
                           Executar Backfill
                         </button>
                         <button
+                          onClick={() => void handleRunHistoryBackfill({ dryRun: true })}
+                          className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2 disabled:opacity-60"
+                          disabled={historyBackfillLoading || backfillLoading || integrationsLoading}
+                          title="Ensaio: mostra o que seria migrado, sem escrever nada"
+                        >
+                          {historyBackfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+                          Simular histórico (ensaio)
+                        </button>
+                        <button
                           onClick={() => void handleRunHistoryBackfill()}
                           className="px-4 py-2 border border-roman-border rounded-xl text-sm font-medium text-roman-text-main hover:border-roman-primary flex items-center gap-2 disabled:opacity-60"
                           disabled={historyBackfillLoading || backfillLoading || integrationsLoading}
                         >
                           {historyBackfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
-                          {historyBackfillResult?.nextCursor ? 'Próximo lote do histórico' : 'Copiar histórico das OS'}
+                          {historyBackfillResult?.nextCursor && !historyBackfillResult?.dryRun
+                            ? 'Próximo lote do histórico'
+                            : 'Copiar histórico das OS'}
                         </button>
                         <button
                           onClick={() => void loadIntegrations()}
@@ -1709,13 +1722,30 @@ export function SettingsView() {
                         </FeedbackBanner>
                       )}
                       {historyBackfillResult && (
-                        <FeedbackBanner tone="success">
+                        <FeedbackBanner tone={historyBackfillResult.dryRun ? 'info' : 'success'}>
                           <div>
-                            <div className="font-medium">Lote de histórico copiado.</div>
-                            <div className="mt-1 text-xs">
-                              OS verificadas: {historyBackfillResult.scannedTickets} · OS com histórico: {historyBackfillResult.ticketsWithHistory} · entradas: {historyBackfillResult.copiedEntries}
-                              {historyBackfillResult.nextCursor ? ' · há mais lotes para copiar.' : ' · migração inicial concluída.'}
+                            <div className="font-medium">
+                              {historyBackfillResult.dryRun
+                                ? 'Ensaio (nada foi gravado).'
+                                : 'Lote de histórico copiado.'}
                             </div>
+                            <div className="mt-1 text-xs">
+                              OS verificadas: {historyBackfillResult.scannedTickets}
+                              {' · '}já migradas: {historyBackfillResult.alreadyMigrated ?? 0}
+                              {' · '}a migrar: {historyBackfillResult.pendingTickets ?? 0}
+                              {' · '}entradas: {historyBackfillResult.dryRun
+                                ? historyBackfillResult.entriesToCopy ?? 0
+                                : historyBackfillResult.copiedEntries}
+                              {historyBackfillResult.nextCursor
+                                ? ' · há mais lotes.'
+                                : ' · fim da varredura.'}
+                            </div>
+                            {(historyBackfillResult.entriesWithoutId ?? 0) > 0 && (
+                              <div className="mt-1 text-xs">
+                                Entradas legadas sem id: {historyBackfillResult.entriesWithoutId} — recebem id
+                                determinístico pelo conteúdo (são preservadas).
+                              </div>
+                            )}
                           </div>
                         </FeedbackBanner>
                       )}

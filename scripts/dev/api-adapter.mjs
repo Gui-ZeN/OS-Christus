@@ -18,11 +18,13 @@ const API_DIR = path.resolve(process.cwd(), 'api');
 const REWRITES = {
   '/api/email/send': { file: 'mail', query: { route: 'send' } },
   '/api/email/health': { file: 'mail', query: { route: 'health' } },
+  '/api/email/outbox-worker': { file: 'mail', query: { route: 'outbox-worker' } },
   '/api/email/gmail-sync': { file: 'mail', query: { route: 'gmail-sync' } },
   '/api/email/gmail-watch': { file: 'mail', query: { route: 'gmail-watch' } },
   '/api/email/gmail-push': { file: 'mail', query: { route: 'gmail-push' } },
   '/api/email/inbound': { file: 'mail', query: { route: 'inbound' } },
   '/api/firestore-backfill': { file: 'admin-tools', query: { route: 'backfill' } },
+  '/api/ticket-history-backfill': { file: 'admin-tools', query: { route: 'ticket-history-backfill' } },
   '/api/firestore-legacy-health': { file: 'admin-tools', query: { route: 'legacy-health' } },
   '/api/integrations-health': { file: 'admin-tools', query: { route: 'integrations-health' } },
 };

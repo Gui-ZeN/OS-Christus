@@ -331,6 +331,8 @@ async function handleTicketHistoryBackfill(req, res) {
     const result = await backfillTicketHistoryBatch(getAdminDb(), {
       limit: body?.limit,
       cursor: body?.cursor,
+      // Ensaio: inspeciona e relata sem escrever nada (rodar antes do real).
+      dryRun: body?.dryRun === true,
     });
     return sendJson(res, 200, {
       ok: true,
