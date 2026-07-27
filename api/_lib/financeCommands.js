@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { HttpError } from './http.js';
 import { normalizeIdempotencyKey } from './approvalCommands.js';
-import { mergeTicketHistory, writeTicketHistoryEntries } from './tickets.js';
+import { boundEmbeddedHistory, mergeTicketHistory, writeTicketHistoryEntries } from './tickets.js';
 import { TICKET_STATUS } from './statusFlow.js';
 
 function parseCurrency(value) {
@@ -396,7 +396,7 @@ async function recordMeasurement({ db, user, ticketId, commandKey, body }) {
     writeTicketHistoryEntries(tx, ticketRef, [historyEntry], now);
     tx.set(ticketRef, {
       executionProgress,
-      history: mergeTicketHistory(ticket.history, historyEntry).merged,
+      history: boundEmbeddedHistory(mergeTicketHistory(ticket.history, historyEntry).merged, ticket.historySubcollectionReady === true),
       updatedAt: now,
     }, { merge: true });
 
@@ -546,7 +546,7 @@ async function settlePayment({ db, user, ticketId, commandKey, body }) {
       status: closure.nextStatus,
       closureChecklist: closure.closureChecklist,
       guarantee: closure.guarantee,
-      history: mergeTicketHistory(ticket.history, historyEntry).merged,
+      history: boundEmbeddedHistory(mergeTicketHistory(ticket.history, historyEntry).merged, ticket.historySubcollectionReady === true),
       updatedAt: now,
     }, { merge: true });
     tx.create(outboxRef, outbox);

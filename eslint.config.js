@@ -12,7 +12,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     // Backend serverless (api/*.js), scripts e testes — ambiente node.
-    files: ['api/**/*.js', 'scripts/**/*.mjs', 'tests/**/*.{js,ts}', '*.config.{js,ts}'],
+    files: ['api/**/*.js', 'scripts/**/*.mjs', 'tests/**/*.{js,mjs,ts}', '*.config.{js,ts}'],
     languageOptions: { globals: { ...globals.node } },
   },
   {

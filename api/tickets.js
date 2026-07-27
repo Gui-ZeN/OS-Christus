@@ -6,6 +6,7 @@ import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog, readTicketsChangedSince } from './_lib/ticketAccess.js';
 import {
+  boundEmbeddedHistory,
   copyTicketHistoryToSubcollection,
   mergeTicketHistory,
   normalizeTicketForStorage,
@@ -13,6 +14,7 @@ import {
   readTicketHistoryFromSubcollection,
   reserveNextTicketId,
   serializeTicketForApi,
+  ticketHistoryEntryRef,
   writeTicketHistoryEntries,
 } from './_lib/tickets.js';
 import { enforceRateLimit } from './_lib/rateLimit.js';
@@ -20,6 +22,10 @@ import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
 import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
+
+// Teto de leituras da subcoleção por PATCH ao deduplicar histórico reenviado pelo
+// cliente. Um PATCH legítimo traz 1-3 entradas novas; o resto é histórico paginado.
+const HISTORY_DEDUP_LOOKUP_LIMIT = 200;
 
 const STATUS_IN_PROGRESS = 'Em andamento';
 const STATUS_WAITING_MAINTENANCE_APPROVAL = 'Aguardando aprovação da manutenção';
@@ -356,7 +362,10 @@ function buildPublicTrackingPayload(beforeData, approved) {
       requesterApprovedBy: requesterLabel,
       requesterApprovedAt: approved ? now : null,
     },
-    history: nextHistory,
+    // Corte também aqui: a entrada completa vai para a subcoleção no call site, e sem
+    // isto o embutido de uma OS migrada voltaria a crescer sem teto pelo caminho
+    // público (só seria recortado se um PATCH do painel viesse depois).
+    history: boundEmbeddedHistory(nextHistory, beforeData?.historySubcollectionReady === true),
     updatedAt: now,
   };
 }
@@ -364,19 +373,22 @@ function buildPublicTrackingPayload(beforeData, approved) {
 function buildPublicRequesterMessagePayload(beforeData, message) {
   const now = new Date();
   const requesterLabel = String(beforeData?.requester || '').trim() || 'Solicitante';
+  const nextHistory = [
+    ...(Array.isArray(beforeData?.history) ? beforeData.history : []),
+    {
+      id: `public-message-${randomUUID()}`,
+      type: 'customer',
+      sender: requesterLabel,
+      time: now,
+      text: message,
+      visibility: 'public',
+      channel: 'public',
+    },
+  ];
   return {
-    history: [
-      ...(Array.isArray(beforeData?.history) ? beforeData.history : []),
-      {
-        id: `public-message-${randomUUID()}`,
-        type: 'customer',
-        sender: requesterLabel,
-        time: now,
-        text: message,
-        visibility: 'public',
-        channel: 'public',
-      },
-    ],
+    // Corte também aqui (ver buildPublicTrackingPayload): sem ele o embutido cresce
+    // +1 a cada mensagem do solicitante numa OS migrada.
+    history: boundEmbeddedHistory(nextHistory, beforeData?.historySubcollectionReady === true),
     updatedAt: now,
   };
 }
@@ -506,12 +518,6 @@ async function preparePublicTicketCreate(db, rawTicket) {
   };
 
   return normalizeTicketForStorage(allowed);
-}
-
-function shouldAppendAutomaticHistory(previousHistory, nextHistory) {
-  const previousLength = Array.isArray(previousHistory) ? previousHistory.length : 0;
-  const nextLength = Array.isArray(nextHistory) ? nextHistory.length : 0;
-  return nextLength <= previousLength;
 }
 
 function serializeValue(value) {
@@ -945,7 +951,13 @@ export default async function handler(req, res) {
         }
         ticket.status = 'Nova OS';
         ticket.attachments = []; // arquivos reais sobem por upload; refs da origem apontam pro Storage dela
-        const sourceHistory = Array.isArray(sourceData.history) ? sourceData.history : [];
+        // OS migrada guarda no doc só a JANELA recente — a conversa completa está na
+        // subcoleção. Hidrata dela para a duplicata não nascer com o histórico
+        // truncado (a cópia é o que semeia a subcoleção da OS nova; a perda seria
+        // permanente).
+        const sourceHistory = sourceData.historySubcollectionReady
+          ? await readTicketHistoryFromSubcollection(sourceSnap.ref, sourceData.history)
+          : (Array.isArray(sourceData.history) ? sourceData.history : []);
         ticket.history = [
           ...sourceHistory,
           {
@@ -1200,6 +1212,7 @@ export default async function handler(req, res) {
         }
 
         const freshHistory = Array.isArray(data.history) ? data.history : [];
+        const subcollectionReady = data.historySubcollectionReady === true;
         const payload = { ...updates, updatedAt: new Date() };
         let newHistoryEntries = [];
         let editedHistoryEntry = null;
@@ -1224,15 +1237,41 @@ export default async function handler(req, res) {
           // (type:'system'/sender:'Diretoria') na página pública de acompanhamento.
           const senderLabel = actorHistoryLabel(user, actor);
           const existingIds = new Set(freshHistory.map(entry => entry?.id).filter(Boolean));
-          const sanitizedNew = updates.history
-            .filter(entry => entry?.id && !existingIds.has(entry.id))
-            .map(entry => sanitizeClientHistoryEntry(entry, senderLabel));
+          let candidates = updates.history.filter(entry => entry?.id && !existingIds.has(entry.id));
+
+          // Com a subcoleção como fonte da verdade, o array embutido é só uma JANELA
+          // recente — o cliente pode ter paginado entradas antigas e reenviá-las.
+          // Sem deduplicar contra a subcoleção, elas passariam por "novas": o
+          // sanitize reescreveria o `sender` das ORIGINAIS (forja retroativa do que
+          // ele existe para impedir) e a janela seria reordenada. O cap evita
+          // explodir a transação; PATCH legítimo traz 1-3 entradas novas.
+          if (subcollectionReady && candidates.length > 0) {
+            // Checa os MAIS RECENTES primeiro: o array do cliente é cronológico, então
+            // um slice cru pegaria as mais ANTIGAS e descartaria justamente a mensagem
+            // recém-escrita (perda silenciosa). O que passar do cap é tratado como já
+            // existente — conservador: no pior caso não regrava algo antigo, nunca
+            // perde o que é novo.
+            const byRecency = [...candidates].sort((a, b) => sortTimeValue(b?.time) - sortTimeValue(a?.time));
+            const checked = byRecency.slice(0, HISTORY_DEDUP_LOOKUP_LIMIT);
+            const snaps = await tx.getAll(...checked.map(entry => ticketHistoryEntryRef(docRef, entry.id)));
+            const trulyNewIds = new Set(
+              checked.filter((_entry, index) => !snaps[index]?.exists).map(entry => entry.id)
+            );
+            // Reaplica sobre `candidates` para preservar a ordem cronológica original.
+            candidates = candidates.filter(entry => trulyNewIds.has(entry.id));
+          }
+
+          const sanitizedNew = candidates.map(entry => sanitizeClientHistoryEntry(entry, senderLabel));
+          // Entrada automática de status só quando o cliente NÃO registrou nenhuma
+          // entrada nova. A heurística antiga comparava TAMANHOS de array, o que
+          // deixa de valer quando o embutido é uma janela (cliente com histórico
+          // paginado mandaria mais itens que o servidor e duplicaria o marco).
           const statusEntry =
-            statusChanged && shouldAppendAutomaticHistory(data.history, updates.history)
+            statusChanged && sanitizedNew.length === 0
               ? [buildAutomaticStatusHistoryEntry(buildActorLabel(user, actor), data.status || 'Sem status', updates.status)]
               : [];
           newHistoryEntries = [...sanitizedNew, ...statusEntry];
-          payload.history = mergeTicketHistory(freshHistory, [...sanitizedNew, ...statusEntry]).merged;
+          payload.history = mergeTicketHistory(freshHistory, newHistoryEntries).merged;
         } else if (statusChanged) {
           const statusEntry = buildAutomaticStatusHistoryEntry(
             buildActorLabel(user, actor),
@@ -1252,15 +1291,32 @@ export default async function handler(req, res) {
           const editTime = new Date(body.historyTimeEdit.time);
           if (!Number.isNaN(editTime.getTime())) {
             const base = Array.isArray(payload.history) ? payload.history : freshHistory;
-            payload.history = base.map(entry =>
-              entry?.id === body.historyTimeEdit.id ? { ...entry, time: editTime } : entry
-            );
-            editedHistoryEntry = payload.history.find(entry => entry?.id === body.historyTimeEdit.id) || null;
+            const isInWindow = base.some(entry => entry?.id === body.historyTimeEdit.id);
+            if (isInWindow) {
+              payload.history = base.map(entry =>
+                entry?.id === body.historyTimeEdit.id ? { ...entry, time: editTime } : entry
+              );
+              editedHistoryEntry = payload.history.find(entry => entry?.id === body.historyTimeEdit.id) || null;
+            } else if (subcollectionReady) {
+              // Entrada mais antiga que a janela do embutido: edita direto na
+              // subcoleção (merge de `time` apenas). Sem isto a edição virava no-op
+              // silencioso — a API respondia 200 e o horário voltava no próximo poll.
+              const entrySnap = await tx.get(ticketHistoryEntryRef(docRef, body.historyTimeEdit.id));
+              if (entrySnap.exists) {
+                editedHistoryEntry = { id: body.historyTimeEdit.id, time: editTime };
+              }
+            }
           }
         }
 
         if (newHistoryEntries.length > 0 || editedHistoryEntry) {
           writeTicketHistoryEntries(tx, docRef, [...newHistoryEntries, editedHistoryEntry].filter(Boolean));
+        }
+        // Corta o array embutido: as entradas completas já foram para a subcoleção,
+        // que é a fonte de leitura das OS migradas. Sem o corte o doc segue rumo ao
+        // teto de 1 MiB (o motivo da migração).
+        if (Array.isArray(payload.history)) {
+          payload.history = boundEmbeddedHistory(payload.history, subcollectionReady);
         }
         tx.set(docRef, payload, { merge: true });
         return { before: data, payload };

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { HttpError } from './http.js';
-import { mergeTicketHistory, writeTicketHistoryEntries } from './tickets.js';
+import { boundEmbeddedHistory, mergeTicketHistory, writeTicketHistoryEntries } from './tickets.js';
 import { TICKET_STATUS } from './statusFlow.js';
 
 const COMMAND_KEY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
@@ -91,7 +91,12 @@ function approvalSnapshotBase({ action, commandKey, ticketId, user, now }) {
 }
 
 function appendHistory(ticket, entry) {
-  return mergeTicketHistory(ticket?.history, entry).merged;
+  // A entrada completa já foi espelhada na subcoleção (writeTicketHistoryEntries no
+  // mesmo tx); aqui o embutido fica limitado à janela para o doc não crescer.
+  return boundEmbeddedHistory(
+    mergeTicketHistory(ticket?.history, entry).merged,
+    ticket?.historySubcollectionReady === true
+  );
 }
 
 function createHistoryEntry(user, text, now) {

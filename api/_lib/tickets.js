@@ -274,6 +274,31 @@ function ensureHistoryEntryId(entry) {
   return `legacy-${createHash('sha256').update(basis).digest('base64url').slice(0, 32)}`;
 }
 
+/**
+ * Referência do doc de UMA entrada na subcoleção (id determinístico). Usado para
+ * deduplicar contra a subcoleção: com o array embutido reduzido a uma janela, o
+ * cliente pode reenviar entradas antigas (que ele paginou) e elas não estariam
+ * mais no embutido — sem esta checagem seriam tratadas como NOVAS e o sanitize
+ * reescreveria o `sender` das originais (forja retroativa).
+ */
+export function ticketHistoryEntryRef(ticketRef, entryId) {
+  return ticketRef
+    .collection(TICKET_HISTORY_SUBCOLLECTION)
+    .doc(ticketHistoryEntryDocumentId(ticketRef.id, entryId));
+}
+
+// Janela de entradas mantidas no doc da OS quando a subcoleção já é a fonte da
+// verdade. Sem este CORTE, cada escrita regrava o array inteiro no doc e ele segue
+// crescendo rumo ao teto de 1 MiB — o próprio motivo da migração. As entradas
+// completas vivem na subcoleção; o embutido é só um atalho de leitura recente.
+export const EMBEDDED_HISTORY_WINDOW = 50;
+export function boundEmbeddedHistory(mergedHistory, subcollectionReady) {
+  const list = Array.isArray(mergedHistory) ? mergedHistory : [];
+  return subcollectionReady && list.length > EMBEDDED_HISTORY_WINDOW
+    ? list.slice(-EMBEDDED_HISTORY_WINDOW)
+    : list;
+}
+
 function normalizeHistoryEntryForStorage(entry) {
   return stripUndefinedDeep({
     ...entry,
@@ -397,13 +422,38 @@ export async function readTicketHistoryPage(ticketRef, options = {}) {
  * ou OS inexistente). Usar nos caminhos que NÃO estão dentro de uma transação.
  */
 export async function appendTicketHistory(db, ticketRef, newEntries) {
+  const entries = (Array.isArray(newEntries) ? newEntries : [newEntries]).filter(Boolean);
   return db.runTransaction(async tx => {
     const snap = await tx.get(ticketRef);
     if (!snap.exists) return 0;
-    const { merged, appendedCount } = mergeTicketHistory(snap.data()?.history, newEntries);
+    const ready = snap.data()?.historySubcollectionReady === true;
+
+    // Com o embutido reduzido a uma JANELA, o dedup por array deixa de enxergar
+    // entradas antigas. Alguns ids são reutilizados de propósito para idempotência
+    // (`mail-<messageId>`, `bounce-<os>-<dia>`): reprocessar inbound antigo numa OS
+    // migrada re-anexaria a entrada, inflando o contador de "recuperadas" e pondo
+    // uma entrada velha num slot recente da janela. Checa a subcoleção (1-2 docs).
+    let candidates = entries;
+    if (ready) {
+      const withId = entries.filter(entry => entry?.id);
+      if (withId.length > 0) {
+        const snaps = await tx.getAll(...withId.map(entry => ticketHistoryEntryRef(ticketRef, entry.id)));
+        const persisted = new Set(
+          withId.filter((_entry, index) => snaps[index]?.exists).map(entry => entry.id)
+        );
+        candidates = entries.filter(entry => !persisted.has(entry?.id));
+      }
+    }
+    if (candidates.length === 0) return 0;
+
+    const { merged, appendedCount } = mergeTicketHistory(snap.data()?.history, candidates);
     if (!appendedCount) return 0;
-    writeTicketHistoryEntries(tx, ticketRef, newEntries);
-    tx.set(ticketRef, { history: merged, updatedAt: new Date() }, { merge: true });
+    writeTicketHistoryEntries(tx, ticketRef, candidates);
+    tx.set(
+      ticketRef,
+      { history: boundEmbeddedHistory(merged, ready), updatedAt: new Date() },
+      { merge: true }
+    );
     return appendedCount;
   });
 }
