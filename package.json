@@ -26,7 +26,7 @@
     "infra:storage:check": "node scripts/infra/check-storage.mjs",
     "infra:storage:signed-url": "node scripts/infra/generate-signed-url.mjs",
     "infra:sendgrid:test": "node scripts/infra/sendgrid-test.mjs",
-    "test:integration": "node tests/integration/history-cutover.mjs && node tests/integration/history-backfill.mjs && node tests/integration/attachment-role-scope.mjs && node tests/integration/attachment-migration.mjs && node tests/integration/notifications-pagination.mjs",
+    "test:integration": "node tests/integration/history-cutover.mjs && node tests/integration/history-backfill.mjs && node tests/integration/attachment-role-scope.mjs && node tests/integration/attachment-migration.mjs && node tests/integration/notifications-pagination.mjs && node tests/integration/finance-progress-command.mjs",
     "test:integration:ci": "node scripts/ci/run-integration.mjs"
   },
   "dependencies": {

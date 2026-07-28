@@ -16,7 +16,8 @@ import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '
 import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog, saveCatalogEntry } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryUser, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
-import { fetchProcurementData, saveContract, saveMeasurement, savePayment, saveQuotes } from '../services/procurementApi';
+import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
+import { runFinanceCommand } from '../services/financeApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
 import { uploadContractAttachment, uploadMeasurementAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi, fetchTicketHistoryPage } from '../services/ticketsApi';
@@ -28,7 +29,7 @@ import { buildProcurementClassification } from '../utils/procurementClassificati
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { getAvailableAdditiveRounds, getAvailableInitialRounds, getEditableInitialRoundIndex, getQuotesByRound, isRejectedQuoteRound, normalizeQuoteStatus } from './inbox/quoteRounds';
-import { calculateProgressPercentFromGross, getBudgetSourceLabel, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
+import { calculateProgressPercentFromGross, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
 import { DateTimePicker } from './inbox/DateTimePicker';
 import { formatShortDate, parseInputDateTime } from '../utils/date';
 import { getExecutionNextActionLabel, getStageGuidance } from './inbox/stageGuidance';
@@ -1421,7 +1422,6 @@ export function InboxView() {
 
     const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
     const budgetSource = progressUpdateForm.budgetSource === 'additive' ? 'additive' : 'initial';
-    const budgetSourceLabel = getBudgetSourceLabel(budgetSource);
     if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
       showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
       return;
@@ -1477,9 +1477,10 @@ export function InboxView() {
       receiptFileName: null,
     };
 
-    const reportAttachmentsSummarySuffix = progressReportFiles.length > 0 ? ` ${progressReportFiles.length} anexo(s) de relatório.` : '';
-    const nextStatus = activeTicket.status;
-    const nextClosureChecklist = activeTicket.closureChecklist;
+    // Chave estável por lançamento: sobrevive ao retry do usuário (mesma chave =
+    // replay no servidor) e só é descartada depois do sucesso.
+    const commandScope = `${activeTicket.id}:recordMeasurement:${nextInstallmentNumber}`;
+    const idempotencyKey = getFinanceCommandKey(commandScope);
 
     try {
       const uploadedMeasurementAttachments: TicketAttachment[] = [];
@@ -1501,46 +1502,47 @@ export function InboxView() {
         approvedAt: now,
       };
 
-      await savePayment(activeTicket.id, nextPayment, classification);
-      await saveMeasurement(activeTicket.id, measurement, classification);
+      // UM comando transacional (api/_lib/financeCommands.js → recordMeasurement):
+      // grava pagamento + medição, escreve o histórico e atualiza o
+      // executionProgress na MESMA transação. Antes eram três chamadas soltas
+      // (savePayment → saveMeasurement → updateTicket sem await): falhar no meio
+      // deixava pagamento sem medição, ou tudo gravado com a OS parada — e sem
+      // erro visível, porque não havia catch. O `idempotencyKey` estável faz o
+      // retry de uma falha de rede ser replay, não lançamento duplicado.
+      const result = await runFinanceCommand({
+        action: 'recordMeasurement',
+        ticketId: activeTicket.id,
+        idempotencyKey,
+        payment: nextPayment,
+        measurement,
+        classification,
+      });
+      financeCommandKeysRef.current.delete(commandScope);
 
-      setPaymentsByTicket(prev => ({
-        ...prev,
-        [activeTicket.id]: [
-          ...stripLegacyFlowPlaceholders(prev[activeTicket.id] || []),
-          {
-            ...nextPayment,
-            expectedBaselineValue: expectedBaselineFormatted,
-          },
-        ],
-      }));
-      updateTicket(activeTicket.id, {
-        status: nextStatus,
-        closureChecklist: nextClosureChecklist,
-        executionProgress: {
-          paymentFlowParts: activeTicket.executionProgress.paymentFlowParts,
-          currentPercent: normalizedProgress,
-          releasedPercent: roundProgressPercent(Math.max(activeReleasedPercent, normalizedProgress)),
-          measurementSheetUrl: activeTicket.executionProgress.measurementSheetUrl || null,
-          startedAt: activeTicket.executionProgress.startedAt || activeTicket.preliminaryActions?.actualStartAt || now,
-          lastUpdatedAt: now,
-        },
-        history: [
-          ...activeTicket.history,
-          {
-            id: crypto.randomUUID(),
-            type: 'system',
-            sender: displayActorLabel,
-            time: now,
-            text: `Andamento atualizado para ${normalizedProgress}% com lançamento bruto de ${formattedGrossAmount} (${budgetSourceLabel}) e acumulado de ${formatCurrencyInput(accumulatedGross)}. ${paymentLabel} liberado para o financeiro.${progressUpdateForm.notes.trim() ? ` ${progressUpdateForm.notes.trim()}` : ''}${reportAttachmentsSummarySuffix}`,
-          },
-        ],
-      }, nextStatus !== activeTicket.status ? { sendEmailUpdate: sendStatusEmailUpdate } : undefined);
+      // O servidor recalcula percentual e baseline com os dados frescos, então o
+      // estado local vem da RESPOSTA — não do que o cliente supôs.
+      if (result.payment) {
+        setPaymentsByTicket(prev => ({
+          ...prev,
+          [activeTicket.id]: [
+            ...stripLegacyFlowPlaceholders(prev[activeTicket.id] || []),
+            result.payment as PaymentRecord,
+          ],
+        }));
+      }
+      await refreshTickets({ silent: true });
 
       setShowProgressModal(false);
       setProgressReportFiles([]);
       if (progressReportFileRef.current) progressReportFileRef.current.value = '';
       showToast(`${paymentLabel} registrada e liberada para o financeiro.`, 3000);
+    } catch (error) {
+      // Modal segue aberto de propósito: o rascunho é preservado e o mesmo
+      // idempotencyKey permite tentar de novo sem duplicar o lançamento.
+      showToast(
+        error instanceof Error ? error.message : 'Falha ao registrar o andamento da obra.',
+        4000
+      );
     } finally {
       window.setTimeout(() => setIsSending(false), 500);
     }
@@ -1625,6 +1627,18 @@ export function InboxView() {
   const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
   const [progressUpdateForm, setProgressUpdateForm] = useState<ProgressUpdateFormState>(createProgressUpdateFormState());
   const [historyLoadingTicketId, setHistoryLoadingTicketId] = useState<string | null>(null);
+  // Chaves de idempotência dos comandos financeiros, por escopo (mesmo padrão da
+  // FinanceView): retry após falha reusa a chave, então o servidor faz replay em
+  // vez de criar um segundo lançamento.
+  const financeCommandKeysRef = useRef<Map<string, string>>(new Map());
+
+  const getFinanceCommandKey = (scope: string) => {
+    const existing = financeCommandKeysRef.current.get(scope);
+    if (existing) return existing;
+    const next = crypto.randomUUID();
+    financeCommandKeysRef.current.set(scope, next);
+    return next;
+  };
   const { toast, showToast } = useToast();
 
   const handleLoadOlderHistory = useCallback(async () => {
