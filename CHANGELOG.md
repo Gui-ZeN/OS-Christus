@@ -3,6 +3,104 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-28 (4ª auditoria — 8 correções, todas com teste de regressão)
+
+Review externo trouxe 9 achados + 1 decisão de produto. **Verifiquei os nove no
+código antes de mexer: zero falso positivo.** Regra combinada para a rodada:
+*cada correção entra com o teste que reproduz o problema original* — e, quando
+possível, verifiquei que o teste **reprova** o comportamento antigo.
+
+### 🔐 P1 — Partição do PATCH de tickets por papel (`178be93`)
+Havia UMA allow-list de campos para todos os papéis; o único recorte era
+territorial. Na prática o **Diretor** — que só deveria aprovar, pelos comandos
+transacionais — gravava prioridade, equipe, anexos, checklist de encerramento e
+progresso de execução de qualquer OS do seu território. Quem aprova reescrevia o
+que aprova.
+
+Matriz agora explícita em `_lib/ticketPatchScope.js`: Admin tudo · Gestor
+operacionais · **Diretor só `viewingBy` e entradas novas de `history`** · Usuario
+nada. Antes de cortar, verifiquei que `canTransitionStatus` já bloqueava o
+Diretor no status e que a tela de Aprovações só envia `viewingBy` — o corte não
+tira nada que ele use. Revertendo a matriz, **20 dos 65 casos falham**.
+
+### 💰 P1 — Andamento na Inbox vira comando transacional (`309b348`)
+Eram três chamadas soltas (`savePayment` → `saveMeasurement` → `updateTicket`,
+esta sem `await` e o bloco sem `catch`): falhar no meio deixava pagamento sem
+medição, ou tudo gravado com a OS parada — e sem erro visível.
+
+**O comando já existia e estava completo** (`recordMeasurement`); a FinanceView
+já o usava e o InboxView tinha um **fork artesanal** do mesmo fluxo. Este commit
+deleta o fork. +17 casos de integração: tudo junto, nada pela metade, replay que
+não duplica e concorrência sem lost update.
+
+### 🖥️ P2 — A interface parou de mentir (`3a06383`)
+Onze ações fechavam modal e cantavam sucesso sem esperar a gravação. **O `await`
+sozinho não resolvia** — e foi o E2E que pegou: `updateTicket` não lança, ele
+captura o erro, reverte o update otimista e devolve `false`. Os `try/catch` que
+escrevi primeiro eram código morto. A correção real é checar o retorno.
+Best-effort declarado (heartbeat de `viewingBy`) ficou intacto, conforme
+critério acordado.
+
+### 📎 P1 — Exclusão de anexo atômica e com evidência protegida (`2c85048`)
+O objeto era apagado primeiro e a referência saía pela TELA, numa segunda
+chamada — falhar no meio deixava referência apontando para arquivo inexistente.
+Invertido: **referência primeiro, transacional; objeto depois**. Se o Storage
+falhar agora, não se desfaz nada — sobra binário órfão (lixo coletável) em vez de
+reviver o que o usuário mandou remover; a auditoria grava `storageDeleted`.
+Evidência aprovada passa a ser recusada com 409 e motivo (lançamento pago,
+medição aprovada, cotação decidida, contrato aprovado).
+⚠️ Erro que os testes pegaram: eu varria a subcoleção `history`, que na verdade
+se chama `historyEntries` — as entradas ficariam órfãs.
+
+### 🔔 P2 — Notificações: página cheia e estado que expira (`35f49dc`)
+O `limit` era aplicado na query e o filtro de audiência/território só depois:
+escopo estreito recebia **página vazia** e parava de paginar. Agora o scan
+continua até juntar `limit` itens visíveis (teto de 5 rodadas). Os docs de
+`notificationStates` ganharam `ttlAt` nos três pontos de escrita — eram lixo
+perpétuo por usuário (débito da rodada anterior, que pôs TTL só na notificação).
+
+### ✉️ P2 — Reprocessamento inbound é administrativo (`f45eccb`)
+Aceitava Admin, Gestor e Diretor para uma operação que reescreve sede, thread e
+histórico de várias OS numa janela de até 60 dias. Agora só Admin, com auditoria
+permanente (quem, janela, resultado) — o `logEmailEvent` que já existia tem TTL
+de 90 dias. **De brinde**: o `catch` do handler devolvia 400 para qualquer erro,
+então 403 e 401 chegavam como "requisição inválida".
+
+### 🧾 Decisão — `Usuario` não vê financeiro (`7b1bd16`)
+`Usuario` é solicitante/representante de unidade: OS, timeline e indicadores
+operacionais, sem contrato, pagamento, fornecedor ou valor. **O gate era só de
+cliente** — o `GET /api/procurement` entregava tudo para qualquer autenticado no
+território. `canUserReadFinancials` vira o ponto único e consulta uma permissão
+explícita `canViewFinancials` ANTES do papel: liberar alguém no futuro é ligar a
+flag, não ampliar a lista de papéis em silêncio.
+
+### 📮 P2 — Starvation da outbox (`ae52879`)
+Pior que o relatado: `.limit(100)` **sem `orderBy`** faz o Firestore devolver por
+documentId — sempre os MESMOS cem. Com eles em backoff, os elegíveis atrás nunca
+rodavam. Scan paginado por documentId resolve sem campo novo nem índice, e
+portanto sem a armadilha do `availableAt` (documento sem o campo some de query
+por desigualdade **e de `orderBy`** — introduzi-lo antes do backfill sumiria com
+e-mail em silêncio).
+
+### 🗺️ Medição do territorial legado (`cce3ce0`)
+`sede` é gravado do `site.code` (`"ALD"`) mas o matcher normaliza para `"ald"`, e
+o Firestore compara por igualdade exata. Só afeta OS **sem** `siteId`/`regionId`.
+Script de **leitura pura** (`npm run infra:territory:measure`) classifica em cinco
+baldes e sugere os ids que o backfill gravaria — medir antes de decidir se o
+backfill se justifica.
+
+### ❌ Descartado por decisão de produto
+**Motivo obrigatório por transição**: exigir motivo geraria preenchimento de
+fachada ("teste", ".") em quem já tem dificuldade com o básico — fricção sem
+trilha real. O que existe continua: cancelamento pede motivo na tela e o
+histórico automático registra autor e transição. **Não reabrir em auditorias.**
+
+### 🧪 Cobertura
+A suíte saiu de **230/53/9** para **323 unitários / 106 integração / 11 E2E**. As
+quatro categorias que a auditoria apontou como ausentes passam a existir: falha
+intermediária, autorização negativa por campo, fila saturada e consistência
+Storage×Firestore.
+
 ## 2026-07-28 (fatiamento dos god-files + QA)
 
 Quebra dos arquivos-elefante em módulos testáveis, uma mordida por vez, com a
