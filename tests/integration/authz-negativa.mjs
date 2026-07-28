@@ -2,12 +2,15 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 /**
- * Regressão do P2 "reprocessamento inbound aberto demais" (4ª auditoria).
+ * AUTORIZAÇÃO NEGATIVA — a categoria de teste que a 4ª auditoria apontou como
+ * ausente: a suíte cobria os fluxos esperados, não quem NÃO pode fazer o quê.
  *
- * `POST /api/mail?route=reprocess-inbound` aceitava Admin, Gestor E Diretor.
- * A operação reescreve sede, thread e histórico de VÁRIOS tickets numa janela de
- * até 60 dias — é administrativa, e contrariava a segregação de papéis adotada
- * no resto do sistema. Agora é só Admin, e fica registrada em auditLogs.
+ * 1) Reprocessamento inbound (P2): aceitava Admin, Gestor E Diretor. A operação
+ *    reescreve sede, thread e histórico de VÁRIOS tickets numa janela de até 60
+ *    dias — é administrativa. Agora só Admin, e registrada em auditLogs.
+ * 2) Leitura de dados financeiros: o gate existia só no cliente, enquanto o GET
+ *    de compras entregava contrato e pagamento para qualquer autenticado no
+ *    território. `Usuario` (solicitante de unidade) passa a receber 403.
  */
 
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
@@ -104,6 +107,36 @@ async function main() {
   );
 
   for (const doc of depoisSnap.docs) await doc.ref.delete();
+
+
+  // --- Dados financeiros fechados para `Usuario` NO BACKEND ------------------
+  // O gate existia so no cliente (KpiView escondia a aba), enquanto o GET de
+  // compras entregava contrato e pagamento do territorio para qualquer
+  // autenticado — uma requisicao de distancia.
+  for (const [papel, email, esperado] of [
+    ['Usuario', 'usuario.pe@test.local', 403],
+    ['Gestor', 'gestor.e2e@test.local', 200],
+    ['Diretor', 'diretor.e2e@test.local', 200],
+    ['Admin', 'admin@test.local', 200],
+  ]) {
+    const token = await signIn(email);
+    const res = await fetch(`${API}/api/procurement`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const json = await res.json().catch(() => ({}));
+    check(
+      `GET /api/procurement para ${papel} responde ${esperado}`,
+      res.status === esperado,
+      `HTTP ${res.status}`
+    );
+    if (esperado === 403) {
+      check(
+        'a recusa nao vaza nenhum dado financeiro no corpo',
+        !json.contractsByTicket && !json.paymentsByTicket && !json.quotesByTicket,
+        JSON.stringify(json).slice(0, 120)
+      );
+    }
+  }
 
   const falhas = results.filter(item => !item.pass).length;
   console.log(`\n=== ${results.length - falhas}/${results.length} OK ===`);

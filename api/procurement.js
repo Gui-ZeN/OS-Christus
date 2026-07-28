@@ -5,7 +5,7 @@ import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { readProcurement, readProcurementForTicketIds, seedProcurementDefaults } from './_lib/procurement.js';
 import { canUserAccessTicket, isDirectorAssignedToTicket, readAccessibleTickets, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
-import { assertProcurementMutationAllowed } from './_lib/procurementAccess.js';
+import { assertCanReadFinancials, assertProcurementMutationAllowed } from './_lib/procurementAccess.js';
 // Rotas /api/approvals e /api/finance vivem AQUI (mesmo dominio: cotacao, contrato,
 // pagamento e medicao). O plano Hobby da Vercel limita 12 Serverless Functions e cada
 // arquivo em api/*.js vira uma; o vercel.json reescreve as URLs publicas para
@@ -419,6 +419,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const user = await requireAuthenticatedUser(req);
+      // O escopo territorial abaixo limita QUAIS OS, não O QUE se vê delas: sem
+      // este gate, o perfil Usuario recebia contrato, pagamento, fornecedor e
+      // valor de toda OS do seu território.
+      assertCanReadFinancials(user);
       const data =
         user.role === 'Admin'
           ? await readProcurement(db)

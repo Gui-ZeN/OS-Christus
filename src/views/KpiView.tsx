@@ -83,6 +83,11 @@ const MONTH_NAMES = [
 export function KpiView() {
   const { currentUser, tickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor' || currentUser?.role === 'Usuario';
+  // `Usuario` é solicitante/representante de unidade: acompanha os indicadores
+  // OPERACIONAIS da estrutura, sem contrato, pagamento, fornecedor ou valor.
+  // Espelha canUserReadFinancials do backend, que é quem de fato barra — aqui é
+  // só para não oferecer uma aba que voltaria vazia.
+  const canViewFinancials = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
   const [period, setPeriod] = useState<PeriodMode>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -99,6 +104,9 @@ export function KpiView() {
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
+    // Quem não pode ver dados financeiros também não os busca: o backend recusa
+    // (403) e a chamada só produziria um erro silencioso a cada carga da tela.
+    if (!canViewFinancials) return;
     let cancelled = false;
     (async () => {
       try {
@@ -825,12 +833,14 @@ export function KpiView() {
               >
                 Gerencial
               </button>
-              <button
-                onClick={() => setPerspective('financial')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
-              >
-                Financeira
-              </button>
+              {canViewFinancials && (
+                <button
+                  onClick={() => setPerspective('financial')}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+                >
+                  Financeira
+                </button>
+              )}
             </div>
 
             <span className="mx-0.5 hidden h-6 w-px bg-roman-border sm:block" />

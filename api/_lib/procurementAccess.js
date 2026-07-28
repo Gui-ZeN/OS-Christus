@@ -36,3 +36,29 @@ export function isApprovalAction(action) {
   return APPROVAL_ACTIONS.has(String(action || '').trim());
 }
 
+// Papéis que operam o fluxo de compras. `Usuario` é solicitante/representante de
+// unidade: acompanha a OS e os indicadores operacionais, mas não recebe contrato,
+// pagamento, medição, fornecedor nem valor.
+const FINANCIAL_READER_ROLES = new Set(['Admin', 'Gestor', 'Diretor']);
+
+/**
+ * PONTO UNICO de decisão sobre quem lê dados financeiros.
+ *
+ * O gate existia só no cliente (KpiView escondia a aba), enquanto o GET de
+ * compras entregava contratos e pagamentos do território para qualquer
+ * autenticado — uma requisição de distância.
+ *
+ * Para liberar alguém no futuro, o caminho é uma permissão EXPLÍCITA no usuário
+ * (`canViewFinancials`), não ampliar a lista de papéis em silêncio: por isso a
+ * flag é consultada aqui antes do papel.
+ */
+export function canUserReadFinancials(user) {
+  if (user?.canViewFinancials === true) return true;
+  return FINANCIAL_READER_ROLES.has(String(user?.role || '').trim());
+}
+
+export function assertCanReadFinancials(user) {
+  if (canUserReadFinancials(user)) return;
+  throw new HttpError(403, 'Seu perfil não tem acesso a dados financeiros da OS.');
+}
+
