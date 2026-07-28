@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   sanitizeClientHistoryEntry,
   actorHistoryLabel,
-  ALLOWED_TICKET_PATCH_FIELDS,
   HISTORY_ENTRY_TYPES,
 } from '../../api/tickets.js';
+// A allow-list mudou de casa: agora vive na matriz por papel (ticketPatchScope).
+import { ALLOWED_TICKET_PATCH_FIELDS } from '../../api/_lib/ticketPatchScope.js';
 import {
   mergeTicketHistory,
   normalizeTicketForStorage,

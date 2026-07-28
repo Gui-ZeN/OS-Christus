@@ -22,6 +22,7 @@ import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
 import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
+import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
@@ -47,23 +48,7 @@ const TICKET_MULTIPART_LIMITS = Object.freeze({
   maxRequestSizeBytes: 30 * 1024 * 1024,
 });
 
-// Allow-list dos campos que o PATCH do painel pode gravar. Enumerado a partir de
-// TODAS as chamadas updateTicket() do front. Tudo fora daqui é descartado — em vez
-// de uma deny-list (que só bloqueia o que alguém lembrou e deixava requesterEmail,
-// requester, subject, time... editáveis por qualquer perfil com acesso à OS).
-// id / trackingToken / createdAt / updatedAt ficam DE FORA de propósito
-// (identidade e campos controlados pelo servidor). As transições territoriais
-// (regionId/siteId/region/sede) entram na lista mas são restritas a Admin abaixo.
-export const ALLOWED_TICKET_PATCH_FIELDS = new Set([
-  'status', 'priority', 'sector', 'location', 'time', 'waterIssue',
-  'assignedTeam', 'assignedEmail',
-  'macroServiceId', 'macroServiceName', 'serviceCatalogId', 'serviceCatalogName',
-  'directorIds', 'directorEmails', 'directorCcEmails', 'requesterCcEmails',
-  'attachments', 'history', 'viewingBy',
-  'preliminaryActions', 'closureChecklist', 'executionProgress', 'guarantee',
-  // reclassificação territorial — só Admin (gate logo abaixo, no handler)
-  'regionId', 'siteId', 'region', 'sede',
-]);
+
 
 function sortTimeValue(value) {
   const parsed = new Date(value);
@@ -1204,23 +1189,13 @@ export default async function handler(req, res) {
       // (inclusive o heartbeat de viewingBy de 45s) sobrescreveria a data de
       // abertura da OS. Identidade (id/trackingToken/createdAt), campos do servidor
       // (updatedAt) e sensíveis (requesterEmail/requester/subject) ficam fora da lista.
-      const updates = {};
-      for (const field of Object.keys(normalizedUpdates)) {
-        if (
-          ALLOWED_TICKET_PATCH_FIELDS.has(field) &&
-          Object.prototype.hasOwnProperty.call(rawUpdates, field)
-        ) {
-          updates[field] = normalizedUpdates[field];
-        }
-      }
-      // Reclassificação territorial só por Admin (senão um perfil escopado poderia
-      // mover a OS para dentro/fora do próprio território).
-      if (user.role !== 'Admin') {
-        delete updates.regionId;
-        delete updates.siteId;
-        delete updates.region;
-        delete updates.sede;
-      }
+      // Escopo POR PAPEL (ver _lib/ticketPatchScope.js): Admin tudo, Gestor os
+      // operacionais, Diretor só viewingBy + entradas novas de history.
+      const updates = filterTicketPatchFields(
+        user.role,
+        normalizedUpdates,
+        new Set(Object.keys(rawUpdates))
+      );
       const docRef = col.doc(body.id);
 
       // Catálogo territorial para checar escopo (Gestor/Diretor/Usuario são
