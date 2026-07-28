@@ -82,3 +82,28 @@ npm run infra:sendgrid:test
 ## Regras
 - `firestore.rules` e `storage.rules` já foram criados no repositório.
 
+
+## Retenção automática (TTL policies)
+
+Duas coleções crescem para sempre se ninguém apagar nada. O backend já grava o campo
+`ttlAt` (data de expiração) nos documentos; falta **habilitar a TTL policy** no
+Firestore, que apaga os expirados sozinha — sem custo de leitura nem job de limpeza.
+
+| Coleção | Campo | Retenção | Por quê |
+|---|---|---|---|
+| `emailEvents` | `ttlAt` | ~90 dias | log de e-mail, ~1.400 docs/dia |
+| `notifications` | `ttlAt` | ~120 dias | o "dispensar" virou estado por usuário e não apaga mais o doc compartilhado |
+
+Habilitar (uma vez por coleção), no console: **Firestore → Time-to-live (TTL) →
+Criar política** → coleção `notifications`, campo `ttlAt` (repetir para `emailEvents`).
+
+Ou por CLI:
+
+```bash
+gcloud firestore fields ttls update ttlAt --collection-group=notifications --enable-ttl --project=os-christus
+```
+
+Observações:
+- A política vale só para documentos **novos ou atualizados** — os antigos sem `ttlAt`
+  permanecem. Se quiser limpar o legado, é uma passada manual.
+- A exclusão pelo TTL não é instantânea: o Firestore remove em até ~24h após a data.

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { HttpError } from './http.js';
+import { notificationTtlAt } from './notificationState.js';
 
 const OUTBOX_KEY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 export const DELIVERY_LEASE_MS = 2 * 60 * 1000;
@@ -189,6 +190,7 @@ export async function markEmailOutboxFailed(ref, leaseToken, error) {
           : null,
         createdAt: now,
         updatedAt: now,
+        ttlAt: notificationTtlAt(now),
       }, { merge: true });
     }
   });

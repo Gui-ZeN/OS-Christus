@@ -28,3 +28,13 @@ export function isNotificationDismissed(state) {
 export function getNotificationStateCollection(db, userId) {
   return db.collection('users').doc(userId).collection('notificationStates');
 }
+
+// Retenção das notificações: ~120 dias. Grava `ttlAt` para uma TTL policy do
+// Firestore (campo `ttlAt`) apagar as antigas sozinha, sem custo de leitura/delete.
+// Sem isto a coleção cresce sem teto — o dismiss virou estado POR USUÁRIO e não
+// apaga mais o doc compartilhado, e o `markAllRead` varre a coleção inteira.
+export const NOTIFICATION_TTL_MS = 120 * 24 * 60 * 60 * 1000;
+
+export function notificationTtlAt(now = new Date()) {
+  return new Date(now.getTime() + NOTIFICATION_TTL_MS);
+}

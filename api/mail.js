@@ -1,4 +1,4 @@
-﻿import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
@@ -35,6 +35,7 @@ import {
   markEmailOutboxSent,
 } from './_lib/emailOutbox.js';
 import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
+import { notificationTtlAt } from './_lib/notificationState.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 
@@ -1029,6 +1030,7 @@ async function handleBounceNotice(db, message) {
     body: noteText,
     audienceRoles: ['Admin', 'Gestor'],
     read: false,
+    ttlAt: notificationTtlAt(),
     createdAt: new Date(),
     updatedAt: new Date(),
   }, { merge: true });

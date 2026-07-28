@@ -5,6 +5,7 @@ import {
   isEmailOutboxLeaseActive,
   MAX_EMAIL_OUTBOX_ATTEMPTS,
 } from './emailOutbox.js';
+import { notificationTtlAt } from './notificationState.js';
 
 const DEFAULT_BATCH_SIZE = 8;
 const MAX_SCAN_SIZE = 100;
@@ -70,6 +71,7 @@ export async function selectEligibleEmailOutbox(db, options = {}) {
           : null,
         createdAt: now,
         updatedAt: now,
+        ttlAt: notificationTtlAt(now),
       }, { merge: true });
     }
     await batch.commit();

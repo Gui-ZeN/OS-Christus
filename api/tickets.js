@@ -22,6 +22,7 @@ import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
 import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
+import { notificationTtlAt } from './_lib/notificationState.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
 // /api/tickets?route=report-pdf, então o front continua igual.
@@ -1109,6 +1110,7 @@ export default async function handler(req, res) {
             read: false,
             createdAt: new Date(),
             updatedAt: new Date(),
+            ttlAt: notificationTtlAt(),
           });
           await writeAuditLog({
             actor: String(beforeData.requester || 'Solicitante'),

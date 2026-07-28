@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  NOTIFICATION_TTL_MS,
   canUserSeeNotification,
   isNotificationDismissed,
   mergeNotificationState,
   normalizeNotificationAudience,
+  notificationTtlAt,
   resolveNotificationTicketId,
 } from '../../api/_lib/notificationState.js';
 
@@ -50,3 +52,17 @@ describe('notification state', () => {
   });
 });
 
+
+describe('TTL de notificações', () => {
+  it('carimba ttlAt no futuro (retenção definida, não infinita)', () => {
+    const now = new Date('2026-01-01T00:00:00.000Z');
+    const ttl = notificationTtlAt(now);
+    expect(ttl.getTime()).toBe(now.getTime() + NOTIFICATION_TTL_MS);
+    expect(ttl.getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it('usa uma janela de meses (não expira notificação recente)', () => {
+    const dias = NOTIFICATION_TTL_MS / (24 * 60 * 60 * 1000);
+    expect(dias).toBeGreaterThanOrEqual(90);
+  });
+});
