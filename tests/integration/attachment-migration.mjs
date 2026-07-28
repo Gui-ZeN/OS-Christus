@@ -83,14 +83,19 @@ await ref.collection('historyEntries').doc('history-1').set({
   }],
 });
 
-const dry = await migrateLegacyAttachmentBatch(db, bucket, { limit: 10, dryRun: true });
+// cursor: a varredura é por documentId sobre a coleção INTEIRA e o limite é 10.
+// Sem começar depois das OS numéricas (OS-0001...), o seed sozinho preenche a
+// página e as OS deste teste (OS-AM*) nunca entram — o teste passava por acaso,
+// dependendo de quantas OS existiam no emulador.
+const START_AFTER = 'OS-0999';
+const dry = await migrateLegacyAttachmentBatch(db, bucket, { limit: 10, cursor: START_AFTER, dryRun: true });
 const afterDry = (await ref.get()).data();
 check('dry-run identifica os documentos afetados', dry.changedDocuments >= 2);
 check('dry-run identifica tokens sem revogá-los', dry.storage.tokenizedObjects === 2 && dry.storage.revokedTokens === 0);
 check('dry-run identifica caminho fora do escopo', dry.invalidStoragePaths === 1);
 check('dry-run não altera a URL segura', Boolean(afterDry.attachments[0].url));
 
-const applied = await migrateLegacyAttachmentBatch(db, bucket, { limit: 10, dryRun: false });
+const applied = await migrateLegacyAttachmentBatch(db, bucket, { limit: 10, cursor: START_AFTER, dryRun: false });
 const afterApply = (await ref.get()).data();
 const historyAfter = (await ref.collection('historyEntries').doc('history-1').get()).data();
 check('aplicação remove URL quando existe path protegido', !afterApply.attachments[0].url);
