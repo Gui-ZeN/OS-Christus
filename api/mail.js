@@ -24,6 +24,17 @@ import {
 import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
 import { isAttachmentContentCompatible, isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
+// Helpers puros de assunto/threading/Message-Id (extraidos deste arquivo).
+import {
+  buildConversationSubject,
+  buildInboundHistoryId,
+  buildReplySubject,
+  buildSimpleHtmlEmail,
+  buildThreadRootMessageId,
+  isTicketConversationSubject,
+  normalizeMessageIdToken,
+  parseMessageIdCandidates,
+} from './_lib/emailThreading.js';
 import { matchSiteCode } from './_lib/siteMatch.js';
 import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject, isLikelyThreadReply } from './_lib/inboundSubject.js';
 import { firstEmail, parseEmailList } from './_lib/email.js';
@@ -209,25 +220,7 @@ function stripHtml(value) {
     .trim();
 }
 
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
-function buildSimpleHtmlEmail(value) {
-  const text = String(value || '').replace(/\r\n/g, '\n').trim();
-  if (!text) return '<p></p>';
-  const blocks = text
-    .split(/\n{2,}/)
-    .map(block => block.trim())
-    .filter(Boolean);
-  return blocks
-    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
-    .join('');
-}
 
 function isForwardHeaderLine(line) {
   const normalized = String(line || '').trim();
@@ -535,32 +528,8 @@ function normalizeDirectorGreeting(body) {
   return `Olá,\n\n${withoutRepeatedGreeting}`;
 }
 
-function buildConversationSubject(ticketId, ticketSubject, fallbackSubject, sede) {
-  const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
-  if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');
-  // Prefixo "OS-XXXX - SEDE" (sede vem do nome resolvido em variables.ticket.sede;
-  // se vazia, mantém só "OS-XXXX"). A checagem de idempotência abaixo casa ambos
-  // os formatos (com/sem sede), pois os dois começam com "OS-XXXX - ".
-  const sedeLabel = repairMojibake(String(sede || '').trim());
-  const prefix = sedeLabel ? `${ticketId} - ${sedeLabel}` : ticketId;
-  if (!cleanSubject) return `${prefix} - Atualização da OS`;
-  if (cleanSubject.toUpperCase().startsWith(`${ticketId.toUpperCase()} - `)) {
-    return repairMojibake(cleanSubject);
-  }
-  return repairMojibake(`${prefix} - ${cleanSubject}`);
-}
 
-function buildReplySubject(subject) {
-  const cleanSubject = repairMojibake(String(subject || '').trim());
-  if (!cleanSubject) return '';
-  return /^(re|res|fw|fwd)\s*:/i.test(cleanSubject) ? cleanSubject : `Re: ${cleanSubject}`;
-}
 
-function isTicketConversationSubject(ticketId, subject) {
-  const normalizedTicketId = String(ticketId || '').trim().toUpperCase();
-  const normalizedSubject = String(subject || '').trim().toUpperCase();
-  return Boolean(normalizedTicketId && normalizedSubject.startsWith(`${normalizedTicketId} - `));
-}
 
 async function resolveRequesterThreadSubject(threadRef, thread, ticketId) {
   const originalSubject = repairMojibake(String(thread?.originalSubject || '').trim());
@@ -589,23 +558,7 @@ async function resolveRequesterThreadSubject(threadRef, thread, ticketId) {
   return storedSubject;
 }
 
-function buildThreadRootMessageId(ticketId) {
-  const normalizedTicketId = String(ticketId || 'ticket')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return `<os-thread-${normalizedTicketId || 'ticket'}@serv3>`;
-}
 
-function buildInboundHistoryId(messageId, fallbackKey) {
-  const base = String(messageId || fallbackKey || Date.now())
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return `mail-${base || Date.now()}`;
-}
 
 function readProviderErrorStatus(error) {
   const rawStatus = error?.response?.status ?? error?.status ?? error?.code ?? null;
@@ -693,24 +646,7 @@ async function sendWithGmailThreadFallback({
   }
 }
 
-function normalizeMessageIdToken(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return null;
-  const wrapped = raw.startsWith('<') && raw.endsWith('>') ? raw : `<${raw.replace(/^<|>$/g, '')}>`;
-  return wrapped;
-}
 
-function parseMessageIdCandidates(inReplyTo, referencesRaw) {
-  const candidates = new Set();
-  const direct = normalizeMessageIdToken(inReplyTo);
-  if (direct) candidates.add(direct);
-  String(referencesRaw || '')
-    .split(/\s+/)
-    .map(token => normalizeMessageIdToken(token))
-    .filter(Boolean)
-    .forEach(token => candidates.add(token));
-  return [...candidates];
-}
 
 async function resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw) {
   const candidates = parseMessageIdCandidates(inReplyTo, referencesRaw);
