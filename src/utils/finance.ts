@@ -69,10 +69,9 @@ export function getAttachmentPreviewKind(contentType?: string | null, name?: str
   return 'file' as const;
 }
 
-export function formatInputDate(date?: Date | null) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
-  return date.toISOString().slice(0, 10);
-}
+// formatInputDate vive em ./date (era copia identica daqui e do DateTimePicker);
+// reexportado para nao mexer nos call sites do financeiro.
+export { formatInputDate } from './date';
 
 export function sumReleasedPercent(payments: PaymentRecord[]) {
   return getApprovedReleasePercent(payments);

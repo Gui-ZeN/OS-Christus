@@ -29,7 +29,8 @@ import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { getAvailableAdditiveRounds, getAvailableInitialRounds, getEditableInitialRoundIndex, getQuotesByRound, isRejectedQuoteRound, normalizeQuoteStatus } from './inbox/quoteRounds';
 import { calculateProgressPercentFromGross, getBudgetSourceLabel, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
-import { DateTimePicker, formatInputDate, formatInputDateTime, formatShortDate, parseInputDateTime } from './inbox/DateTimePicker';
+import { DateTimePicker } from './inbox/DateTimePicker';
+import { formatShortDate, parseInputDateTime } from '../utils/date';
 import { getExecutionNextActionLabel, getStageGuidance } from './inbox/stageGuidance';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { ContractDispatchModal } from './inbox/ContractDispatchModal';
@@ -45,13 +46,36 @@ import { useQuoteEditor } from './inbox/useQuoteEditor';
 import { QuoteEditorProvider } from './inbox/QuoteEditorContext';
 import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
 import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
-import { INITIAL_MIN_QUOTE_SLOTS, createEmptyQuoteDraft, createEmptyQuoteItem, createProposalHeaderDraft, normalizeQuoteSection, summarizeQuoteDraft } from './inbox/quotes';
+import {
+  createEmptyQuoteDraft,
+  createEmptyQuoteItem,
+  createProposalHeaderDraft,
+  getRoundMaxQuoteSlots,
+  getRoundMinQuoteSlots,
+  isQuoteDraftFilledForSubmission,
+  normalizeQuoteSection,
+  resolveQuoteDraftSubmittedTotal,
+  summarizeQuoteDraft,
+} from './inbox/quotes';
 import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
 import { QuoteVendorFields } from './inbox/QuoteVendorFields';
 import { QuoteConsolidatedView } from './inbox/QuoteConsolidatedView';
 import { QuoteItemsSection } from './inbox/QuoteItemsSection';
-import type { QuoteDraft } from './inbox/types';
-import { PRELIMINARY_ITEMS, type PreliminaryChecklistKey, type PreliminaryFormState } from './inbox/preliminary';
+import {
+  arePreliminaryActionsReady,
+  buildPreliminarySummary,
+  createPreliminaryFormState,
+  type PreliminaryChecklistKey,
+  type PreliminaryFormState,
+} from './inbox/preliminary';
+import {
+  createExecutionSetupFormState,
+  createProgressUpdateFormState,
+  createTicketDetailsFormState,
+  type ExecutionSetupFormState,
+  type ProgressUpdateFormState,
+  type TicketDetailsFormState,
+} from './inbox/ticketForms';
 import {
   formatCurrency as formatCurrencyInput,
   normalizeCurrencyInput,
@@ -59,8 +83,6 @@ import {
 } from '../utils/currency';
 
 
-const INITIAL_MAX_QUOTE_SLOTS = 5;
-const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
 const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
 
 // Transições "voltadas pra fora" — as que o solicitante realmente acompanha.
@@ -166,95 +188,6 @@ function resolveActorRole(role?: string | null): AppActorRole {
   return 'Usuario';
 }
 
-interface ExecutionSetupFormState {
-  paymentFlowParts: string;
-  measurementSheetUrl: string;
-  notes: string;
-}
-
-interface ProgressUpdateFormState {
-  grossAmount: string;
-  budgetSource: 'initial' | 'additive';
-  notes: string;
-}
-
-interface TicketDetailsFormState {
-  subject: string;
-  requester: string;
-  requesterEmail: string;
-  time: string;
-  sector: string;
-  location: string;
-  macroServiceId: string;
-  serviceCatalogId: string;
-}
-
-function createPreliminaryFormState(preliminaryActions?: PreliminaryActions): PreliminaryFormState {
-  return {
-    materialRequested: preliminaryActions?.materialRequested ?? false,
-    materialEta: formatInputDate(preliminaryActions?.materialEta),
-    teamConfirmed: preliminaryActions?.teamConfirmed ?? false,
-    sitePrepared: preliminaryActions?.sitePrepared ?? false,
-    scheduleDefined: preliminaryActions?.scheduleDefined ?? false,
-    stakeholderAligned: preliminaryActions?.stakeholderAligned ?? false,
-    accessReleased: preliminaryActions?.accessReleased ?? false,
-    plannedStartAt: formatInputDate(preliminaryActions?.plannedStartAt),
-    blockerNotes: preliminaryActions?.blockerNotes ?? '',
-  };
-}
-
-function createExecutionSetupFormState(ticket?: Ticket): ExecutionSetupFormState {
-  return {
-    paymentFlowParts: String(ticket?.executionProgress?.paymentFlowParts || 5),
-    measurementSheetUrl: ticket?.executionProgress?.measurementSheetUrl || '',
-    notes: '',
-  };
-}
-
-function createProgressUpdateFormState(_ticket?: Ticket): ProgressUpdateFormState {
-  return {
-    grossAmount: '',
-    budgetSource: 'initial',
-    notes: '',
-  };
-}
-
-function createTicketDetailsFormState(ticket?: Ticket): TicketDetailsFormState {
-  return {
-    subject: ticket?.subject || '',
-    requester: ticket?.requester || '',
-    requesterEmail: ticket?.requesterEmail || '',
-    time: formatInputDateTime(ticket?.time),
-    sector: ticket?.sector || '',
-    location: ticket?.location || '',
-    macroServiceId: ticket?.macroServiceId || '',
-    serviceCatalogId: ticket?.serviceCatalogId || '',
-  };
-}
-
-function arePreliminaryActionsReady(form: PreliminaryFormState) {
-  return PRELIMINARY_ITEMS.every(item => form[item.id]);
-}
-
-function buildPreliminarySummary(preliminaryActions?: PreliminaryActions) {
-  if (!preliminaryActions) return 'Nenhuma ação preliminar registrada.';
-
-  const completed = PRELIMINARY_ITEMS.filter(item => preliminaryActions[item.id]).length;
-  const parts = [`${completed}/${PRELIMINARY_ITEMS.length} itens concluídos`];
-
-  if (preliminaryActions.materialEta) {
-    parts.push(`material previsto para ${formatShortDate(preliminaryActions.materialEta)}`);
-  }
-  if (preliminaryActions.plannedStartAt) {
-    parts.push(`início previsto em ${formatShortDate(preliminaryActions.plannedStartAt)}`);
-  }
-  if (preliminaryActions.blockerNotes?.trim()) {
-    parts.push('há impedimentos registrados');
-  }
-
-  return parts.join(' | ');
-}
-
 // Orientação por etapa: o que o gestor deve fazer agora (ou aguardar).
 // `waiting` = a bola está com outra pessoa (diretoria/solicitante/encerrada).
 function normalizeTagValue(value?: string | null) {
@@ -263,26 +196,6 @@ function normalizeTagValue(value?: string | null) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-}
-
-function resolveQuoteDraftSubmittedTotal(draft: QuoteDraft) {
-  const summarized = summarizeQuoteDraft(draft);
-  return draft.totalValue || summarized.totalValue || draft.value || '';
-}
-
-function isQuoteDraftFilledForSubmission(draft: QuoteDraft) {
-  const vendor = String(draft.vendor || '').trim();
-  if (!vendor) return false;
-  const total = parseCurrencyInput(resolveQuoteDraftSubmittedTotal(draft));
-  return total > 0;
-}
-
-function getRoundMinQuoteSlots(roundType: 'initial' | 'additive') {
-  return roundType === 'additive' ? ADDITIVE_FIXED_QUOTE_SLOTS : INITIAL_MIN_QUOTE_SLOTS;
-}
-
-function getRoundMaxQuoteSlots(roundType: 'initial' | 'additive') {
-  return roundType === 'additive' ? ADDITIVE_FIXED_QUOTE_SLOTS : INITIAL_MAX_QUOTE_SLOTS;
 }
 
 export function InboxView() {

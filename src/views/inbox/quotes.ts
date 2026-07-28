@@ -36,8 +36,19 @@ export function buildQuoteItemUnitKey(quoteIndex: number, itemId: string) {
   return `${quoteIndex}:${itemId}`;
 }
 
-/** Mínimo de slots de cotação numa rodada inicial. */
+// Quantas cotacoes cabem numa rodada. Rodada inicial exige concorrencia (min 2);
+// aditivo e sempre uma so, do fornecedor ja contratado — por isso min = max.
 export const INITIAL_MIN_QUOTE_SLOTS = 2;
+export const INITIAL_MAX_QUOTE_SLOTS = 5;
+export const ADDITIVE_FIXED_QUOTE_SLOTS = 1;
+
+export function getRoundMinQuoteSlots(roundType: 'initial' | 'additive') {
+  return roundType === 'additive' ? ADDITIVE_FIXED_QUOTE_SLOTS : INITIAL_MIN_QUOTE_SLOTS;
+}
+
+export function getRoundMaxQuoteSlots(roundType: 'initial' | 'additive') {
+  return roundType === 'additive' ? ADDITIVE_FIXED_QUOTE_SLOTS : INITIAL_MAX_QUOTE_SLOTS;
+}
 
 /** Item de cotação vazio (id novo, seção 'material'). */
 export function createEmptyQuoteItem(defaultDescription = '', defaultUnit = ''): QuoteItem {
@@ -188,4 +199,18 @@ export function buildQuoteComparison(quotes: Array<{ items?: QuoteItem[] }>): {
   );
 
   return { sections, grandTotals };
+}
+
+// Total que vai para a diretoria: o digitado manualmente vence a soma dos itens
+// (o gestor pode fechar um valor diferente com o fornecedor); `value` e o legado.
+export function resolveQuoteDraftSubmittedTotal(draft: QuoteDraft) {
+  const summarized = summarizeQuoteDraft(draft);
+  return draft.totalValue || summarized.totalValue || draft.value || '';
+}
+
+export function isQuoteDraftFilledForSubmission(draft: QuoteDraft) {
+  const vendor = String(draft.vendor || '').trim();
+  if (!vendor) return false;
+  const total = parseCurrencyInput(resolveQuoteDraftSubmittedTotal(draft));
+  return total > 0;
 }

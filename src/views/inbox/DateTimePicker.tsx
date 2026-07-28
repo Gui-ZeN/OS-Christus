@@ -1,41 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { formatDateTimeSafe } from '../../utils/date';
+import { buildInputDateTime, formatDateTimeDisplay, formatInputDateTime, parseInputDateTime } from '../../utils/date';
 
-// DateTimePicker e helpers de data — extraídos do InboxView.
-
-export function formatInputDate(value?: Date | null) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
-  return value.toISOString().slice(0, 10);
-}
-
-export function formatInputDateTime(value?: Date | null) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
-  const offsetMs = value.getTimezoneOffset() * 60000;
-  return new Date(value.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
-export function parseInputDateTime(value: string) {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-export function buildInputDateTime(datePart: string, timePart: string) {
-  if (!datePart) return '';
-  return `${datePart}T${timePart || '00:00'}`;
-}
-
-export function formatDateTimeDisplay(value: string) {
-  const parsed = parseInputDateTime(value);
-  if (!parsed) return 'Selecionar data';
-  return formatDateTimeSafe(parsed);
-}
-
-export function formatShortDate(value?: Date | null) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return 'Não definido';
-  return value.toLocaleDateString('pt-BR');
-}
+// DateTimePicker — os helpers de data que moravam aqui foram para utils/date.ts.
 
 export function DateTimePicker({
   value,
