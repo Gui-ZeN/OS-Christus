@@ -1472,7 +1472,7 @@ async function handleSend(req, res) {
     ticketIdForLog = ticketId;
 
     const toEmailInput = body.toEmail ? String(body.toEmail).trim() : '';
-    const subject = body.subject ? String(body.subject) : `Atualização da OS ${ticketId}`;
+    const subject = body.subject ? String(body.subject) : 'Atualização da OS';
     let text = body.text ? String(body.text) : '';
     let html = body.html ? String(body.html) : '';
     const templateId = body.templateId ? String(body.templateId) : null;
@@ -1557,7 +1557,7 @@ async function handleSend(req, res) {
       // distintos, mas ambos 100% do servidor (nada do cliente).
       templateData = internalCopy
         ? {
-            title: `Nova OS ${ticketId} na fila de triagem`,
+            title: `${ticketId} na fila de triagem`,
             intro: 'Uma nova solicitação foi registrada por e-mail e já pode ser triada pela equipe.',
             ticketSubject: String(t.subject || ''),
             status: String(t.status || 'Nova OS'),
@@ -1566,7 +1566,7 @@ async function handleSend(req, res) {
             service: serviceName,
           }
         : {
-            title: `OS ${ticketId} registrada`,
+            title: `${ticketId} registrada`,
             intro: 'Sua solicitação foi registrada. Você pode responder este e-mail para continuar a conversa no sistema.',
             ticketSubject: String(t.subject || ''),
             status: String(t.status || 'Nova OS'),
@@ -1758,7 +1758,7 @@ async function handleSend(req, res) {
 
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
-      title: repairMojibake(templateData.title || '') || `Atualização da OS ${ticketId}`,
+      title: repairMojibake(templateData.title || '') || `Atualização de ${ticketId}`,
       intro:
         repairMojibake(templateData.intro || '') ||
         'Sua solicitação recebeu uma nova atualização. Você pode responder este e-mail para continuar a conversa no sistema.',

@@ -5,8 +5,10 @@ import {
   extractInboundMessageBody,
   hasWaterIssueSignal,
   stripHtml,
+  stripLeadingForwardHeader,
   stripQuotedReply,
   stripSignature,
+  stripSystemEcho,
 } from '../../api/_lib/inboundBody.js';
 
 describe('stripQuotedReply', () => {
@@ -159,5 +161,116 @@ describe('hasWaterIssueSignal', () => {
   it('não dispara em texto sem relação', () => {
     expect(hasWaterIssueSignal('trocar lâmpada')).toBe(false);
     expect(hasWaterIssueSignal('')).toBe(false);
+  });
+});
+
+describe('e-mail encaminhado do mundo real (OS-0268)', () => {
+  // Caso reportado: o corpo da OS trazia o cabeçalho do encaminhamento, a
+  // assinatura e o e-mail AUTOMÁTICO do próprio Serv3 achatado em texto.
+  const emailReal = [
+    'Para: PSC;',
+    'supald01@unichristus.edu.br , Catarina Alencar <operacional17@px.com.br>,',
+    'Matheus Melo <soe10@px.com.br>, Yuri Frota <soe14@px.com.br>',
+    '',
+    'Pedro, boa tarde!',
+    '',
+    'Você consegue me ajudar com essa demanda, por favor?',
+    '',
+    'A botoeira utilizada para liberação da saída do setor de imagem, não está funcionando. Tme já tentou verificar e não identificou o problema.',
+    '',
+    'Abs;',
+    '',
+    'Serv3',
+    'Recebimento',
+    'OS-0268 registrada',
+    'Ticket',
+    'OS-0268',
+    'Mensagem',
+    'Olá Josy,',
+    'Recebemos sua solicitação e ela já entrou na fila de triagem.',
+    'Sede: ALD',
+    'Acompanhar OS <https://serv3.vercel.app/?tracking=trk_1a4fac00b89e4d27>',
+    'Link completo: https://serv3.vercel.app/?tracking=trk_1a4fac00b89e4d27',
+    'Este é um comunicado automático do sistema Serv3.',
+  ].join('\n');
+
+  const limpo = extractInboundMessageBody(emailReal, '');
+
+  it('mantém as três linhas que a pessoa realmente escreveu', () => {
+    expect(limpo).toBe(
+      [
+        'Pedro, boa tarde!',
+        '',
+        'Você consegue me ajudar com essa demanda, por favor?',
+        '',
+        'A botoeira utilizada para liberação da saída do setor de imagem, não está funcionando. Tme já tentou verificar e não identificou o problema.',
+      ].join('\n')
+    );
+  });
+
+  it('não vaza endereço de e-mail de ninguém', () => {
+    expect(limpo).not.toMatch(/@/);
+  });
+
+  it('não traz de volta o e-mail automático do próprio Serv3', () => {
+    expect(limpo).not.toContain('comunicado automático');
+    expect(limpo).not.toContain('fila de triagem');
+    expect(limpo).not.toContain('tracking=');
+  });
+});
+
+describe('stripSignature — despedidas com ; e :', () => {
+  it('corta "Abs;" (era o caso da OS-0268)', () => {
+    expect(stripSignature('conteúdo\n\nAbs;\nJosy')).toBe('conteúdo');
+  });
+
+  it('corta as demais variantes de pontuação', () => {
+    for (const despedida of ['Abs;', 'Abs:', 'Atenciosamente:', 'Cordialmente;', 'Abraços,', 'Obrigada!']) {
+      expect(stripSignature(`texto útil\n\n${despedida}\nFulano`)).toBe('texto útil');
+    }
+  });
+
+  it('não corta quando a palavra faz parte de uma frase', () => {
+    const frase = 'Preciso de abraços de verdade nesse setor';
+    expect(stripSignature(frase)).toBe(frase);
+  });
+});
+
+describe('stripLeadingForwardHeader', () => {
+  it('remove o cabeçalho e a lista de destinatários quebrada em linhas', () => {
+    const texto = [
+      'Para: PSC;',
+      'a@x.com , Fulano <b@x.com>,',
+      'Beltrano <c@x.com>',
+      '',
+      'Conteúdo real aqui.',
+    ].join('\n');
+    expect(stripLeadingForwardHeader(texto)).toBe('Conteúdo real aqui.');
+  });
+
+  it('não toca em e-mail citado no MEIO do texto', () => {
+    const texto = 'Favor contatar Fulano <fulano@px.com.br> sobre o reparo.';
+    expect(stripLeadingForwardHeader(texto)).toBe(texto);
+  });
+
+  it('sem cabeçalho, devolve o texto intacto', () => {
+    expect(stripLeadingForwardHeader('Só o conteúdo.')).toBe('Só o conteúdo.');
+  });
+});
+
+describe('stripSystemEcho', () => {
+  it('corta a partir do rodapé do próprio sistema', () => {
+    const texto = 'Minha dúvida.\n\nEste é um comunicado automático do sistema Serv3.';
+    expect(stripSystemEcho(texto)).toBe('Minha dúvida.');
+  });
+
+  it('corta também pelo link de acompanhamento', () => {
+    const texto = 'Minha dúvida.\n\nLink completo: https://serv3.vercel.app/?tracking=abc';
+    expect(stripSystemEcho(texto)).toBe('Minha dúvida.');
+  });
+
+  it('mensagem que é SÓ o eco não vira vazia', () => {
+    const texto = 'Este é um comunicado automático do sistema Serv3.';
+    expect(stripSystemEcho(texto)).toBe(texto);
   });
 });
