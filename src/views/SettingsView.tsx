@@ -167,6 +167,29 @@ Motivo:
 ];
 const PRIORITY_MARKERS = ['Urgente', 'Alta', 'Trivial'] as const;
 
+// Acumula os lotes do backfill de histórico (mesmo princípio do de anexos): sem isto
+// a tela mostra só o lote atual e não dá para saber quanto falta no total.
+function mergeHistoryBackfillResults(
+  current: TicketHistoryBackfillResult | null,
+  next: TicketHistoryBackfillResult
+): TicketHistoryBackfillResult {
+  if (!current || current.nextCursor === null) return next;
+  const soma = (a: number | undefined, b: number | undefined) => (a ?? 0) + (b ?? 0);
+  return {
+    ...next,
+    scannedTickets: soma(current.scannedTickets, next.scannedTickets),
+    ticketsWithHistory: soma(current.ticketsWithHistory, next.ticketsWithHistory),
+    alreadyMigrated: soma(current.alreadyMigrated, next.alreadyMigrated),
+    pendingTickets: soma(current.pendingTickets, next.pendingTickets),
+    entriesToCopy: soma(current.entriesToCopy, next.entriesToCopy),
+    copiedEntries: soma(current.copiedEntries, next.copiedEntries),
+    entriesWithoutId: soma(current.entriesWithoutId, next.entriesWithoutId),
+    // Maior histórico é um máximo, não uma soma.
+    largestHistory: Math.max(current.largestHistory ?? 0, next.largestHistory ?? 0),
+    sample: [...(current.sample ?? []), ...(next.sample ?? [])].slice(0, 10),
+  };
+}
+
 function mergeAttachmentMigrationResults(
   current: AttachmentMigrationResult | null,
   next: AttachmentMigrationResult
@@ -518,10 +541,16 @@ export function SettingsView() {
     setHistoryBackfillLoading(true);
     setHistoryBackfillError(null);
     try {
-      // No ensaio começa sempre do início (não consome o cursor da execução real).
-      const cursor = options?.dryRun ? null : historyBackfillResult?.nextCursor;
-      const response = await runTicketHistoryBackfill(cursor, { dryRun: options?.dryRun });
-      setHistoryBackfillResult(response.result);
+      // Cada modo tem seu próprio cursor: o ensaio avança pelos lotes sem consumir o
+      // progresso da execução real, e vice-versa. Ao alternar de modo, recomeça do
+      // início. (Antes o ensaio forçava cursor null e ficava preso no 1º lote.)
+      const dryRun = Boolean(options?.dryRun);
+      const sameMode = Boolean(historyBackfillResult) && Boolean(historyBackfillResult?.dryRun) === dryRun;
+      const cursor = sameMode ? historyBackfillResult?.nextCursor ?? null : null;
+      const response = await runTicketHistoryBackfill(cursor, { dryRun });
+      setHistoryBackfillResult(
+        sameMode ? mergeHistoryBackfillResults(historyBackfillResult, response.result) : response.result
+      );
     } catch (error) {
       setHistoryBackfillError(error instanceof Error ? error.message : 'Falha ao copiar o histórico das OS.');
     } finally {
@@ -1746,7 +1775,11 @@ export function SettingsView() {
                           title="Ensaio: mostra o que seria migrado, sem escrever nada"
                         >
                           {historyBackfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
-                          Simular histórico (ensaio)
+                          {historyBackfillResult?.dryRun && historyBackfillResult?.nextCursor
+                            ? 'Próximo lote do ensaio'
+                            : historyBackfillResult?.dryRun
+                              ? 'Refazer ensaio'
+                              : 'Simular histórico (ensaio)'}
                         </button>
                         <button
                           onClick={() => void handleRunHistoryBackfill()}
