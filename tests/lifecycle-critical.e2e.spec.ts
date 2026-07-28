@@ -328,7 +328,7 @@ test.describe('ciclo crítico transacional', () => {
     expect(accepted).toHaveLength(1);
     // A perdedora é rejeitada por conflito de estado, não por erro genérico.
     expect(statuses.filter(status => status === 200)).toHaveLength(1);
-    expect(statuses.some(status => status === 409)).toBe(true);
+    expect(statuses.some(status => status === 409), `statuses: ${statuses.join(', ')}`).toBe(true);
 
     // Estado final consistente: uma única decisão registrada.
     expect(
