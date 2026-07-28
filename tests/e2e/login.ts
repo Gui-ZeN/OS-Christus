@@ -25,5 +25,8 @@ export async function loginWithPassword(
   await page.getByLabel('E-mail institucional').fill(email);
   await page.getByLabel('Senha').fill(password);
   await page.getByRole('button', { name: /acessar o sistema/i }).click();
-  await expect(page.getByRole('heading', { name: /olá,/i })).toBeVisible();
+  // Timeout maior que o global (5s): este é o primeiro render pós-login e no CI
+  // ele paga o cold start (bundle + Auth do emulador). Com 5s o spec de escopo
+  // de acesso ficava flaky justamente por ser o primeiro a rodar.
+  await expect(page.getByRole('heading', { name: /olá,/i })).toBeVisible({ timeout: 20000 });
 }

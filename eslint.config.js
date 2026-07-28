@@ -7,7 +7,9 @@ import unusedImports from 'eslint-plugin-unused-imports';
 // código inalcançável), estilo relaxado. O `tsc --noEmit` (npm run lint) segue
 // sendo o gate de tipos; este é o gate de bugs de lógica.
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', '**/*.d.ts'] },
+  // playwright-report/test-results sao artefatos do E2E (ja no .gitignore) e trazem
+  // bundles minificados: sem ignora-los, rodar o E2E antes do lint quebra o lint.
+  { ignores: ['dist', 'node_modules', 'coverage', '**/*.d.ts', 'playwright-report', 'test-results'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
