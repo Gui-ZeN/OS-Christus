@@ -49,7 +49,9 @@ export async function readTicketRecords(ticketId: string, collection: string) {
     .doc(ticketId)
     .collection(collection)
     .get();
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  // Record<string, any>: o spread de doc.data() perde os campos na inferência e os
+  // testes precisam ler atributos do domínio (status, value, ...) sem cast em cada uso.
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Record<string, any>);
 }
 
 export { LIFECYCLE_TICKET_IDS };

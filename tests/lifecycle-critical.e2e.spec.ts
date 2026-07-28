@@ -294,4 +294,64 @@ test.describe('ciclo crítico transacional', () => {
     const contract = await readTicketRecord(LIFECYCLE_TICKET_IDS.contract, 'contracts', 'contract-1');
     expect(contract?.status).toBe('pending_upload');
   });
+
+  test('Dois diretores decidindo a MESMA rodada ao mesmo tempo: só uma decisão vale', async ({ page }) => {
+    // Concorrência real (não replay): duas requisições simultâneas, com chaves de
+    // idempotência DIFERENTES, escolhendo fornecedores DIFERENTES da mesma rodada.
+    // Se as duas passassem, o contrato ficaria com dois vencedores e o valor
+    // realizado seria de uma cotação que ninguém aprovou.
+    const ticketsRequestPromise = page.waitForRequest(
+      request => request.url().includes('/api/tickets') && request.method() === 'GET'
+    );
+    await loginWithPassword(page, directorEmail, password);
+    const authorization = (await ticketsRequestPromise).headers().authorization;
+    expect(authorization).toBeTruthy();
+
+    const decide = (idempotencyKey: string, selectedQuoteId: string) =>
+      page.request.post('/api/approvals', {
+        headers: { authorization, 'content-type': 'application/json' },
+        data: {
+          action: 'approveBudget',
+          ticketId: LIFECYCLE_TICKET_IDS.budget,
+          idempotencyKey,
+          selectedQuoteId,
+        },
+      });
+
+    const [first, second] = await Promise.all([
+      decide('concurrency-director-a', 'quote-e2e-a'),
+      decide('concurrency-director-b', 'quote-e2e-b'),
+    ]);
+
+    const statuses = [first.status(), second.status()].sort();
+    const accepted = [first, second].filter(response => response.ok());
+    expect(accepted).toHaveLength(1);
+    // A perdedora é rejeitada por conflito de estado, não por erro genérico.
+    expect(statuses.filter(status => status === 200)).toHaveLength(1);
+    expect(statuses.some(status => status === 409)).toBe(true);
+
+    // Estado final consistente: uma única decisão registrada.
+    expect(
+      await readTicketRecords(LIFECYCLE_TICKET_IDS.budget, 'approvalSnapshots')
+    ).toHaveLength(1);
+
+    const winner = await accepted[0].json();
+    const quotes = await readTicketRecords(LIFECYCLE_TICKET_IDS.budget, 'quotes');
+    const approved = quotes.filter(quote => quote.status === 'approved');
+    expect(approved).toHaveLength(1);
+    expect(approved[0].id).toBe(winner.selectedQuoteId);
+
+    // O contrato reflete exatamente a cotação vencedora — sem soma das duas.
+    const contract = await readTicketRecord(
+      LIFECYCLE_TICKET_IDS.budget,
+      'contracts',
+      'contract-1'
+    );
+    expect(normalizeCurrencyLabel(contract?.realizedValue)).toBe(
+      normalizeCurrencyLabel(approved[0].totalValue || approved[0].value)
+    );
+
+    const ticket = await readTicketState(LIFECYCLE_TICKET_IDS.budget);
+    expect(ticket?.status).toBe('Aguardando Anexo de Contrato');
+  });
 });
