@@ -596,10 +596,11 @@ export function FinanceView() {
 
     setUploadingTicketId(ticketId);
     try {
+      // O servidor remove a referência (transacional) e só então apaga o objeto.
+      // A tela não mexe mais no closureChecklist: fazer isso aqui era o que
+      // deixava referência órfã quando a segunda chamada falhava.
       await deleteTicketAttachment(targetDocument.path);
-      const nextDocuments = currentDocuments.filter(document => document.id !== documentId);
       const persisted = await updateTicket(ticketId, {
-        closureChecklist: mergeClosureChecklist(targetTicket, { documents: nextDocuments }),
         history: [
           ...targetTicket.history,
           {
@@ -611,7 +612,13 @@ export function FinanceView() {
           },
         ],
       });
-      if (!persisted) throw new Error('O arquivo foi removido, mas não foi possível atualizar o histórico da OS.');
+      if (!persisted) {
+        showToast(
+          `Documento ${targetDocument.name} removido, mas o registro no histórico falhou.`,
+          5000
+        );
+        return;
+      }
       showToast(`Documento ${targetDocument.name} removido com sucesso.`, 3000);
     } catch (error) {
       showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover o documento.'}`, 4000);
@@ -830,14 +837,25 @@ export function FinanceView() {
     const paymentKey = getPaymentDraftKey(ticketId, payment.id);
     setUploadingPaymentKey(paymentKey);
     try {
+      // Com path, o servidor tira a referência do lançamento junto com o objeto —
+      // e recusa se o lançamento já estiver pago/liberado. Sem path (anexo legado
+      // sem arquivo), só resta limpar a lista aqui.
       if (attachment.path) {
         await deleteTicketAttachment(attachment.path);
+      } else {
+        await savePayment(
+          ticketId,
+          {
+            ...payment,
+            attachments: (payment.attachments || []).filter(item => item.id !== attachmentId),
+          },
+          buildProcurementClassification(targetTicket)
+        );
       }
       const nextPayment: PaymentRecord = {
         ...payment,
         attachments: (payment.attachments || []).filter(item => item.id !== attachmentId),
       };
-      await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
       setPaymentsByTicket(prev => ({
         ...prev,
         [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),

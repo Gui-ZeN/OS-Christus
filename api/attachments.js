@@ -4,6 +4,13 @@ import { pipeline } from 'node:stream/promises';
 import { getStorage } from 'firebase-admin/storage';
 
 import { canRoleReadAttachmentPath, findAttachmentReference, isAttachmentPathInTicketScope } from './_lib/attachmentAccess.js';
+import {
+  clearFlatAttachmentFields,
+  findProtectedEvidenceReason,
+  removeAttachmentReference,
+} from './_lib/attachmentRemoval.js';
+import { writeAuditLog } from './_lib/auditLogs.js';
+import { TICKET_HISTORY_SUBCOLLECTION } from './_lib/tickets.js';
 import { streamDriveFile } from './_lib/attachmentProxy.js';
 import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { requireUserWithRoles } from './_lib/authz.js';
@@ -127,12 +134,109 @@ async function readProcurementAttachmentSources(ticketRef) {
 }
 
 async function readHistoryAttachmentReference(ticketRef, locator) {
-  const historySnap = await ticketRef.collection('historyEntries').get();
+  const historySnap = await ticketRef.collection(TICKET_HISTORY_SUBCOLLECTION).get();
   for (const doc of historySnap.docs) {
     const reference = findAttachmentReference(doc.data() || {}, locator);
     if (reference) return reference;
   }
   return null;
+}
+
+// Coleções varridas na exclusão, na mesma ordem em que a busca as consulta.
+const ATTACHMENT_OWNER_COLLECTIONS = ['quotes', 'contracts', 'payments', 'measurements'];
+
+// Contrato guarda o arquivo assinado em campos SOLTOS, não em lista.
+const FLAT_ATTACHMENT_FIELD_GROUPS = [
+  {
+    pathField: 'signedFilePath',
+    fields: ['signedFilePath', 'signedFileName', 'signedFileUrl', 'signedFileContentType', 'signedFileSize'],
+  },
+];
+
+/**
+ * Tira a referência do anexo de TODO lugar onde ela viva, numa transação só:
+ * doc da OS (attachments, closureChecklist.documents, history embutido),
+ * subcoleções de compras e a subcoleção de histórico.
+ *
+ * Roda ANTES de apagar o objeto e recusa evidência financeira já aprovada.
+ */
+async function removeAttachmentReferences(db, ticketRef, locator) {
+  const [quotesSnap, contractsSnap, paymentsSnap, measurementsSnap] = await Promise.all(
+    ATTACHMENT_OWNER_COLLECTIONS.map(name => ticketRef.collection(name).get())
+  );
+  const ownerDocs = [
+    ...quotesSnap.docs.map(doc => ({ collection: 'quotes', doc })),
+    ...contractsSnap.docs.map(doc => ({ collection: 'contracts', doc })),
+    ...paymentsSnap.docs.map(doc => ({ collection: 'payments', doc })),
+    ...measurementsSnap.docs.map(doc => ({ collection: 'measurements', doc })),
+  ];
+
+  // A busca por entrada de histórico é feita fora da transação (a subcoleção pode
+  // ser grande); dentro dela relemos só os documentos que realmente têm o anexo.
+  const historyMatches = [];
+  const historySnap = await ticketRef.collection(TICKET_HISTORY_SUBCOLLECTION).get();
+  for (const doc of historySnap.docs) {
+    if (findAttachmentReference(doc.data() || {}, locator)) historyMatches.push(doc.ref);
+  }
+
+  return db.runTransaction(async tx => {
+    const refsToRead = [ticketRef, ...ownerDocs.map(item => item.doc.ref), ...historyMatches];
+    const snaps = await tx.getAll(...refsToRead);
+    const ticketSnap = snaps[0];
+    if (!ticketSnap.exists) throw new HttpError(404, 'OS não encontrada.');
+
+    const removedFrom = [];
+
+    // 1) Documentos de compras: primeiro a guarda de evidência, depois a remoção.
+    ownerDocs.forEach((item, index) => {
+      const snap = snaps[1 + index];
+      if (!snap.exists) return;
+      const data = snap.data() || {};
+      if (!findAttachmentReference(data, locator)) return;
+
+      const blocked = findProtectedEvidenceReason(item.collection, data);
+      if (blocked) throw new HttpError(409, blocked);
+
+      const listResult = removeAttachmentReference(data, locator);
+      const flatResult = clearFlatAttachmentFields(
+        listResult.value,
+        locator,
+        FLAT_ATTACHMENT_FIELD_GROUPS
+      );
+      if (listResult.removed || flatResult.removed) {
+        tx.set(snap.ref, { ...flatResult.value, updatedAt: new Date() }, { merge: false });
+        removedFrom.push(`${item.collection}/${snap.id}`);
+      }
+    });
+
+    // 2) Entradas de histórico na subcoleção.
+    historyMatches.forEach((ref, index) => {
+      const snap = snaps[1 + ownerDocs.length + index];
+      if (!snap.exists) return;
+      const result = removeAttachmentReference(snap.data() || {}, locator);
+      if (result.removed) {
+        tx.set(ref, result.value, { merge: false });
+        removedFrom.push(`historyEntries/${snap.id}`);
+      }
+    });
+
+    // 3) Doc da OS: anexos soltos, checklist de encerramento e histórico embutido.
+    const ticketData = ticketSnap.data() || {};
+    const ticketResult = removeAttachmentReference(ticketData, locator);
+    if (ticketResult.removed) {
+      tx.set(
+        ticketRef,
+        { ...ticketResult.value, updatedAt: new Date() },
+        { merge: false }
+      );
+      removedFrom.push('ticket');
+    }
+
+    if (removedFrom.length === 0) {
+      throw new HttpError(409, 'A referência do anexo não foi encontrada para remoção.');
+    }
+    return { removedFrom };
+  });
 }
 
 async function readAccessibleTicket(db, user, ticketId) {
@@ -274,8 +378,35 @@ export default async function handler(req, res) {
       if (driveFileId || reference.driveFileId) {
         throw new HttpError(409, 'Anexo arquivado não pode ser excluído por este fluxo.');
       }
-      await getStorage().bucket().file(path).delete({ ignoreNotFound: true });
-      return sendJson(res, 200, { ok: true });
+      // ORDEM DELIBERADA: a referência sai primeiro, numa transação, e só depois o
+      // objeto é apagado. O inverso (Storage primeiro, referência pela tela) deixava
+      // referência apontando para arquivo inexistente quando a segunda etapa falhava.
+      // Agora o pior caso é um binário órfão no bucket — invisível para o usuário.
+      const removal = await removeAttachmentReferences(db, ticketRef, locator);
+
+      // A referência já saiu, então o anexo sumiu da OS do ponto de vista de quem
+      // usa. Se o objeto não puder ser apagado agora, NÃO se desfaz o que foi
+      // feito: sobra um binário órfão (lixo coletável) em vez de reviver uma
+      // referência que o usuário mandou remover. A auditoria registra o caso.
+      let storageDeleted = true;
+      let storageError = null;
+      try {
+        await getStorage().bucket().file(path).delete({ ignoreNotFound: true });
+      } catch (error) {
+        storageDeleted = false;
+        storageError = error instanceof Error ? error.message : String(error);
+        console.error('[attachments] referência removida, mas o objeto permaneceu no bucket', path, error);
+      }
+
+      await writeAuditLog({
+        actor: user.name || user.email || 'Sistema',
+        action: 'attachment.delete',
+        entity: 'ticket',
+        entityId: ticketId,
+        before: { path, name: reference.name, contentType: reference.contentType },
+        after: { removedFrom: removal.removedFrom, storageDeleted, storageError },
+      });
+      return sendJson(res, 200, { ok: true, removedFrom: removal.removedFrom, storageDeleted });
     }
 
     if (driveFileId) {
