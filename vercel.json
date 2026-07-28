@@ -67,6 +67,18 @@
     {
       "source": "/api/audit-logs",
       "destination": "/api/admin-tools?route=audit-logs"
+    },
+    {
+      "source": "/api/directory",
+      "destination": "/api/users?route=directory"
+    },
+    {
+      "source": "/api/report-pdf",
+      "destination": "/api/tickets?route=report-pdf"
+    },
+    {
+      "source": "/api/settings",
+      "destination": "/api/catalog?route=settings"
     }
   ]
 }

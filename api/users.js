@@ -1,8 +1,12 @@
-import { requireAdminUser, requireAuthenticatedUser , resolveActor , hasRole } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser, requireOperationalManager, resolveActor , hasRole } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { getAuth } from 'firebase-admin/auth';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
-import { readDirectory } from './_lib/directory.js';
+// A rota /api/directory vive AQUI (mesmo domínio: pessoas; o directoryApi do front
+// já consumia as duas). O plano Hobby da Vercel limita 12 funções e cada api/*.js
+// vira uma; o vercel.json reescreve /api/directory -> /api/users?route=directory.
+import { readDirectory, seedDirectoryDefaults } from './_lib/directory.js';
+import { slugify } from './_lib/text.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { generatePasswordResetUrl, sendPasswordAccessEmail } from './_lib/passwordAccess.js';
 import { isValidEmail as isDeliverableEmail } from './_lib/email.js';
@@ -135,7 +139,91 @@ async function deleteAuthUser(existingAuthUid, email) {
   }
 }
 
+async function handleDirectory(req, res) {
+  try {
+    const db = getAdminDb();
+
+    if (req.method === 'GET') {
+      const currentUser = await requireAuthenticatedUser(req);
+      const directory = await readDirectory(db);
+      const users =
+        hasRole(currentUser, ['Admin', 'Gestor', 'Diretor'])
+          ? directory.users
+          : directory.users.filter(user => String(user.email || '').toLowerCase() === String(currentUser.email || '').toLowerCase());
+      return sendJson(res, 200, {
+        ok: true,
+        users,
+        teams: directory.teams,
+        vendors: directory.vendors,
+      });
+    }
+
+    if (req.method === 'POST') {
+      await requireAdminUser(req);
+      const body = await readJsonBody(req);
+      if (body?.seedDefaults !== true) {
+        return sendJson(res, 400, { ok: false, error: 'Envie { seedDefaults: true } para popular o diretório.' });
+      }
+      await seedDirectoryDefaults(db);
+      const directory = await readDirectory(db);
+      return sendJson(res, 200, { ok: true, seeded: true, ...directory });
+    }
+
+    if (req.method === 'PATCH') {
+      await requireOperationalManager(req);
+      const body = await readJsonBody(req);
+      const vendor = body?.vendor || {};
+      const vendorName = String(vendor.name || '').trim();
+      if (!vendorName) {
+        return sendJson(res, 400, { ok: false, error: 'Nome do terceiro é obrigatório.' });
+      }
+
+      const id = String(vendor.id || slugify(vendorName) || `terceiro-${Date.now()}`);
+      const tags = Array.isArray(vendor.tags)
+        ? vendor.tags
+            .map(tag => String(tag || '').trim())
+            .filter(Boolean)
+        : [];
+      const now = new Date();
+
+      await db.collection('vendors').doc(id).set(
+        {
+          id,
+          name: vendorName,
+          email: vendor.email ? String(vendor.email).trim() : '',
+          contact: vendor.contact ? String(vendor.contact).trim() : '',
+          tags,
+          active: vendor.active !== false,
+          updatedAt: now,
+          createdAt: now,
+        },
+        { merge: true }
+      );
+
+      return sendJson(res, 200, {
+        ok: true,
+        vendor: {
+          id,
+          name: vendorName,
+          email: vendor.email ? String(vendor.email).trim() : '',
+          contact: vendor.contact ? String(vendor.contact).trim() : '',
+          tags,
+          active: vendor.active !== false,
+        },
+      });
+    }
+
+    res.setHeader('Allow', 'GET, POST, PATCH');
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+  } catch (error) {
+    return sendError(res, error, 'Falha no diretório.');
+  }
+}
+
 export default async function handler(req, res) {
+  const route = String(req.query?.route || '').trim().toLowerCase();
+  if (route === 'directory') return handleDirectory(req, res);
+
   try {
     const db = getAdminDb();
 

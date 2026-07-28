@@ -1,8 +1,12 @@
-import { requireAuthenticatedUser, requireOperationalManager , resolveActor } from './_lib/authz.js';
-import { slugify } from './_lib/text.js';
+import { requireAuthenticatedUser, requireOperationalManager, requireUserWithRoles , resolveActor } from './_lib/authz.js';
+import { slugify, repairMojibake } from './_lib/text.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
-import { readJsonBody, sendJson } from './_lib/http.js';
+import { HttpError, readJsonBody, sendJson } from './_lib/http.js';
+// A rota /api/settings vive AQUI (mesmo domínio: configuração do sistema). Limite
+// de 12 Serverless Functions no plano Hobby; o vercel.json reescreve /api/settings
+// -> /api/catalog?route=settings, então o front continua chamando /api/settings.
+import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import {
   DEFAULT_MACRO_SERVICES,
   DEFAULT_MATERIALS,
@@ -377,7 +381,220 @@ async function deleteCatalogEntry(db, entity, id) {
   return before;
 }
 
+const FIXED_TICKET_EMAIL_SUBJECT = '{{ticket.id}} - {{ticket.subject}}';
+function normalizeEmailTemplate(data, fallback = null) {
+  const source = data && typeof data === 'object' ? data : {};
+  const fallbackTemplate = fallback && typeof fallback === 'object' ? fallback : {};
+  const trigger = String(source.trigger || fallbackTemplate.trigger || '').trim();
+
+  return {
+    trigger,
+    subject: trigger.startsWith('EMAIL-')
+      ? FIXED_TICKET_EMAIL_SUBJECT
+      : repairMojibake(String(source.subject || fallbackTemplate.subject || '').trim()),
+    body: repairMojibake(String(source.body || fallbackTemplate.body || '').trim()),
+    recipients: repairMojibake(String(source.recipients || fallbackTemplate.recipients || '').trim()),
+  };
+}
+
+function normalizeEmailTemplates(values) {
+  const defaults = Object.values(DEFAULT_SETTINGS.emailTemplates.items).map(template => normalizeEmailTemplate(template));
+  const byTrigger = new Map(defaults.map(template => [template.trigger, template]));
+
+  for (const value of Array.isArray(values) ? values : []) {
+    const trigger = String(value?.trigger || '').trim();
+    if (!trigger) continue;
+    byTrigger.set(trigger, normalizeEmailTemplate(value, byTrigger.get(trigger)));
+  }
+
+  return [...byTrigger.values()].sort((a, b) => a.trigger.localeCompare(b.trigger, 'pt-BR'));
+}
+
+function normalizeSla(data) {
+  const allowedPriorities = ['Urgente', 'Alta', 'Trivial'];
+
+  if (Array.isArray(data?.rules)) {
+    const normalizedRules = data.rules
+      .map(rule => ({
+        priority: String(rule?.priority || '').trim(),
+        prazo: String(rule?.prazo || '').trim(),
+      }))
+      .filter(rule => allowedPriorities.includes(rule.priority));
+
+    if (normalizedRules.length > 0) {
+      const byPriority = new Map(normalizedRules.map(rule => [rule.priority, rule]));
+      return {
+        ...data,
+        rules: allowedPriorities.map(priority => byPriority.get(priority) || { priority, prazo: 'Sem medição de tempo' }),
+      };
+    }
+
+    return {
+      ...data,
+      rules: allowedPriorities.map(priority => ({ priority, prazo: 'Sem medição de tempo' })),
+    };
+  }
+
+  if (data && typeof data === 'object') {
+    return {
+      rules: [
+        { priority: 'Urgente', prazo: 'Sem medição de tempo' },
+        { priority: 'Alta', prazo: 'Sem medição de tempo' },
+        { priority: 'Trivial', prazo: 'Sem medição de tempo' },
+      ],
+    };
+  }
+
+  return DEFAULT_SETTINGS.sla.default;
+}
+
+async function ensureDefaults(db) {
+  const batch = db.batch();
+  const now = new Date();
+
+  for (const value of Object.values(DEFAULT_SETTINGS.emailTemplates.items)) {
+    batch.set(
+      db.collection('settings').doc('emailTemplates').collection('items').doc(value.trigger),
+      { ...value, updatedAt: now, createdAt: now },
+      { merge: true }
+    );
+  }
+
+  batch.set(
+    db.collection('settings').doc('dailyDigest').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.dailyDigest.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
+  batch.set(
+    db.collection('settings').doc('sla').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.sla.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
+  batch.set(
+    db.collection('settings').doc('thirdPartyTags').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.thirdPartyTags.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
+
+  await batch.commit();
+}
+
+async function readSettings(db) {
+  const [templatesSnap, digestSnap, slaSnap, thirdPartyTagsSnap] = await Promise.all([
+    db.collection('settings').doc('emailTemplates').collection('items').get(),
+    db.collection('settings').doc('dailyDigest').collection('items').doc('default').get(),
+    db.collection('settings').doc('sla').collection('items').doc('default').get(),
+    db.collection('settings').doc('thirdPartyTags').collection('items').doc('default').get(),
+  ]);
+
+  const emailTemplates = normalizeEmailTemplates(
+    templatesSnap.docs
+      .map(doc => doc.data())
+      .filter(Boolean)
+  );
+
+  return {
+    emailTemplate: emailTemplates[0] || null,
+    emailTemplates,
+    dailyDigest: digestSnap.exists ? digestSnap.data() : null,
+    sla: slaSnap.exists ? normalizeSla(slaSnap.data()) : null,
+    thirdPartyTags: thirdPartyTagsSnap.exists ? thirdPartyTagsSnap.data() : null,
+  };
+}
+
+async function handleSettings(req, res) {
+  try {
+    const db = getAdminDb();
+
+    if (req.method === 'GET') {
+      const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
+      let settings = await readSettings(db);
+      if (!settings.emailTemplates?.length || !settings.sla) {
+        await ensureDefaults(db);
+        settings = await readSettings(db);
+      }
+      if (user.role === 'Gestor') {
+        return sendJson(res, 200, {
+          ok: true,
+          emailTemplates: [],
+          dailyDigest: null,
+          sla: null,
+          thirdPartyTags: settings.thirdPartyTags,
+        });
+      }
+      return sendJson(res, 200, { ok: true, ...settings });
+    }
+
+    if (req.method === 'POST') {
+      const admin = await requireUserWithRoles(req, ['Admin', 'Gestor']);
+      const actor = resolveActor(admin);
+      const body = await readJsonBody(req);
+      const section = String(body?.section || '').trim();
+      const data = body?.data;
+
+      if (!section || !data) {
+        return sendJson(res, 400, { ok: false, error: 'section e data são obrigatórios.' });
+      }
+
+      if (!['emailTemplates', 'dailyDigest', 'sla', 'thirdPartyTags'].includes(section)) {
+        return sendJson(res, 400, { ok: false, error: 'section inválida.' });
+      }
+      if (admin.role === 'Gestor' && section !== 'thirdPartyTags') {
+        return sendJson(res, 403, { ok: false, error: 'Gestor pode alterar apenas tags de terceiros.' });
+      }
+
+      const normalizedData =
+        section === 'sla'
+          ? normalizeSla(data)
+          : section === 'emailTemplates'
+            ? normalizeEmailTemplate(data)
+            : section === 'thirdPartyTags'
+              ? {
+                  tags: Array.from(
+                    new Set(
+                      (Array.isArray(data?.tags) ? data.tags : [])
+                        .map(item => String(item || '').trim())
+                        .filter(Boolean)
+                    )
+                  ),
+                }
+            : data;
+      const docId = section === 'emailTemplates' ? String(normalizedData?.trigger || '').trim() : 'default';
+
+      if (section === 'emailTemplates' && !docId) {
+        return sendJson(res, 400, { ok: false, error: 'trigger é obrigatório para templates.' });
+      }
+
+      const docRef = db.collection('settings').doc(section).collection('items').doc(docId);
+      const beforeSnap = await docRef.get();
+      const before = beforeSnap.exists ? beforeSnap.data() : null;
+
+      await docRef.set({ ...normalizedData, updatedAt: new Date() }, { merge: true });
+
+      await writeAuditLog({
+        actor,
+        action: 'settings.update',
+        entity: 'settings',
+        entityId: section === 'emailTemplates' ? docId : section,
+        before,
+        after: normalizedData,
+      });
+
+      return sendJson(res, 200, { ok: true });
+    }
+
+    res.setHeader('Allow', 'GET, POST');
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+  } catch (error) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    return sendJson(res, statusCode, { ok: false, error: error.message || 'Falha em settings.' });
+  }
+}
+
 export default async function handler(req, res) {
+  const route = String(req.query?.route || '').trim().toLowerCase();
+  if (route === 'settings') return handleSettings(req, res);
+
   try {
     const db = getAdminDb();
 

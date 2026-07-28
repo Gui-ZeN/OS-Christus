@@ -181,11 +181,19 @@ await seedLifecycleFixtures(db, { directorEmail: DIRECTOR_EMAIL });
 // PRIMEIRA criação de OS tenta reservar OS-0001 — que já existe — e bate no guard
 // anti-sobrescrita (409). Isso quebrava a duplicação nos testes de integração (e no
 // CI, que roda seed + integração na sequência).
-const seededNumbers = tickets
-  .map(t => Number(String(t.id).replace(/\D/g, '')))
+// Considera TODAS as OS já existentes, não só as que este seed cria: o emulador
+// costuma reter OS de rodadas anteriores (duplicatas dos testes, formulário público)
+// e um contador atrás delas faria a próxima criação colidir — 409 no guard
+// anti-sobrescrita, que aparecia como "flake" no E2E do formulário público.
+const existingTickets = await db.collection('tickets').get();
+const allNumbers = [
+  ...tickets.map(t => t.id),
+  ...existingTickets.docs.map(doc => doc.id),
+]
+  .map(id => Number(String(id).replace(/\D/g, '')))
   .filter(n => Number.isFinite(n) && n > 0);
 await db.collection('config').doc('ticketSequence').set(
-  { lastNumber: seededNumbers.length ? Math.max(...seededNumbers) : 0, updatedAt: now },
+  { lastNumber: allNumbers.length ? Math.max(...allNumbers) : 0, updatedAt: now },
   { merge: true }
 );
 

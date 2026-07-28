@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
@@ -22,6 +22,10 @@ import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
 import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
+// A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
+// Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
+// /api/tickets?route=report-pdf, então o front continua igual.
+import { buildReportPdf } from './_lib/reportPdf.js';
 
 // Teto de leituras da subcoleção por PATCH ao deduplicar histórico reenviado pelo
 // cliente. Um PATCH legítimo traz 1-3 entradas novas; o resto é histórico paginado.
@@ -769,7 +773,44 @@ async function readPublicTrackingProcurement(ticketRef) {
   };
 }
 
+/**
+ * Gera o Relatório Gerencial de OS em PDF no servidor (pdfkit) — impecável pra
+ * diretoria, sem barra do navegador. Recebe do front os números já computados
+ * (ver KpiView.reportData) e devolve o PDF pra download. Autenticado.
+ */
+async function handleReportPdf(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      throw new HttpError(405, 'Método não permitido.');
+    }
+    await requireAuthenticatedUser(req);
+
+    const body = await readJsonBody(req);
+    const data = body?.data;
+    if (!data || typeof data !== 'object') {
+      throw new HttpError(400, 'Dados do relatório ausentes.');
+    }
+
+    const pdf = await buildReportPdf(data);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="relatorio-gerencial-os.pdf"');
+    res.setHeader('Content-Length', String(pdf.length));
+    res.end(pdf);
+  } catch (error) {
+    if (res.headersSent) {
+      res.end();
+      return;
+    }
+    sendError(res, error);
+  }
+}
+
 export default async function handler(req, res) {
+  const route = String(req.query?.route || '').trim().toLowerCase();
+  if (route === 'report-pdf') return handleReportPdf(req, res);
+
   try {
     const db = getAdminDb();
     const col = db.collection('tickets');
