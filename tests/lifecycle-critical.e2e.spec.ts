@@ -241,4 +241,57 @@ test.describe('ciclo crítico transacional', () => {
       await readTicketRecords(LIFECYCLE_TICKET_IDS.payment, 'financeSnapshots')
     ).toHaveLength(1);
   });
+
+  test('Diretor aprova o contrato e a OS segue para ações preliminares', async ({ page }) => {
+    await loginWithPassword(page, directorEmail, password);
+    await page.getByTitle('Painel da Diretoria').click();
+    await expect(page.getByRole('heading', { name: 'Painel da Diretoria' })).toBeVisible();
+
+    await page.getByRole('button', { name: /^Contratos \(/ }).click();
+    const contractCard = page.locator(
+      `#approval-contract-${LIFECYCLE_TICKET_IDS.contract}`
+    );
+    await expect(contractCard).toContainText('Fornecedor E2E Contrato');
+    // O Diretor decide sobre o contrato — não edita valores (mesma garantia do orçamento).
+    await expect(contractCard.getByRole('textbox')).toHaveCount(0);
+
+    await contractCard.getByRole('button', { name: 'Aprovar Contrato' }).click();
+    await expect(contractCard).toHaveCount(0);
+
+    const ticket = await readTicketState(LIFECYCLE_TICKET_IDS.contract);
+    expect(ticket?.status).toBe('Aguardando Ações Preliminares');
+    await expect.poll(async () => (
+      await readTicketRecord(LIFECYCLE_TICKET_IDS.contract, 'contracts', 'contract-1')
+    )?.status).toBe('approved');
+  });
+
+  test('Diretor reprova o contrato: volta para reenvio SEM cancelar a OS', async ({ page }) => {
+    await loginWithPassword(page, directorEmail, password);
+    await page.getByTitle('Painel da Diretoria').click();
+    await expect(page.getByRole('heading', { name: 'Painel da Diretoria' })).toBeVisible();
+
+    await page.getByRole('button', { name: /^Contratos \(/ }).click();
+    const contractCard = page.locator(
+      `#approval-contract-${LIFECYCLE_TICKET_IDS.contract}`
+    );
+    await expect(contractCard).toContainText('Fornecedor E2E Contrato');
+    await contractCard.getByRole('button', { name: 'Reprovar Contrato' }).click();
+
+    const rejectDialog = page.getByRole('dialog', { name: 'Reprovar Contrato' });
+    await expect(rejectDialog).toBeVisible();
+    await rejectDialog.getByPlaceholder('Descreva o motivo...').fill('Cláusula de garantia divergente do orçamento aprovado.');
+    await rejectDialog.getByRole('button', { name: 'Confirmar Reprovação' }).click();
+    await expect(contractCard).toHaveCount(0);
+
+    // A REGRESSÃO que este teste existe para pegar: a reprovação de contrato já caiu
+    // no ramo de cancelamento e matou a OS inteira. Deve voltar para reenvio.
+    await expect.poll(async () => (
+      await readTicketState(LIFECYCLE_TICKET_IDS.contract)
+    )?.status).toBe('Aguardando Anexo de Contrato');
+    const ticket = await readTicketState(LIFECYCLE_TICKET_IDS.contract);
+    expect(ticket?.status).not.toBe('Cancelada');
+    // O contrato volta a aceitar novo anexo (não fica travado como aprovado).
+    const contract = await readTicketRecord(LIFECYCLE_TICKET_IDS.contract, 'contracts', 'contract-1');
+    expect(contract?.status).toBe('pending_upload');
+  });
 });

@@ -2,6 +2,7 @@ const LIFECYCLE_TICKET_IDS = {
   solution: 'OS-E2E-SOLUTION',
   budget: 'OS-E2E-BUDGET',
   payment: 'OS-E2E-PAYMENT',
+  contract: 'OS-E2E-CONTRACT',
 };
 
 const TICKET_SUBCOLLECTIONS = [
@@ -104,6 +105,7 @@ export async function seedLifecycleFixtures(
   const solutionRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.solution);
   const budgetRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.budget);
   const paymentRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.payment);
+  const contractRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.contract);
 
   await Promise.all([
     solutionRef.set(createTicket({
@@ -125,6 +127,13 @@ export async function seedLifecycleFixtures(
       id: LIFECYCLE_TICKET_IDS.budget,
       status: 'Aguardando Aprovação do Orçamento',
       subject: 'Fixture E2E - escolha de orçamento',
+      directorEmail,
+      now,
+    })),
+    contractRef.set(createTicket({
+      id: LIFECYCLE_TICKET_IDS.contract,
+      status: 'Aguardando aprovação do contrato',
+      subject: 'Fixture E2E - aprovação/reprovação de contrato',
       directorEmail,
       now,
     })),
@@ -189,6 +198,22 @@ export async function seedLifecycleFixtures(
       vendor: 'Fornecedor E2E B',
       value: 'R$ 1.200,00',
       totalValue: 'R$ 1.200,00',
+    }),
+    contractRef.collection('contracts').doc('contract-1').set({
+      id: 'contract-1',
+      ticketId: LIFECYCLE_TICKET_IDS.contract,
+      vendor: 'Fornecedor E2E Contrato',
+      value: 'R$ 2.500,00',
+      initialPlannedValue: 'R$ 2.500,00',
+      realizedValue: 'R$ 2.500,00',
+      status: 'pending_approval',
+      // signedFileName habilita o botão "Aprovar Contrato" (a UI exige anexo).
+      signedFileName: 'contrato-e2e.pdf',
+      signedFilePath: `attachments/tickets/contracts/${LIFECYCLE_TICKET_IDS.contract}/contrato-e2e.pdf`,
+      signedFileContentType: 'application/pdf',
+      items: [],
+      createdAt: now,
+      updatedAt: now,
     }),
     paymentRef.collection('contracts').doc('contract-1').set({
       id: 'contract-1',

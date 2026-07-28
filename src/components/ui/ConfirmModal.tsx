@@ -88,8 +88,13 @@ export function ConfirmModal({
       <div 
         ref={modalRef}
         className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-sm border border-roman-border bg-roman-surface shadow-2xl animate-in zoom-in-95 duration-200"
-        role="dialog" 
+        role="dialog"
         aria-modal="true"
+        // Sem estes, o diálogo não tem nome acessível: o leitor de tela anuncia só
+        // "diálogo", sem dizer o que está sendo confirmado (e nenhuma ferramenta
+        // consegue localizá-lo pelo título).
+        aria-labelledby="confirm-modal-title"
+        aria-describedby="confirm-modal-description"
         tabIndex={-1}
       >
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -98,8 +103,8 @@ export function ConfirmModal({
               <AlertCircle size={24} />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-serif font-medium text-roman-text-main mb-2">{title}</h3>
-              <p className="text-sm text-roman-text-sub leading-relaxed mb-4">{description}</p>
+              <h3 id="confirm-modal-title" className="text-lg font-serif font-medium text-roman-text-main mb-2">{title}</h3>
+              <p id="confirm-modal-description" className="text-sm text-roman-text-sub leading-relaxed mb-4">{description}</p>
               
               {requireReason && (
                 <div className="mt-4">
