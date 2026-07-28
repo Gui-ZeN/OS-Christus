@@ -3,6 +3,46 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-28 (fatiamento dos god-files + QA)
+
+Quebra dos arquivos-elefante em módulos testáveis, uma mordida por vez, com a
+suíte inteira entre elas. O critério de corte é sempre o mesmo: **sair primeiro o
+que é puro** — vira teste sem emulador e sem React, e é justamente onde os bugs
+de cálculo/parsing se escondiam sem cobertura.
+
+### ✂️ `api/mail.js` — 3.032 → 2.786 linhas
+- `_lib/emailThreading.js` (commit `9f48935`): assunto, threading e identidade de
+  mensagem. Sustenta duas garantias — a resposta cair na mesma conversa
+  (Message-Id/In-Reply-To/References) e o prefixo `OS-XXXX - SEDE` não duplicar a
+  cada resposta. **+14 testes**.
+- `_lib/inboundBody.js` (commit `93f504f`): limpeza do e-mail recebido — assinatura,
+  histórico citado e cabeçalhos de encaminhamento. **+22 testes** nos casos que
+  quebram de verdade: resposta curta que some junto com a citação, citação vazando
+  para dentro da OS, chamado encaminhado perdendo o corpo. Dois testes fixam o guard
+  `match.index > 0`: se o marcador abre a mensagem, **não** se corta — melhor
+  devolver sujo que devolver vazio.
+
+### ✂️ `src/views/FinanceView.tsx` — 2.641 → 2.465 linhas
+- `src/utils/finance.ts` (commit `d45ba09`): o núcleo onde mora o dinheiro da obra —
+  baseline, progresso, bruto acumulado, somas de lançamento, montagem dos lançamentos
+  a partir das medições e apuração de garantia. Era código puro preso numa view de
+  2 mil linhas, **sem um único teste**, apesar de já ter causado bug em produção.
+  **+25 testes**, começando pela regressão do **drift de 99,99%** (a obra 100% paga
+  travava em 99,99% porque reconstruir de `baseline × percent` com o percent a 2
+  casas compunha o erro). O teste fixa as duas pontas: a soma real vence, e o
+  `Math.max` continua sendo a rede para medição legada sem `grossValue`.
+
+### 🧪 QA — dois falsos-vermelhos eliminados (commit `d4f8137`)
+- **Flaky do login**: o assert do primeiro render pós-login usava o timeout global de
+  5s e pagava o cold start (bundle + Auth do emulador). O spec de escopo de acesso,
+  por rodar primeiro, era o que quebrava. Agora 20s só nesse assert — E2E 9/9 sem flaky.
+- **Lint quebrado por artefato do E2E**: `playwright-report/` e `test-results/` não
+  estavam no `ignores` do ESLint, então rodar o E2E antes do lint jogava bundles
+  minificados no lint (5.277 problemas). Já estavam no `.gitignore`; faltava alinhar
+  o ESLint. **Isso quebraria o CI**, onde a ordem é sempre essa.
+
+Suíte ao fim: **195 unitários, 53 integração, 9 E2E**, tsc, ESLint e build.
+
 ## 2026-07-23 (2ª auditoria — segurança + integridade)
 
 Segunda passada adversarial: **5 auditores em paralelo** (segurança/authz, pipeline
