@@ -1883,6 +1883,54 @@ export function SettingsView() {
                             )}
                           </div>
                         )}
+
+                        {/* Contador sozinho não permite agir: para sanear é preciso saber QUAIS
+                            anexos ficaram de fora. Estes seguem acessíveis pela URL antiga (não
+                            são migrados de propósito) — é a lista de trabalho manual. */}
+                        {(attachmentDryRunResult?.unresolvedSamples?.length ||
+                          attachmentDryRunResult?.invalidStoragePathSamples?.length) ? (
+                          <details className="mt-3 rounded-sm border border-roman-border bg-roman-bg/60 p-3 text-xs">
+                            <summary className="min-h-11 cursor-pointer font-medium text-roman-text-main">
+                              Anexos que NÃO serão migrados (
+                              {(attachmentDryRunResult?.unresolvedSamples?.length || 0) +
+                                (attachmentDryRunResult?.invalidStoragePathSamples?.length || 0)}
+                              ) — exigem saneamento manual
+                            </summary>
+                            <div className="mt-2 space-y-3">
+                              {attachmentDryRunResult?.unresolvedSamples?.length ? (
+                                <div>
+                                  <div className="font-medium text-roman-text-main">Sem caminho protegido</div>
+                                  <p className="mb-1 text-roman-text-sub">
+                                    Só existe a URL antiga — removê-la apagaria o único acesso ao arquivo.
+                                  </p>
+                                  <ul className="list-disc space-y-0.5 pl-4 text-roman-text-sub">
+                                    {attachmentDryRunResult.unresolvedSamples.map(item => (
+                                      <li key={`${item.location}-${item.kind}`}>
+                                        <code className="break-all">{item.location}</code> ({item.kind})
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                              {attachmentDryRunResult?.invalidStoragePathSamples?.length ? (
+                                <div>
+                                  <div className="font-medium text-red-700">Caminho fora do escopo da OS</div>
+                                  <p className="mb-1 text-roman-text-sub">
+                                    O caminho gravado não pertence à OS do anexo — a URL é preservada e o
+                                    arquivo não passa pelo proxy.
+                                  </p>
+                                  <ul className="list-disc space-y-0.5 pl-4 text-roman-text-sub">
+                                    {attachmentDryRunResult.invalidStoragePathSamples.map(item => (
+                                      <li key={`${item.ticketId}-${item.path}`}>
+                                        <strong>{item.ticketId}</strong>: <code className="break-all">{item.path}</code>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </div>
+                          </details>
+                        ) : null}
                         {(attachmentDryRunResult?.signedUrls ?? 0) > 0 && (
                           <p className="mt-2 text-xs text-amber-700">
                             Signed URLs encontradas: {attachmentDryRunResult?.signedUrls}. Elas serão removidas dos documentos,
