@@ -1,8 +1,12 @@
 {
   "functions": {
-    "api/**/*.js": { "maxDuration": 60 }
+    "api/**/*.js": {
+      "maxDuration": 60
+    }
   },
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "rewrites": [
     {
       "source": "/api/email/send",
@@ -51,6 +55,18 @@
     {
       "source": "/api/integrations-health",
       "destination": "/api/admin-tools?route=integrations-health"
+    },
+    {
+      "source": "/api/approvals",
+      "destination": "/api/procurement?route=approvals"
+    },
+    {
+      "source": "/api/finance",
+      "destination": "/api/procurement?route=finance"
+    },
+    {
+      "source": "/api/audit-logs",
+      "destination": "/api/admin-tools?route=audit-logs"
     }
   ]
 }
