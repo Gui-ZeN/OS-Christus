@@ -8,7 +8,12 @@ import {
 import { notificationTtlAt } from './notificationState.js';
 
 const DEFAULT_BATCH_SIZE = 8;
-const MAX_SCAN_SIZE = 100;
+// Tamanho de cada página do scan e teto total de documentos varridos por
+// execução. O teto existe para o custo de leitura não explodir quando a fila
+// tem muito item em backoff; o worker roda a cada 5 min, então o que passar do
+// teto entra na execução seguinte (com a fila menor, por já ter drenado).
+const SCAN_PAGE_SIZE = 100;
+const MAX_TOTAL_SCAN = 1000;
 
 function normalizeBatchSize(value) {
   const parsed = Number(value);
@@ -19,32 +24,57 @@ function normalizeBatchSize(value) {
 export async function selectEligibleEmailOutbox(db, options = {}) {
   const now = options.now instanceof Date ? options.now : new Date();
   const batchSize = normalizeBatchSize(options.batchSize);
-  const snap = await db
-    .collection('emailOutbox')
-    .where('status', 'in', ['pending', 'processing', 'failed'])
-    .limit(MAX_SCAN_SIZE)
-    .get();
 
   const exhausted = [];
   const eligible = [];
-  for (const doc of snap.docs) {
-    const data = doc.data() || {};
-    if (Number(data.attempts || 0) >= MAX_EMAIL_OUTBOX_ATTEMPTS) {
-      // NÃO marca dead-letter enquanto a lease está ativa: o attempts é incrementado
-      // no claim, então um item na última tentativa EM VOO cai aqui. Zerar o
-      // leaseToken faria o markSent do envio em curso estourar 409 → o doc ficaria
-      // dead-letter apesar de entregue, e o retry manual reenviaria o mesmo e-mail.
-      if (isEmailOutboxLeaseActive(data, now)) continue;
-      exhausted.push({ ref: doc.ref, data });
-      continue;
+
+  // Scan PAGINADO por documentId. Antes era um `.limit(100)` sem `orderBy`: o
+  // Firestore devolve por id, então eram SEMPRE os mesmos 100 documentos. Bastava
+  // esses cem estarem em backoff para os elegíveis atrás deles nunca rodarem —
+  // starvation estável, não atraso.
+  //
+  // Paginar resolve sem campo novo nem índice composto, e portanto sem a
+  // armadilha das queries por desigualdade: documento sem o campo não aparece em
+  // `where`/`orderBy`, então introduzir `availableAt` agora esconderia os itens
+  // legados e sumiria com e-mail em silêncio. Esse caminho fica para depois do
+  // backfill, na ordem combinada.
+  let cursor = null;
+  let scanned = 0;
+
+  while (eligible.length < batchSize && scanned < MAX_TOTAL_SCAN) {
+    let query = db
+      .collection('emailOutbox')
+      .where('status', 'in', ['pending', 'processing', 'failed'])
+      .limit(SCAN_PAGE_SIZE);
+    if (cursor) query = query.startAfter(cursor);
+
+    const snap = await query.get();
+    if (snap.empty) break;
+    scanned += snap.docs.length;
+
+    for (const doc of snap.docs) {
+      const data = doc.data() || {};
+      if (Number(data.attempts || 0) >= MAX_EMAIL_OUTBOX_ATTEMPTS) {
+        // NÃO marca dead-letter enquanto a lease está ativa: o attempts é incrementado
+        // no claim, então um item na última tentativa EM VOO cai aqui. Zerar o
+        // leaseToken faria o markSent do envio em curso estourar 409 → o doc ficaria
+        // dead-letter apesar de entregue, e o retry manual reenviaria o mesmo e-mail.
+        if (isEmailOutboxLeaseActive(data, now)) continue;
+        exhausted.push({ ref: doc.ref, data });
+        continue;
+      }
+      if (!isEmailOutboxEligible(data, now)) continue;
+      eligible.push({
+        id: doc.id,
+        ticketId: String(data.ticketId || '').trim(),
+        outboxKey: String(data.commandKey || data.id || '').trim(),
+      });
+      if (eligible.length >= batchSize) break;
     }
-    if (!isEmailOutboxEligible(data, now)) continue;
-    eligible.push({
-      id: doc.id,
-      ticketId: String(data.ticketId || '').trim(),
-      outboxKey: String(data.commandKey || data.id || '').trim(),
-    });
-    if (eligible.length >= batchSize) break;
+
+    // Última página: não há mais o que varrer.
+    if (snap.docs.length < SCAN_PAGE_SIZE) break;
+    cursor = snap.docs.at(-1);
   }
 
   if (exhausted.length > 0) {
@@ -79,7 +109,8 @@ export async function selectEligibleEmailOutbox(db, options = {}) {
 
   return {
     eligible: eligible.filter(item => item.ticketId && item.outboxKey),
-    scanned: snap.size,
+    // Agora é o total varrido em TODAS as páginas, não o tamanho de uma leitura.
+    scanned,
     deadLettered: exhausted.length,
   };
 }

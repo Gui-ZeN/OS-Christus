@@ -115,3 +115,105 @@ describe('email outbox worker', () => {
     expect(dispatch).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * Mock que PAGINA de verdade (respeita limit + startAfter), diferente do
+ * createDb acima que devolve tudo numa leitura só. Sem isto, um teste de
+ * starvation passaria mesmo com o scan de página única.
+ */
+function createPaginatedDb(rows: Array<{ id: string; data: Record<string, unknown> }>) {
+  const all = rows.map(row => ({ id: row.id, ref: { id: row.id }, data: () => row.data }));
+  const reads: number[] = [];
+
+  function buildQuery(pageLimit: number, afterId: string | null) {
+    return {
+      where: () => buildQuery(pageLimit, afterId),
+      limit: (value: number) => buildQuery(value, afterId),
+      startAfter: (doc: { id: string }) => buildQuery(pageLimit, doc.id),
+      get: async () => {
+        const start = afterId ? all.findIndex(doc => doc.id === afterId) + 1 : 0;
+        const docs = all.slice(start, start + pageLimit);
+        reads.push(docs.length);
+        return { docs, empty: docs.length === 0, size: docs.length };
+      },
+    };
+  }
+
+  const db = {
+    collection: (name: string) =>
+      name === 'emailOutbox'
+        ? buildQuery(all.length, null)
+        : { doc: (id: string) => ({ id: `${name}/${id}` }) },
+    batch: () => ({ set: () => undefined, commit: async () => undefined }),
+  };
+  return { db, reads };
+}
+
+describe('starvation da fila (regressão da 4ª auditoria)', () => {
+  const now = new Date('2026-07-24T12:00:00.000Z');
+  const futuro = new Date('2026-07-24T13:00:00.000Z');
+
+  // 120 em backoff seguidos de 30 prontos. Como a query não tinha `orderBy`, o
+  // Firestore devolvia por documentId — SEMPRE os mesmos 100 primeiros. Com todos
+  // eles em backoff, os prontos atrás nunca eram processados.
+  const fila = [
+    ...Array.from({ length: 120 }, (_, i) => ({
+      id: `a-backoff-${String(i).padStart(3, '0')}`,
+      data: {
+        ticketId: `OS-B${i}`,
+        commandKey: `cmd_backoff_${i}`,
+        status: 'failed',
+        attempts: 1,
+        nextAttemptAt: futuro,
+      },
+    })),
+    ...Array.from({ length: 30 }, (_, i) => ({
+      id: `z-pronto-${String(i).padStart(3, '0')}`,
+      data: { ticketId: `OS-P${i}`, commandKey: `cmd_pronto_${i}`, status: 'pending' },
+    })),
+  ];
+
+  it('encontra os itens prontos que estão ATRÁS de 120 em backoff', async () => {
+    const { db } = createPaginatedDb(fila);
+    const result = await selectEligibleEmailOutbox(db, { now, batchSize: 8 });
+    expect(result.eligible).toHaveLength(8);
+    expect(result.eligible.every(item => item.outboxKey.startsWith('cmd_pronto_'))).toBe(true);
+  });
+
+  it('varre mais de uma página para chegar lá', async () => {
+    const { db, reads } = createPaginatedDb(fila);
+    const result = await selectEligibleEmailOutbox(db, { now, batchSize: 8 });
+    expect(reads.length).toBeGreaterThan(1);
+    expect(result.scanned).toBeGreaterThan(100);
+  });
+
+  it('não abre página além da que completou o lote', async () => {
+    // `scanned` conta a página INTEIRA lida (é o custo real de leitura), então
+    // completar o lote no meio da 2ª página ainda soma os 100 documentos dela. O
+    // que se garante aqui é que não houve uma 3ª ida ao banco.
+    const filaLonga = [...fila, ...Array.from({ length: 200 }, (_, i) => ({
+      id: `zz-extra-${String(i).padStart(3, '0')}`,
+      data: { ticketId: `OS-X${i}`, commandKey: `cmd_extra_${i}`, status: 'pending' },
+    }))];
+    const { db, reads } = createPaginatedDb(filaLonga);
+    const result = await selectEligibleEmailOutbox(db, { now, batchSize: 8 });
+    expect(reads.length).toBe(2);
+    expect(result.scanned).toBe(200);
+    expect(result.eligible).toHaveLength(8);
+  });
+
+  it('fila inteira em backoff: devolve vazio sem varrer além do teto', async () => {
+    const soBackoff = fila.slice(0, 120);
+    const { db } = createPaginatedDb(soBackoff);
+    const result = await selectEligibleEmailOutbox(db, { now, batchSize: 8 });
+    expect(result.eligible).toHaveLength(0);
+    expect(result.scanned).toBeLessThanOrEqual(1000);
+  });
+
+  it('fila vazia não quebra', async () => {
+    const { db } = createPaginatedDb([]);
+    const result = await selectEligibleEmailOutbox(db, { now, batchSize: 8 });
+    expect(result.eligible).toHaveLength(0);
+    expect(result.scanned).toBe(0);
+  });
+});
