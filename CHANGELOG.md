@@ -22,7 +22,7 @@ de cálculo/parsing se escondiam sem cobertura.
   `match.index > 0`: se o marcador abre a mensagem, **não** se corta — melhor
   devolver sujo que devolver vazio.
 
-### ✂️ `src/views/FinanceView.tsx` — 2.641 → 2.465 linhas
+### ✂️ `src/views/FinanceView.tsx` — 2.641 → 2.258 linhas
 - `src/utils/finance.ts` (commit `d45ba09`): o núcleo onde mora o dinheiro da obra —
   baseline, progresso, bruto acumulado, somas de lançamento, montagem dos lançamentos
   a partir das medições e apuração de garantia. Era código puro preso numa view de
@@ -31,6 +31,15 @@ de cálculo/parsing se escondiam sem cobertura.
   travava em 99,99% porque reconstruir de `baseline × percent` com o percent a 2
   casas compunha o erro). O teste fixa as duas pontas: a soma real vence, e o
   `Math.max` continua sendo a rede para medição legada sem `grossValue`.
+- `src/utils/financeClosure.ts` (commit `6a2ed66`): encerramento da OS — estado do
+  checklist, as regras que **bloqueiam o lançamento final** e o relatório HTML.
+  Extraído por script (não à mão) para eliminar erro de transcrição nas ~160 linhas
+  do gerador de HTML. **+13 testes**: os bloqueios acumulam todos os pendentes de
+  uma vez, OS encerrada continua avaliando o checklist, e o relatório **escapa** dado
+  vindo do usuário (assunto com `<script>` sai como texto).
+  ⚠️ Um teste documenta, sem endossar, que em `IN_PROGRESS` **nada bloqueia** o
+  lançamento final mesmo com o checklist vazio — é o **P2 do backlog**, agora travado
+  por teste para que mudá-lo seja decisão consciente e não regressão silenciosa.
 
 ### 🧪 QA — dois falsos-vermelhos eliminados (commit `d4f8137`)
 - **Flaky do login**: o assert do primeiro render pós-login usava o timeout global de
@@ -41,7 +50,14 @@ de cálculo/parsing se escondiam sem cobertura.
   minificados no lint (5.277 problemas). Já estavam no `.gitignore`; faltava alinhar
   o ESLint. **Isso quebraria o CI**, onde a ordem é sempre essa.
 
-Suíte ao fim: **195 unitários, 53 integração, 9 E2E**, tsc, ESLint e build.
+Suíte ao fim: **208 unitários, 53 integração, 9 E2E**, tsc, ESLint e build.
+
+**Em aberto**: o E2E de concorrência (duas decisões simultâneas na mesma rodada)
+oscilou uma vez — a garantia central nunca falhou (exatamente uma decisão vence, e o
+contrato reflete a cotação vencedora), mas a **perdedora** nem sempre devolveu 409.
+Não reproduziu isolado (6× o teste, 3× o arquivo inteiro); só apareceu com a suíte
+completa, sob mais carga do emulador. O assert agora reporta os statuses recebidos,
+para que a próxima ocorrência diga qual foi. Nada foi afrouxado.
 
 ## 2026-07-23 (2ª auditoria — segurança + integridade)
 
