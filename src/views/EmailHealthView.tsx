@@ -40,6 +40,10 @@ function formatDate(value: unknown) {
 export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   const { currentUser, refreshTickets } = useApp();
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  // Reprocessar reescreve sede, thread e histórico de várias OS numa janela de até
+  // 60 dias: é operação administrativa. O Diretor continua vendo o diagnóstico da
+  // caixa, só não dispara a reescrita (o backend também recusa).
+  const canReprocess = currentUser?.role === 'Admin';
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
   const [reprocessLoading, setReprocessLoading] = useState(false);
@@ -158,14 +162,16 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
               <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
               Sincronizar e-mails
             </button>
-            <button
-              onClick={() => void reprocessInbound()}
-              className="flex w-full items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60 sm:w-auto"
-              disabled={loading || syncLoading || reprocessLoading}
-            >
-              <RefreshCw size={16} className={reprocessLoading ? 'animate-spin' : ''} />
-              Reprocessar 30 dias
-            </button>
+            {canReprocess && (
+              <button
+                onClick={() => void reprocessInbound()}
+                className="flex w-full items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60 sm:w-auto"
+                disabled={loading || syncLoading || reprocessLoading}
+              >
+                <RefreshCw size={16} className={reprocessLoading ? 'animate-spin' : ''} />
+                Reprocessar 30 dias
+              </button>
+            )}
           </div>
         </header>
       )}
@@ -193,14 +199,16 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
               <RefreshCw size={16} className={syncLoading ? 'animate-spin' : ''} />
               Sincronizar e-mails
             </button>
-            <button
-              onClick={() => void reprocessInbound()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60 sm:w-auto"
-              disabled={loading || syncLoading || reprocessLoading}
-            >
-              <RefreshCw size={16} className={reprocessLoading ? 'animate-spin' : ''} />
-              Reprocessar 30 dias
-            </button>
+            {canReprocess && (
+              <button
+                onClick={() => void reprocessInbound()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-roman-border bg-roman-surface px-4 py-2 text-sm font-medium text-roman-text-main hover:border-roman-primary disabled:opacity-60 sm:w-auto"
+                disabled={loading || syncLoading || reprocessLoading}
+              >
+                <RefreshCw size={16} className={reprocessLoading ? 'animate-spin' : ''} />
+                Reprocessar 30 dias
+              </button>
+            )}
           </div>
         </div>
       )}

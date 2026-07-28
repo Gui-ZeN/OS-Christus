@@ -4,6 +4,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
+import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
 import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
@@ -20,7 +21,7 @@ import {
   gmailSend,
   gmailStartWatch,
 } from './_lib/gmail.js';
-import { parseInboundBody, readJsonBody, sendJson } from './_lib/http.js';
+import { parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { isAttachmentContentCompatible, isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
 // Helpers puros de assunto/threading/Message-Id (extraidos deste arquivo).
@@ -2300,7 +2301,11 @@ async function handleReprocessInbound(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
-    await requireUserWithRoles(req, ['Admin', 'Gestor', 'Diretor']);
+    // SÓ Admin: reprocessar reescreve sede, thread e histórico de VÁRIOS tickets
+    // numa janela de até 60 dias. Gestor e Diretor tinham acesso, o que contraria
+    // a segregação adotada no resto do sistema (a tela continua visível para o
+    // Diretor; o botão é que sai — ver EmailHealthView).
+    const actingUser = await requireUserWithRoles(req, ['Admin']);
     const body = await readJsonBody(req);
     const daysRaw = Number(body?.days || 30);
     const days = Number.isFinite(daysRaw) ? Math.min(60, Math.max(1, Math.floor(daysRaw))) : 30;
@@ -2315,6 +2320,17 @@ async function handleReprocessInbound(req, res) {
       action: 'reprocess-inbound',
       processed: result.processed,
       windowDays: days,
+    });
+    // Trilha permanente: QUEM disparou, sobre QUAL janela e com que RESULTADO.
+    // O logEmailEvent acima é operacional (e tem TTL de 90 dias); uma operação
+    // que reescreve histórico de várias OS precisa sobreviver a isso.
+    await writeAuditLog({
+      actor: actingUser?.name || actingUser?.email || 'Admin',
+      action: 'mail.reprocess-inbound',
+      entity: 'mail',
+      entityId: 'inbound-window',
+      before: { windowDays: days, since: sinceDate.toISOString() },
+      after: result,
     });
 
     return sendJson(res, 200, {
@@ -2332,7 +2348,10 @@ async function handleReprocessInbound(req, res) {
       action: 'reprocess-inbound',
       error: error.message || 'Falha no reprocessamento inbound.',
     });
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no reprocessamento inbound.' });
+    // Antes: 400 para QUALQUER erro, o que transformava o 403 de permissão (e o
+    // 401 de sessão ausente) em "requisição inválida" — indistinguíveis para o
+    // cliente. sendError preserva o status do HttpError.
+    return sendError(res, error, 'Falha no reprocessamento inbound.');
   }
 }
 
