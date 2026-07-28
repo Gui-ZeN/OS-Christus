@@ -9,6 +9,7 @@ import {
   getNotificationStateCollection,
   isNotificationDismissed,
   mergeNotificationState,
+  notificationTtlAt,
   resolveNotificationTicketId,
 } from './_lib/notificationState.js';
 
@@ -65,63 +66,110 @@ function decodeCursor(value) {
   }
 }
 
-async function readNotifications(db, user, options = {}) {
-  const limit = normalizePageLimit(options.limit);
-  const cursor = decodeCursor(options.cursor);
-  let query = db.collection('notifications')
-    .orderBy('createdAt', 'desc')
-    .orderBy(FieldPath.documentId(), 'desc')
-    .limit(limit + 1);
-  if (cursor) query = query.startAfter(cursor.createdAt, cursor.id);
+// Teto de rodadas de leitura por página. Sem ele, um usuário de escopo estreito
+// varreria a coleção inteira atrás de itens visíveis.
+const MAX_NOTIFICATION_SCAN_ROUNDS = 5;
+// Lê mais que o necessário por rodada: com filtro apertado, ler exatamente
+// `limit` garantiria outra ida ao banco.
+const NOTIFICATION_SCAN_OVERSHOOT = 3;
 
-  const snap = await query.get();
-  const pageDocs = snap.docs.slice(0, limit);
+/**
+ * Aplica o que ESCONDE uma notificação: audiência do papel, dispensa por usuário
+ * e escopo territorial da OS referenciada. Devolve o par {notification, doc}
+ * porque o cursor da próxima página precisa do documento BRUTO que originou o
+ * último item entregue.
+ */
+async function filterVisibleNotifications(db, user, docs, territory) {
+  if (docs.length === 0) return [];
   const stateCollection = getNotificationStateCollection(db, user.id);
-  const stateSnaps = pageDocs.length > 0
-    ? await db.getAll(...pageDocs.map(doc => stateCollection.doc(doc.id)))
-    : [];
+  const stateSnaps = await db.getAll(...docs.map(doc => stateCollection.doc(doc.id)));
   const stateByNotificationId = new Map(
     stateSnaps.filter(doc => doc.exists).map(doc => [doc.id, doc.data()])
   );
-  const visibleByRole = pageDocs
-    .map(doc => {
-      const notification = { id: doc.id, ...doc.data() };
-      return mergeNotificationState(notification, stateByNotificationId.get(doc.id));
-    })
-    .filter(notification => canUserSeeNotification(user, notification))
-    .filter(notification => !isNotificationDismissed(stateByNotificationId.get(notification.id)));
 
-  // Admin não precisa de escopo territorial; demais perfis filtram por OS acessível.
-  if (user?.role === 'Admin') {
-    return {
-      notifications: visibleByRole,
-      nextCursor: snap.docs.length > limit ? encodeCursor(pageDocs.at(-1)) : null,
-    };
-  }
+  const visibleByRole = docs
+    .map(doc => ({
+      doc,
+      notification: mergeNotificationState(
+        { id: doc.id, ...doc.data() },
+        stateByNotificationId.get(doc.id)
+      ),
+    }))
+    .filter(item => canUserSeeNotification(user, item.notification))
+    .filter(item => !isNotificationDismissed(stateByNotificationId.get(item.notification.id)));
+
+  if (user?.role === 'Admin') return visibleByRole;
 
   // Escopo territorial em lote: busca todos os tickets referenciados de uma vez
   // (db.getAll) em vez de uma leitura por notificação (antes era O(N) em série).
-  const ticketIds = [...new Set(visibleByRole.map(resolveNotificationTicketId).filter(Boolean))];
+  const ticketIds = [
+    ...new Set(visibleByRole.map(item => resolveNotificationTicketId(item.notification)).filter(Boolean)),
+  ];
   const ticketMap = new Map();
   if (ticketIds.length > 0) {
-    const refs = ticketIds.map(id => db.collection('tickets').doc(id));
-    const snaps = await db.getAll(...refs);
+    const snaps = await db.getAll(...ticketIds.map(id => db.collection('tickets').doc(id)));
     for (const ticketSnap of snaps) {
       if (ticketSnap.exists) ticketMap.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() });
     }
   }
 
-  const territory = await readTerritoryCatalog(db);
-  const scoped = visibleByRole.filter(notification => {
-    const ticketId = resolveNotificationTicketId(notification);
+  return visibleByRole.filter(item => {
+    const ticketId = resolveNotificationTicketId(item.notification);
     if (!ticketId) return true; // notificação geral
     const ticket = ticketMap.get(ticketId);
     if (!ticket) return false; // OS inexistente → fail-closed
     return canUserAccessTicket(user, ticket, territory.regions, territory.sites);
   });
+}
+
+/**
+ * O `limit` era aplicado na QUERY e o filtro de audiência/território só depois:
+ * um usuário de escopo estreito recebia página vazia (e parava de paginar) mesmo
+ * havendo notificações acessíveis mais adiante. Agora o scan continua até juntar
+ * `limit` itens visíveis ou esgotar a coleção/o teto de rodadas.
+ */
+async function readNotifications(db, user, options = {}) {
+  const limit = normalizePageLimit(options.limit);
+  let cursor = decodeCursor(options.cursor);
+  const territory = user?.role === 'Admin' ? null : await readTerritoryCatalog(db);
+
+  const collected = [];
+  let exhausted = false;
+  let lastScannedDoc = null;
+
+  for (let round = 0; round < MAX_NOTIFICATION_SCAN_ROUNDS && collected.length < limit; round += 1) {
+    const batchSize = Math.max(limit - collected.length, 1) * NOTIFICATION_SCAN_OVERSHOOT;
+    let query = db.collection('notifications')
+      .orderBy('createdAt', 'desc')
+      .orderBy(FieldPath.documentId(), 'desc')
+      .limit(batchSize);
+    if (cursor) query = query.startAfter(cursor.createdAt, cursor.id);
+
+    const snap = await query.get();
+    if (snap.empty) {
+      exhausted = true;
+      break;
+    }
+    if (snap.docs.length < batchSize) exhausted = true;
+
+    collected.push(...(await filterVisibleNotifications(db, user, snap.docs, territory)));
+
+    lastScannedDoc = snap.docs.at(-1);
+    cursor = { createdAt: toDate(lastScannedDoc.data()?.createdAt), id: lastScannedDoc.id };
+    if (exhausted) break;
+  }
+
+  const page = collected.slice(0, limit);
+  const hasMore = collected.length > limit || !exhausted;
+  // O cursor sai do doc BRUTO do último item ENTREGUE — usar o último escaneado
+  // pularia os visíveis que ficaram fora do corte. Quando a página sai vazia mas
+  // ainda há documento à frente (teto de rodadas atingido), o cursor volta a ser
+  // o último escaneado: sem isso o cliente receberia null e PARARIA de paginar,
+  // que é justamente o defeito sendo corrigido.
+  const cursorDoc = page.length > 0 ? page.at(-1).doc : lastScannedDoc;
   return {
-    notifications: scoped,
-    nextCursor: snap.docs.length > limit ? encodeCursor(pageDocs.at(-1)) : null,
+    notifications: page.map(item => item.notification),
+    nextCursor: hasMore && cursorDoc ? encodeCursor(cursorDoc) : null,
   };
 }
 
@@ -160,6 +208,9 @@ export default async function handler(req, res) {
             userId: user.id,
             readAt: now,
             updatedAt: now,
+            // Mesmo TTL da notificação: sem isto o doc de estado sobrevive ao
+            // que ele descreve e o lixo por usuário cresce sem fim.
+            ttlAt: notificationTtlAt(now),
           },
           { merge: true }
         );
@@ -183,6 +234,7 @@ export default async function handler(req, res) {
             userId: user.id,
             dismissedAt: now,
             updatedAt: now,
+            ttlAt: notificationTtlAt(now),
           },
           { merge: true }
         );
@@ -212,6 +264,7 @@ export default async function handler(req, res) {
                 userId: user.id,
                 readAt: now,
                 updatedAt: now,
+                ttlAt: notificationTtlAt(now),
               },
               { merge: true }
             );
