@@ -881,7 +881,7 @@ export function InboxView() {
     return TICKET_STATUS.NEW;
   };
 
-  const handleSaveQuickPanel = () => {
+  const handleSaveQuickPanel = async () => {
     if (!canManageStatus || isSending) return;
 
     if (isExternalTeam && selectedThirdParties.length === 0) {
@@ -959,7 +959,7 @@ export function InboxView() {
 
     setIsSending(true);
     try {
-      updateTicket(activeTicket.id, {
+      const persisted = await updateTicket(activeTicket.id, {
         ...updates,
         history: [
           ...activeTicket.history,
@@ -972,14 +972,20 @@ export function InboxView() {
           },
         ],
       }, undefined);
+      // updateTicket NÃO lança: devolve false e reverte o update otimista. Sem
+      // checar isso, o toast de sucesso apareceria mesmo com o PATCH falhando.
+      showToast(
+        persisted
+          ? 'Painel da OS atualizado.'
+          : 'Não foi possível salvar o painel da OS — verifique a conexão e tente de novo.',
+        persisted ? 2500 : 5000
+      );
     } finally {
       window.setTimeout(() => setIsSending(false), 600);
     }
-
-    showToast('Painel da OS atualizado.', 2500);
   };
 
-  const handleAcceptTicket = () => {
+  const handleAcceptTicket = async () => {
     if (isSending) return;
 
     if (!techTeam) {
@@ -1008,7 +1014,7 @@ export function InboxView() {
     const nextLocation = ticketDetailsForm.location.trim() || activeTicket.location || '';
     setIsSending(true);
     try {
-      updateTicket(activeTicket.id, {
+      const persisted = await updateTicket(activeTicket.id, {
         status: TICKET_STATUS.WAITING_TECH_OPINION,
         priority: ticketPriority,
         assignedTeam: techTeam,
@@ -1033,6 +1039,10 @@ export function InboxView() {
         ],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
 
+      if (!persisted) {
+        showToast('A OS não foi aceita — verifique a conexão e tente de novo.', 5000);
+        return;
+      }
       setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
       showToast('Triagem concluída e OS aceita.', 2500);
     } finally {
@@ -1300,7 +1310,7 @@ export function InboxView() {
     updatedAt: new Date(),
   });
 
-  const handleSavePreliminaryActions = (startExecution: boolean) => {
+  const handleSavePreliminaryActions = async (startExecution: boolean) => {
     if (isSending) return;
     const isReady = arePreliminaryActionsReady(prelimForm);
     if (startExecution && !isReady) {
@@ -1327,16 +1337,26 @@ export function InboxView() {
       text: historyText,
     };
 
-    updateTicket(activeTicket.id, {
-      preliminaryActions,
-      history: [...activeTicket.history, item],
-    });
+    setIsSending(true);
+    try {
+      const persisted = await updateTicket(activeTicket.id, {
+        preliminaryActions,
+        history: [...activeTicket.history, item],
+      });
+      if (!persisted) {
+        // Modal segue aberto: o checklist preenchido não se perde.
+        showToast('Não foi possível salvar as ações preliminares. Tente de novo.', 5000);
+        return;
+      }
 
-    setShowPrelimModal(false);
-    if (startExecution) {
-      setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
-      setShowExecutionSetupModal(true);
-      showToast('Checklist concluído. Defina o fluxo para iniciar a execução.', 3000);
+      setShowPrelimModal(false);
+      if (startExecution) {
+        setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
+        setShowExecutionSetupModal(true);
+        showToast('Checklist concluído. Defina o fluxo para iniciar a execução.', 3000);
+      }
+    } finally {
+      window.setTimeout(() => setIsSending(false), 600);
     }
   };
 
@@ -1368,7 +1388,7 @@ export function InboxView() {
       ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || now, updatedAt: now }
       : undefined;
     try {
-      updateTicket(activeTicket.id, {
+      const persisted = await updateTicket(activeTicket.id, {
         status: TICKET_STATUS.IN_PROGRESS,
         preliminaryActions,
         executionProgress: {
@@ -1393,6 +1413,10 @@ export function InboxView() {
         ],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
 
+      if (!persisted) {
+        showToast('A execução não foi iniciada — verifique a conexão e tente de novo.', 5000);
+        return;
+      }
       setShowExecutionSetupModal(false);
       showToast(`Execução iniciada. Fluxo ${paymentFlowParts}x registrado.`, 3000);
     } finally {
@@ -1548,7 +1572,7 @@ export function InboxView() {
     }
   };
 
-  const handleSendForValidation = () => {
+  const handleSendForValidation = async () => {
     if (isSending) return;
     setIsSending(true);
     const now = new Date();
@@ -1556,12 +1580,21 @@ export function InboxView() {
       id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
       time: now, text: 'Serviço concluído. OS enviada para validação do solicitante.',
     };
-    updateTicket(activeTicket.id, {
-      status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-      closureChecklist: buildValidationClosureChecklist(activeTicket, now),
-      history: [...activeTicket.history, item],
-    }, { sendEmailUpdate: sendStatusEmailUpdate });
-    window.setTimeout(() => setIsSending(false), 500);
+    try {
+      const persisted = await updateTicket(activeTicket.id, {
+        status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
+        closureChecklist: buildValidationClosureChecklist(activeTicket, now),
+        history: [...activeTicket.history, item],
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      showToast(
+        persisted
+          ? 'OS enviada para validação do solicitante.'
+          : 'A OS não foi enviada para validação — verifique a conexão e tente de novo.',
+        persisted ? 2500 : 5000
+      );
+    } finally {
+      window.setTimeout(() => setIsSending(false), 500);
+    }
   };
 
   const [isSending, setIsSending] = useState(false);
@@ -1686,8 +1719,15 @@ export function InboxView() {
     // reescrever os horários das outras entradas.
     updateTicket(activeTicket.id, updates, {
       historyTimeEdit: currentItem.id ? { id: currentItem.id, time: nextTime.toISOString() } : undefined,
-    });
-    showToast(isOriginating ? 'Data da OS e da mensagem atualizadas.' : 'Data da mensagem atualizada.', 2000);
+    })
+      .then(persisted =>
+        showToast(
+          persisted
+            ? (isOriginating ? 'Data da OS e da mensagem atualizadas.' : 'Data da mensagem atualizada.')
+            : 'Não foi possível atualizar a data da mensagem.',
+          persisted ? 2000 : 5000
+        )
+      );
   }, [canManageStatus, isSending, activeTicket, updateTicket, showToast]);
   const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
   const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
@@ -2335,23 +2375,37 @@ export function InboxView() {
               ? `Orçamentos da rodada ${initialRoundIndex} consolidados e enviados para aprovação da Diretoria.`
               : `Orçamentos da rodada ${initialRoundIndex} consolidados sem diretores envolvidos. Aprovação da Diretoria pulada.`),
       };
-      updateTicket(activeTicket.id, {
-        status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_BUDGET_APPROVAL : TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-        directorIds: selectedDirectors.map(director => director.id),
-        directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
-        directorCcEmails: directorInterestedEmails,
-        history: [...activeTicket.history, historyItem],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
-      setIsSending(false);
-      setShowQuotesModal(false);
-      showToast(
-        hasInvolvedDirectors
-          ? (roundType === 'additive'
-            ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!`
-            : `Rodada ${initialRoundIndex} de orçamentos enviada para a Diretoria com sucesso!`)
-          : 'Sem diretores envolvidos: a etapa de aprovação da Diretoria foi pulada.',
-        3000
-      );
+      try {
+        const persisted = await updateTicket(activeTicket.id, {
+          status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_BUDGET_APPROVAL : TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
+          directorIds: selectedDirectors.map(director => director.id),
+          directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
+          directorCcEmails: directorInterestedEmails,
+          history: [...activeTicket.history, historyItem],
+        }, { sendEmailUpdate: sendStatusEmailUpdate });
+        if (!persisted) {
+          // Editor continua aberto: as cotações já foram gravadas pelo saveQuotes,
+          // então fechar aqui esconderia que a OS não avançou de etapa.
+          showToast('Cotações salvas, mas a OS não foi enviada para a Diretoria. Tente de novo.', 6000);
+          return;
+        }
+        setShowQuotesModal(false);
+        showToast(
+          hasInvolvedDirectors
+            ? (roundType === 'additive'
+              ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!`
+              : `Rodada ${initialRoundIndex} de orçamentos enviada para a Diretoria com sucesso!`)
+            : 'Sem diretores envolvidos: a etapa de aprovação da Diretoria foi pulada.',
+          3000
+        );
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : 'Falha ao enviar para a Diretoria.',
+          4000
+        );
+      } finally {
+        setIsSending(false);
+      }
     }, 1500);
   };
 
@@ -2398,8 +2452,9 @@ export function InboxView() {
     }
 
     setContractsByTicket(prev => ({ ...prev, [activeTicket.id]: nextContract }));
-    updateTicket(activeTicket.id, {
-      status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_CONTRACT_APPROVAL : TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+    try {
+      const persisted = await updateTicket(activeTicket.id, {
+        status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_CONTRACT_APPROVAL : TICKET_STATUS.WAITING_PRELIM_ACTIONS,
       directorIds: selectedDirectors.map(director => director.id),
       directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
       history: [
@@ -2414,17 +2469,32 @@ export function InboxView() {
             : `Contrato anexado pelo gestor (${contractDispatchFile.name}) sem diretores envolvidos. Aprovação da Diretoria pulada e OS liberada para ações preliminares.`,
         },
       ],
-    }, { sendEmailUpdate: sendStatusEmailUpdate });
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      if (!persisted) {
+        // O contrato JÁ foi salvo acima; o que falhou foi avançar a OS. Modal segue
+        // aberto e o arquivo preservado para não reanexar do zero.
+        showToast('Contrato salvo, mas a OS não avançou de etapa. Tente de novo.', 6000);
+        return;
+      }
 
-    setContractDispatchFile(null);
-    setShowContractDispatchModal(false);
-    setIsSending(false);
-    showToast(
-      hasInvolvedDirectors
-        ? 'Contrato enviado para aprovação da Diretoria.'
-        : 'Sem diretores envolvidos: contrato registrado e OS liberada para ações preliminares.',
-      3000
-    );
+      setContractDispatchFile(null);
+      setShowContractDispatchModal(false);
+      showToast(
+        hasInvolvedDirectors
+          ? 'Contrato enviado para aprovação da Diretoria.'
+          : 'Sem diretores envolvidos: contrato registrado e OS liberada para ações preliminares.',
+        3000
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? `Contrato salvo, mas a OS não avançou: ${error.message}`
+          : 'Contrato salvo, mas a OS não avançou de etapa.',
+        6000
+      );
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Usa trackingToken (opaco) em vez do ID sequencial
@@ -2470,7 +2540,12 @@ export function InboxView() {
 
     try {
       const createdTicket = await addTicket(duplicated);
-      updateTicket(activeTicket.id, {
+
+      // A duplicação já aconteceu aqui. O update abaixo só REGISTRA isso no
+      // histórico da OS de origem: se ele falhar, a duplicação continua válida,
+      // então o erro não pode ser reportado como "não foi possível duplicar" —
+      // mas o usuário precisa saber que a trilha ficou incompleta.
+      await updateTicket(activeTicket.id, {
         history: [
           ...activeTicket.history,
           {
@@ -2481,6 +2556,13 @@ export function InboxView() {
             text: `OS duplicada para ${createdTicket.id}.`,
           },
         ],
+      }).then(registered => {
+        if (!registered) {
+          showToast(
+            `OS duplicada como ${createdTicket.id}, mas o registro no histórico da origem falhou.`,
+            5000
+          );
+        }
       });
 
       setActiveTicketId(createdTicket.id);
@@ -2500,32 +2582,45 @@ export function InboxView() {
     setShowCancelTicketModal(true);
   };
 
-  const handleConfirmCancelTicket = (reason?: string) => {
+  const handleConfirmCancelTicket = async (reason?: string) => {
     if (activeTicket.status === TICKET_STATUS.CANCELED) return;
     const reasonText = String(reason || '').trim();
     if (!reasonText) return;
     const updates = pendingCancelTicketUpdates || { status: TICKET_STATUS.CANCELED };
-    updateTicket(activeTicket.id, {
-      ...updates,
-      status: TICKET_STATUS.CANCELED,
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: new Date(),
-          text: `OS cancelada por ${displayActorLabel}. Motivo: ${reasonText}.`,
-        },
-      ],
-    }, { sendEmailUpdate: sendStatusEmailUpdate });
-    setPendingCancelTicketUpdates(null);
-    setShowCancelTicketModal(false);
-    setShowActionsMenu(false);
-    showToast(`OS ${activeTicket.id} cancelada.`, 3000);
+    try {
+      const persisted = await updateTicket(activeTicket.id, {
+        ...updates,
+        status: TICKET_STATUS.CANCELED,
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: displayActorLabel,
+            time: new Date(),
+            text: `OS cancelada por ${displayActorLabel}. Motivo: ${reasonText}.`,
+          },
+        ],
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      if (!persisted) {
+        // O usuário PRECISA saber que a OS continua ativa. Modal aberto preserva
+        // o motivo digitado para ele tentar de novo.
+        showToast('A OS não foi cancelada — verifique a conexão e tente de novo.', 5000);
+        return;
+      }
+      setPendingCancelTicketUpdates(null);
+      setShowCancelTicketModal(false);
+      setShowActionsMenu(false);
+      showToast(`OS ${activeTicket.id} cancelada.`, 3000);
+    } catch (error) {
+      showToast(
+        error instanceof Error ? `OS não foi cancelada: ${error.message}` : 'Falha ao cancelar a OS.',
+        5000
+      );
+    }
   };
 
-  const handleReopenTicket = () => {
+  const handleReopenTicket = async () => {
     if (!([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED] as Ticket['status'][]).includes(activeTicket.status)) {
       showToast('Erro: apenas OS encerrada ou cancelada pode ser reaberta.', 3000);
       return;
@@ -2536,23 +2631,36 @@ export function InboxView() {
       return;
     }
     const nextStatus = resolveReopenStatus();
-    updateTicket(activeTicket.id, {
-      status: nextStatus,
-      ...buildStatusSideEffects(nextStatus, new Date()),
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: new Date(),
-          text: `OS reaberta pelo gestor para ${nextStatus}. Motivo da transição: ${statusReason}.`,
-        },
-      ],
-    }, { sendEmailUpdate: sendStatusEmailUpdate });
-    setStatusDraft(nextStatus);
-    setShowActionsMenu(false);
-    showToast(`OS ${activeTicket.id} reaberta.`, 3000);
+    try {
+      const persisted = await updateTicket(activeTicket.id, {
+        status: nextStatus,
+        ...buildStatusSideEffects(nextStatus, new Date()),
+        history: [
+          ...activeTicket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: displayActorLabel,
+            time: new Date(),
+            text: `OS reaberta pelo gestor para ${nextStatus}. Motivo da transição: ${statusReason}.`,
+          },
+        ],
+      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      if (!persisted) {
+        showToast('A OS não foi reaberta — verifique a conexão e tente de novo.', 5000);
+        return;
+      }
+      // statusDraft só acompanha DEPOIS da confirmação: antes, o seletor mostrava
+      // o novo status mesmo quando a OS continuava encerrada no servidor.
+      setStatusDraft(nextStatus);
+      setShowActionsMenu(false);
+      showToast(`OS ${activeTicket.id} reaberta.`, 3000);
+    } catch (error) {
+      showToast(
+        error instanceof Error ? `OS não foi reaberta: ${error.message}` : 'Falha ao reabrir a OS.',
+        5000
+      );
+    }
   };
 
   const handleDeleteTicket = async () => {
