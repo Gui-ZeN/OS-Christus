@@ -3,6 +3,192 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-07-31 (conversa encaminhada era descartada — conserto + reparo do passado)
+
+Reportado a partir da **OS-0289** ("Tapumes salas de aula"): a OS nasceu com
+quatro linhas de protocolo — *"Bom dia, Serv3 em cópia"* — e perdeu o pedido
+original, as fotos e seis meses de decisões. Os anexos vieram; a conversa não.
+
+### A causa: dois defeitos empilhados
+
+1. O Gmail escreve **`Forwarded Conversation`** ao encaminhar uma *thread*
+   inteira. O parser só reconhecia `forwarded message` / `mensagem encaminhada`.
+2. O bloco vem **dentro da citação** (prefixo `>`), então nem o marcador era
+   visível para a regex.
+
+Falhando o reconhecimento, o texto caía no filtro de citação — que descarta toda
+linha iniciada por `>`, ou seja, a conversa inteira.
+
+**Não era caso isolado**: 119 de 801 e-mails de entrada (15%), afetando 44 OS.
+
+### O conserto (`api/_lib/inboundBody.js`)
+
+- `stripQuoteMarkers` desmarca a citação **antes** de procurar o encaminhamento;
+  marcador passou a aceitar `Forwarded Conversation` e `Conversa encaminhada`.
+- O **prefácio é limpo dentro do extrator**, não depois: o `Atenciosamente,` de
+  quem encaminha derrubava junto toda a conversa encaminhada.
+- `dropContactNoiseLines` saiu de dentro de `stripSignature`. O corpo encaminhado
+  precisa do filtro de contato, mas **não** pode sofrer o corte na despedida —
+  ali "Atenciosamente" é de um participante do meio da conversa.
+- `sanitizeInboundLines` redige endereço em **todos** os caminhos. A lista de
+  destinatários que o Gmail quebra em várias linhas não tem rótulo `Para:` e
+  escapava; os cabeçalhos `De:`/`Date:` ficam, sem os endereços, porque a
+  atribuição é o que dá sentido a uma conversa de decisão.
+- `tidyInboundText` roda **por último** (o corte de assinatura depende de o
+  marcador `[image: ...]` ainda existir): tira o asterisco do negrito achatado,
+  o marcador de imagem inline e junta o cabeçalho de citação quebrado.
+
+Suíte: **335 → 357 unitários**.
+
+### O reparo do passado
+
+O e-mail cru está guardado em `ticketInbound`, então deu para reprocessar sem
+voltar ao Gmail. O endpoint `reprocess-inbound` **não** servia: `appendTicketHistory`
+deduplica por id, então as entradas truncadas seriam puladas.
+
+- `npm run infra:inbound:measure` — medição somente leitura.
+- `npm run infra:inbound:repair` — **dry-run por padrão**, `--apply` para escrever,
+  `--os=OS-XXXX` para limitar.
+
+Reescrever histórico contraria a regra do sistema, e a justificativa é que o texto
+gravado é **artefato de parsing**, não o que a pessoa escreveu — o original segue
+intacto. Trava: só reescreve quando o **núcleo** do texto atual está contido no
+novo, comparando os dois lados com a mesma normalização. O que não passa é listado
+e não é tocado. Cada entrada leva `repairedAt`/`repairedBy`/`repairedFromLength`.
+
+**Resultado em produção: 137 entradas reparadas em 52 OS, zero endereço vazado,
+4 bloqueadas** (OS-0056, OS-0057, OS-0059, OS-0063) para revisão manual.
+
+⚠️ Dois erros pegos pela verificação, não pelo planejamento: o primeiro `--apply`
+gravou endereços em 60 entradas (o prefácio não era redigido), e o pareamento caía
+no `-c1` para respostas cujo `mail-<messageId>` não existia — a trava rejeitou
+todas, então nada foi corrompido. Rodar **uma OS antes do lote** foi o que expôs
+os dois.
+
+## 2026-07-29/30 (rework: desenho, nenhuma linha de código)
+
+Nada aqui foi implementado. Este bloco existe para que a próxima pessoa que abrir
+o repositório saiba **por que** a próxima leva de mudanças não é uma correção, e
+para que as decisões não vivam só na cabeça de quem participou das conversas.
+Desenho completo em `Serv3 — Rework Agenda Operacional` (vault).
+
+### O diagnóstico
+
+O sistema organiza as OS **por etapa** e responde bem *"em que etapa está a OS
+X"*. Com ~210 OS abertas (~130 Colégio, ~80 Faculdade), a pergunta que a operação
+faz de manhã é outra: *"o que precisa acontecer hoje, onde e por quem"*. Para
+respondê-la hoje é preciso abrir ticket por ticket — ninguém faz isso, e a agenda
+real vive em telefonema e memória.
+
+É descompasso de **escopo, não de qualidade**. Abertura por e-mail sem treinar
+ninguém, a conversa como histórico, token público, comandos transacionais, escopo
+territorial no servidor, fila de e-mail e a suíte de testes — tudo isso
+permanece. Muda a tela central, não o motor.
+
+### A regra única
+
+> Toda OS ativa tem uma **próxima ação com data**. Não ter é a exceção que
+> aparece na tela.
+
+É a única regra nova que a equipe precisa entender; o resto do desenho é
+consequência dela. "Sem próxima ação" vira a métrica principal — e é também a
+**mais fácil de maquiar** (basta marcar qualquer data), por isso anda sempre
+junto do tempo parado de cada OS.
+
+### Decisões de produto (tomadas pelo dono)
+
+- **Larissa → Colégio · Thaís → Faculdade** definem a próxima ação das OS paradas.
+- Escala por e-mail para Larissa, Thaís e Murilo quando a sede não responde.
+- **Faltas de fornecedor são informativas, não punitivas** — servem para escolher
+  fornecedor, não para cobrar gestor.
+- **Não** troca fornecedor depois do contrato aprovado.
+- **Sem IA no sistema**, por custo.
+- Motivo obrigatório por transição segue **descartado** (geraria preenchimento de
+  fachada) — decidido na 4ª auditoria e reconfirmado aqui.
+
+### Achados das consultas adversariais que mudam requisito
+
+- **"Apareceu" não é sucesso.** O fornecedor chega, olha o serviço, diz que
+  faltou material e vai embora; alguém marca "apareceu" e o sistema fica verde
+  sem nada instalado. Exige um segundo desfecho depois da chegada (concluiu ·
+  parcial · não executou · faltou material/acesso · resolvido pela sede).
+- **Não alterar estado por GET.** Filtros de segurança de e-mail corporativo
+  abrem links automaticamente; um botão "não apareceu" que grava direto do e-mail
+  registraria faltas que ninguém informou. O link abre página e confirma por POST.
+- **Volume de e-mail é o risco nº 1**: 80 a 114/dia no desenho ingênuo. Cortes:
+  alerta no horário só ao coordenador · e-mail individual só com falta
+  **confirmada** · atrasos internos em digest (11h30/16h30) · **nenhum e-mail
+  quando corre bem** · uma visita que atende 3 OS é **um** compromisso, não três.
+- **Sem confirmação ≠ falta.** Misturar os dois corrompe o histórico do
+  fornecedor, que é justamente o dado usado depois para decidir quem continua
+  atendendo.
+
+### Impactos previstos no código
+
+- **Split Colégio/Faculdade já existe**: campo `group` do catálogo (`operacao` vs
+  `universidade`) — verificado em `api/_lib/catalogDefaults.js`. Sem campo novo,
+  sem migração.
+- **Cobrança por WhatsApp**: `wa.me/<numero>?text=` com a mensagem redigida pelo
+  sistema (OS, sede, o que era, quando era, que não veio). O campo *Contato* do
+  cadastro de terceiros (`src/views/inbox/ThirdPartyModal.tsx`) **continua livre**
+  — extrai-se os dígitos; quando não parseia (sem DDD, ramal grudado), o botão
+  fica apagado com tooltip, nunca link quebrado. `[Registrar cobrança]` é o botão
+  primário: o WhatsApp acontece fora do sistema, e o que alimenta o Serv3 é o
+  registro.
+- **Aviso de chuva para pontos de goteira** (pedido da Thaís): lista mantida por
+  ela, **não presa à OS** — goteira é propriedade do telhado; presa à OS, o ponto
+  some quando a OS fecha e o conserto volta. Fonte **INMET**
+  (`apiprevmet3.inmet.gov.br/previsao/2304400`, dado aberto, sem chave, testado).
+  **Open-Meteo descartado**: free tier é não-comercial, e o sistema roda na
+  operação de uma empresa. Cabe no worker do GitHub Actions — não gasta função
+  nova na Vercel (12/12 no Hobby).
+
+### Revisões após a auditoria final do desenho
+
+O desenho consolidado passou por uma auditoria adversarial antes de virar código.
+Três achados mudam **schema** e por isso foram incorporados agora — os demais
+viraram backlog registrado no vault.
+
+**1. `attentionState` (`ativa` · `esperando` · `impedida`).** A regra única tirou
+a priorização mas não tirou a fila: se toda OS precisa de próxima ação, as menos
+importantes ganham data fabricada (*"revisar em 30 dias"*) e a decisão de
+prioridade deixa de ser declarada **e auditável**. Três valores resolvem sem
+eleição manual, sem carteira e sem limite de WIP. De quebra, `esperando` faz a
+espera legítima (material, aprovação, prazo externo) parar de exigir data
+inventada — que era a origem da maquiagem.
+
+**2. Compromisso ↔ OS é muitos-para-muitos.** Contradição interna do desenho:
+*"toda OS tem uma única próxima ação"* não convive com *"uma visita que atende 3
+OS é um compromisso"* — e essa segunda é o corte que segura o volume de e-mail.
+No schema, `commitment` liga a N OS; na interface, cada OS exibe **uma ação
+primária** apenas para ordenar a agenda. **Precisa nascer assim**: 1:1 virando
+N:N depois é migração de dados, não refactor.
+
+**3. Cobrança em dois tempos.** Com `[Registrar cobrança]` como ação primária era
+possível gravar a cobrança **antes** de cobrar — registra, abre o WhatsApp, é
+interrompido, e o sistema contabiliza atuação que não houve, contaminando
+justamente a métrica que existe para proteger quem cobrou. Agora **Cobrar** grava
+`tentativa iniciada` (autor, hora, canal) e abre o WhatsApp; o desfecho fica
+pendente no card (respondeu · não respondeu · nova data prometida). Um clique em
+`wa.me` **não** conta como cobrança concluída — sem API não há prova de envio.
+
+**Pressuposto ainda não validado, e que derruba o projeto se for falso**: que os
+coordenadores das sedes respondem com regularidade. Sem isso, "sem confirmação"
+não distingue fornecedor faltoso de coordenador ausente, e a cobrança volta a
+depender de ligação de verificação — que é a economia inteira do rework. É o que
+o piloto precisa medir.
+
+### Pré-requisitos que não são código
+
+1. **Uma semana de baseline no papel** antes de qualquer implementação: quantas
+   ligações de cobrança por dia e em quantas o fornecedor não atende. Sem número
+   de partida, em 30 dias teremos sensação de melhora, não prova.
+   Junto dela, um **piloto pequeno** — uma gestora, duas ou três sedes — para
+   medir a taxa de resposta das sedes antes de o desenho depender dela.
+2. **Política de responsabilidade explícita**: falta de fornecedor não pode pesar
+   contra quem cobrou no prazo. Sem isso dito em voz alta, a equipe evita criar
+   compromissos para não gerar cobrança — e o sistema fica limpo e vazio.
+
 ## 2026-07-28 (4ª auditoria — 8 correções, todas com teste de regressão)
 
 Review externo trouxe 9 achados + 1 decisão de produto. **Verifiquei os nove no
