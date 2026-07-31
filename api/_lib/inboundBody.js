@@ -122,15 +122,71 @@ export function stripSystemEcho(value) {
   return next;
 }
 
+/**
+ * Tira o `>` (e `>>`, `> >`) com que o cliente de e-mail marca citacao. O bloco
+ * encaminhado costuma vir DENTRO da citacao: sem desmarcar, nem o marcador de
+ * encaminhamento e reconhecido, e o conteudo inteiro cai no filtro de citacao.
+ */
+export function stripQuoteMarkers(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.replace(/^\s*(?:>\s?)+/, ''))
+    .join('\n');
+}
+
+/**
+ * Tira endereco da linha preservando o resto: a atribuicao ("De: Fernando Vianna",
+ * "Em qua... Maiara Gomes escreveu:") e o que faz uma conversa de decisao ter
+ * sentido; o endereco nao acrescenta nada e nao pode entrar na OS.
+ */
+function redactForwardHeaderLine(line) {
+  return line
+    .replace(/<[^>\n]*>/g, '')
+    .replace(new RegExp(EMAIL_TOKEN.source, 'gi'), '')
+    // `<` orfao: a lista de destinatarios quebrou no meio do endereco e a
+    // continuacao (que sai fora) levava o fecho junto.
+    .replace(/<\s*$/, '')
+    .replace(/[,;]\s*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trimEnd();
+}
+
+/**
+ * Redacao de endereco aplicada linha a linha. Vale para o corpo encaminhado E para
+ * o prefacio: o prefacio passava so por citacao/assinatura, e a metade de baixo de
+ * um cabecalho quebrado ("operacional02@px.com.br> escreveu:") sobrevivia ali —
+ * 60 das primeiras entradas reparadas em producao vazaram endereco exatamente por
+ * essa porta.
+ */
+export function sanitizeInboundLines(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter(line => isForwardHeaderLine(line) || !isRecipientContinuationLine(line))
+    .map(line => redactForwardHeaderLine(line))
+    .join('\n');
+}
+
 export function extractForwardedMessageBody(value) {
-  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  // Trabalha sempre no texto SEM marca de citacao: o Gmail encaminha conversa
+  // inteira citada, e o marcador aparece como "> ---------- Forwarded ...".
+  const text = stripQuoteMarkers(String(value || '')).trim();
   if (!text) return '';
 
-  const markerRegex = /^\s*(?:-+\s*)?(?:forwarded message|mensagem encaminhada)(?:\s*-+)?\s*$/im;
+  // "Forwarded Conversation" e o que o Gmail escreve ao encaminhar uma THREAD
+  // (varios e-mails de uma vez) — nao batia com "forwarded message" e a conversa
+  // toda era descartada como citacao.
+  const markerRegex =
+    /^\s*(?:-+\s*)?(?:forwarded (?:message|conversation)|mensagem encaminhada|conversa encaminhada)(?:\s*-+)?\s*$/im;
   const marker = markerRegex.exec(text);
   if (!marker) return '';
 
-  const preface = text.slice(0, marker.index).trim();
+  // O prefacio ("Bom dia, Serv3 em copia. Atenciosamente,") e limpo AQUI, e nao
+  // depois no pipeline: a despedida dele cortaria junto todo o encaminhamento.
+  const preface = sanitizeInboundLines(
+    stripSignature(stripQuotedReply(text.slice(0, marker.index).trim()))
+  ).trim();
   const forwardedRaw = text.slice(marker.index + marker[0].length).trim();
   if (!forwardedRaw) return preface;
 
@@ -158,7 +214,12 @@ export function extractForwardedMessageBody(value) {
     break;
   }
 
-  const forwardedBody = lines.slice(pointer).join('\n').trim();
+  // Redacao em TODAS as linhas, nao so nas rotuladas: o Gmail quebra a lista de
+  // destinatarios em varias linhas, e a continuacao vem sem `Para:` — foi por ai
+  // que endereco de todo mundo vazou para dentro da OS na primeira versao disto.
+  const forwardedBody = dropContactNoiseLines(
+    sanitizeInboundLines(lines.slice(pointer).join('\n'))
+  ).trim();
   if (!forwardedBody) return preface;
   return [preface, forwardedBody].filter(Boolean).join('\n\n').trim();
 }
@@ -240,18 +301,65 @@ export function stripSignature(value) {
     }
   }
 
-  return next
+  return dropContactNoiseLines(next);
+}
+
+/**
+ * Linhas que so carregam contato (e-mail solto, telefone, endereco, `[image:]`).
+ * Separado do corte de despedida porque o corpo ENCAMINHADO precisa deste filtro
+ * — para nao vazar contato de ninguem — mas nao pode sofrer o corte na despedida:
+ * ali "Atenciosamente" e de um participante do meio da conversa, e cortar jogaria
+ * fora justamente o historico que se quis encaminhar.
+ */
+export function dropContactNoiseLines(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
     .split('\n')
     .filter(line => {
       const normalized = line.trim();
       if (!normalized) return true;
       if (/^\[image:.*\]$/i.test(normalized)) return false;
       if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(normalized)) return false;
-      if (/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(normalized.replace(/\s+/g, ' '))) return false;
+      // Telefone em linha propria. Tolera o `*` do negrito que o Gmail achata em
+      // texto (`*(85) 9 9128-9836*`) e o nono digito separado — sem isso o numero
+      // sobrevivia dentro da assinatura encaminhada.
+      const soDigitos = normalized.replace(/[*_\s()-]/g, '');
+      if (/^\+?\d{10,13}$/.test(soDigitos) && /^[*_\s(]*\+?\d/.test(normalized)) return false;
       if (/^(R\.|Av\.|Rua|Avenida)\s/i.test(normalized)) return false;
       return true;
     })
     .join('\n')
+    .trim();
+}
+
+/**
+ * Acabamento final, depois de todo o recorte. Roda por ULTIMO de proposito: o
+ * corte por `[image: ...]` em `stripSignature` depende de o marcador ainda existir,
+ * entao limpar antes mudaria onde a assinatura e cortada.
+ *
+ * Tres residuos vistos em producao (OS-0289):
+ *  · `*negrito*` — o Gmail achata o negrito em asterisco no texto plano;
+ *  · `[image: foto.jpeg]` — marcador inline; o anexo de verdade ja vem separado,
+ *    entao isto e ruido duplicado;
+ *  · "…Maiara Gomes \n escreveu:" — cabecalho de citacao quebrado em duas linhas.
+ */
+export function tidyInboundText(value) {
+  const semImagem = String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\[image:[^\]]*\]/g, '');
+
+  const juntandoCitacao = semImagem.replace(/([^\n])\n[ \t]*(escreveu|wrote):/gi, '$1 $2:');
+
+  return juntandoCitacao
+    .split('\n')
+    .map(line => {
+      // Marcador de lista no inicio da linha e conteudo, nao negrito: preserva.
+      const bullet = /^(\s*\*\s)/.exec(line);
+      const resto = (bullet ? line.slice(bullet[1].length) : line).replace(/\*/g, '');
+      return `${bullet ? bullet[1] : ''}${resto}`.replace(/[ \t]+$/, '');
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -267,13 +375,21 @@ export function extractInboundMessageBody(textValue, htmlValue) {
 
     const forwarded = extractForwardedMessageBody(candidate);
     if (forwarded) {
-      const cleanedForwarded = stripSystemEcho(stripSignature(forwarded));
+      // Sem `stripSignature` aqui: o prefacio ja saiu limpo de dentro do extrator,
+      // e aplicar o corte de despedida sobre o conjunto derrubaria a conversa
+      // encaminhada na primeira "Atenciosamente" de qualquer participante.
+      const cleanedForwarded = tidyInboundText(stripSystemEcho(forwarded));
       if (cleanedForwarded) return cleanedForwarded;
-      if (forwarded) return forwarded;
+      if (forwarded) return tidyInboundText(forwarded);
     }
-    const stripped = stripSystemEcho(stripSignature(stripQuotedReply(candidate)));
+    // `sanitizeInboundLines` tambem aqui: nenhum corpo de OS deve carregar endereco,
+    // e o caminho sem encaminhamento nao redigia nada — a citacao inline
+    // ("Em … Fulano <f@px.com.br> escreveu:") entrava inteira.
+    const stripped = tidyInboundText(
+      sanitizeInboundLines(stripSystemEcho(stripSignature(stripQuotedReply(candidate))))
+    );
     if (stripped) return stripped;
-    const plain = stripSystemEcho(stripSignature(candidate));
+    const plain = tidyInboundText(sanitizeInboundLines(stripSystemEcho(stripSignature(candidate))));
     if (plain) return plain;
   }
   return '';

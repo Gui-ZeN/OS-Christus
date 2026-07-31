@@ -24,6 +24,8 @@
     "infra:firebase:backfill-legacy": "node scripts/infra/backfill-firestore-legacy.mjs",
     "infra:firebase:enable-apis": "node scripts/infra/enable-firebase-apis.mjs",
     "infra:territory:measure": "node scripts/infra/measure-territory-legacy.mjs",
+    "infra:inbound:measure": "node scripts/infra/measure-inbound-body-loss.mjs",
+    "infra:inbound:repair": "node scripts/infra/repair-inbound-bodies.mjs",
     "infra:storage:check": "node scripts/infra/check-storage.mjs",
     "infra:storage:signed-url": "node scripts/infra/generate-signed-url.mjs",
     "infra:sendgrid:test": "node scripts/infra/sendgrid-test.mjs",

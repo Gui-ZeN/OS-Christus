@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   displayNameFromEmail,
+  dropContactNoiseLines,
   extractForwardedMessageBody,
   extractInboundMessageBody,
   hasWaterIssueSignal,
@@ -9,6 +10,7 @@ import {
   stripQuotedReply,
   stripSignature,
   stripSystemEcho,
+  tidyInboundText,
 } from '../../api/_lib/inboundBody.js';
 
 describe('stripQuotedReply', () => {
@@ -216,6 +218,203 @@ describe('e-mail encaminhado do mundo real (OS-0268)', () => {
     expect(limpo).not.toContain('comunicado automático');
     expect(limpo).not.toContain('fila de triagem');
     expect(limpo).not.toContain('tracking=');
+  });
+});
+
+describe('conversa encaminhada do mundo real (OS-0289 — "Tapumes salas de aula")', () => {
+  // Caso reportado: a OS nasceu com QUATRO linhas de protocolo ("Bom dia, Serv3 em
+  // cópia") e perdeu a conversa inteira — o problema, as fotos e seis meses de
+  // decisões. Dois defeitos empilhados:
+  //   1. o Gmail escreve "Forwarded Conversation" ao encaminhar uma THREAD, e só
+  //      "forwarded message" era reconhecido;
+  //   2. o bloco vem DENTRO da citação (prefixo ">"), então caía no filtro de
+  //      citação junto com o resto.
+  const emailReal = [
+    'Bom dia,',
+    '',
+    'Serv3 em cópia.',
+    '',
+    'Atenciosamente,',
+    '',
+    'Em seg., 8 de jun. de 2026 às 15:53, Rafael Oliveira <',
+    'operacional02@px.com.br> escreveu:',
+    '',
+    '> Deladier em cópia.',
+    '>',
+    '> ---------- Forwarded Conversation',
+    '> Subject: Re: [BS] Tapumes salas de aula',
+    '> ------------------------',
+    '>',
+    '> De: Fernando Vianna <operacional07@px.com.br>',
+    '> Date: qua., 4 de fev. de 2026 às 14:49',
+    '>',
+    '> Pedro, há algum projeto para ca?',
+    '>',
+    '> Em qua., 14 de jan. de 2026 às 15:06, Maiara Gomes escreveu:',
+    '>> Estamos com vários tapumes nas salas de aula estragados (os mesmo estão',
+    '>> de desfazendo) podemos realizar a troca?',
+  ].join('\n');
+
+  const limpo = extractInboundMessageBody(emailReal, '');
+
+  it('preserva o pedido original, que é a razão de a OS existir', () => {
+    expect(limpo).toContain('tapumes nas salas de aula estragados');
+    expect(limpo).toContain('podemos realizar a troca?');
+  });
+
+  it('preserva o histórico de decisão dentro da thread', () => {
+    expect(limpo).toContain('há algum projeto para ca?');
+  });
+
+  it('mantém a atribuição de quem falou', () => {
+    expect(limpo).toContain('Fernando Vianna');
+    expect(limpo).toContain('Maiara Gomes');
+  });
+
+  it('não vaza endereço de e-mail de ninguém', () => {
+    expect(limpo).not.toMatch(/@/);
+  });
+
+  it('não vaza a lista de destinatários quebrada em várias linhas', () => {
+    // Regressão de produção: o Gmail quebra a lista em linhas SEM rótulo ("Para:"),
+    // e a continuação escapava da redação — endereço de todo mundo entrava na OS.
+    const comListaQuebrada = [
+      '---------- Forwarded Conversation',
+      'De: Fernando Vianna <operacional07@px.com.br>',
+      'To: Pedro Rocha <pedro.rocha@px.com.br>, Rafael Oliveira <',
+      'operacional02@px.com.br>, Ilom Alves de Oliveira Filho <soe01@px.com.br>',
+      '',
+      'Pedro, há algum projeto para ca?',
+    ].join('\n');
+    const saida = extractInboundMessageBody(comListaQuebrada, '');
+    expect(saida).toContain('há algum projeto para ca?');
+    expect(saida).not.toMatch(/@/);
+    expect(saida).not.toContain('operacional02');
+  });
+
+  it('não vaza endereço pelo PREFÁCIO (a metade de baixo do cabeçalho quebrado)', () => {
+    // Regressão de produção: 60 das primeiras entradas reparadas vazaram endereço
+    // por esta porta. O prefácio passava só por citação/assinatura, sem redação —
+    // e sem despedida para cortar, a linha "…@px.com.br> escreveu:" sobrevivia.
+    const semDespedida = [
+      'Bom dia,',
+      '',
+      'Em seg., 8 de jun. de 2026 às 15:53, Rafael Oliveira <',
+      'operacional02@px.com.br> escreveu:',
+      '',
+      '> ---------- Forwarded Conversation',
+      '> Subject: Tapumes',
+      '>',
+      '> Porta emperrada na sala 12.',
+    ].join('\n');
+    const saida = extractInboundMessageBody(semDespedida, '');
+    expect(saida).toContain('Porta emperrada na sala 12.');
+    expect(saida).not.toMatch(/@/);
+    expect(saida).not.toContain('operacional02');
+  });
+
+  it('não sobra marca de citação', () => {
+    expect(limpo).not.toMatch(/^\s*>/m);
+  });
+
+  it('o comportamento antigo (só a citação) devolveria quase nada', () => {
+    // Guarda contra regressão: era ISTO que ia para a OS antes do conserto.
+    expect(stripQuotedReply(emailReal)).not.toContain('tapumes');
+    expect(limpo.length).toBeGreaterThan(stripQuotedReply(emailReal).length);
+  });
+});
+
+describe('endereço nunca entra na OS — nem sem encaminhamento', () => {
+  it('redige a citação inline de um e-mail comum (sem marcador de encaminhamento)', () => {
+    // Este caminho nunca redigia nada: 17 entradas em produção seguiam com
+    // endereço depois do primeiro mutirão de reparo por causa dele.
+    const email = [
+      'Pode seguir com o orçamento.',
+      '',
+      'Em 12 de março de 2026, Fulano <fulano@px.com.br>',
+      'escreveu:',
+    ].join('\n');
+    const saida = extractInboundMessageBody(email, '');
+    expect(saida).toContain('Pode seguir com o orçamento.');
+    expect(saida).not.toMatch(/@/);
+  });
+});
+
+describe('tidyInboundText — acabamento final', () => {
+  it('tira o asterisco do negrito achatado pelo Gmail', () => {
+    expect(tidyInboundText('*Fernando Guimarães Vianna*\nCoordenador *| *Infraestrutura')).toBe(
+      'Fernando Guimarães Vianna\nCoordenador | Infraestrutura'
+    );
+  });
+
+  it('preserva marcador de lista no início da linha', () => {
+    expect(tidyInboundText('* trocar o tapume\n* pintar a parede')).toBe(
+      '* trocar o tapume\n* pintar a parede'
+    );
+  });
+
+  it('tira o marcador de imagem inline (o anexo real já vem separado)', () => {
+    const saida = tidyInboundText('Segue abaixo\n[image: WhatsApp Image 2026-01-14.jpeg]\nAtt');
+    expect(saida).not.toContain('[image:');
+    expect(saida).toContain('Segue abaixo');
+    expect(saida).toContain('Att');
+  });
+
+  it('junta o cabeçalho de citação quebrado em duas linhas', () => {
+    expect(tidyInboundText('Em qua., 14 de jan., Maiara Gomes\nescreveu:')).toBe(
+      'Em qua., 14 de jan., Maiara Gomes escreveu:'
+    );
+  });
+
+  it('não deixa três linhas em branco seguidas', () => {
+    expect(tidyInboundText('um\n\n\n\ndois')).toBe('um\n\ndois');
+  });
+});
+
+describe('extractForwardedMessageBody — variações do marcador', () => {
+  const corpo = (marcador: string) =>
+    [marcador, 'De: Fulano <f@px.com.br>', '', 'Porta emperrada na sala 12.'].join('\n');
+
+  it.each([
+    '---------- Forwarded message ----------',
+    '---------- Forwarded Conversation',
+    '---------- Mensagem encaminhada ----------',
+    'Conversa encaminhada',
+  ])('reconhece %s', marcador => {
+    expect(extractForwardedMessageBody(corpo(marcador))).toContain('Porta emperrada na sala 12.');
+  });
+
+  it('reconhece o marcador mesmo citado com ">"', () => {
+    const citado = corpo('---------- Forwarded Conversation')
+      .split('\n')
+      .map(linha => `> ${linha}`)
+      .join('\n');
+    expect(extractForwardedMessageBody(citado)).toContain('Porta emperrada na sala 12.');
+  });
+});
+
+describe('dropContactNoiseLines', () => {
+  it('tira contato solto sem cortar na despedida (o encaminhado depende disso)', () => {
+    const texto = ['Atenciosamente,', 'Fernando', 'fernando@px.com.br', '(85) 9128-9836', 'Segue o pedido.'].join('\n');
+    const saida = dropContactNoiseLines(texto);
+    expect(saida).toContain('Segue o pedido.');
+    expect(saida).toContain('Atenciosamente,');
+    expect(saida).not.toMatch(/@/);
+    expect(saida).not.toContain('9128');
+  });
+
+  it('pega o telefone mesmo com o negrito do Gmail achatado em asterisco', () => {
+    // Visto em produção na OS-0289: `*(85) 9 9128-9836*` escapava do filtro.
+    const saida = dropContactNoiseLines(['*(85) 9 9128-9836*', 'Trocar o tapume.'].join('\n'));
+    expect(saida).toContain('Trocar o tapume.');
+    expect(saida).not.toContain('9128');
+  });
+
+  it('não confunde número de OS nem valor com telefone', () => {
+    const saida = dropContactNoiseLines(['OS-0289', 'R$ 1.250,00', 'Sala 12'].join('\n'));
+    expect(saida).toContain('OS-0289');
+    expect(saida).toContain('R$ 1.250,00');
+    expect(saida).toContain('Sala 12');
   });
 });
 
