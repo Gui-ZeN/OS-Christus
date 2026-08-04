@@ -37,9 +37,6 @@ function detectEmailProvider() {
   if (process.env.GMAIL_CLIENT_ID || process.env.GMAIL_REFRESH_TOKEN) {
     return 'gmail';
   }
-  if (process.env.SENDGRID_API_KEY) {
-    return 'sendgrid';
-  }
   return 'none';
 }
 
@@ -169,23 +166,6 @@ async function checkEmail() {
         },
       };
     }
-  }
-
-  if (provider === 'sendgrid') {
-    const configured = isConfigured('SENDGRID_API_KEY') && isConfigured('SENDGRID_FROM_EMAIL');
-    return {
-      ok: configured,
-      label: 'E-mail',
-      detail: configured ? 'SendGrid configurado no ambiente.' : 'Variáveis do SendGrid ausentes.',
-      meta: {
-        provider,
-        env: {
-          hasApiKey: isConfigured('SENDGRID_API_KEY'),
-          hasFromEmail: isConfigured('SENDGRID_FROM_EMAIL'),
-          hasReplyTo: isConfigured('SENDGRID_REPLY_TO_EMAIL'),
-        },
-      },
-    };
   }
 
   return {

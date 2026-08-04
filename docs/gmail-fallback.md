@@ -1,14 +1,13 @@
-# Gmail Fallback (sem DNS corporativo)
+# Gmail (envio e recebimento)
 
-Quando não for possível configurar DNS para inbound no SendGrid, use Gmail API.
+Gmail API é o único provedor de e-mail do sistema — envio e importação de respostas.
 
 ## Endpoints
-- `POST /api/email/send` com `EMAIL_PROVIDER=gmail`
+- `POST /api/email/send`
 - `POST /api/email/gmail-sync?secret=...` para importar respostas da caixa
 - `GET /api/email/health` para monitoramento (últimas 24h)
 
 ## Variáveis necessárias (Vercel)
-- `EMAIL_PROVIDER=gmail`
 - `GMAIL_CLIENT_ID`
 - `GMAIL_CLIENT_SECRET`
 - `GMAIL_REFRESH_TOKEN`

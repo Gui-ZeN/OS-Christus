@@ -36,7 +36,7 @@ function describePasswordEmailError(error) {
   if (code === 'auth/invalid-email' || /invalid.*email/i.test(message)) {
     return 'E-mail inválido para envio de convite. Use um endereço completo, por exemplo nome@empresa.com.br.';
   }
-  if (/sendgrid\s+4\d\d/i.test(message)) {
+  if (/\b4\d\d\b/.test(message) && /recipient|destinat|address/i.test(message)) {
     return 'O provedor recusou o destinatário. Verifique se o e-mail existe e possui domínio completo.';
   }
   return message || 'Falha ao enviar e-mail de acesso.';

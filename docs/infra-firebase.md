@@ -5,7 +5,6 @@
 - `npm run infra:firebase:setup`
 - `npm run infra:storage:check`
 - `npm run infra:storage:signed-url`
-- `npm run infra:sendgrid:test`
 
 ## Pré-requisitos no projeto GCP/Firebase
 1. Ativar billing no projeto.
@@ -66,17 +65,6 @@ $env:STORAGE_OBJECT_PATH="attachments/tickets/pdfs/OS-0050/arquivo.pdf"
 $env:TICKET_ID="OS-0050"
 $env:FILE_NAME="arquivo.pdf"
 npm run infra:storage:signed-url
-```
-
-## SendGrid
-Teste rápido de envio:
-
-```powershell
-$env:SENDGRID_API_KEY="SG.xxxxx"
-$env:SENDGRID_FROM_EMAIL="no-reply@seudominio.com.br"
-$env:SENDGRID_FROM_NAME="Serv3"
-$env:SENDGRID_TO_EMAIL_TEST="voce@dominio.com"
-npm run infra:sendgrid:test
 ```
 
 ## Regras

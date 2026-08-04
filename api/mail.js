@@ -21,7 +21,7 @@ import {
   gmailSend,
   gmailStartWatch,
 } from './_lib/gmail.js';
-import { parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { isAttachmentContentCompatible, isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
 // Helpers puros de assunto/threading/Message-Id (extraidos deste arquivo).
@@ -44,7 +44,6 @@ import {
 import { matchSiteCode } from './_lib/siteMatch.js';
 import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject, isLikelyThreadReply } from './_lib/inboundSubject.js';
 import { firstEmail, parseEmailList } from './_lib/email.js';
-import { sendWithSendGrid } from './_lib/sendgrid.js';
 import {
   claimEmailOutbox,
   EMAIL_OUTBOX_TYPES,
@@ -160,32 +159,18 @@ function buildManagerNotificationEmail(ticket) {
  * interna para o cliente.
  */
 async function deliverStandaloneEmail({ toEmail, subject, text, html, ticketId, trackingToken }) {
-  const provider = resolveConfiguredEmailProvider();
-  if (provider === 'gmail') {
-    const result = await gmailSend({
-      toEmail,
-      subject,
-      text,
-      html,
-      ticketId: ticketId || 'new-ticket',
-      trackingToken: trackingToken || undefined,
-      inReplyTo: undefined,
-      references: [],
-      threadId: undefined,
-    });
-    return { provider, messageId: result?.messageId || result?.id || null };
-  }
-  const result = await sendWithSendGrid({
+  const result = await gmailSend({
     toEmail,
     subject,
     text,
     html,
-    templateId: null,
-    templateData: null,
-    headers: null,
-    replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+    ticketId: ticketId || 'new-ticket',
+    trackingToken: trackingToken || undefined,
+    inReplyTo: undefined,
+    references: [],
+    threadId: undefined,
   });
-  return { provider, messageId: result?.messageId || result?.id || null };
+  return { provider: 'gmail', messageId: result?.messageId || result?.id || null };
 }
 
 // parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject e
@@ -197,16 +182,6 @@ function safeJsonParse(value) {
   } catch {
     return null;
   }
-}
-
-function normalizeHeaders(rawHeaders) {
-  const parsed = typeof rawHeaders === 'string' ? safeJsonParse(rawHeaders) : rawHeaders;
-  if (!parsed || typeof parsed !== 'object') return {};
-  const result = {};
-  for (const [key, value] of Object.entries(parsed)) {
-    result[String(key).toLowerCase()] = value;
-  }
-  return result;
 }
 
 function readPathValue(source, path) {
@@ -260,7 +235,6 @@ function getInternalNotificationEmail() {
   const candidate =
     process.env.TICKET_NOTIFICATION_EMAIL ||
     process.env.GMAIL_FROM_EMAIL ||
-    process.env.SENDGRID_FROM_EMAIL ||
     '';
   return String(candidate || '').trim().toLowerCase() || null;
 }
@@ -268,23 +242,15 @@ function getInternalNotificationEmail() {
 function getSystemMailboxEmails() {
   return [
     process.env.GMAIL_FROM_EMAIL,
-    process.env.SENDGRID_FROM_EMAIL,
     process.env.TICKET_NOTIFICATION_EMAIL,
   ]
     .map(value => String(value || '').trim().toLowerCase())
     .filter(Boolean);
 }
 
+// Gmail e o UNICO provedor de envio deste sistema.
 function resolveConfiguredEmailProvider() {
-  const explicit = String(process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
-  if (explicit === 'gmail' || explicit === 'sendgrid') return explicit;
-  if (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN) {
-    return 'gmail';
-  }
-  if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL) {
-    return 'sendgrid';
-  }
-  return 'sendgrid';
+  return 'gmail';
 }
 
 async function resolveFlowFallbackRecipients(db, trigger) {
@@ -1738,7 +1704,7 @@ async function handleSend(req, res) {
       ? [...new Set([...references, rootMessageId, priorMessageId].filter(Boolean))].slice(-20)
       : [];
 
-    const headers = {
+    const _headers = {
       'X-OS-Ticket-ID': ticketId,
       ...(trackingToken ? { 'X-OS-Tracking-Token': trackingToken } : {}),
       ...(priorMessageId ? { 'In-Reply-To': priorMessageId } : {}),
@@ -1787,7 +1753,7 @@ async function handleSend(req, res) {
     let effectiveReferences = nextReferences;
     let recoveredThread = false;
 
-    if (provider === 'gmail') {
+    {
       try {
         const gmailSendResult = await sendWithGmailThreadFallback({
           toEmail,
@@ -1836,19 +1802,6 @@ async function handleSend(req, res) {
         effectiveReferences = retrySend.references;
         recoveredThread = retrySend.recoveredThread;
       }
-    } else {
-      sendResult = await sendWithSendGrid({
-        toEmail,
-        ccEmail,
-        subject: canonicalSubject,
-        text: finalText,
-        html: finalHtml,
-        templateId,
-        templateData,
-        headers,
-        replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
-        attachments: outboundAttachments,
-      });
     }
 
     const now = new Date();
@@ -2253,7 +2206,7 @@ async function reprocessInboundWindow(db, sinceDate) {
             messageId,
             inReplyTo: inbound.inReplyTo || null,
             references: Array.isArray(inbound.references) ? inbound.references : [],
-            provider: inbound.source && String(inbound.source).includes('gmail') ? 'gmail' : 'sendgrid',
+            provider: 'gmail',
             attachments: Array.isArray(inbound.attachments) ? inbound.attachments : [],
             createdAt,
           });
@@ -2563,230 +2516,6 @@ async function handleGmailPush(req, res) {
   }
 }
 
-async function handleInbound(req, res) {
-  let lockRef = null;
-
-  try {
-    if (req.method !== 'POST') {
-      res.setHeader('Allow', 'POST');
-      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
-    }
-
-    // Fail-closed: sem segredo configurado, recusamos o webhook em vez de
-    // aceitar mensagens forjadas que criam/atualizam OS.
-    const configuredSecret = process.env.SENDGRID_INBOUND_SECRET;
-    if (!configuredSecret) {
-      return sendJson(res, 503, {
-        ok: false,
-        error: 'Webhook de inbound não configurado (SENDGRID_INBOUND_SECRET ausente).',
-      });
-    }
-    const provided = req.query?.secret || req.headers['x-os-secret'] || req.headers['x-inbound-secret'] || null;
-    if (!secretsMatch(provided, configuredSecret)) {
-      return sendJson(res, 401, { ok: false, error: 'Segredo inválido no inbound.' });
-    }
-
-    const body = await parseInboundBody(req);
-    const headers = normalizeHeaders(body.headers);
-    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
-
-    const explicitTicketId = body.ticketId || body.ticket_id || headers['x-os-ticket-id'];
-    const subjectTicketId = parseTicketId(body.subject);
-
-    const fromEmail = firstEmail(body.from);
-    const toEmail = firstEmail(body.to);
-    // Trava o corpo antes de persistir (mesmo motivo do caminho Gmail): corpo
-    // gigante estouraria o teto de 1 MiB/doc do Firestore.
-    const text = truncateInboundBody(body.text ? String(body.text) : '');
-    const html = truncateInboundBody(body.html ? String(body.html) : '');
-    const subject = body.subject ? String(body.subject) : '';
-    const inboundPreview = {
-      from: body.from,
-      to: body.to,
-      subject,
-      text,
-      html,
-      autoSubmitted: headers['auto-submitted'] || null,
-      precedence: headers.precedence || null,
-    };
-
-    if (shouldIgnoreInboundMessage(inboundPreview)) {
-      await logEmailEvent({
-        type: 'inbound',
-        status: 'skipped',
-        provider: 'sendgrid',
-        fromEmail: fromEmail || null,
-        subject,
-        messageId: body['message-id'] || headers['message-id'] || null,
-        error: 'Mensagem automática ou enviada pelo próprio sistema ignorada.',
-      });
-      return sendJson(res, 200, { ok: true, skipped: true });
-    }
-
-    const db = getAdminDb();
-    const rawMessageId =
-      body['Message-Id'] ||
-      body['message-id'] ||
-      body.message_id ||
-      headers['message-id'] ||
-      null;
-    const inReplyTo = body.in_reply_to || headers['in-reply-to'] || null;
-    const referencesRaw = body.references || headers.references || '';
-    const lock = await acquireInboundMessageLock(db, {
-      messageId: rawMessageId,
-      fallbackKey: `${subject}:${fromEmail || ''}:${toEmail || ''}`,
-      provider: 'sendgrid',
-      source: 'sendgrid-inbound',
-      fromEmail,
-      subject,
-    });
-    lockRef = lock.ref;
-
-    if (!lock.acquired) {
-      return sendJson(res, 200, {
-        ok: true,
-        duplicate: true,
-        ticketId: lock.data?.ticketId || null,
-        messageId: rawMessageId,
-      });
-    }
-
-    let referencedTicketId = await resolveTicketIdByThreadReferences(db, inReplyTo, referencesRaw);
-    // Resposta cujo vínculo de thread falhou: casa por remetente+assunto numa OS
-    // aberta antes de cogitar abrir OS nova — senão viraria "Nova OS" duplicada.
-    if (
-      !explicitTicketId &&
-      !subjectTicketId &&
-      !referencedTicketId &&
-      isLikelyThreadReply({ subject, inReplyTo, references: referencesRaw })
-    ) {
-      referencedTicketId = await resolveTicketIdByRequesterSubject(db, fromEmail, subject);
-    }
-    const createdTicket =
-      explicitTicketId || subjectTicketId || referencedTicketId
-        ? null
-        : await createTicketFromInbound(db, {
-            from: body.from,
-            to: body.to,
-            subject,
-            text,
-            html,
-            attachments,
-            internalDate: new Date(),
-          });
-    const ticketId = (explicitTicketId || subjectTicketId || referencedTicketId || createdTicket?.id || '')
-      .toString()
-      .trim()
-      .toUpperCase();
-
-    if (!ticketId) {
-      await finalizeInboundMessageLock(lock.ref);
-      return sendJson(res, 422, { ok: false, error: 'Não foi possível identificar o ticket no inbound.' });
-    }
-    const inboundAttachments = createdTicket
-      ? (Array.isArray(createdTicket.attachments) ? createdTicket.attachments : [])
-      : await uploadInboundAttachments(ticketId, attachments);
-
-    const messageId = rawMessageId || `<inbound-${ticketId}-${Date.now()}@sendgrid>`;
-    const references = String(referencesRaw)
-      .split(/\s+/)
-      .map(value => value.trim())
-      .filter(Boolean)
-      .slice(-20);
-
-    const threadRef = db.collection('emailThreads').doc(ticketId);
-    const now = new Date();
-    const participants = [fromEmail, toEmail].filter(Boolean);
-
-    await threadRef.set(
-      {
-        ticketId,
-        ...(createdTicket && messageId ? { rootMessageId: messageId } : {}),
-        ...(createdTicket && subject ? { originalSubject: repairMojibake(subject), subject: repairMojibake(subject) } : {}),
-        lastMessageId: messageId,
-        lastDirection: 'inbound',
-        lastInboundAt: now,
-        updatedAt: now,
-        references,
-        ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
-      },
-      { merge: true }
-    );
-
-    if (messageId) {
-      const duplicateSnap = await threadRef
-        .collection('messages')
-        .where('messageId', '==', messageId)
-        .limit(1)
-        .get();
-      if (!duplicateSnap.empty) {
-        await finalizeInboundMessageLock(lock.ref);
-        return sendJson(res, 200, { ok: true, duplicate: true, ticketId, messageId });
-      }
-    }
-
-    await threadRef.collection('messages').add({
-      direction: 'inbound',
-      fromEmail: fromEmail || null,
-      toEmail: toEmail || null,
-      subject,
-      text: text || null,
-      html: html || null,
-      messageId,
-      inReplyTo,
-      references,
-      headers,
-      attachments: inboundAttachments,
-      createdAt: now,
-    });
-
-    await db.collection('ticketInbound').add({
-      ticketId,
-      fromEmail: fromEmail || null,
-      subject,
-      text: text || null,
-      html: html || null,
-      messageId,
-      attachments: inboundAttachments,
-      createdAt: now,
-      source: createdTicket ? 'sendgrid-inbound-new-ticket' : 'sendgrid-inbound',
-    });
-
-    await finalizeInboundMessageLock(lock.ref, ticketId);
-
-    if (!createdTicket) {
-      await appendInboundMessageToTicketHistory(db, ticketId, {
-        from: body.from,
-        text,
-        html,
-        attachments: inboundAttachments,
-        messageId,
-        internalDate: now,
-      });
-    }
-
-    await logEmailEvent({
-      type: 'inbound',
-      status: 'success',
-      provider: 'sendgrid',
-      ticketId,
-      fromEmail: fromEmail || null,
-      subject,
-      messageId,
-    });
-
-    return sendJson(res, 200, { ok: true, ticketId, messageId });
-  } catch (error) {
-    await releaseInboundMessageLock(lockRef);
-    await logEmailEvent({
-      type: 'inbound',
-      status: 'error',
-      provider: 'sendgrid',
-      error: error.message || 'Falha no inbound.',
-    });
-    return sendJson(res, 400, { ok: false, error: error.message || 'Falha no inbound.' });
-  }
-}
 
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
@@ -2798,7 +2527,6 @@ export default async function handler(req, res) {
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
   if (route === 'gmail-watch') return handleGmailWatch(req, res);
   if (route === 'gmail-push') return handleGmailPush(req, res);
-  if (route === 'inbound') return handleInbound(req, res);
 
   res.setHeader('Allow', 'GET, POST');
   return sendJson(res, 404, { ok: false, error: 'Rota de mail inválida.' });

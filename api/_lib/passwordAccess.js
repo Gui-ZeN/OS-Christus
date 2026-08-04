@@ -1,6 +1,5 @@
 import { getAuth } from 'firebase-admin/auth';
 import { gmailSend } from './gmail.js';
-import { sendWithSendGrid } from './sendgrid.js';
 import { buildAccessEmailTemplate } from './emailTemplates.js';
 
 function resolveBaseUrlFromRequest(req) {
@@ -83,41 +82,18 @@ export async function sendPasswordAccessEmail({
     ctaLabel: mode === 'invite' ? 'Definir senha' : 'Redefinir senha',
   });
 
-  // Autodetect alinhado ao mail.js: sem EMAIL_PROVIDER explícito, usa Gmail se
-  // as credenciais Gmail existirem (antes ia direto para SendGrid e o e-mail de
-  // convite/reset falhava para quem usa Gmail).
-  const explicitProvider = String(process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
-  const provider =
-    explicitProvider === 'gmail' || explicitProvider === 'sendgrid'
-      ? explicitProvider
-      : process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN
-        ? 'gmail'
-        : 'sendgrid';
-  if (provider === 'gmail') {
-    await gmailSend({
-      toEmail: email,
-      subject,
-      text: template.text,
-      html: template.html,
-      ticketId: 'access-reset',
-      trackingToken: undefined,
-      inReplyTo: undefined,
-      references: [],
-      threadId: undefined,
-    });
-    return { provider: 'gmail' };
-  }
-
-  await sendWithSendGrid({
+  // Gmail e o unico provedor de envio deste sistema.
+  await gmailSend({
     toEmail: email,
     subject,
     text: template.text,
     html: template.html,
-    templateId: null,
-    templateData: null,
-    headers: null,
-    replyTo: process.env.SENDGRID_REPLY_TO_EMAIL || undefined,
+    ticketId: 'access-reset',
+    trackingToken: undefined,
+    inReplyTo: undefined,
+    references: [],
+    threadId: undefined,
   });
-  return { provider: 'sendgrid' };
+  return { provider: 'gmail' };
 }
 
