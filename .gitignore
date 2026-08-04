@@ -16,3 +16,4 @@ tmp/
 
 # Backups de dados de produção (contêm PII — nunca commitar)
 _*_backups/
+.rain-watch-state.json

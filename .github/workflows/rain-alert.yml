@@ -1,0 +1,83 @@
+name: Aviso de chuva
+
+# De 5 em 5 minutos, 24h por dia — inclusive de madrugada. Cinco é o MÍNIMO que o
+# cron do GitHub aceita.
+#
+# A cadência é ditada pela fonte RÁPIDA, não pela lenta: o SPECI do aeroporto sai
+# no instante em que o tempo muda e chega à API em ~1 min. O pluviômetro do CEMADEN
+# leva 15 a 60 min, mas deixar ele mandar no intervalo desperdiçaria a fonte que
+# responde rápido.
+#
+# ⚠️ O agendador do GitHub NÃO é pontual: execuções agendadas entram numa fila e
+# costumam atrasar alguns minutos — em pico, podem ser puladas. Isto aqui é o mais
+# perto de "imediato" que dá sem um processo ligado o tempo todo, que não existe
+# nesta infraestrutura.
+#
+# ⚠️ Fortaleza chove de fevereiro a maio. De agosto a dezembro este workflow roda e
+# corretamente não faz nada. Silêncio aqui é o comportamento certo.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Forçar um estado para testar o e-mail (chovendo | nao-chovendo)"
+        required: false
+        default: ""
+
+concurrency:
+  # Duas execuções ao mesmo tempo poderiam ler o mesmo estado e mandar dois e-mails.
+  group: aviso-de-chuva
+  cancel-in-progress: false
+
+jobs:
+  vigiar:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # Só as dependências de produção, sem scripts de pós-instalação: cada segundo
+      # aqui é latência somada ao aviso. O script precisa apenas de `googleapis`.
+      - run: npm ci --omit=dev --ignore-scripts
+
+      # O estado ("estava chovendo?") precisa sobreviver entre execuções, senão toda
+      # rodada acha que a chuva acabou de começar e manda e-mail de 10 em 10 minutos.
+      # O cache do Actions é chaveado por run_id para SEMPRE gravar uma entrada nova,
+      # e `restore-keys` recupera a mais recente da chave anterior.
+      - name: Recuperar último estado
+        uses: actions/cache/restore@v4
+        with:
+          path: .rain-watch-state.json
+          key: rain-state-${{ github.run_id }}
+          restore-keys: rain-state-
+
+      - name: Verificar chuva
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_FROM_EMAIL: ${{ secrets.GMAIL_FROM_EMAIL }}
+          RAIN_ALERT_TO: ${{ secrets.RAIN_ALERT_TO }}
+        run: |
+          if [ -n "${{ inputs.simular }}" ]; then
+            node scripts/infra/rain-alert.mjs --simular="${{ inputs.simular }}"
+          else
+            node scripts/infra/rain-alert.mjs
+          fi
+
+      - name: Guardar estado
+        # `always()` porque o estado também precisa ser guardado quando NÃO choveu —
+        # é justamente esse "nao-chovendo" que faz a próxima chuva ser reconhecida
+        # como início.
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .rain-watch-state.json
+          key: rain-state-${{ github.run_id }}
