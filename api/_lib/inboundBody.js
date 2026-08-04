@@ -136,8 +136,8 @@ export function stripQuoteMarkers(value) {
 }
 
 /**
- * Tira endereco da linha preservando o resto: a atribuicao ("De: Fernando Vianna",
- * "Em qua... Maiara Gomes escreveu:") e o que faz uma conversa de decisao ter
+ * Tira endereco da linha preservando o resto: a atribuicao ("De: Fernando Alves",
+ * "Em qua... Marina Gomes escreveu:") e o que faz uma conversa de decisao ter
  * sentido; o endereco nao acrescenta nada e nao pode entrar na OS.
  */
 function redactForwardHeaderLine(line) {
@@ -155,7 +155,7 @@ function redactForwardHeaderLine(line) {
 /**
  * Redacao de endereco aplicada linha a linha. Vale para o corpo encaminhado E para
  * o prefacio: o prefacio passava so por citacao/assinatura, e a metade de baixo de
- * um cabecalho quebrado ("operacional02@px.com.br> escreveu:") sobrevivia ali —
+ * um cabecalho quebrado ("oper02@exemplo.com.br> escreveu:") sobrevivia ali —
  * 60 das primeiras entradas reparadas em producao vazaram endereco exatamente por
  * essa porta.
  */
@@ -341,7 +341,7 @@ export function dropContactNoiseLines(value) {
  *  · `*negrito*` — o Gmail achata o negrito em asterisco no texto plano;
  *  · `[image: foto.jpeg]` — marcador inline; o anexo de verdade ja vem separado,
  *    entao isto e ruido duplicado;
- *  · "…Maiara Gomes \n escreveu:" — cabecalho de citacao quebrado em duas linhas.
+ *  · "…Marina Gomes \n escreveu:" — cabecalho de citacao quebrado em duas linhas.
  */
 export function tidyInboundText(value) {
   const semImagem = String(value || '')
@@ -384,7 +384,7 @@ export function extractInboundMessageBody(textValue, htmlValue) {
     }
     // `sanitizeInboundLines` tambem aqui: nenhum corpo de OS deve carregar endereco,
     // e o caminho sem encaminhamento nao redigia nada — a citacao inline
-    // ("Em … Fulano <f@px.com.br> escreveu:") entrava inteira.
+    // ("Em … Fulano <f@exemplo.com.br> escreveu:") entrava inteira.
     const stripped = tidyInboundText(
       sanitizeInboundLines(stripSystemEcho(stripSignature(stripQuotedReply(candidate))))
     );

@@ -18,7 +18,7 @@ describe('stripQuotedReply', () => {
     const email = [
       'Bom dia, pode seguir com o orçamento.',
       '',
-      'Em 12 de março de 2026, Fulano <fulano@px.com.br> escreveu:',
+      'Em 12 de março de 2026, Fulano <fulano@exemplo.com.br> escreveu:',
       '> Segue a cotação em anexo',
       '> Aguardo retorno',
     ].join('\n');
@@ -31,7 +31,7 @@ describe('stripQuotedReply', () => {
   });
 
   it('corta a citação inline (quando o cliente não quebra a linha)', () => {
-    const inline = 'Autorizado. Em 12/03 Fulano <f@px.com.br> escreveu: coisa antiga';
+    const inline = 'Autorizado. Em 12/03 Fulano <f@exemplo.com.br> escreveu: coisa antiga';
     expect(stripQuotedReply(inline)).toBe('Autorizado.');
   });
 
@@ -61,7 +61,7 @@ describe('stripSignature', () => {
   it('remove telefone, e-mail, endereço e imagem de assinatura em linhas soltas', () => {
     const email = [
       'Preciso de um eletricista.',
-      'fulano@px.com.br',
+      'fulano@exemplo.com.br',
       '(85) 99999-8888',
       'Av. Santos Dumont, 1000',
       '[image: logo.png]',
@@ -85,10 +85,10 @@ describe('extractForwardedMessageBody', () => {
       'Segue abaixo o chamado.',
       '',
       '---------- Mensagem encaminhada ----------',
-      'De: Fulano <fulano@px.com.br>',
+      'De: Fulano <fulano@exemplo.com.br>',
       'Data: 12 de março de 2026',
       'Assunto: Ar condicionado',
-      'Para: manutencao@px.com.br',
+      'Para: manutencao@exemplo.com.br',
       '',
       'O ar da sala 3 parou de gelar.',
     ].join('\n');
@@ -120,7 +120,7 @@ describe('extractInboundMessageBody', () => {
   it('o corpo encaminhado vence a citação (chamado repassado não vira vazio)', () => {
     const email = [
       '---------- Mensagem encaminhada ----------',
-      'De: Fulano <f@px.com.br>',
+      'De: Fulano <f@exemplo.com.br>',
       '',
       'Torneira pingando no refeitório.',
     ].join('\n');
@@ -140,13 +140,13 @@ describe('stripHtml', () => {
 
 describe('displayNameFromEmail', () => {
   it('usa o nome antes do endereço', () => {
-    expect(displayNameFromEmail('"Fulano de Tal" <fulano@px.com.br>')).toBe('Fulano de Tal');
-    expect(displayNameFromEmail('Fulano de Tal <fulano@px.com.br>')).toBe('Fulano de Tal');
+    expect(displayNameFromEmail('"Fulano de Tal" <fulano@exemplo.com.br>')).toBe('Fulano de Tal');
+    expect(displayNameFromEmail('Fulano de Tal <fulano@exemplo.com.br>')).toBe('Fulano de Tal');
   });
 
   it('sem nome, monta a partir do endereço', () => {
-    expect(displayNameFromEmail('<joao.silva@px.com.br>')).toBe('Joao Silva');
-    expect(displayNameFromEmail('maria_souza@px.com.br')).toBe('Maria Souza');
+    expect(displayNameFromEmail('<joao.silva@exemplo.com.br>')).toBe('Joao Silva');
+    expect(displayNameFromEmail('maria_souza@exemplo.com.br')).toBe('Maria Souza');
   });
 
   it('cai no rótulo genérico quando não dá para identificar', () => {
@@ -171,8 +171,8 @@ describe('e-mail encaminhado do mundo real (OS-0268)', () => {
   // assinatura e o e-mail AUTOMÁTICO do próprio Serv3 achatado em texto.
   const emailReal = [
     'Para: PSC;',
-    'supald01@unichristus.edu.br , Catarina Alencar <operacional17@px.com.br>,',
-    'Matheus Melo <soe10@px.com.br>, Yuri Frota <soe14@px.com.br>',
+    'sup01@exemplo.edu.br , Carolina Alencar <oper17@exemplo.com.br>,',
+    'Mateus Melo <soe10@exemplo.com.br>, Yuri Fontes <soe14@exemplo.com.br>',
     '',
     'Pedro, boa tarde!',
     '',
@@ -188,7 +188,7 @@ describe('e-mail encaminhado do mundo real (OS-0268)', () => {
     'Ticket',
     'OS-0268',
     'Mensagem',
-    'Olá Josy,',
+    'Olá Joana,',
     'Recebemos sua solicitação e ela já entrou na fila de triagem.',
     'Sede: ALD',
     'Acompanhar OS <https://serv3.vercel.app/?tracking=trk_1a4fac00b89e4d27>',
@@ -236,8 +236,8 @@ describe('conversa encaminhada do mundo real (OS-0289 — "Tapumes salas de aula
     '',
     'Atenciosamente,',
     '',
-    'Em seg., 8 de jun. de 2026 às 15:53, Rafael Oliveira <',
-    'operacional02@px.com.br> escreveu:',
+    'Em seg., 8 de jun. de 2026 às 15:53, Rafael Moreira <',
+    'oper02@exemplo.com.br> escreveu:',
     '',
     '> Deladier em cópia.',
     '>',
@@ -245,12 +245,12 @@ describe('conversa encaminhada do mundo real (OS-0289 — "Tapumes salas de aula
     '> Subject: Re: [BS] Tapumes salas de aula',
     '> ------------------------',
     '>',
-    '> De: Fernando Vianna <operacional07@px.com.br>',
+    '> De: Fernando Alves <oper07@exemplo.com.br>',
     '> Date: qua., 4 de fev. de 2026 às 14:49',
     '>',
     '> Pedro, há algum projeto para ca?',
     '>',
-    '> Em qua., 14 de jan. de 2026 às 15:06, Maiara Gomes escreveu:',
+    '> Em qua., 14 de jan. de 2026 às 15:06, Marina Gomes escreveu:',
     '>> Estamos com vários tapumes nas salas de aula estragados (os mesmo estão',
     '>> de desfazendo) podemos realizar a troca?',
   ].join('\n');
@@ -267,8 +267,8 @@ describe('conversa encaminhada do mundo real (OS-0289 — "Tapumes salas de aula
   });
 
   it('mantém a atribuição de quem falou', () => {
-    expect(limpo).toContain('Fernando Vianna');
-    expect(limpo).toContain('Maiara Gomes');
+    expect(limpo).toContain('Fernando Alves');
+    expect(limpo).toContain('Marina Gomes');
   });
 
   it('não vaza endereço de e-mail de ninguém', () => {
@@ -280,9 +280,9 @@ describe('conversa encaminhada do mundo real (OS-0289 — "Tapumes salas de aula
     // e a continuação escapava da redação — endereço de todo mundo entrava na OS.
     const comListaQuebrada = [
       '---------- Forwarded Conversation',
-      'De: Fernando Vianna <operacional07@px.com.br>',
-      'To: Pedro Rocha <pedro.rocha@px.com.br>, Rafael Oliveira <',
-      'operacional02@px.com.br>, Ilom Alves de Oliveira Filho <soe01@px.com.br>',
+      'De: Fernando Alves <oper07@exemplo.com.br>',
+      'To: Pedro Silva <pedro.silva@exemplo.com.br>, Rafael Moreira <',
+      'oper02@exemplo.com.br>, Ilton Alves de Souza Filho <soe01@exemplo.com.br>',
       '',
       'Pedro, há algum projeto para ca?',
     ].join('\n');
@@ -295,12 +295,12 @@ describe('conversa encaminhada do mundo real (OS-0289 — "Tapumes salas de aula
   it('não vaza endereço pelo PREFÁCIO (a metade de baixo do cabeçalho quebrado)', () => {
     // Regressão de produção: 60 das primeiras entradas reparadas vazaram endereço
     // por esta porta. O prefácio passava só por citação/assinatura, sem redação —
-    // e sem despedida para cortar, a linha "…@px.com.br> escreveu:" sobrevivia.
+    // e sem despedida para cortar, a linha "…@exemplo.com.br> escreveu:" sobrevivia.
     const semDespedida = [
       'Bom dia,',
       '',
-      'Em seg., 8 de jun. de 2026 às 15:53, Rafael Oliveira <',
-      'operacional02@px.com.br> escreveu:',
+      'Em seg., 8 de jun. de 2026 às 15:53, Rafael Moreira <',
+      'oper02@exemplo.com.br> escreveu:',
       '',
       '> ---------- Forwarded Conversation',
       '> Subject: Tapumes',
@@ -331,7 +331,7 @@ describe('endereço nunca entra na OS — nem sem encaminhamento', () => {
     const email = [
       'Pode seguir com o orçamento.',
       '',
-      'Em 12 de março de 2026, Fulano <fulano@px.com.br>',
+      'Em 12 de março de 2026, Fulano <fulano@exemplo.com.br>',
       'escreveu:',
     ].join('\n');
     const saida = extractInboundMessageBody(email, '');
@@ -342,8 +342,8 @@ describe('endereço nunca entra na OS — nem sem encaminhamento', () => {
 
 describe('tidyInboundText — acabamento final', () => {
   it('tira o asterisco do negrito achatado pelo Gmail', () => {
-    expect(tidyInboundText('*Fernando Guimarães Vianna*\nCoordenador *| *Infraestrutura')).toBe(
-      'Fernando Guimarães Vianna\nCoordenador | Infraestrutura'
+    expect(tidyInboundText('*Fernando Guimarães Alves*\nCoordenador *| *Infraestrutura')).toBe(
+      'Fernando Guimarães Alves\nCoordenador | Infraestrutura'
     );
   });
 
@@ -361,8 +361,8 @@ describe('tidyInboundText — acabamento final', () => {
   });
 
   it('junta o cabeçalho de citação quebrado em duas linhas', () => {
-    expect(tidyInboundText('Em qua., 14 de jan., Maiara Gomes\nescreveu:')).toBe(
-      'Em qua., 14 de jan., Maiara Gomes escreveu:'
+    expect(tidyInboundText('Em qua., 14 de jan., Marina Gomes\nescreveu:')).toBe(
+      'Em qua., 14 de jan., Marina Gomes escreveu:'
     );
   });
 
@@ -373,7 +373,7 @@ describe('tidyInboundText — acabamento final', () => {
 
 describe('extractForwardedMessageBody — variações do marcador', () => {
   const corpo = (marcador: string) =>
-    [marcador, 'De: Fulano <f@px.com.br>', '', 'Porta emperrada na sala 12.'].join('\n');
+    [marcador, 'De: Fulano <f@exemplo.com.br>', '', 'Porta emperrada na sala 12.'].join('\n');
 
   it.each([
     '---------- Forwarded message ----------',
@@ -395,7 +395,7 @@ describe('extractForwardedMessageBody — variações do marcador', () => {
 
 describe('dropContactNoiseLines', () => {
   it('tira contato solto sem cortar na despedida (o encaminhado depende disso)', () => {
-    const texto = ['Atenciosamente,', 'Fernando', 'fernando@px.com.br', '(85) 9128-9836', 'Segue o pedido.'].join('\n');
+    const texto = ['Atenciosamente,', 'Fernando', 'fernando@exemplo.com.br', '(85) 9128-9836', 'Segue o pedido.'].join('\n');
     const saida = dropContactNoiseLines(texto);
     expect(saida).toContain('Segue o pedido.');
     expect(saida).toContain('Atenciosamente,');
@@ -448,7 +448,7 @@ describe('stripLeadingForwardHeader', () => {
   });
 
   it('não toca em e-mail citado no MEIO do texto', () => {
-    const texto = 'Favor contatar Fulano <fulano@px.com.br> sobre o reparo.';
+    const texto = 'Favor contatar Fulano <fulano@exemplo.com.br> sobre o reparo.';
     expect(stripLeadingForwardHeader(texto)).toBe(texto);
   });
 
