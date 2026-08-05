@@ -15,7 +15,8 @@ import {
   patchTicketInApi,
 } from '../services/ticketsApi';
 import { requestPasswordResetInApi } from '../services/passwordResetApi';
-import { InboxFilter, Ticket, ViewState } from '../types';
+import { InboxFilter, OsBoardFilter, Ticket, ViewState } from '../types';
+import { isPendingUpdateStillProtecting } from '../utils/pendingTicketUpdates';
 
 interface TicketUpdateOptions {
   sendEmailUpdate?: boolean;
@@ -33,6 +34,8 @@ interface AppContextType {
   trackingTicketToken: string | null;
   setTrackingTicketToken: (token: string | null) => void;
   inboxFilter: InboxFilter;
+  osBoardFilter: OsBoardFilter;
+  setOsBoardFilter: (filter: OsBoardFilter) => void;
   setInboxFilter: (filter: InboxFilter) => void;
   tickets: Ticket[];
   ticketsLoading: boolean;
@@ -57,6 +60,18 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const DEFAULT_OS_BOARD_FILTER: OsBoardFilter = {
+  search: '',
+  sede: 'all',
+  macroService: 'all',
+  service: 'all',
+  team: 'all',
+  status: 'all',
+  // Encerradas e canceladas ficam FORA por padrão: são 65 das 268 OS, e quem abre
+  // a Gestão está olhando o que ainda dá trabalho.
+  showClosed: false,
+};
 
 const DEFAULT_FILTER: InboxFilter = {
   status: [],
@@ -157,6 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
+  const [osBoardFilter, setOsBoardFilter] = useState<OsBoardFilter>(DEFAULT_OS_BOARD_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
@@ -167,7 +183,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<AppThemeId>(getInitialTheme);
 
   const refreshCountRef = useRef(0);
-  const pendingTicketUpdatesRef = useRef<Record<string, { ticket: Ticket; expiresAt: number }>>({});
+  const pendingTicketUpdatesRef = useRef<
+    Record<string, { ticket: Ticket; expiresAt: number; confirmedAt: number | null }>
+  >({});
   // Leitura incremental: `since` do último poll e quando foi a última carga completa.
   const lastSyncTimeRef = useRef<string | null>(null);
   const lastFullSyncAtRef = useRef<number>(0);
@@ -188,16 +206,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     pendingTicketUpdatesRef.current[id] = {
       ticket,
       expiresAt: Date.now() + 30_000,
+      confirmedAt: null,
     };
+  };
+
+  /**
+   * O PATCH gravou — mas a proteção NÃO cai aqui.
+   *
+   * Um poll disparado ANTES da gravação leu o valor antigo e ainda está no ar; se
+   * a entrada pendente saísse agora, essa resposta atrasada sobrescreveria a tela
+   * com o estado velho e só o poll seguinte (30 s depois) corrigiria — foi o bug
+   * de "mudei a etapa e voltou; tive que atualizar a página".
+   *
+   * Marcamos QUANDO gravou. A proteção só sai quando chegar um poll que começou
+   * depois disso — esse sim já enxerga a escrita.
+   */
+  const confirmPendingTicketUpdate = (id: string) => {
+    const entry = pendingTicketUpdatesRef.current[id];
+    if (entry) entry.confirmedAt = Date.now();
   };
 
   const clearPendingTicketUpdate = (id: string) => {
     delete pendingTicketUpdatesRef.current[id];
   };
 
-  const mergeRemoteWithPendingTickets = (remote: Ticket[]) => {
+  /** `pollStartedAt`: quando a requisição que trouxe `remote` foi disparada. */
+  const mergeRemoteWithPendingTickets = (remote: Ticket[], pollStartedAt: number) => {
     prunePendingTicketUpdates();
     const pending = pendingTicketUpdatesRef.current;
+    // Regra em `utils/pendingTicketUpdates` (pura, testada): a versão otimista só
+    // sai quando chega um poll que COMEÇOU depois da gravação confirmada.
+    const agora = Date.now();
+    for (const id of Object.keys(pending)) {
+      if (!isPendingUpdateStillProtecting(pending[id], pollStartedAt, agora)) delete pending[id];
+    }
     const merged = remote.map(ticket => pending[ticket.id]?.ticket || ticket);
     for (const id of Object.keys(pending)) {
       const entry = pending[id];
@@ -292,15 +334,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Nada mudou: sem re-render, sem custo. (o delta pode vir vazio)
         if (result.tickets.length === 0) return;
         setAllTickets(prev => {
-          const next = mergeRemoteWithPendingTickets(applyTicketDelta(prev, result.tickets));
+          const next = mergeRemoteWithPendingTickets(applyTicketDelta(prev, result.tickets), now);
           return areTicketListsEqual(prev, next) ? prev : next;
         });
       } else {
         lastFullSyncAtRef.current = now;
         setAllTickets(prev => {
-          const merged = mergeRemoteWithPendingTickets(result.tickets.map(ticket =>
-            mergeTicketHistory(prev.find(current => current.id === ticket.id), ticket)
-          ));
+          const merged = mergeRemoteWithPendingTickets(
+            result.tickets.map(ticket => mergeTicketHistory(prev.find(current => current.id === ticket.id), ticket)),
+            now
+          );
           return areTicketListsEqual(prev, merged) ? prev : merged;
         });
       }
@@ -510,7 +553,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return (async () => {
       try {
         await patchTicketInApi(id, updates, options?.historyTimeEdit ? { historyTimeEdit: options.historyTimeEdit } : undefined);
-        clearPendingTicketUpdate(id);
+        confirmPendingTicketUpdate(id);
       } catch (error) {
         clearPendingTicketUpdate(id);
         setAllTickets(prev => prev.map(ticket => (ticket.id === id ? previousTicket : ticket)));
@@ -748,6 +791,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setTrackingTicketToken,
         inboxFilter,
         setInboxFilter,
+        osBoardFilter,
+        setOsBoardFilter,
         tickets,
         ticketsLoading,
         ticketsError,

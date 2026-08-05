@@ -3,6 +3,21 @@ export type { TicketStatus } from '../constants/ticketStatus';
 
 export type ViewState = 'landing' | 'login' | 'password-reset' | 'home' | 'inbox' | 'os-board' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'approvals' | 'finance' | 'email-health' | 'audit-logs';
 
+/**
+ * Filtros do quadro de Gestão. Vivem no contexto (e não em `useState` da view)
+ * porque a view desmonta ao abrir uma OS — sem isto, voltar da OS perde o filtro
+ * e a pessoa refaz a seleção toda vez.
+ */
+export interface OsBoardFilter {
+  search: string;
+  sede: string;
+  macroService: string;
+  service: string;
+  team: string;
+  status: string;
+  showClosed: boolean;
+}
+
 export interface InboxFilter {
   status: string[];
   priority: string[];
