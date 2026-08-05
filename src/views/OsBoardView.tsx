@@ -10,6 +10,8 @@ import { repairMojibake } from '../utils/text';
 
 const ALL = 'all';
 const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
+/** OS que não exigem mais trabalho — 65 das 268 hoje. */
+const CLOSED_STATUSES = new Set<string>([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 
 /**
  * Quadro de gestão de OS: tabela resumo de TODAS as OS, com filtros por sede,
@@ -17,14 +19,13 @@ const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
  * na Caixa de Entrada. Para Admin/Gestor (ver canAccess no App).
  */
 export function OsBoardView() {
-  const { tickets, navigateTo, setActiveTicketId } = useApp();
+  const { tickets, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter } = useApp();
   const [sites, setSites] = useState<CatalogSite[]>([]);
-  const [search, setSearch] = useState('');
-  const [sede, setSede] = useState(ALL);
-  const [macroService, setMacroService] = useState(ALL);
-  const [service, setService] = useState(ALL);
-  const [team, setTeam] = useState(ALL);
-  const [status, setStatus] = useState(ALL);
+
+  // O filtro mora no CONTEXTO, não em estado local: esta view desmonta ao abrir
+  // uma OS, e com `useState` a seleção se perdia toda vez que a pessoa voltava.
+  const { search, sede, macroService, service, team, status, showClosed } = osBoardFilter;
+  const setFilter = (patch: Partial<typeof osBoardFilter>) => setOsBoardFilter({ ...osBoardFilter, ...patch });
 
   useEffect(() => {
     let cancelled = false;
@@ -73,13 +74,16 @@ export function OsBoardView() {
       if (service !== ALL && entry.service !== service) return false;
       if (team !== ALL && entry.team !== team) return false;
       if (status !== ALL && entry.ticket.status !== status) return false;
+      // Encerrada/Cancelada só entram com a caixa marcada — a não ser que a pessoa
+      // tenha filtrado explicitamente por uma delas, quando esconder seria absurdo.
+      if (!showClosed && status === ALL && CLOSED_STATUSES.has(entry.ticket.status)) return false;
       if (q) {
         const haystack = `${entry.ticket.id} ${repairMojibake(entry.ticket.subject)} ${repairMojibake(entry.ticket.requester || '')}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [decorated, sede, macroService, service, team, status, search]);
+  }, [decorated, sede, macroService, service, team, status, search, showClosed]);
 
   const openTicket = (id: string) => {
     setActiveTicketId(id);
@@ -87,15 +91,9 @@ export function OsBoardView() {
   };
 
   const hasActiveFilter =
-    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || search.trim() !== '';
-  const clearFilters = () => {
-    setSede(ALL);
-    setMacroService(ALL);
-    setService(ALL);
-    setTeam(ALL);
-    setStatus(ALL);
-    setSearch('');
-  };
+    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || search.trim() !== '' || showClosed;
+  const clearFilters = () =>
+    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, showClosed: false });
 
   const selectClass =
     'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
@@ -122,41 +120,50 @@ export function OsBoardView() {
           <input
             type="text"
             value={search}
-            onChange={event => setSearch(event.target.value)}
+            onChange={event => setFilter({ search: event.target.value })}
             placeholder="Buscar OS, assunto ou solicitante…"
             className="w-56 rounded-sm border border-roman-border bg-roman-surface py-1.5 pl-8 pr-2.5 text-sm text-roman-text-main outline-none focus:border-roman-primary"
           />
         </div>
-        <select value={sede} onChange={e => setSede(e.target.value)} className={selectClass} aria-label="Filtrar por sede">
+        <select value={sede} onChange={e => setFilter({ sede: e.target.value })} className={selectClass} aria-label="Filtrar por sede">
           <option value={ALL}>Sede: todas</option>
           {sedeOptions.map(option => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
-        <select value={macroService} onChange={e => setMacroService(e.target.value)} className={selectClass} aria-label="Filtrar por macroserviço">
+        <select value={macroService} onChange={e => setFilter({ macroService: e.target.value })} className={selectClass} aria-label="Filtrar por macroserviço">
           <option value={ALL}>Macroserviço: todos</option>
           {macroOptions.map(option => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
-        <select value={service} onChange={e => setService(e.target.value)} className={selectClass} aria-label="Filtrar por serviço">
+        <select value={service} onChange={e => setFilter({ service: e.target.value })} className={selectClass} aria-label="Filtrar por serviço">
           <option value={ALL}>Serviço: todos</option>
           {serviceOptions.map(option => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
-        <select value={team} onChange={e => setTeam(e.target.value)} className={selectClass} aria-label="Filtrar por equipe">
+        <select value={team} onChange={e => setFilter({ team: e.target.value })} className={selectClass} aria-label="Filtrar por equipe">
           <option value={ALL}>Equipe: todas</option>
           {teamOptions.map(option => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
-        <select value={status} onChange={e => setStatus(e.target.value)} className={selectClass} aria-label="Filtrar por status">
+        <select value={status} onChange={e => setFilter({ status: e.target.value })} className={selectClass} aria-label="Filtrar por status">
           <option value={ALL}>Status: todos</option>
           {statusOptions.map(option => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
+        <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-roman-text-sub">
+          <input
+            type="checkbox"
+            checked={showClosed}
+            onChange={event => setFilter({ showClosed: event.target.checked })}
+            className="h-3.5 w-3.5 accent-roman-primary"
+          />
+          Mostrar encerradas e canceladas
+        </label>
         {hasActiveFilter && (
           <button
             onClick={clearFilters}
@@ -206,8 +213,10 @@ export function OsBoardView() {
                   className="cursor-pointer border-b border-roman-border/60 align-top transition-colors hover:bg-roman-primary/[0.06] focus:bg-roman-primary/10 focus:outline-none"
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 font-medium text-roman-text-main">{ticket.id}</td>
-                  <td className="max-w-[14rem] px-3 py-2.5">
-                    <div className="truncate font-medium text-roman-text-main">{repairMojibake(ticket.subject)}</div>
+                  {/* Sem `truncate`: o assunto é o que identifica a OS na tabela.
+                      Corta-lo economizava uma linha e custava a leitura. */}
+                  <td className="min-w-[16rem] max-w-[26rem] px-3 py-2.5">
+                    <div className="font-medium text-roman-text-main">{repairMojibake(ticket.subject)}</div>
                     <div className="truncate text-xs text-roman-text-sub">{repairMojibake(ticket.requester || 'Sem solicitante')}</div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{siteLabel || '—'}</td>
