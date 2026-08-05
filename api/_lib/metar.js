@@ -148,7 +148,18 @@ export function describeRain(reading) {
   return `${what}${intensity}`.trim();
 }
 
-/** Busca a observação mais recente. `fetchImpl` entra por parâmetro para o teste não tocar a rede. */
+/**
+ * @typedef {(url: string, init?: Record<string, unknown>) => Promise<{
+ *   ok?: boolean; status?: number; json?: () => Promise<unknown>;
+ * }>} FetchLike
+ */
+
+/**
+ * Busca a observação mais recente. `fetchImpl` entra por parâmetro para o teste
+ * não tocar a rede.
+ *
+ * @param {{ icao?: string, fetchImpl?: FetchLike, timeoutMs?: number }} [options]
+ */
 export async function fetchMetar({ icao = FORTALEZA_ICAO, fetchImpl = globalThis.fetch, timeoutMs = 15000 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch indisponível para consultar o METAR.');
 

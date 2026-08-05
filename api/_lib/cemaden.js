@@ -52,7 +52,11 @@ export const MIN_RAIN_MM = 0.4;
  */
 export const DEFAULT_CITY = 'FORTALEZA';
 
-/** Sedes que NÃO usam o agregado da cidade. */
+/**
+ * Sedes que NÃO usam o agregado da cidade.
+ *
+ * @type {Record<string, { city: string, name: string }>}
+ */
 export const GAUGE_BY_SITE = {
   // Eusébio é outro município e não tem posto no CEMADEN; Edson Queiroz é o bairro
   // colado nele, ~8 km. Decisão do dono: usar o vizinho e seguir.
@@ -116,10 +120,21 @@ export function readingAgeMinutes(station, now = new Date()) {
  */
 export function readStation(rawOrStation, now = new Date()) {
   const station = rawOrStation?.at !== undefined ? rawOrStation : normalizeStation(rawOrStation);
-  if (!station) return { state: 'desconhecido', raining: false, reason: 'posto inexistente', ageMinutes: null };
+  // Forma UNICA de retorno em todos os ramos: quem consome nao precisa checar se o
+  // campo existe, e o TypeScript nao vira uniao impossivel de estreitar.
+  const vazio = { city: null, name: null, mm: null, acc1h: 0, acc24h: 0, ageMinutes: null, reason: null };
+  if (!station) return { ...vazio, state: 'desconhecido', raining: false, reason: 'posto inexistente' };
 
   const ageMinutes = readingAgeMinutes(station, now);
-  const base = { city: station.city, name: station.name, mm: station.mm, acc1h: station.acc1h, acc24h: station.acc24h, ageMinutes };
+  const base = {
+    ...vazio,
+    city: station.city,
+    name: station.name,
+    mm: station.mm,
+    acc1h: station.acc1h,
+    acc24h: station.acc24h,
+    ageMinutes,
+  };
 
   if (ageMinutes === null) return { ...base, state: 'desconhecido', raining: false, reason: 'leitura sem horário' };
   if (ageMinutes > MAX_READING_AGE_MINUTES) {
@@ -168,7 +183,17 @@ export function readCityRain(list, city = DEFAULT_CITY, now = new Date()) {
   const vivos = leituras.filter(item => item.state !== 'desconhecido');
   const chovendo = vivos.filter(item => item.raining);
 
-  const base = { city, gaugesTotal: leituras.length, gaugesLive: vivos.length, rainingAt: chovendo.map(item => item.name) };
+  // Forma UNICA em todos os ramos — mesmo motivo do readStation.
+  const base = {
+    city,
+    gaugesTotal: leituras.length,
+    gaugesLive: vivos.length,
+    rainingAt: chovendo.map(item => item.name),
+    mm: null,
+    acc1h: 0,
+    name: null,
+    reason: null,
+  };
 
   if (vivos.length === 0) {
     return { ...base, state: 'desconhecido', raining: false, reason: `nenhum posto vivo em ${city}` };
@@ -189,8 +214,10 @@ export function readCityRain(list, city = DEFAULT_CITY, now = new Date()) {
  */
 export function readSiteRain(list, siteCode, { now = new Date(), mapping = GAUGE_BY_SITE, city = DEFAULT_CITY } = {}) {
   const gauge = mapping?.[String(siteCode || '').trim().toUpperCase()];
+  // `fallbackFrom` sempre presente (null quando nao houve queda para o agregado):
+  // forma unica de retorno, como nas demais leituras deste modulo.
   if (!gauge) {
-    return { ...readCityRain(list, city, now), siteCode, gauge: `todos os postos de ${city}` };
+    return { ...readCityRain(list, city, now), siteCode, gauge: `todos os postos de ${city}`, fallbackFrom: null };
   }
   const station = findStation(list, gauge);
   if (!station) {
@@ -202,7 +229,7 @@ export function readSiteRain(list, siteCode, { now = new Date(), mapping = GAUGE
       fallbackFrom: gauge.name,
     };
   }
-  return { ...readStation(station, now), siteCode, gauge: `${gauge.name} (${gauge.city})` };
+  return { ...readStation(station, now), siteCode, gauge: `${gauge.name} (${gauge.city})`, fallbackFrom: null };
 }
 
 /** Frase pronta para o e-mail. */
@@ -219,7 +246,18 @@ export function describeStationRain(reading) {
   return `chuva agora (${reading.mm} mm na leitura${acumulado})${onde}`;
 }
 
-/** Busca as leituras de um estado. `fetchImpl` entra por parâmetro para o teste não tocar a rede. */
+/**
+ * @typedef {(url: string, init?: Record<string, unknown>) => Promise<{
+ *   ok?: boolean; status?: number; json?: () => Promise<unknown>;
+ * }>} FetchLike
+ */
+
+/**
+ * Busca as leituras de um estado. `fetchImpl` entra por parâmetro para o teste não
+ * tocar a rede.
+ *
+ * @param {{ uf?: string, fetchImpl?: FetchLike, timeoutMs?: number }} [options]
+ */
 export async function fetchCemaden({ uf = 'CE', fetchImpl = globalThis.fetch, timeoutMs = 20000 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch indisponível para consultar o CEMADEN.');
 

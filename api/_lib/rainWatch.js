@@ -41,6 +41,15 @@ export function detectRainTransition(previousState, currentState) {
  * "Não está chovendo" exige que **nenhuma** fonte confiável veja chuva; se as duas
  * estiverem mudas ou velhas, o estado é `desconhecido` — nunca ausência.
  */
+/**
+ * @param {{
+ *   siteCode?: string,
+ *   cemadenList?: unknown[],
+ *   metarObservation?: unknown,
+ *   now?: Date,
+ *   mapping?: Record<string, { city: string, name: string }>,
+ * }} [options]
+ */
 export function readRainSignal({ siteCode, cemadenList, metarObservation, now = new Date(), mapping } = {}) {
   const posto = readSiteRain(cemadenList, siteCode, { now, ...(mapping ? { mapping } : {}) });
   const aeroporto = readObservation(metarObservation, now);
