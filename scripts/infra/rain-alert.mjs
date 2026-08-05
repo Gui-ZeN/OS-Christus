@@ -111,10 +111,11 @@ function montarEmail(sinal, quando) {
 
 async function main() {
   if (!DESTINO) {
-    console.error(
-      'Destinatário ausente. Defina RAIN_ALERT_TO no ambiente ou passe --to=<email>.'
-    );
-    process.exitCode = 1;
+    // Sai com SUCESSO de propósito: este script roda de 5 em 5 min no Actions, e
+    // enquanto o secret não existir cada execução viraria uma falha — ~288 por dia,
+    // com notificação. Ruído nesse volume treina todo mundo a ignorar o vermelho,
+    // inclusive quando ele for de verdade. A mensagem fica no log.
+    console.warn('Destinatário não configurado (RAIN_ALERT_TO ou --to=). Nada a fazer.');
     return;
   }
 
