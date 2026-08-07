@@ -7,6 +7,7 @@ import { HttpError, readJsonBody, sendJson } from './_lib/http.js';
 // de 12 Serverless Functions no plano Hobby; o vercel.json reescreve /api/settings
 // -> /api/catalog?route=settings, então o front continua chamando /api/settings.
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
+import { firstEmail } from './_lib/email.js';
 import {
   DEFAULT_MACRO_SERVICES,
   DEFAULT_MATERIALS,
@@ -475,16 +476,22 @@ async function ensureDefaults(db) {
     { ...DEFAULT_SETTINGS.thirdPartyTags.default, updatedAt: now, createdAt: now },
     { merge: true }
   );
+  batch.set(
+    db.collection('settings').doc('authorizers').collection('items').doc('default'),
+    { ...DEFAULT_SETTINGS.authorizers.default, updatedAt: now, createdAt: now },
+    { merge: true }
+  );
 
   await batch.commit();
 }
 
 async function readSettings(db) {
-  const [templatesSnap, digestSnap, slaSnap, thirdPartyTagsSnap] = await Promise.all([
+  const [templatesSnap, digestSnap, slaSnap, thirdPartyTagsSnap, authorizersSnap] = await Promise.all([
     db.collection('settings').doc('emailTemplates').collection('items').get(),
     db.collection('settings').doc('dailyDigest').collection('items').doc('default').get(),
     db.collection('settings').doc('sla').collection('items').doc('default').get(),
     db.collection('settings').doc('thirdPartyTags').collection('items').doc('default').get(),
+    db.collection('settings').doc('authorizers').collection('items').doc('default').get(),
   ]);
 
   const emailTemplates = normalizeEmailTemplates(
@@ -499,6 +506,7 @@ async function readSettings(db) {
     dailyDigest: digestSnap.exists ? digestSnap.data() : null,
     sla: slaSnap.exists ? normalizeSla(slaSnap.data()) : null,
     thirdPartyTags: thirdPartyTagsSnap.exists ? thirdPartyTagsSnap.data() : null,
+    authorizers: authorizersSnap.exists ? authorizersSnap.data() : null,
   };
 }
 
@@ -520,6 +528,7 @@ async function handleSettings(req, res) {
           dailyDigest: null,
           sla: null,
           thirdPartyTags: settings.thirdPartyTags,
+          authorizers: settings.authorizers,
         });
       }
       return sendJson(res, 200, { ok: true, ...settings });
@@ -536,11 +545,13 @@ async function handleSettings(req, res) {
         return sendJson(res, 400, { ok: false, error: 'section e data são obrigatórios.' });
       }
 
-      if (!['emailTemplates', 'dailyDigest', 'sla', 'thirdPartyTags'].includes(section)) {
+      if (!['emailTemplates', 'dailyDigest', 'sla', 'thirdPartyTags', 'authorizers'].includes(section)) {
         return sendJson(res, 400, { ok: false, error: 'section inválida.' });
       }
-      if (admin.role === 'Gestor' && section !== 'thirdPartyTags') {
-        return sendJson(res, 403, { ok: false, error: 'Gestor pode alterar apenas tags de terceiros.' });
+      // O Gestor cadastra tags de terceiros E quem pode autorizar por e-mail: e ele
+      // quem conversa com a diretoria e sabe de quem e a palavra que vale.
+      if (admin.role === 'Gestor' && section !== 'thirdPartyTags' && section !== 'authorizers') {
+        return sendJson(res, 403, { ok: false, error: 'Gestor pode alterar apenas tags de terceiros e autorizadores.' });
       }
 
       const normalizedData =
@@ -558,6 +569,19 @@ async function handleSettings(req, res) {
                     )
                   ),
                 }
+              : section === 'authorizers'
+                ? {
+                    // Só endereço válido entra, em minúsculas e sem repetir: a lista é
+                    // comparada com o remetente do e-mail, então "Fulano <a@b.com>" ou
+                    // caixa diferente viraria autorizador que nunca casa.
+                    emails: Array.from(
+                      new Set(
+                        (Array.isArray(data?.emails) ? data.emails : [])
+                          .map(item => firstEmail(item))
+                          .filter(Boolean)
+                      )
+                    ),
+                  }
             : data;
       const docId = section === 'emailTemplates' ? String(normalizedData?.trigger || '').trim() : 'default';
 

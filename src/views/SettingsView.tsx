@@ -384,7 +384,10 @@ export function SettingsView() {
   const [directoryVendors, setDirectoryVendors] = useState<DirectoryVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [vendorSaving, setVendorSaving] = useState(false);
-  const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags'>('catalog');
+  const [catalogSubSection, setCatalogSubSection] = useState<'catalog' | 'third-parties' | 'tags' | 'authorizers'>('catalog');
+  const [authorizerEmails, setAuthorizerEmails] = useState<string[]>([]);
+  const [authorizerDraft, setAuthorizerDraft] = useState('');
+  const [authorizerError, setAuthorizerError] = useState<string | null>(null);
   const [vendorDraft, setVendorDraft] = useState({ id: '', name: '', email: '', contact: '', tags: [] as string[] });
   const [thirdPartyTags, setThirdPartyTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
@@ -419,6 +422,11 @@ export function SettingsView() {
         setThirdPartyTags(
           Array.isArray(remote.thirdPartyTags?.tags)
             ? remote.thirdPartyTags!.tags.map(tag => String(tag || '').trim()).filter(Boolean)
+            : []
+        );
+        setAuthorizerEmails(
+          Array.isArray(remote.authorizers?.emails)
+            ? remote.authorizers!.emails.map(item => String(item || '').trim()).filter(Boolean)
             : []
         );
       } catch {
@@ -764,6 +772,45 @@ export function SettingsView() {
       await saveSettings('thirdPartyTags', { tags: sanitized });
     } catch {
       // Mantém estado local em caso de falha temporária.
+    }
+  };
+
+  const persistAuthorizers = async (lista: string[]) => {
+    const limpa = Array.from(new Set(lista.map(item => item.trim().toLowerCase()).filter(Boolean)));
+    setAuthorizerEmails(limpa);
+    await saveSettings('authorizers', { emails: limpa });
+  };
+
+  const handleAddAuthorizer = async () => {
+    const candidato = authorizerDraft.trim().toLowerCase();
+    if (!candidato) return;
+    // Valida ANTES de salvar: endereço torto vira autorizador que nunca casa com
+    // remetente nenhum, e o recurso pareceria simplesmente não funcionar.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(candidato)) {
+      setAuthorizerError('Endereço inválido.');
+      return;
+    }
+    if (authorizerEmails.includes(candidato)) {
+      setAuthorizerError('Esse endereço já está na lista.');
+      return;
+    }
+    setAuthorizerError(null);
+    try {
+      await persistAuthorizers([...authorizerEmails, candidato]);
+      setAuthorizerDraft('');
+      setCatalogSaved('Autorizador salvo.');
+      setTimeout(() => setCatalogSaved(null), 3000);
+    } catch {
+      setAuthorizerError('Não foi possível salvar.');
+    }
+  };
+
+  const handleRemoveAuthorizer = async (email: string) => {
+    setAuthorizerError(null);
+    try {
+      await persistAuthorizers(authorizerEmails.filter(item => item !== email));
+    } catch {
+      setAuthorizerError('Não foi possível remover.');
     }
   };
 
@@ -1241,6 +1288,7 @@ export function SettingsView() {
                         ['catalog', 'Catálogo'],
                         ['third-parties', 'Terceiros'],
                         ['tags', 'Tags compartilhadas'],
+                        ['authorizers', 'Quem autoriza'],
                       ] as const).map(([key, label]) => (
                         <button
                           key={key}
@@ -1744,6 +1792,79 @@ export function SettingsView() {
                               Salvar tag
                             </button>
                           </div>
+                        </section>
+                        )}
+                        {catalogSubSection === 'authorizers' && (
+                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                          <div className="mb-4 flex items-center justify-between gap-4">
+                            <div>
+                              <h3 className="font-serif text-lg text-roman-text-main">Quem pode autorizar por e-mail</h3>
+                              <p className="mt-1 text-xs text-roman-text-sub">
+                                Quando alguém desta lista responder “autorizado”, “aprovado” ou “pode seguir”
+                                na conversa de uma OS, o sistema registra a autorização no histórico — com a
+                                frase exata e quem escreveu.
+                              </p>
+                            </div>
+                            <div className="text-xs text-roman-text-sub">{authorizerEmails.length} endereço(s)</div>
+                          </div>
+
+                          {authorizerEmails.length === 0 && (
+                            <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+                              <strong>Desligado.</strong> Sem ninguém cadastrado, nenhuma mensagem é lida como
+                              autorização.
+                            </div>
+                          )}
+
+                          <div className="rounded-xl border border-stone-200 bg-white p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {authorizerEmails.map(email => (
+                                <span
+                                  key={email}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2.5 py-1 text-xs text-roman-primary"
+                                >
+                                  {email}
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRemoveAuthorizer(email)}
+                                    className="text-roman-primary hover:opacity-70"
+                                    aria-label={`Remover ${email}`}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-col gap-3 md:flex-row">
+                            <input
+                              type="email"
+                              value={authorizerDraft}
+                              onChange={event => setAuthorizerDraft(event.target.value)}
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  void handleAddAuthorizer();
+                                }
+                              }}
+                              placeholder="email@dominio.com"
+                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAddAuthorizer()}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                            >
+                              Adicionar
+                            </button>
+                          </div>
+                          {authorizerError && (
+                            <p className="mt-2 text-xs text-red-700">{authorizerError}</p>
+                          )}
+                          <p className="mt-3 text-[11px] text-roman-text-sub">
+                            O sistema apenas REGISTRA: a etapa da OS não anda sozinha. Frases como “ainda não
+                            está autorizado” são ignoradas de propósito.
+                          </p>
                         </section>
                         )}
                       </div>

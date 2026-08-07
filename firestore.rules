@@ -80,6 +80,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Compromissos de fornecedor: passam pela rota autenticada, nunca direto.
+    match /commitments/{docId} {
+      allow read, write: if false;
+    }
+
+    // Fila de e-mail que entrou e não virou OS: só o Admin SDK escreve e lê.
+    match /inboundDropped/{docId} {
+      allow read, write: if false;
+    }
+
     match /regions/{docId} {
       allow read, write: if false;
     }

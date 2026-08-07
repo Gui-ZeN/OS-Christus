@@ -1,17 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { RecurrencePanel } from './RecurrencePanel';
 import { Search, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatDateTimeSafe } from '../utils/date';
 import { repairMojibake } from '../utils/text';
 
 const ALL = 'all';
 const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
-/** OS que não exigem mais trabalho — 65 das 268 hoje. */
-const CLOSED_STATUSES = new Set<string>([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 
 /**
  * Quadro de gestão de OS: tabela resumo de TODAS as OS, com filtros por sede,
@@ -76,7 +76,7 @@ export function OsBoardView() {
       if (status !== ALL && entry.ticket.status !== status) return false;
       // Encerrada/Cancelada só entram com a caixa marcada — a não ser que a pessoa
       // tenha filtrado explicitamente por uma delas, quando esconder seria absurdo.
-      if (!showClosed && status === ALL && CLOSED_STATUSES.has(entry.ticket.status)) return false;
+      if (!showClosed && status === ALL && !isTicketOpen(entry.ticket.status)) return false;
       if (q) {
         const haystack = `${entry.ticket.id} ${repairMojibake(entry.ticket.subject)} ${repairMojibake(entry.ticket.requester || '')}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -176,6 +176,11 @@ export function OsBoardView() {
           {filtered.length} {filtered.length === 1 ? 'OS' : 'OS'} {hasActiveFilter ? `de ${tickets.length}` : ''}
         </span>
       </div>
+
+      {/* Reincidência: o mesmo lugar voltando. Fica logo acima da tabela e
+          respeita o recorte filtrado — a pergunta é sempre "dentro do que estou
+          olhando, o que repete?". */}
+      <RecurrencePanel tickets={filtered.map(entry => entry.ticket)} onOpenTicket={openTicket} />
 
       <div className="min-h-0 flex-1 overflow-auto">
         {filtered.length === 0 ? (

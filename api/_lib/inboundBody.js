@@ -29,10 +29,38 @@ export function displayNameFromEmail(raw) {
     .replace(/\b\w/g, char => char.toUpperCase());
 }
 
+/**
+ * Sinais FORTES de água onde não devia estar. Sozinhos já bastam.
+ *
+ * A lista antiga tinha duas palavras (goteira, infiltração) e deixava passar
+ * "Vazamento no teto do Hall do 4º andar", "reparo na calha do refeitório" e
+ * "Solicitação de Reparo no Telhado". Medido nas 270 OS de produção: recupera 13 que
+ * ninguém marcou, sem um falso positivo.
+ */
+const AGUA_FORTE = [
+  /goteir/,
+  /infiltra/,
+  /vazament|vazando/,
+  /alagad|alagament|inunda/,
+  /gotejand|gotejament|pingando/,
+  /\bmofo\b|bolor|umidade/,
+  /pluvial/,
+  /impermeabiliza/,
+];
+
+/**
+ * Estrutura que conduz água. Só conta junto de um verbo de defeito — senão "instalação de
+ * telhado" (obra nova) entraria como goteira.
+ */
+const AGUA_ESTRUTURA = /telhado|\btelhas?\b|calha|rufo|algeroz|caixa d.agua|reservatorio/;
+const DEFEITO = /reparo|conserto|troca|quebrad|solta|entupid|danificad|furo|rachad|vazament|goteir|infiltra|chuva/;
+
+/** Esta OS é problema de água? Deriva do texto — ninguém precisa marcar caixinha. */
 export function hasWaterIssueSignal(value) {
   const normalized = normalizeKey(value);
   if (!normalized) return false;
-  return normalized.includes('goteira') || normalized.includes('infiltracao') || normalized.includes('infiltra');
+  if (AGUA_FORTE.some(rx => rx.test(normalized))) return true;
+  return AGUA_ESTRUTURA.test(normalized) && DEFEITO.test(normalized);
 }
 
 export function stripHtml(value) {

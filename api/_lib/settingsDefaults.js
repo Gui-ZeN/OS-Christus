@@ -154,4 +154,11 @@ Motivo:
       tags: [],
     },
   },
+  // Quem pode AUTORIZAR por e-mail. Nasce vazio de propósito: enquanto ninguém for
+  // cadastrado, a detecção fica desligada e nada é marcado como autorização.
+  authorizers: {
+    default: {
+      emails: [],
+    },
+  },
 };

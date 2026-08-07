@@ -1,9 +1,10 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Mail, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Mail, MailQuestion, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { formatDateTimeSafe } from '../utils/date';
+import { repairMojibake } from '../utils/text';
 
 type EmailHealthResponse = {
   ok: boolean;
@@ -23,6 +24,12 @@ type EmailHealthResponse = {
     failed: number;
     'dead-letter': number;
   };
+  droppedInbound?: Array<{
+    id: string;
+    createdAt: string | { _seconds?: number };
+    fromEmail: string | null;
+    subject: string;
+  }>;
   recentErrors: Array<{
     id: string;
     createdAt: string | { _seconds?: number };
@@ -256,6 +263,33 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           </div>
         ))}
       </div>
+
+      {/* E-mail que entrou e nao virou nada. Fica ANTES das falhas de propósito: uma
+          falha de envio o sistema tenta de novo; isto aqui ninguém tenta, e a pessoa
+          do outro lado acha que avisou. */}
+      {(data?.droppedInbound?.length || 0) > 0 && (
+        <section className={`mb-6 p-5 ${embedded ? 'rounded-[1.4rem] border border-amber-300 bg-amber-50/60' : 'rounded-sm border border-amber-300 bg-amber-50/60'}`}>
+          <h2 className="mb-1 flex items-center gap-2 text-lg font-serif text-roman-text-main">
+            <MailQuestion size={18} className="text-amber-700" />
+            Entraram e não viraram OS
+          </h2>
+          <p className="mb-4 text-sm text-roman-text-sub">
+            O assunto não tem [SEDE] e a mensagem não casou
+            com nenhuma OS. Ninguém foi respondido — quem escreveu acha que avisou.
+          </p>
+          <div className="space-y-2">
+            {data?.droppedInbound?.map(item => (
+              <div key={item.id} className="rounded-sm border border-amber-200 bg-white/70 p-3">
+                <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-roman-text-sub">
+                  <span>{formatDate(item.createdAt)}</span>
+                  <span>{item.fromEmail || 'remetente desconhecido'}</span>
+                </div>
+                <div className="text-sm text-roman-text-main">{repairMojibake(item.subject) || '(sem assunto)'}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className={`p-5 ${embedded ? 'rounded-[1.4rem] border border-roman-border bg-roman-surface' : 'rounded-sm border border-roman-border bg-roman-surface'}`}>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-serif text-roman-text-main">

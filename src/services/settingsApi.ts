@@ -13,6 +13,8 @@ export interface SettingsPayload {
   emailTemplates: EmailTemplateSettings[];
   sla: SlaSettings;
   thirdPartyTags?: { tags: string[] } | null;
+  /** Quem pode autorizar por e-mail. Lista vazia = detecção desligada. */
+  authorizers?: { emails: string[] } | null;
 }
 
 export interface SlaSettings {
@@ -88,10 +90,21 @@ export async function fetchSettings(): Promise<SettingsPayload> {
             : [],
         }
       : { tags: [] },
+    authorizers:
+      json.authorizers && typeof json.authorizers === 'object'
+        ? {
+            emails: Array.isArray(json.authorizers.emails)
+              ? json.authorizers.emails.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+              : [],
+          }
+        : { emails: [] },
   };
 }
 
-export async function saveSettings(section: 'emailTemplates' | 'sla' | 'thirdPartyTags', data: object) {
+export async function saveSettings(
+  section: 'emailTemplates' | 'sla' | 'thirdPartyTags' | 'authorizers',
+  data: object
+) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/settings', {
     method: 'POST',
