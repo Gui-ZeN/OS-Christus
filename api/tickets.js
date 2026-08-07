@@ -1,9 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
-import { requireAdminUser, requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
+import { requireAdminUser, requireAuthenticatedUser, requireUserWithRoles, resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
+import {
+  COMMITMENT_STATE,
+  DEFAULT_TOLERANCE_MINUTES,
+  isCommitmentClosed,
+  normalizeCommitmentForStorage,
+  serializeCommitmentForApi,
+  validateConfirmation,
+} from './_lib/commitments.js';
+import { toDateOrNull } from './_lib/dates.js';
+import {
+  ATTENTION_RULE_VERSION,
+  computeOperationalAttention,
+  isLegacyAttention,
+  recomputeOperationalAttention,
+} from './_lib/operationalAttention.js';
+import { FieldPath } from 'firebase-admin/firestore';
+import { hasWaterIssueSignal } from './_lib/inboundBody.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog, readTicketsChangedSince } from './_lib/ticketAccess.js';
 import {
   boundEmbeddedHistory,
@@ -21,7 +38,7 @@ import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
-import { canTransitionStatus, isValidStatus } from './_lib/statusFlow.js';
+import { canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
 import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
@@ -322,7 +339,7 @@ function buildPublicTrackingPayload(beforeData, approved) {
     if (currentStatus === STATUS_WAITING_MAINTENANCE_APPROVAL) {
       nextStatus = STATUS_WAITING_PAYMENT;
     }
-  } else if (currentStatus !== STATUS_CLOSED && currentStatus !== STATUS_CANCELED) {
+  } else if (isTicketOpen(currentStatus)) {
     nextStatus = STATUS_IN_PROGRESS;
   }
 
@@ -489,6 +506,15 @@ async function preparePublicTicketCreate(db, rawTicket) {
     location: clampText(rawTicket.location, PUBLIC_TEXT_LIMITS.location),
     // Prioridade é definida na triagem; o solicitante não escolhe.
     priority: 'Trivial',
+    // Problema de água sai do TEXTO, não de uma caixinha. O formulário público nunca
+    // marcou isto — 36 OS entraram cegas — e na triagem por e-mail a marcação também
+    // ficava para trás: 14 das 270 OS falavam de vazamento no assunto e estavam sem
+    // sinal nenhum. Ninguém digita o que o próprio pedido já diz.
+    waterIssue: hasWaterIssueSignal(subject) || hasWaterIssueSignal(description),
+    // Solicitação do formulário também é mensagem de gente: sem o carimbo, a OS
+    // nasceria fora da projeção, igual às que vinham por e-mail.
+    lastInboundAt: now,
+    lastInboundMessageId: `form-${now.getTime()}`,
     // Anexos JSON do cliente são descartados; arquivos reais sobem por upload.
     attachments: [],
     history,
@@ -764,6 +790,276 @@ async function readPublicTrackingProcurement(ticketRef) {
  * diretoria, sem barra do navegador. Recebe do front os números já computados
  * (ver KpiView.reportData) e devolve o PDF pra download. Autenticado.
  */
+/**
+ * COMPROMISSOS — a promessa do terceiro de comparecer.
+ *
+ * Entra como `?route=commitments` dentro de tickets.js de propósito: o plano da
+ * Vercel está no teto de funções, então rota nova não pode virar arquivo novo.
+ */
+/**
+ * As OS deste compromisso estão no território de quem pediu?
+ *
+ * Toda rota de OS do sistema passa por `canUserAccessTicket`; esta nasceu sem o
+ * filtro. Sem ele, um Gestor de uma região lia (e confirmava) visitas de outra —
+ * nome de fornecedor, data, sede — de OS que ele nem consegue abrir.
+ *
+ * Basta UMA OS acessível: a visita atende várias, e esconder a visita inteira porque
+ * uma das OS é de outro território esconderia trabalho que é dele.
+ */
+function novoCacheDeEscopo() {
+  return { territory: null, tickets: new Map() };
+}
+
+async function podeVerCompromisso(db, user, ticketIds, cache) {
+  if (!user) return false;
+  if (user.role === 'Admin') return true;
+  const ids = (ticketIds || []).map(value => String(value || '').trim()).filter(Boolean);
+  if (ids.length === 0) return false;
+
+  if (!cache.territory) cache.territory = await readTerritoryCatalog(db);
+
+  for (const id of ids) {
+    // Cache por requisição: uma lista de 500 compromissos toca as MESMAS OS várias
+    // vezes, e sem isto cada carregamento da tela viraria centenas de leituras.
+    if (!cache.tickets.has(id)) {
+      const snap = await db.collection('tickets').doc(id).get();
+      cache.tickets.set(id, snap.exists ? { id: snap.id, ...snap.data() } : null);
+    }
+    const ticket = cache.tickets.get(id);
+    if (!ticket) continue;
+    if (canUserAccessTicket(user, ticket, cache.territory.regions, cache.territory.sites)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function handleCommitments(req, res) {
+  try {
+    const actor = await requireUserWithRoles(req, ['Admin', 'Gestor', 'Diretor']);
+    const db = getAdminDb();
+    const col = db.collection('commitments');
+    const agora = new Date();
+
+    if (req.method === 'GET') {
+      // Sem índice composto (o projeto não usa nenhum): faixa num campo só, e o
+      // resto em memória. São poucas visitas por semana.
+      const desde = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const snap = await col.where('startAt', '>=', desde).orderBy('startAt', 'asc').limit(500).get();
+      const escopo = novoCacheDeEscopo();
+      const commitments = [];
+      for (const doc of snap.docs) {
+        const data = { id: doc.id, ...doc.data() };
+        if (!(await podeVerCompromisso(db, actor, data.ticketIds, escopo))) continue;
+        commitments.push(serializeCommitmentForApi(data, agora));
+      }
+      return sendJson(res, 200, { ok: true, commitments });
+    }
+
+    if (req.method === 'POST') {
+      const body = await readJsonBody(req);
+      const ticketIds = (Array.isArray(body?.ticketIds) ? body.ticketIds : [])
+        .map(value => String(value || '').trim())
+        .filter(Boolean);
+      const startAt = toDateOrNull(body?.startAt);
+      if (ticketIds.length === 0) throw new HttpError(400, 'Informe ao menos uma OS.');
+      if (!startAt) throw new HttpError(400, 'Informe a data e a hora combinadas.');
+
+      if (!(await podeVerCompromisso(db, actor, ticketIds, novoCacheDeEscopo()))) {
+        throw new HttpError(403, 'Sem acesso a esta OS.');
+      }
+
+      const id = `cmt-${randomUUID()}`;
+      const commitment = normalizeCommitmentForStorage({
+        kind: 'visita-fornecedor',
+        ticketIds,
+        siteId: String(body?.siteId || '').trim() || null,
+        sede: String(body?.sede || '').trim() || null,
+        vendorId: String(body?.vendorId || '').trim() || null,
+        vendorName: String(body?.vendorName || '').trim() || null,
+        startAt,
+        endAt: body?.endAt || null,
+        toleranceMinutes: Number(body?.toleranceMinutes) || DEFAULT_TOLERANCE_MINUTES,
+        state: COMMITMENT_STATE.SCHEDULED,
+        outcome: null,
+        createdAt: agora,
+        createdBy: actor?.email || null,
+        updatedAt: agora,
+      });
+      await col.doc(id).set(commitment);
+      // A visita muda o que a OS exige: sem recalcular aqui, a atenção só apareceria
+      // no próximo e-mail — que pode nunca vir.
+      for (const alvoId of ticketIds) await recomputeOperationalAttention(db, alvoId);
+      return sendJson(res, 201, {
+        ok: true,
+        commitment: serializeCommitmentForApi({ id, ...commitment }, agora),
+      });
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await readJsonBody(req);
+      const id = String(body?.id || '').trim();
+      if (!id) throw new HttpError(400, 'Compromisso não informado.');
+
+      const ref = col.doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) throw new HttpError(404, 'Compromisso não encontrado.');
+      const atual = { id, ...snap.data() };
+      if (!(await podeVerCompromisso(db, actor, atual.ticketIds, novoCacheDeEscopo()))) {
+        throw new HttpError(403, 'Sem acesso a esta OS.');
+      }
+
+      if (body?.cancel) {
+        if (isCommitmentClosed(atual)) throw new HttpError(409, 'Este compromisso já foi encerrado.');
+        await ref.update({ state: COMMITMENT_STATE.CANCELED, updatedAt: agora });
+        return sendJson(res, 200, { ok: true });
+      }
+
+      const state = String(body?.state || '').trim();
+      const outcome = body?.outcome ? String(body.outcome).trim() : null;
+      const check = validateConfirmation(atual, { state, outcome });
+      if (!check.ok) throw new HttpError(409, check.error);
+
+      await ref.update({
+        state,
+        outcome: outcome || null,
+        confirmedBy: String(body?.confirmedBy || actor?.email || '').trim() || null,
+        confirmedAt: agora,
+        updatedAt: agora,
+      });
+      for (const alvoId of atual.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
+
+      return sendJson(res, 200, {
+        ok: true,
+        commitment: serializeCommitmentForApi({ ...atual, state, outcome, confirmedAt: agora }, agora),
+      });
+    }
+
+    res.setHeader('Allow', 'GET, POST, PATCH');
+    throw new HttpError(405, 'Método não permitido.');
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
+/**
+ * BACKFILL DA ATENÇÃO OPERACIONAL.
+ *
+ * A atenção é incremental: nasce de eventos. As 194 OS vivas de hoje nunca receberam
+ * esses eventos, então sem este backfill elas só entrariam no modelo novo quando
+ * chegasse e-mail — o que, pelos números, seria pouca coisa por semana.
+ *
+ * Deriva os carimbos do histórico COMPLETO (subcoleção), não da janela embutida no
+ * documento: a janela tem só as últimas N entradas e daria uma conclusão diferente da
+ * verdade.
+ *
+ * `?route=rebuild-attention&limit=40&cursor=OS-0100&apply=1`
+ * Sem `apply`, é DRY-RUN: conta e mostra, não grava.
+ */
+async function handleRebuildAttention(req, res) {
+  try {
+    await requireAdminUser(req);
+    const db = getAdminDb();
+    const agora = new Date();
+
+    const aplicar = String(req.query?.apply || '') === '1';
+    const forcar = String(req.query?.force || '') === '1';
+    const limite = Math.min(50, Math.max(5, Number(req.query?.limit) || 25));
+    const cursor = String(req.query?.cursor || '').trim();
+
+    // Pagina por ID do documento: ordenação num campo só, sem índice composto.
+    let consulta = db.collection('tickets').orderBy(FieldPath.documentId()).limit(limite);
+    if (cursor) consulta = consulta.startAfter(cursor);
+    const snap = await consulta.get();
+
+    const resultado = { lidas: snap.size, ignoradas: 0, calculadas: 0, gravadas: 0, legado: 0, porTipo: {}, amostra: [] };
+    let ultimo = cursor;
+
+    for (const doc of snap.docs) {
+      ultimo = doc.id;
+      const ticket = { id: doc.id, ...doc.data() };
+
+      if (MORTAS_BACKFILL.has(String(ticket.status || ''))) { resultado.ignoradas += 1; continue; }
+      // NÃO pula por `ruleVersion`: os dados mudam mesmo com a regra igual, e pular
+      // deixaria a projeção velha para sempre. Recalcula sempre; quem evita escrita à
+      // toa é o `attentionChanged` lá embaixo. `force` existe só para reprocessar o
+      // que já está igual, quando se quer medir.
+
+      const historico = await doc.ref.collection('historyEntries').get();
+      let lastInboundAt = null;
+      let lastInboundMessageId = null;
+      let lastOutboundAt = null;
+      historico.forEach(entrada => {
+        const item = entrada.data() || {};
+        const quando = toDateOrNull(item.time);
+        if (!quando) return;
+        if (item.type === 'customer') {
+          if (!lastInboundAt || quando > lastInboundAt) {
+            lastInboundAt = quando;
+            lastInboundMessageId = entrada.id;
+          }
+        } else if (item.type === 'internal' || item.type === 'outbound') {
+          if (!lastOutboundAt || quando > lastOutboundAt) lastOutboundAt = quando;
+        }
+      });
+
+      const visitas = await db.collection('commitments').where('ticketIds', 'array-contains', doc.id).limit(20).get();
+      const atencao = computeOperationalAttention(
+        {
+          ticket: { ...ticket, lastInboundAt, lastInboundMessageId, lastOutboundAt },
+          commitments: visitas.docs.map(d => ({ id: d.id, ...d.data() })),
+        },
+        agora
+      );
+
+      resultado.calculadas += 1;
+      const tipo = atencao ? atencao.kind : '(sem sinal)';
+      resultado.porTipo[tipo] = (resultado.porTipo[tipo] || 0) + 1;
+      const ehLegado = isLegacyAttention(atencao, agora);
+      if (ehLegado) resultado.legado += 1;
+      if (resultado.amostra.length < 8) {
+        resultado.amostra.push({ id: doc.id, kind: tipo, dueAt: atencao?.dueAt?.toISOString() || null, legacy: ehLegado });
+      }
+
+      if (!aplicar) continue;
+      // `force` grava mesmo quando nada mudou — útil para carimbar `ruleVersion` numa
+      // migração de regra. Sem ele, o set abaixo só acontece quando há diferença.
+      if (!forcar && ticket.operationalAttention?.ruleVersion === ATTENTION_RULE_VERSION
+          && ticket.operationalAttention?.sourceId === (atencao?.sourceId ?? null)) {
+        continue;
+      }
+
+      await doc.ref.set({
+        lastInboundAt: lastInboundAt || null,
+        lastInboundMessageId: lastInboundMessageId || null,
+        lastOutboundAt: lastOutboundAt || null,
+        operationalAttention: atencao
+          ? {
+              kind: atencao.kind,
+              dueAt: atencao.dueAt,
+              sourceId: atencao.sourceId,
+              ruleVersion: ATTENTION_RULE_VERSION,
+              legacy: ehLegado,
+              computedAt: agora,
+            }
+          : null,
+      }, { merge: true });
+      resultado.gravadas += 1;
+    }
+
+    return sendJson(res, 200, {
+      ok: true,
+      dryRun: !aplicar,
+      ...resultado,
+      proximoCursor: snap.size === limite ? ultimo : null,
+    });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
+const MORTAS_BACKFILL = new Set(['Encerrada', 'Cancelada']);
+
 async function handleReportPdf(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -796,6 +1092,8 @@ async function handleReportPdf(req, res) {
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
   if (route === 'report-pdf') return handleReportPdf(req, res);
+  if (route === 'commitments') return handleCommitments(req, res);
+  if (route === 'rebuild-attention') return handleRebuildAttention(req, res);
 
   try {
     const db = getAdminDb();
@@ -1064,7 +1362,7 @@ export default async function handler(req, res) {
         const publicMessage = String(body?.publicMessage || '').trim().slice(0, 3000);
         if (publicMessage) {
           const currentStatus = String(beforeData.status || '');
-          if (currentStatus === STATUS_CLOSED || currentStatus === STATUS_CANCELED) {
+          if (!isTicketOpen(currentStatus)) {
             return sendJson(res, 409, { ok: false, error: 'Esta OS nao aceita novas mensagens pelo link.' });
           }
 
@@ -1073,7 +1371,7 @@ export default async function handler(req, res) {
             const snap = await tx.get(trackingDoc.ref);
             const data = snap.data() || {};
             const status = String(data.status || '');
-            if (status === STATUS_CLOSED || status === STATUS_CANCELED) {
+            if (!isTicketOpen(status)) {
               return { blocked: true };
             }
             const payload = buildPublicRequesterMessagePayload(data, publicMessage);
@@ -1228,6 +1526,12 @@ export default async function handler(req, res) {
           if (!isValidStatus(updates.status)) {
             return { invalidStatus: updates.status };
           }
+          // Etapa aposentada não aceita ENTRADA nova. A tela já não oferece, mas
+          // `canTransitionStatus` libera Admin/Gestor para qualquer destino — sem esta
+          // recusa, um bundle em cache recolocaria a OS numa etapa que não existe mais.
+          if (isRetiredStatus(updates.status)) {
+            return { retiredStatus: updates.status };
+          }
           if (!canTransitionStatus(user.role, data.status, updates.status)) {
             return { invalidTransition: { from: data.status, to: updates.status } };
           }
@@ -1332,6 +1636,12 @@ export default async function handler(req, res) {
       if (txResult.forbidden) {
         return sendJson(res, 403, { ok: false, error: 'Você não tem acesso a esta OS.' });
       }
+      if (txResult.retiredStatus) {
+        return sendJson(res, 409, {
+          ok: false,
+          error: `A etapa "${txResult.retiredStatus}" saiu do fluxo: a aprovação da diretoria não existe mais.`,
+        });
+      }
       if (txResult.invalidStatus) {
         return sendJson(res, 400, { ok: false, error: `Status inválido: "${txResult.invalidStatus}".` });
       }
@@ -1361,6 +1671,18 @@ export default async function handler(req, res) {
           ...payload,
         },
       });
+
+      // A projeção depende de campos que ESTE patch escreve: suspensão, status,
+      // próxima ação e a própria correção humana. Sem recalcular aqui, suspender uma
+      // OS deixava a atenção antiga na tela até chegar um e-mail — que pode nunca vir.
+      if (
+        'attention' in updates ||
+        'attentionOverride' in updates ||
+        'nextAction' in updates ||
+        'status' in updates
+      ) {
+        await recomputeOperationalAttention(db, body.id);
+      }
 
       return sendJson(res, 200, { ok: true });
     }

@@ -41,9 +41,20 @@ import {
   extractInboundMessageBody,
   hasWaterIssueSignal,
 } from './_lib/inboundBody.js';
+import { isAttachmentPathInTicketScope } from './_lib/attachmentAccess.js';
+import { isTicketOpen } from './_lib/statusFlow.js';
 import { matchSiteCode } from './_lib/siteMatch.js';
+import { detectAuthorization } from './_lib/authorization.js';
+import { recomputeOperationalAttention } from './_lib/operationalAttention.js';
+import { detectBounce } from './_lib/bounce.js';
 import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject, isLikelyThreadReply } from './_lib/inboundSubject.js';
-import { firstEmail, parseEmailList } from './_lib/email.js';
+import {
+  filterCopyRecipients as filterCopyRecipientsPure,
+  firstEmail,
+  mergeEmailLists,
+  parseEmailList,
+} from './_lib/email.js';
+import { toDateOrNull } from './_lib/dates.js';
 import {
   claimEmailOutbox,
   EMAIL_OUTBOX_TYPES,
@@ -208,18 +219,10 @@ function normalizeResolvedTemplate(template) {
   };
 }
 
+// As caixas do próprio sistema nunca entram em cópia — sem isto, todo e-mail volta
+// para a fila de entrada e vira OS nova.
 function filterCopyRecipients(input, excluded = []) {
-  const blocked = new Set(
-    [...getSystemMailboxEmails(), ...excluded]
-      .map(value => firstEmail(value) || String(value || '').trim().toLowerCase())
-      .filter(Boolean)
-  );
-
-  return parseEmailList(input).filter(email => !blocked.has(email));
-}
-
-function mergeEmailLists(...inputs) {
-  return [...new Set(inputs.flatMap(input => parseEmailList(input)))];
+  return filterCopyRecipientsPure(input, [...getSystemMailboxEmails(), ...excluded]);
 }
 
 async function resolveEmailTemplate(db, trigger) {
@@ -470,8 +473,6 @@ async function resolveTicketIdByGmailThread(db, threadId) {
   return String(snap.docs[0].data()?.ticketId || '').trim() || null;
 }
 
-const CLOSED_TICKET_STATUSES = new Set(['Encerrada', 'Cancelada']);
-
 // Fallback para respostas que perderam o vínculo de thread (sem OS-id no assunto,
 // sem In-Reply-To/References que casem, sem gmailThreadId): casa pela dupla
 // remetente + assunto normalizado numa OS AINDA ABERTA. Sem isto, o assunto
@@ -495,10 +496,10 @@ async function resolveTicketIdByRequesterSubject(db, fromEmail, subject) {
   let best = null;
   for (const doc of snap.docs) {
     const data = doc.data() || {};
-    if (CLOSED_TICKET_STATUSES.has(String(data.status || ''))) continue;
+    if (!isTicketOpen(data.status)) continue;
     const docSubject = normalizeKey(stripReplyForwardPrefixes(String(data.subject || '')));
     if (!docSubject || docSubject !== normalizedSubject) continue;
-    const when = coerceDateValue(data.time) || coerceDateValue(data.createdAt) || new Date(0);
+    const when = toDateOrNull(data.time) || toDateOrNull(data.createdAt) || new Date(0);
     if (!best || when > best.when) best = { id: doc.id, when };
   }
   return best?.id || null;
@@ -575,6 +576,83 @@ async function appendInboundMessageToTicketHistory(db, ticketId, message) {
 
   // Atômico (dedup por id, preserva entradas concorrentes — ex.: edição no painel).
   await appendTicketHistory(db, ticketRef, [nextEntry]);
+
+  // EVENTO ESTRUTURADO. A atenção derivada não lê o histórico inteiro para descobrir
+  // "chegou mensagem e ninguém respondeu" — ela lê estes dois carimbos. Sem eles, cada
+  // cálculo teria de varrer a subcoleção de uma OS que pode ter centenas de entradas.
+  const carimbo = {};
+  if (type === 'customer') {
+    carimbo.lastInboundAt = nextEntry.time;
+    carimbo.lastInboundMessageId = nextEntry.id;
+  } else {
+    carimbo.lastOutboundAt = nextEntry.time;
+  }
+  await ticketRef.set(carimbo, { merge: true });
+
+  await registrarAutorizacao(db, ticketRef, ticketId, message, nextEntry);
+  await recomputeOperationalAttention(db, ticketId);
+}
+
+/**
+ * Lista de quem pode autorizar por e-mail. Vazia por padrão: o recurso nasce
+ * DESLIGADO e só liga quando alguém disser quem manda.
+ */
+async function lerAutorizadores(db) {
+  const snap = await db.collection('settings').doc('authorizers').collection('items').doc('default').get();
+  const lista = snap.exists ? snap.data()?.emails : null;
+  return Array.isArray(lista) ? lista : [];
+}
+
+/**
+ * Marca na OS que um superior autorizou por e-mail.
+ *
+ * REGISTRA, NÃO DECIDE — de propósito. A etapa da OS não anda sozinha:
+ *  - "ainda não está autorizado" contém a palavra, e autorização errada move dinheiro;
+ *  - "autorizado" numa thread com três orçamentos não diz QUAL;
+ *  - `From` é falsificável (o Gmail valida SPF/DKIM na entrega, mas quem manda um
+ *    e-mail não é necessariamente quem pode aprovar um gasto).
+ *
+ * Quem transforma isto em ação é a gestora, olhando a frase que a pessoa escreveu.
+ */
+async function registrarAutorizacao(db, ticketRef, ticketId, message, entradaOrigem) {
+  try {
+    const autorizadores = await lerAutorizadores(db);
+    if (autorizadores.length === 0) return;
+
+    // Lê o texto JÁ limpo de citação. Sem isso, toda resposta da thread
+    // redetectaria a mesma autorização, para sempre.
+    const detectada = detectAuthorization(
+      { from: message.from, text: entradaOrigem?.text || '' },
+      autorizadores
+    );
+    if (!detectada) return;
+
+    const quem = displayNameFromEmail(message.from) || detectada.email;
+    await appendTicketHistory(db, ticketRef, [{
+      id: `auth-${entradaOrigem.id}`,
+      type: 'system',
+      sender: 'Sistema',
+      time: message.internalDate || new Date(),
+      text: `✅ Autorização por e-mail de ${quem} (${detectada.email}): “${detectada.quote}” — confira o que foi autorizado antes de seguir.`,
+      visibility: 'internal',
+    }]);
+
+    await ticketRef.set({
+      lastAuthorization: {
+        email: detectada.email,
+        name: quem,
+        quote: detectada.quote,
+        messageId: message.messageId || null,
+        at: message.internalDate || new Date(),
+      },
+      updatedAt: new Date(),
+    }, { merge: true });
+  } catch (error) {
+    // Detecção é um EXTRA: se falhar, a mensagem já entrou na OS e o e-mail está lá
+    // para ser lido. Derrubar o inbound por causa disto seria trocar o certo pelo
+    // duvidoso.
+    console.error('[mail] Falha ao registrar autorizacao', ticketId, error);
+  }
 }
 
 function getGmailStateRef(db) {
@@ -681,34 +759,6 @@ async function authorizeGmailAutomation(req, allowedRoles = ['Admin']) {
   }
 }
 
-// Detecta um bounce/NDR (ex.: "Message blocked / rejected" do mailer-daemon do
-// Gmail) e extrai o destinatário que falhou + o motivo curto.
-function detectBounce(message) {
-  const fromRaw = String(message.from || '');
-  const fromEmail = firstEmail(message.from).toLowerCase();
-  const subject = String(message.subject || '');
-  const isDaemon = /(mailer-daemon|postmaster)@/i.test(fromEmail) || /mail delivery (subsystem|system)/i.test(fromRaw);
-  const subjectHint = /delivery status notification|undeliver|failure notice|returned mail|message blocked|delivery has failed|n[ãa]o foi entregue|mensagem rejeitada/i.test(subject);
-  if (!isDaemon && !subjectHint) return null;
-
-  const body = `${message.text || ''}\n${message.html || ''}`;
-  // Extrai TODOS os destinatários que falharam — um único NDR pode listar vários
-  // (formato DSN com múltiplos Final-Recipient). Senão avisaríamos só 1 de N.
-  const recipients = [...new Set(
-    [
-      ...[...body.matchAll(/Final-Recipient:\s*rfc822;\s*([^\s<>]+@[^\s<>]+)/gi)].map(m => m[1]),
-      ...[...body.matchAll(/(?:Your message to|sua mensagem para)\s+\*?\s*([^\s*<>]+@[^\s*<>]+)/gi)].map(m => m[1]),
-      ...[...body.matchAll(/([^\s<>]+@[^\s<>]+)\s+(?:has been blocked|was not delivered|foi bloque)/gi)].map(m => m[1]),
-    ].map(e => String(e).toLowerCase().replace(/[.,;>]+$/, '')).filter(Boolean)
-  )];
-  const reasonMatch =
-    body.match(/Message rejected[^\n]*/i) ||
-    body.match(/\b5\d\d[\s.-][^\n]{0,120}/) ||
-    body.match(/(blocked|rejected|denied|not authorized|policy|spam)[^\n]{0,120}/i);
-  const reason = reasonMatch ? reasonMatch[0].trim().replace(/\s+/g, ' ').slice(0, 200) : 'O provedor de destino rejeitou a mensagem.';
-  return { recipients, reason };
-}
-
 // Avisa na OS (histórico + notificação) quando um e-mail enviado foi
 // rejeitado/bloqueado. Resolve a OS pelo X-OS-Ticket-ID embutido no bounce
 // (header que setamos nos envios), pelo OS-xxxx do corpo, ou pela thread.
@@ -723,7 +773,11 @@ async function handleBounceNotice(db, message) {
     parseTicketId(body) ||
     (await resolveTicketIdByThreadReferences(db, message.inReplyTo, message.references));
 
-  const noteText = '⚠️ E-mail bloqueado: a resposta enviada por e-mail foi rejeitada/bloqueada pelo provedor de destino e pode não ter chegado ao destinatário.';
+  // O aviso PRECISA dizer para quem não chegou: sem o endereço, ninguém consegue
+  // agir (foi o que aconteceu com 261 bounces gravados sem destinatario). Quando o
+  // NDR não entrega o endereço, cai no texto genérico em vez de mentir.
+  const paraQuem = bounce.recipients.length ? ` para ${bounce.recipients.join(', ')}` : '';
+  const noteText = `⚠️ E-mail bloqueado: a resposta enviada por e-mail${paraQuem} foi rejeitada/bloqueada pelo provedor de destino e pode não ter chegado ao destinatário.`;
   const dedupeKey = buildInboundMessageLockId(message.messageId, body) || randomUUID().replace(/-/g, '');
   // Um único aviso por OS (por dia): vários bounces do mesmo envio — ou um NDR
   // por destinatário — colapsam num só "e-mail bloqueado", sem encher a OS/sino.
@@ -747,7 +801,7 @@ async function handleBounceNotice(db, message) {
   await db.collection('notifications').doc(`bounce-${consolidationKey}`).set({
     type: 'email-bounce',
     ticketId: ticketId || null,
-    title: ticketId ? `E-mail bloqueado — ${ticketId}` : 'E-mail bloqueado',
+    title: ticketId ? `E-mail bloqueado — ${ticketId}${paraQuem}` : `E-mail bloqueado${paraQuem}`,
     body: noteText,
     audienceRoles: ['Admin', 'Gestor'],
     read: false,
@@ -835,6 +889,40 @@ async function processGmailInboundMessage(db, msg, source) {
         messageId,
         error: 'Nenhuma OS: assunto sem [SEDE] reconhecida e sem vínculo com OS existente.',
       });
+      // ...e também numa coleção PRÓPRIA. Pescar isto de dentro de emailEvents não
+      // funciona: são 8,7 mil eventos, dominados por `sync`, e qualquer consulta com
+      // teto perde justamente as mensagens mais antigas — as que estão esquecidas há
+      // mais tempo. Aqui são poucos documentos, com TTL, e a tela lê todos.
+      const dropId = buildInboundMessageLockId(messageId, msg.subject || '') || randomUUID().replace(/-/g, '');
+      // Guarda os anexos ANTES de a OS existir. Sem isto a mensagem entra na fila
+      // mutilada, e "criar OS" a partir dela nasceria sem as fotos do problema.
+      const anexosGuardados = await uploadInboundAttachments(dropId, msg.attachments || [], 'dropped');
+      await db
+        .collection('inboundDropped')
+        .doc(dropId)
+        .set(
+          {
+            fromEmail: fromEmail || null,
+            ccEmail: msg.cc || null,
+            subject: msg.subject || '',
+            // O CORPO fica guardado. Sem ele, a fila mostraria que uma mensagem se
+            // perdeu e não daria como recuperá-la: a OS criada depois nasceria vazia,
+            // e a pessoa teria que ir caçar o e-mail no Gmail.
+            text: truncateInboundBody(extractInboundMessageBody(msg.text, msg.html) || ''),
+            messageId: messageId || null,
+            threadId: msg.threadId || null,
+            // Anexos NÃO são preservados: eles só sobem quando há uma OS de destino.
+            // Quem resolver a fila precisa saber disso.
+            attachmentCount: Array.isArray(msg.attachments) ? msg.attachments.length : 0,
+            attachments: anexosGuardados,
+            reason: 'sem-sede-e-sem-vinculo',
+            status: 'pendente',
+            receivedAt: msg.internalDate || new Date(),
+            createdAt: new Date(),
+            ttlAt: notificationTtlAt(),
+          },
+          { merge: true }
+        );
       await finalizeInboundMessageLock(lock.ref);
       return false;
     }
@@ -1169,7 +1257,16 @@ function truncateInboundBody(value) {
   return `${input.slice(0, MAX_INBOUND_BODY_CHARS)}\n\n[…mensagem truncada pelo sistema…]`;
 }
 
-async function uploadInboundAttachments(ticketId, attachments) {
+/**
+ * Sobe os anexos de um e-mail que entrou.
+ *
+ * `escopo` existe porque nem toda mensagem tem OS na hora em que chega: a que não
+ * casa com nenhuma vai para a fila de não-associados, e até hoje os anexos dela eram
+ * simplesmente PERDIDOS — avisar "2 anexos não preservados" é honesto, mas não é
+ * preservar. Guardados sob `dropped/`, eles são copiados para a OS quando alguém
+ * resolve a fila.
+ */
+async function uploadInboundAttachments(ticketId, attachments, escopo = 'inbound') {
   if (!Array.isArray(attachments) || attachments.length === 0) return [];
 
   const filtered = attachments.slice(0, MAX_ATTACHMENTS);
@@ -1192,7 +1289,10 @@ async function uploadInboundAttachments(ticketId, attachments) {
     const contentType = normalizeMimeType(attachment.mimeType);
 
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`);
-    const path = `attachments/tickets/inbound/${ticketId}/${Date.now()}-${index + 1}-${filename}`;
+    const path =
+      escopo === 'dropped'
+        ? `attachments/dropped/${ticketId}/${Date.now()}-${index + 1}-${filename}`
+        : `attachments/tickets/inbound/${ticketId}/${Date.now()}-${index + 1}-${filename}`;
     const file = bucket.file(path);
 
     await file.save(attachment.buffer, {
@@ -1216,6 +1316,36 @@ async function uploadInboundAttachments(ticketId, attachments) {
   }
 
   return results;
+}
+
+/**
+ * Move os anexos guardados na fila para dentro da OS.
+ *
+ * COPIA, não referencia: o proxy de anexos só libera caminhos em
+ * `attachments/tickets/.../<ticketId>/...` — e essa checagem existe para impedir que
+ * uma OS sirva arquivo de outra. Apontar para `dropped/` faria o anexo aparecer na
+ * tela e dar 403 no clique.
+ */
+async function copiarAnexosDaFila(dropId, ticketId, guardados) {
+  if (!Array.isArray(guardados) || guardados.length === 0) return [];
+  const bucket = getStorage().bucket();
+  const copiados = [];
+
+  for (const item of guardados) {
+    try {
+      const origem = String(item?.path || '');
+      if (!origem.startsWith('attachments/dropped/')) continue;
+      const nome = origem.split('/').pop();
+      const destino = `attachments/tickets/inbound/${ticketId}/${nome}`;
+      await bucket.file(origem).copy(bucket.file(destino));
+      copiados.push({ ...item, id: randomUUID(), path: destino, url: '' });
+    } catch (error) {
+      // Um anexo que falha não pode impedir a OS de nascer: o e-mail original
+      // continua no Gmail, e perder a OS inteira seria pior.
+      console.error('[fila] falha ao copiar anexo', dropId, item?.path, error);
+    }
+  }
+  return copiados;
 }
 
 async function createTicketFromInbound(db, message) {
@@ -1284,11 +1414,18 @@ async function createTicketFromInbound(db, message) {
   // e set() a sobrescreveria em silêncio. create() falha alto em vez de destruir dados.
   await db.collection('tickets').doc(ticketId).create({
     ...ticket,
+    // A OS NASCE de uma mensagem de gente — 234 das 270 vieram assim. Sem este
+    // carimbo ela nascia sem projeção nenhuma e só ganharia atenção no SEGUNDO
+    // e-mail. Era o buraco mais caro da matriz: o caminho mais comum do sistema.
+    lastInboundAt: now,
+    lastInboundMessageId: `inbound-${ticketId}`,
     createdAt: now,
     updatedAt: now,
   });
   await copyTicketHistoryToSubcollection(db, db.collection('tickets').doc(ticketId), ticket.history)
     .catch(error => console.error('[mail] falha ao espelhar histórico inicial', { ticketId, error }));
+
+  await recomputeOperationalAttention(db, ticketId);
 
   // Não bloqueia a criação da OS, mas registra: uma falha TOTAL do enfileiramento
   // (ex.: leitura do diretório de usuários indisponível) deixaria os gestores sem
@@ -1878,6 +2015,14 @@ async function handleSend(req, res) {
       messageId,
     });
 
+    // Respondemos: o carimbo de saída fecha a atenção "revisar mensagem" que a
+    // mensagem de entrada tinha aberto. É o par que faz a fila esvaziar sozinha em
+    // vez de exigir que alguém clique "feito".
+    if (ticketId) {
+      await db.collection('tickets').doc(ticketId).set({ lastOutboundAt: now }, { merge: true });
+      await recomputeOperationalAttention(db, ticketId);
+    }
+
     return sendJson(res, 200, {
       ok: true,
       ticketId,
@@ -1906,6 +2051,199 @@ async function handleSend(req, res) {
   }
 }
 
+/**
+ * FILA DE MENSAGENS NÃO ASSOCIADAS — entrar e sumir deixou de ser opção.
+ *
+ * Vinte e três e-mails entraram e viraram nada: todos `Re:` de conversas reais
+ * (goteiras, telas de portão), a mesma thread voltando semana após semana enquanto
+ * as pessoas achavam que tinham avisado. O sistema pode classificar errado; não pode
+ * silenciar entrada.
+ *
+ * GET  -> o que esta pendente
+ * POST -> resolve: `vincular` (anexa a uma OS existente) ou `descartar`
+ *
+ * Criar OS a partir daqui NÃO passa por esta rota: reusa o POST de tickets, que já
+ * sabe montar OS com sede, histórico e e-mail de confirmação. Duplicar isso aqui
+ * criaria um segundo jeito de nascer OS — e o primeiro já é complicado o bastante.
+ */
+async function handleDroppedInbound(req, res) {
+  try {
+    const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
+    const db = getAdminDb();
+    const col = db.collection('inboundDropped');
+
+    if (req.method === 'GET') {
+      // Mensagem AINDA não associada não tem OS, logo não tem território — e por isso
+      // ela é visível para quem tria. O que NÃO pode é ela sobreviver resolvida: o
+      // Gestor vê o que chegou na caixa da operação, o mesmo universo que já recebe
+      // por e-mail — mas o que ja foi resolvido sai da lista.
+      const snap = await col.orderBy('createdAt', 'desc').limit(60).get();
+      const items = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(item => item.status !== 'resolvido')
+        .map(item => ({
+          id: item.id,
+          fromEmail: item.fromEmail || null,
+          subject: item.subject || '',
+          text: String(item.text || '').slice(0, 4000),
+          attachmentCount: Number(item.attachmentCount || 0),
+          receivedAt: toDateOrNull(item.receivedAt || item.createdAt)?.toISOString() || null,
+          createdAt: toDateOrNull(item.createdAt)?.toISOString() || null,
+        }));
+      return sendJson(res, 200, { ok: true, items });
+    }
+
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'GET, POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+
+    const body = await readJsonBody(req);
+    const id = String(body?.id || '').trim();
+    const acao = String(body?.action || '').trim();
+    if (!id) return sendJson(res, 400, { ok: false, error: 'id é obrigatório.' });
+
+    const ref = col.doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return sendJson(res, 404, { ok: false, error: 'Mensagem não encontrada na fila.' });
+    const item = snap.data() || {};
+    if (item.status === 'resolvido') {
+      return sendJson(res, 409, { ok: false, error: 'Esta mensagem já foi resolvida.' });
+    }
+
+    if (acao === 'descartar') {
+      await ref.set({
+        status: 'resolvido',
+        resolution: 'descartada',
+        resolvedBy: user?.email || null,
+        resolvedAt: new Date(),
+      }, { merge: true });
+      return sendJson(res, 200, { ok: true });
+    }
+
+    if (acao === 'criar') {
+      const sede = String(body?.sede || '').trim();
+      if (!sede) return sendJson(res, 400, { ok: false, error: 'Escolha a sede da nova OS.' });
+
+      // REUSA o fluxo que já sabe nascer OS de e-mail: número, token, anexos, cópia,
+      // detecção de água, histórico e e-mail de confirmação. O que faltava na
+      // mensagem era exatamente a sede — então ela entra no assunto, no formato que
+      // o parser já entende, e o resto do caminho é o mesmo de sempre.
+      //
+      // Segundo botão não pode virar segundo jeito de nascer OS.
+      const criada = await createTicketFromInbound(db, {
+        subject: `[${sede}] ${String(item.subject || '').replace(/^\s*re:\s*/i, '').trim()}`,
+        from: item.fromEmail || '',
+        cc: item.ccEmail || '',
+        text: String(item.text || ''),
+        html: '',
+        attachments: [],
+        internalDate: toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date(),
+        messageId: item.messageId || null,
+      });
+
+      if (!criada?.id) {
+        return sendJson(res, 400, { ok: false, error: `Sede "${sede}" não existe no catálogo.` });
+      }
+
+      const anexos = await copiarAnexosDaFila(id, criada.id, item.attachments);
+      if (anexos.length > 0) {
+        await db.collection('tickets').doc(criada.id).set({ attachments: anexos }, { merge: true });
+      }
+
+      await ref.set({
+        status: 'resolvido',
+        resolution: 'virou-os',
+        resolvedTicketId: criada.id,
+        resolvedBy: user?.email || null,
+        resolvedAt: new Date(),
+      }, { merge: true });
+
+      await recomputeOperationalAttention(db, criada.id);
+      return sendJson(res, 201, { ok: true, ticketId: criada.id });
+    }
+
+    if (acao !== 'vincular') {
+      return sendJson(res, 400, { ok: false, error: 'action deve ser "vincular", "criar" ou "descartar".' });
+    }
+
+    const ticketId = String(body?.ticketId || '').trim();
+    if (!ticketId) return sendJson(res, 400, { ok: false, error: 'ticketId é obrigatório para vincular.' });
+
+    const ticketRef = db.collection('tickets').doc(ticketId);
+    const ticketSnap = await ticketRef.get();
+    if (!ticketSnap.exists) return sendJson(res, 404, { ok: false, error: 'OS não encontrada.' });
+
+    // Mesmo escopo territorial do resto do sistema: ninguém anexa mensagem a uma OS
+    // que não consegue abrir.
+    const territory = user.role === 'Admin' ? { regions: [], sites: [] } : await readTerritoryCatalog(db);
+    if (!canUserAccessTicket(user, { id: ticketSnap.id, ...ticketSnap.data() }, territory.regions, territory.sites)) {
+      return sendJson(res, 403, { ok: false, error: 'Sem acesso a esta OS.' });
+    }
+
+    const quem = displayNameFromEmail(item.fromEmail) || item.fromEmail || 'Remetente desconhecido';
+    const corpo = String(item.text || '').trim() || 'Mensagem recebida por e-mail.';
+    // O aviso só vale para mensagem que entrou ANTES de a fila guardar anexos.
+    const guardou = Array.isArray(item.attachments) && item.attachments.length > 0;
+    const aviso = !guardou && Number(item.attachmentCount || 0) > 0
+      ? `\n\n(Esta mensagem tinha ${item.attachmentCount} anexo(s) que não foram preservados — abra o e-mail original.)`
+      : '';
+
+    const anexosDaFila = await copiarAnexosDaFila(id, ticketId, item.attachments);
+    await appendTicketHistory(db, ticketRef, [{
+      id: `dropped-${id}`,
+      type: 'customer',
+      sender: quem,
+      time: toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date(),
+      text: `${corpo}${aviso}`,
+      visibility: 'internal',
+      ...(anexosDaFila.length > 0 ? { attachments: anexosDaFila } : {}),
+    }, {
+      id: `dropped-sys-${id}`,
+      type: 'system',
+      sender: 'Sistema',
+      time: new Date(),
+      text: `Mensagem que havia entrado sem vínculo foi anexada a esta OS por ${user?.name || user?.email || 'painel'}. Assunto original: "${String(item.subject || '').slice(0, 120)}".`,
+      visibility: 'internal',
+    }]);
+
+    // O carimbo só ANDA PARA A FRENTE. Vincular hoje um e-mail de junho não pode
+    // apagar uma conversa de ontem — a atenção voltaria a apontar para a mensagem
+    // errada e a OS pareceria sem resposta quando já foi respondida.
+    const chegadaDaFila = toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date();
+    const inboundAtual = toDateOrNull(ticketSnap.data()?.lastInboundAt);
+    if (!inboundAtual || chegadaDaFila.getTime() > inboundAtual.getTime()) {
+      await ticketRef.set({
+        lastInboundAt: chegadaDaFila,
+        lastInboundMessageId: `dropped-${id}`,
+      }, { merge: true });
+    }
+    await recomputeOperationalAttention(db, ticketId);
+
+    await ref.set({
+      status: 'resolvido',
+      resolution: 'vinculada',
+      resolvedTicketId: ticketId,
+      resolvedBy: user?.email || null,
+      resolvedAt: new Date(),
+    }, { merge: true });
+
+    await logEmailEvent({
+      type: 'inbound',
+      status: 'success',
+      provider: 'gmail',
+      ticketId,
+      fromEmail: item.fromEmail || null,
+      subject: item.subject || '',
+      messageId: item.messageId || null,
+    });
+
+    return sendJson(res, 200, { ok: true, ticketId });
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 async function handleHealth(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -1930,6 +2268,28 @@ async function handleHealth(req, res) {
         .limit(500)
         .get(),
     ]);
+
+    // E-MAIL QUE ENTROU E NÃO VIROU NADA.
+    //
+    // Resposta de uma conversa que nunca virou OS: sem [SEDE] no assunto e sem
+    // vínculo com OS existente, o sistema recusa criar (certo) e apenas registrava
+    // `skipped` — que esta tela não mostrava, porque só lista `error`. Foram 23
+    // mensagens sumindo em silêncio, a mesma conversa voltando semana após semana,
+    // com as pessoas achando que tinham avisado.
+    const droppedSnap = await db
+      .collection('inboundDropped')
+      .orderBy('createdAt', 'desc')
+      .limit(30)
+      .get();
+    const droppedInbound = droppedSnap.docs.map(doc => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        createdAt: data.createdAt,
+        fromEmail: data.fromEmail || null,
+        subject: data.subject || '',
+      };
+    });
 
     const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const total = events.length;
@@ -1979,6 +2339,7 @@ async function handleHealth(req, res) {
         sync,
         byProvider,
       },
+      droppedInbound,
       outbox,
       recentErrors: events
         .filter(event => event.status === 'error')
@@ -2116,14 +2477,6 @@ async function handleGmailSync(req, res) {
   }
 }
 
-function coerceDateValue(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 async function reprocessInboundWindow(db, sinceDate) {
   const counters = {
     scanned: 0,
@@ -2177,7 +2530,7 @@ async function reprocessInboundWindow(db, sinceDate) {
       }
 
       const threadRef = db.collection('emailThreads').doc(ticketId);
-      const createdAt = coerceDateValue(inbound.createdAt) || new Date();
+      const createdAt = toDateOrNull(inbound.createdAt) || new Date();
       await threadRef.set(
         {
           ticketId,
@@ -2312,12 +2665,6 @@ async function handleReprocessInbound(req, res) {
 // Sem esta checagem, `path` livre baixaria qualquer objeto do bucket (contratos de
 // outra sede) e o antigo fallback `fetch(url)` permitia SSRF — ambos disparáveis
 // antes mesmo da autenticação. O fallback por URL foi removido de propósito.
-function isAttachmentPathInTicketScope(path, ticketId) {
-  if (!path || !ticketId) return false;
-  const parts = path.split('/');
-  return parts.length > 4 && parts[0] === 'attachments' && parts[1] === 'tickets' && parts[3] === ticketId;
-}
-
 async function resolveOutboundAttachments(attachments, ticketId) {
   if (!Array.isArray(attachments) || attachments.length === 0) return [];
 
@@ -2522,6 +2869,7 @@ export default async function handler(req, res) {
 
   if (route === 'send') return handleSend(req, res);
   if (route === 'health') return handleHealth(req, res);
+  if (route === 'dropped-inbound') return handleDroppedInbound(req, res);
   if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
