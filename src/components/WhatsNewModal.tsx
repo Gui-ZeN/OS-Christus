@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import { CURRENT_RELEASE } from '../constants/releaseNotes';
 import { ModalShell } from './ui/ModalShell';
 
@@ -26,6 +27,18 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
         </div>
       }
     >
+      {CURRENT_RELEASE.highlight && (
+        <div className="mb-5 rounded-xl border-l-4 border-l-roman-primary border border-roman-primary/30 bg-roman-primary/8 px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-roman-text-main">
+            <AlertTriangle size={16} className="shrink-0 text-roman-primary" />
+            {CURRENT_RELEASE.highlight.title}
+          </p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-roman-text-main">
+            {CURRENT_RELEASE.highlight.body}
+          </p>
+        </div>
+      )}
+
       <ul className="space-y-4">
         {CURRENT_RELEASE.items.map(item => (
           <li key={item.title} className="flex items-start gap-3">
