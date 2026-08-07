@@ -37,6 +37,12 @@ export const ALLOWED_TICKET_PATCH_FIELDS = new Set([
   'macroServiceId', 'macroServiceName', 'serviceCatalogId', 'serviceCatalogName',
   'directorIds', 'directorEmails', 'directorCcEmails', 'requesterCcEmails',
   'attachments', 'history', 'viewingBy',
+  // Agenda operacional (versao nova). Campo fora desta lista e DESCARTADO EM
+  // SILENCIO: a tela mostraria sucesso e o dado sumiria no reload.
+  // `attentionOverride` é a correção humana sobre a atenção PROPOSTA pelo sistema.
+  // `operationalAttention` fica FORA de propósito: é projeção do servidor, e deixar o
+  // cliente gravá-la abriria caminho para uma tela dizer que a OS não precisa de nada.
+  'nextAction', 'attention', 'attentionOverride',
   'preliminaryActions', 'closureChecklist', 'executionProgress', 'guarantee',
   ...TERRITORY_PATCH_FIELDS,
 ]);

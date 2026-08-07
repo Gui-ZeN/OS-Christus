@@ -2,6 +2,7 @@
 import {
   BarChart2,
   AlertTriangle,
+  CalendarCheck,
   DollarSign,
   FileText,
   Home,
@@ -13,7 +14,6 @@ import {
   RefreshCw,
   ScrollText,
   Settings,
-  Shield,
   Table,
   X,
 } from 'lucide-react';
@@ -66,11 +66,11 @@ function lazyWithAutoRecovery<T extends ComponentType<any>>(loader: () => Promis
 const KpiView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/KpiView')).KpiView }));
 const SettingsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
 const TrackingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
-const ApprovalsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/ApprovalsView')).ApprovalsView }));
 const FinanceView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
 const HomeView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/HomeView')).HomeView }));
 const InboxView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/InboxView')).InboxView }));
 const OsBoardView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/OsBoardView')).OsBoardView }));
+const TodayView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/TodayView')).TodayView }));
 const SplitLoginView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
 const PasswordResetView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PasswordResetView')).PasswordResetView }));
 const LandingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/LandingView')).LandingView }));
@@ -84,13 +84,13 @@ export const VIEWS = {
   PASSWORD_RESET: 'password-reset',
   PUBLIC_FORM: 'public-form',
   HOME: 'home',
+  TODAY: 'today',
   INBOX: 'inbox',
   OS_BOARD: 'os-board',
   USERS: 'users',
   KPI: 'kpi',
   SETTINGS: 'settings',
   TRACKING: 'tracking',
-  APPROVALS: 'approvals',
   FINANCE: 'finance',
   EMAIL_HEALTH: 'email-health',
   AUDIT_LOGS: 'audit-logs',
@@ -202,7 +202,9 @@ export default function App() {
   const isRequesterRole = currentRole === 'Usuario';
   const canAccessInbox = !isRequesterRole;
   const canAccessOsBoard = currentRole === 'Admin' || currentRole === 'Gestor';
-  const canAccessApprovals = currentRole === 'Admin' || currentRole === 'Diretor';
+  // A tela nova roda em produção com dado real, mas só o Admin vê enquanto a
+  // migração não termina.
+  const canAccessToday = currentRole === 'Admin';
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Gestor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessAudit = currentRole === 'Admin';
@@ -227,7 +229,7 @@ export default function App() {
       new Set<ViewState>(
         [
           !canAccessInbox ? VIEWS.INBOX : null,
-          !canAccessApprovals ? VIEWS.APPROVALS : null,
+          !canAccessToday ? VIEWS.TODAY : null,
           !canAccessFinance ? VIEWS.FINANCE : null,
           !canAccessEmailHealth ? VIEWS.EMAIL_HEALTH : null,
           !canAccessAudit ? VIEWS.AUDIT_LOGS : null,
@@ -235,7 +237,7 @@ export default function App() {
           !canAccessSettings ? VIEWS.SETTINGS : null,
         ].filter(Boolean) as ViewState[]
       ),
-    [canAccessInbox, canAccessApprovals, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessKpi, canAccessSettings]
+    [canAccessInbox, canAccessToday, canAccessFinance, canAccessEmailHealth, canAccessAudit, canAccessKpi, canAccessSettings]
   );
   const initials =
     (currentUser?.name || currentUserEmail || 'RG')
@@ -356,7 +358,6 @@ export default function App() {
   }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, restrictedViews]);
 
   useEffect(() => {
-    if (currentView === VIEWS.APPROVALS) return;
     const reviewerName = currentUser?.name?.trim();
     if (!reviewerName) return;
     const reviewerKey = reviewerName.toLocaleLowerCase('pt-BR');
@@ -392,11 +393,11 @@ export default function App() {
     if (currentUser && currentView === VIEWS.LOGIN) {
       const params = new URLSearchParams(window.location.search);
       const redirectView = params.get('redirectView') || params.get('view');
-      if (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
+      if (redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
         const requestedTicketId = params.get('ticketId');
         if (
           requestedTicketId &&
-          (redirectView === VIEWS.APPROVALS || redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX)
+          (redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX)
         ) {
           setActiveTicketId(requestedTicketId);
         }
@@ -477,11 +478,11 @@ export default function App() {
         </div>
         <nav className="flex flex-col gap-1.5 w-full px-1.5">
           <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Início" />
+          {canAccessToday && <SidebarIcon icon={<CalendarCheck size={20} />} active={currentView === VIEWS.TODAY} onClick={() => navigateTo(VIEWS.TODAY)} title="Hoje (prévia)" />}
           {canAccessInbox && (
             <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           )}
           {canAccessOsBoard && <SidebarIcon icon={<Table size={20} />} active={currentView === VIEWS.OS_BOARD} onClick={() => navigateTo(VIEWS.OS_BOARD)} title="Gestão de OS" />}
-          {canAccessApprovals && <SidebarIcon icon={<Shield size={20} />} active={currentView === VIEWS.APPROVALS} onClick={() => navigateTo(VIEWS.APPROVALS)} title="Painel da Diretoria" />}
           {canAccessFinance && <SidebarIcon icon={<DollarSign size={20} />} active={currentView === VIEWS.FINANCE} onClick={() => navigateTo(VIEWS.FINANCE)} title="Financeiro" />}
           {canAccessAudit && <SidebarIcon icon={<ScrollText size={20} />} active={currentView === VIEWS.AUDIT_LOGS} onClick={() => navigateTo(VIEWS.AUDIT_LOGS)} title="Auditoria" />}
           {canAccessKpi && <SidebarIcon icon={<BarChart2 size={20} />} active={currentView === VIEWS.KPI} onClick={() => navigateTo(VIEWS.KPI)} title="Indicadores" />}
@@ -559,9 +560,9 @@ export default function App() {
         <ErrorBoundary resetKey={currentView}>
           <Suspense fallback={<ViewLoader />}>
             {currentView === VIEWS.HOME && <HomeView />}
+            {currentView === VIEWS.TODAY && canAccessToday && <TodayView />}
             {currentView === VIEWS.INBOX && canAccessInbox && <InboxView />}
             {currentView === VIEWS.OS_BOARD && canAccessOsBoard && <OsBoardView />}
-            {currentView === VIEWS.APPROVALS && canAccessApprovals && <ApprovalsView />}
             {currentView === VIEWS.FINANCE && canAccessFinance && <FinanceView />}
             {currentView === VIEWS.EMAIL_HEALTH && canAccessEmailHealth && <EmailHealthView />}
             {currentView === VIEWS.AUDIT_LOGS && canAccessAudit && <AuditLogsView />}

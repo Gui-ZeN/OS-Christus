@@ -7,6 +7,10 @@ function isIsoDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
 }
 
+// ATENÇÃO: contrato DIFERENTE do toDateOrNull de dates.js, de propósito. Aqui o que
+// não é data reconhecível volta INTACTO, porque esta função normaliza o documento
+// inteiro da OS antes de gravar: transformar um campo desconhecido em null apagaria
+// dado. Não unifique com dates.js sem olhar cada chamador.
 function toDate(value) {
   if (!value) return value;
   if (value instanceof Date) return value;
@@ -77,6 +81,37 @@ export function normalizeTicketForStorage(ticket) {
         : undefined,
     }));
   }
+  if (next.nextAction) {
+    // Agenda operacional: sem isto, `dueAt` ficaria gravado como STRING ISO enquanto
+    // todo o resto do banco usa Timestamp — e qualquer ordenacao/where futuro sobre
+    // a data compararia texto com data.
+    next.nextAction = {
+      ...next.nextAction,
+      dueAt: toDate(next.nextAction.dueAt) || null,
+      createdAt: toDate(next.nextAction.createdAt) || null,
+    };
+  }
+  if (next.operationalAttention) {
+    next.operationalAttention = {
+      ...next.operationalAttention,
+      dueAt: toDate(next.operationalAttention.dueAt) || null,
+      computedAt: toDate(next.operationalAttention.computedAt) || null,
+    };
+  }
+  if (next.attentionOverride) {
+    next.attentionOverride = {
+      ...next.attentionOverride,
+      dueAt: toDate(next.attentionOverride.dueAt) || null,
+      changedAt: toDate(next.attentionOverride.changedAt) || null,
+    };
+  }
+  if (next.attention) {
+    next.attention = {
+      ...next.attention,
+      reviewAt: toDate(next.attention.reviewAt) || null,
+      setAt: toDate(next.attention.setAt) || null,
+    };
+  }
   if (next.preliminaryActions) {
     next.preliminaryActions = {
       ...next.preliminaryActions,
@@ -146,6 +181,42 @@ export function serializeTicketForApi(ticket) {
     ...ticket,
     time: serializeDate(ticket.time),
     updatedAt: serializeDate(ticket.updatedAt),
+    // Agenda operacional: `dueAt` e a data que ORDENA a tela inteira. Sem serializar
+    // aqui, chegaria como Timestamp do Firestore e o front nao conseguiria comparar.
+    nextAction: ticket.nextAction
+      ? {
+          ...ticket.nextAction,
+          dueAt: serializeDate(ticket.nextAction.dueAt),
+          createdAt: serializeDate(ticket.nextAction.createdAt),
+        }
+      : null,
+    // A suspensão só vale até `reviewAt`: se chegasse como Timestamp, o front
+    // compararia objeto com data e a suspensão nunca venceria.
+    attention: ticket.attention
+      ? {
+          ...ticket.attention,
+          reviewAt: serializeDate(ticket.attention.reviewAt),
+          setAt: serializeDate(ticket.attention.setAt),
+        }
+      : null,
+    // Projeção do servidor: o front só apresenta. Se cada tela derivasse por conta
+    // própria, duas telas discordariam sobre a mesma OS.
+    operationalAttention: ticket.operationalAttention
+      ? {
+          ...ticket.operationalAttention,
+          dueAt: serializeDate(ticket.operationalAttention.dueAt),
+          computedAt: serializeDate(ticket.operationalAttention.computedAt),
+        }
+      : null,
+    attentionOverride: ticket.attentionOverride
+      ? {
+          ...ticket.attentionOverride,
+          dueAt: serializeDate(ticket.attentionOverride.dueAt),
+          changedAt: serializeDate(ticket.attentionOverride.changedAt),
+        }
+      : null,
+    lastInboundAt: serializeDate(ticket.lastInboundAt),
+    lastOutboundAt: serializeDate(ticket.lastOutboundAt),
     viewingBy: ticket.viewingBy
       ? { ...ticket.viewingBy, at: serializeDate(ticket.viewingBy.at) }
       : null,

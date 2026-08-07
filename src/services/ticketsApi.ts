@@ -4,8 +4,38 @@ import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, His
 import { coerceDate } from '../utils/date';
 import { repairMojibake } from '../utils/text';
 
-type ApiTicket = Omit<Ticket, 'time' | 'history' | 'viewingBy'> & {
+type ApiTicket = Omit<
+  Ticket,
+  | 'time'
+  | 'history'
+  | 'viewingBy'
+  | 'nextAction'
+  | 'attention'
+  | 'operationalAttention'
+  | 'attentionOverride'
+  | 'lastInboundAt'
+  | 'lastOutboundAt'
+> & {
   time: string;
+  /** Agenda operacional: datas chegam em ISO e são hidratadas em `hydrateTicket`. */
+  nextAction?: (Omit<NonNullable<Ticket['nextAction']>, 'dueAt' | 'createdAt'> & {
+    dueAt: string;
+    createdAt?: string;
+  }) | null;
+  attention?: (Omit<NonNullable<Ticket['attention']>, 'reviewAt' | 'setAt'> & {
+    reviewAt: string;
+    setAt?: string;
+  }) | null;
+  operationalAttention?: (Omit<NonNullable<Ticket['operationalAttention']>, 'dueAt' | 'computedAt'> & {
+    dueAt: string;
+    computedAt?: string | null;
+  }) | null;
+  attentionOverride?: (Omit<NonNullable<Ticket['attentionOverride']>, 'dueAt' | 'changedAt'> & {
+    dueAt?: string | null;
+    changedAt?: string | null;
+  }) | null;
+  lastInboundAt?: string | null;
+  lastOutboundAt?: string | null;
   viewingBy?: { name: string; at: string } | null;
   history: Array<Omit<Ticket['history'][number], 'time'> & { time: string }>;
   preliminaryActions?: Omit<PreliminaryActions, 'materialEta' | 'plannedStartAt' | 'actualStartAt' | 'updatedAt'> & {
@@ -109,6 +139,46 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     location: repairMojibake(ticket.location || ''),
     priority: repairMojibake(ticket.priority),
     time: coerceDate(ticket.time),
+    // `dueAt` ordena a agenda inteira: se chegar como string, toda comparação de
+    // data vira comparação de texto e a tela ordena errado sem avisar.
+    nextAction: ticket.nextAction
+      ? {
+          ...ticket.nextAction,
+          dueAt: coerceDate(ticket.nextAction.dueAt),
+          createdAt: ticket.nextAction.createdAt ? coerceDate(ticket.nextAction.createdAt) : undefined,
+        }
+      : null,
+    // Sem hidratar `reviewAt`, a comparação "a suspensão já venceu?" viraria
+    // comparação de texto e a OS ficaria suspensa para sempre.
+    attention: ticket.attention
+      ? {
+          ...ticket.attention,
+          reviewAt: coerceDate(ticket.attention.reviewAt),
+          setAt: ticket.attention.setAt ? coerceDate(ticket.attention.setAt) : undefined,
+        }
+      : null,
+    // Sem hidratar `dueAt`, a agenda ordenaria texto em vez de data — e a tela
+    // colocaria "vence hoje" depois de "vence em setembro".
+    operationalAttention: ticket.operationalAttention
+      ? {
+          ...ticket.operationalAttention,
+          dueAt: coerceDate(ticket.operationalAttention.dueAt),
+          computedAt: ticket.operationalAttention.computedAt
+            ? coerceDate(ticket.operationalAttention.computedAt)
+            : null,
+        }
+      : null,
+    attentionOverride: ticket.attentionOverride
+      ? {
+          ...ticket.attentionOverride,
+          dueAt: ticket.attentionOverride.dueAt ? coerceDate(ticket.attentionOverride.dueAt) : null,
+          changedAt: ticket.attentionOverride.changedAt
+            ? coerceDate(ticket.attentionOverride.changedAt)
+            : null,
+        }
+      : null,
+    lastInboundAt: ticket.lastInboundAt ? coerceDate(ticket.lastInboundAt) : null,
+    lastOutboundAt: ticket.lastOutboundAt ? coerceDate(ticket.lastOutboundAt) : null,
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
     history: ticket.history.map(item => ({
       ...item,
@@ -243,11 +313,6 @@ export async function fetchTrackingDetailsFromApi(trackingToken: string): Promis
         : [],
     },
   };
-}
-
-export async function fetchTrackingTicketFromApi(trackingToken: string): Promise<Ticket> {
-  const payload = await fetchTrackingDetailsFromApi(trackingToken);
-  return payload.ticket;
 }
 
 export interface TicketHistoryPage {

@@ -178,3 +178,89 @@ describe('serializeTicketForApi', () => {
     expect(out.attachments[0].url).toBe('');
   });
 });
+
+describe('nextAction — a ida e a volta da agenda operacional', () => {
+  it('grava `dueAt` como Date, nunca como string ISO', () => {
+    // O resto do banco usa Timestamp; string aqui faria qualquer ordenacao futura
+    // comparar texto com data.
+    const out = normalizeTicketForStorage({
+      id: 'OS-1',
+      time: '2026-08-05T12:00:00.000Z',
+      nextAction: { what: 'Cobrar a proposta', dueAt: '2026-08-06T12:00:00.000Z' },
+    });
+    expect(out.nextAction.dueAt).toBeInstanceOf(Date);
+    expect(out.nextAction.what).toBe('Cobrar a proposta');
+  });
+
+  it('devolve `dueAt` serializado — o front compara datas, nao Timestamps', () => {
+    const out = serializeTicketForApi({
+      id: 'OS-1',
+      time: new Date('2026-08-05T12:00:00.000Z'),
+      nextAction: { what: 'Cobrar', dueAt: new Date('2026-08-06T12:00:00.000Z') },
+    });
+    expect(out.nextAction.dueAt).toBe('2026-08-06T12:00:00.000Z');
+  });
+
+  it('OS sem proxima acao volta como null, e nao quebra', () => {
+    expect(serializeTicketForApi({ id: 'OS-1', time: new Date() }).nextAction).toBeNull();
+  });
+});
+
+describe('suspensão — a ida e a volta', () => {
+  it('grava `reviewAt` como Date', () => {
+    const out = normalizeTicketForStorage({
+      id: 'OS-1',
+      time: new Date('2026-08-05T12:00:00.000Z'),
+      attention: { state: 'suspensa', reason: 'aguardando-material', reviewAt: '2026-08-12T12:00:00.000Z' },
+    });
+    expect(out.attention.reviewAt).toBeInstanceOf(Date);
+  });
+
+  it('devolve `reviewAt` serializado — senão a suspensão nunca venceria no front', () => {
+    const out = serializeTicketForApi({
+      id: 'OS-1',
+      time: new Date('2026-08-05T12:00:00.000Z'),
+      attention: { state: 'suspensa', reason: 'sem-verba', reviewAt: new Date('2026-08-12T12:00:00.000Z') },
+    });
+    expect(out.attention.reviewAt).toBe('2026-08-12T12:00:00.000Z');
+  });
+
+  it('OS sem suspensão volta como null', () => {
+    expect(serializeTicketForApi({ id: 'OS-1', time: new Date() }).attention).toBeNull();
+  });
+});
+
+describe('atenção operacional — a projeção do servidor na ida e na volta', () => {
+  it('grava `dueAt` como Date', () => {
+    const out = normalizeTicketForStorage({
+      id: 'OS-1',
+      time: new Date('2026-08-05T12:00:00.000Z'),
+      operationalAttention: {
+        kind: 'revisar-mensagem',
+        dueAt: '2026-08-06T12:00:00.000Z',
+        sourceId: 'msg-9',
+      },
+    });
+    expect(out.operationalAttention.dueAt).toBeInstanceOf(Date);
+  });
+
+  it('devolve serializado, senão o front compararia texto com data', () => {
+    const out = serializeTicketForApi({
+      id: 'OS-1',
+      time: new Date('2026-08-05T12:00:00.000Z'),
+      operationalAttention: {
+        kind: 'revisar-mensagem',
+        dueAt: new Date('2026-08-06T12:00:00.000Z'),
+        sourceId: 'msg-9',
+      },
+    });
+    expect(out.operationalAttention.dueAt).toBe('2026-08-06T12:00:00.000Z');
+  });
+
+  it('OS sem atenção volta como null, junto dos carimbos de conversa', () => {
+    const out = serializeTicketForApi({ id: 'OS-1', time: new Date() });
+    expect(out.operationalAttention).toBeNull();
+    expect(out.attentionOverride).toBeNull();
+    expect(out.lastInboundAt).toBeNull();
+  });
+});
