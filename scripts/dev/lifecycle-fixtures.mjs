@@ -1,8 +1,13 @@
+/**
+ * Fixtures do E2E de ciclo crítico.
+ *
+ * Sobrou o PAGAMENTO. As três OS de aprovação (solução, orçamento, contrato) saíram
+ * junto com a etapa da diretoria: semear OS num estado que o sistema recusa criar
+ * seria testar contra um mundo que não existe — e um dia alguém leria a fixture como
+ * documentação do fluxo.
+ */
 const LIFECYCLE_TICKET_IDS = {
-  solution: 'OS-E2E-SOLUTION',
-  budget: 'OS-E2E-BUDGET',
   payment: 'OS-E2E-PAYMENT',
-  contract: 'OS-E2E-CONTRACT',
 };
 
 const TICKET_SUBCOLLECTIONS = [
@@ -102,41 +107,9 @@ export async function seedLifecycleFixtures(
     Object.values(LIFECYCLE_TICKET_IDS).map(ticketId => clearTicketFixture(db, ticketId))
   );
 
-  const solutionRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.solution);
-  const budgetRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.budget);
   const paymentRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.payment);
-  const contractRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.contract);
 
   await Promise.all([
-    solutionRef.set(createTicket({
-      id: LIFECYCLE_TICKET_IDS.solution,
-      status: 'Aguardando Aprovação da Solução',
-      subject: 'Fixture E2E - aprovação da solução técnica',
-      directorEmail,
-      now,
-      history: [{
-        id: 'history-e2e-technical-opinion',
-        type: 'tech',
-        sender: 'Gestor E2E',
-        time: now,
-        text: 'Parecer técnico E2E: executar a correção proposta.',
-        visibility: 'internal',
-      }],
-    })),
-    budgetRef.set(createTicket({
-      id: LIFECYCLE_TICKET_IDS.budget,
-      status: 'Aguardando Aprovação do Orçamento',
-      subject: 'Fixture E2E - escolha de orçamento',
-      directorEmail,
-      now,
-    })),
-    contractRef.set(createTicket({
-      id: LIFECYCLE_TICKET_IDS.contract,
-      status: 'Aguardando aprovação do contrato',
-      subject: 'Fixture E2E - aprovação/reprovação de contrato',
-      directorEmail,
-      now,
-    })),
     paymentRef.set(createTicket({
       id: LIFECYCLE_TICKET_IDS.payment,
       status: 'Aguardando pagamento',
@@ -163,58 +136,7 @@ export async function seedLifecycleFixtures(
     })),
   ]);
 
-  const quoteBase = {
-    ticketId: LIFECYCLE_TICKET_IDS.budget,
-    category: 'initial',
-    initialRoundIndex: 1,
-    additiveIndex: null,
-    status: 'pending',
-    recommended: false,
-    materialValue: 'R$ 600,00',
-    laborValue: 'R$ 400,00',
-    items: [],
-    submittedBy: {
-      id: 'user-gestor-e2e',
-      name: 'Gestor E2E',
-      email: 'gestor.e2e@test.local',
-      role: 'Gestor',
-    },
-    submittedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  };
-
   await Promise.all([
-    budgetRef.collection('quotes').doc('quote-e2e-a').set({
-      ...quoteBase,
-      id: 'quote-e2e-a',
-      vendor: 'Fornecedor E2E A',
-      value: 'R$ 1.000,00',
-      totalValue: 'R$ 1.000,00',
-    }),
-    budgetRef.collection('quotes').doc('quote-e2e-b').set({
-      ...quoteBase,
-      id: 'quote-e2e-b',
-      vendor: 'Fornecedor E2E B',
-      value: 'R$ 1.200,00',
-      totalValue: 'R$ 1.200,00',
-    }),
-    contractRef.collection('contracts').doc('contract-1').set({
-      id: 'contract-1',
-      ticketId: LIFECYCLE_TICKET_IDS.contract,
-      vendor: 'Fornecedor E2E Contrato',
-      value: 'R$ 2.500,00',
-      initialPlannedValue: 'R$ 2.500,00',
-      realizedValue: 'R$ 2.500,00',
-      status: 'pending_approval',
-      // signedFileName habilita o botão "Aprovar Contrato" (a UI exige anexo).
-      signedFileName: 'contrato-e2e.pdf',
-      signedFilePath: `attachments/tickets/contracts/${LIFECYCLE_TICKET_IDS.contract}/contrato-e2e.pdf`,
-      signedFileContentType: 'application/pdf',
-      items: [],
-      createdAt: now,
-      updatedAt: now,
-    }),
     paymentRef.collection('contracts').doc('contract-1').set({
       id: 'contract-1',
       ticketId: LIFECYCLE_TICKET_IDS.payment,

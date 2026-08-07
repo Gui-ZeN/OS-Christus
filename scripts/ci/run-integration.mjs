@@ -27,13 +27,13 @@ const env = {
   E2E_MANAGER_EMAIL: process.env.E2E_MANAGER_EMAIL || 'gestor.e2e@test.local',
 };
 
-function run(command, args, label) {
+function run(command, args, label, { shell = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: ROOT,
       env,
       stdio: 'inherit',
-      shell: false,
+      shell,
     });
     child.once('error', reject);
     child.once('exit', (code, signal) => {
@@ -93,10 +93,14 @@ try {
   await waitForApi(api);
   await run(process.execPath, ['scripts/dev/seed-emulator.mjs'], 'Seed dos emuladores');
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  await run(npmCommand, ['run', 'test:integration'], 'Testes de integração');
+  // O Node moderno recusa spawnar .cmd/.bat sem shell (EINVAL), e no Windows `npm` é
+  // npm.cmd. Sem isto a suíte só roda no Linux do CI — quem desenvolve aqui descobre
+  // que quebrou depois de abrir o PR. Só o npm vai pelo shell; o resto continua direto.
+  const npmOpts = { shell: process.platform === 'win32' };
+  await run(npmCommand, ['run', 'test:integration'], 'Testes de integração', npmOpts);
   const runE2E = String(process.env.RUN_E2E || '').toLowerCase() === 'true';
   if (runE2E) {
-    await run(npmCommand, ['run', 'test:e2e:ci'], 'Testes E2E');
+    await run(npmCommand, ['run', 'test:e2e:ci'], 'Testes E2E', npmOpts);
   } else if (String(process.env.CI || '').toLowerCase() === 'true') {
     // No CI o E2E é obrigatório: se a env sumir (typo/refactor no workflow), o
     // pipeline ficaria VERDE sem ter rodado E2E — falso-verde silencioso, pior que
