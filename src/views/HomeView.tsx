@@ -2,15 +2,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BarChart2, MapPinned, Plus, Users } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionId, getTicketRegionLabel, getTicketSiteId, getTicketSiteLabel } from '../utils/ticketTerritory';
-
-function isOpenStatus(status: string) {
-  return status !== TICKET_STATUS.CLOSED && status !== TICKET_STATUS.CANCELED;
-}
 
 function buildGreetingName(name: string | null | undefined, email: string) {
   if (name) return name;
@@ -113,13 +110,6 @@ export function HomeView() {
   const executiveNextActions = useMemo(() => {
     if (!hasOperationalActions) return [];
     return [
-      canApprove ? {
-        key: 'approvals',
-        title: 'Aprovar soluções e contratos',
-        subtitle: 'Itens parados em decisão formal.',
-        count: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprova')).length,
-        action: () => navigateTo('approvals'),
-      } : null,
       canOperate ? {
         key: 'budget',
         title: 'Cobrar orçamento e aditivos',
@@ -156,12 +146,12 @@ export function HomeView() {
   }, [canApprove, canOperate, hasOperationalActions, navigateTo, openInboxWithStatus, scopedTickets]);
 
   const requesterOpenTickets = useMemo(
-    () => (isRequester ? scopedTickets.filter(ticket => isOpenStatus(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
+    () => (isRequester ? scopedTickets.filter(ticket => isTicketOpen(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
     [isRequester, scopedTickets]
   );
 
   const requesterHistoryTickets = useMemo(
-    () => (isRequester ? scopedTickets.filter(ticket => !isOpenStatus(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
+    () => (isRequester ? scopedTickets.filter(ticket => !isTicketOpen(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
     [isRequester, scopedTickets]
   );
 
@@ -178,7 +168,7 @@ export function HomeView() {
         grouped.set(key, { label, region: regionLabel, open: 0, approvals: 0, waitingValidation: 0, closed: 0 });
       }
       const current = grouped.get(key)!;
-      if (isOpenStatus(ticket.status)) current.open += 1;
+      if (isTicketOpen(ticket.status)) current.open += 1;
       if (ticket.status.toLowerCase().includes('aprova')) current.approvals += 1;
       if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) current.waitingValidation += 1;
       if (ticket.status === TICKET_STATUS.CLOSED) current.closed += 1;
@@ -228,7 +218,7 @@ export function HomeView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
           <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.NEW]) : undefined} />
           <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]) : undefined} />
-          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente" onClick={canApprove ? () => navigateTo('approvals') : undefined} />
+          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente"  />
           <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.CLOSED]) : undefined} />
         </div>
 

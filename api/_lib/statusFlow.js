@@ -28,6 +28,37 @@ export function isValidStatus(status) {
 }
 
 /**
+ * Etapas que ninguém mais ENTRA — espelho de `src/constants/statusFlow.ts`.
+ *
+ * A tela já não oferece, mas o servidor precisa recusar também: `canTransitionStatus`
+ * libera Admin/Gestor para qualquer destino, então um cliente desatualizado (ou um
+ * bundle em cache) recolocaria a OS numa etapa que não existe mais no fluxo.
+ *
+ * Continuam VÁLIDAS como valor: duas OS ainda estão paradas nelas e precisam poder
+ * sair. O que se recusa é a entrada.
+ */
+const APOSENTADAS = new Set([
+  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
+  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+]);
+
+export function isRetiredStatus(status) {
+  return APOSENTADAS.has(String(status || ''));
+}
+
+const FINISHED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
+
+/**
+ * A OS ainda exige trabalho? Espelha `isTicketOpen` de src/constants/ticketLifecycle.
+ * Status desconhecido conta como VIVA: sumir de uma tela de trabalho e pior que
+ * aparecer a mais.
+ */
+export function isTicketOpen(status) {
+  return !FINISHED_STATUSES.has(String(status || ''));
+}
+
+/**
  * True se o papel pode mover a OS de `currentStatus` para `nextStatus`.
  * Admin/Gestor: livre (mesma regra do painel).
  * Outros papéis não atualizam status pelo painel.

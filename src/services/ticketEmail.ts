@@ -36,14 +36,6 @@ function buildTrackingUrl(ticket: Ticket) {
   return `${window.location.origin}/?tracking=${encodeURIComponent(ticket.trackingToken)}`;
 }
 
-function buildDirectorReviewUrl(ticket: Ticket, approvalTab: 'solutions' | 'budgets' | 'contracts') {
-  const params = new URLSearchParams({
-    view: 'approvals',
-    approvalTab,
-    ticketId: ticket.id,
-  });
-  return `${window.location.origin}/?${params.toString()}`;
-}
 
 function buildFinanceReviewUrl(ticket: Ticket) {
   const params = new URLSearchParams({
@@ -729,8 +721,8 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
             ]
           : [],
         detailCards: budgetContext?.quoteCards || [],
-        ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
-        ctaLabel: isApprovalStatus ? 'Abrir aprovação' : 'Abrir painel da Diretoria',
+        ctaUrl: buildTrackingUrl(ticket),
+        ctaLabel: 'Acompanhar a OS',
       },
     });
   }
@@ -830,56 +822,13 @@ export async function notifyTicketDirectorReply(
       status: ticket.status,
       bodyText,
       skipGreeting: true,
-      ctaUrl: buildDirectorReviewUrl(ticket, directorTab),
-      ctaLabel: 'Abrir painel da Diretoria',
+      ctaUrl: buildTrackingUrl(ticket),
+      ctaLabel: 'Acompanhar a OS',
     },
   });
   return sent ? ('sent' as const) : ('failed' as const);
 }
 
-export async function notifyAdditiveToDirector(ticket: Ticket, additiveIndex: number, additiveReason: string) {
-  if (!hasInvolvedDirectors(ticket)) return;
-  const budgetContext = await buildDirectorBudgetContext(ticket);
-  const summaryList = buildDirectorTicketSummary(ticket);
-  const bodyText = [
-    `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} criado na etapa de execução e aguarda aprovação da Diretoria.`,
-    `Motivo do aditivo: ${additiveReason || budgetContext.additiveReason || 'Não informado'}`,
-    ...(budgetContext.measurementSheetUrl ? ['', `Planilha de medição: ${budgetContext.measurementSheetUrl}`] : []),
-    '',
-    'Resumo da OS:',
-    '',
-    summaryList,
-  ].join('\n');
-
-  const variables = await buildVariables(ticket, {
-    director: { summary: summaryList },
-    message: { sender: 'Sistema Serv3', body: bodyText },
-  });
-
-  await sendToConfiguredFlowRecipients({
-    ticketId: ticket.id,
-    trackingToken: ticket.trackingToken,
-    trigger: 'EMAIL-DIRETORIA-APROVACAO',
-    toEmail: resolveDirectorToEmail(ticket) || undefined,
-    ccEmail: resolveDirectorCcEmail(ticket),
-    skipDirectorFallback: true,
-    variables,
-    templateData: {
-      title: `${budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}`} aguardando aprovação`,
-      intro: `${ticket.id} possui ${budgetContext.roundTypeLabel?.toLowerCase() || `aditivo ${additiveIndex}`} em andamento e requer aprovação da Diretoria.`,
-      ticketSubject: ticket.subject,
-      status: ticket.status,
-      bodyText,
-      metricRows: [
-        { label: 'Rodada', value: budgetContext.roundTypeLabel || `Aditivo ${additiveIndex}` },
-        { label: 'Motivo do aditivo', value: additiveReason || budgetContext.additiveReason || 'Não informado' },
-      ],
-      detailCards: budgetContext.quoteCards || [],
-      ctaUrl: buildDirectorReviewUrl(ticket, 'budgets'),
-      ctaLabel: 'Abrir aprovação do aditivo',
-    },
-  });
-}
 
 export async function dispatchPaymentOutbox(ticketId: string, outboxKey: string) {
   await postEmail({
