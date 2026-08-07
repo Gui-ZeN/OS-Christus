@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
 import unusedImports from 'eslint-plugin-unused-imports';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 // Config enxuto: foco em BUGS reais (variável/undefined, chaves duplicadas,
 // código inalcançável), estilo relaxado. O `tsc --noEmit` (npm run lint) segue
@@ -21,6 +22,18 @@ export default tseslint.config(
     // Frontend — ambiente browser.
     files: ['src/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      // Hook depois de um `return` antecipado quebra a ordem entre renders e o React
+      // passa a ler o estado errado — falha silenciosa, sem erro de tipo e sem teste
+      // que pegue. O projeto não tinha esta regra; passou a ter depois de a tela
+      // `Hoje` ganhar um relógio que anda.
+      'react-hooks/rules-of-hooks': 'error',
+      // Dependência faltando em useEffect/useMemo é warn: o código existente tem
+      // vários casos deliberados, e transformar tudo em erro travaria o CI por
+      // decisões antigas em vez de apontar bug novo.
+      'react-hooks/exhaustive-deps': 'warn',
+    },
   },
   {
     plugins: { 'unused-imports': unusedImports },

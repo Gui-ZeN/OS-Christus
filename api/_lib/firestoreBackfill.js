@@ -1,3 +1,4 @@
+import { toDateOrNull } from './dates.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { writeAuditLog } from './auditLogs.js';
 import { normalizeKey } from './text.js';
@@ -9,19 +10,6 @@ const LEGACY_ROLE_MAP = {
   'Técnico (Interno)': 'Usuario',
   Terceirizado: 'Usuario',
 };
-
-function toDate(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (value instanceof Timestamp) return value.toDate();
-  if (typeof value?.toDate === 'function') return value.toDate();
-  if (typeof value === 'object' && value !== null) {
-    const seconds = typeof value._seconds === 'number' ? value._seconds : value.seconds;
-    if (typeof seconds === 'number') return new Date(seconds * 1000);
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
 
 function normalizeSla(data) {
   const allowedPriorities = ['Urgente', 'Alta', 'Trivial'];
@@ -152,7 +140,7 @@ export async function runFirestoreLegacyBackfill(db, actor = 'sistema') {
 
   for (const doc of notificationsSnap.docs) {
     const data = doc.data();
-    const time = toDate(data.time) || toDate(data.createdAt);
+    const time = toDateOrNull(data.time) || toDateOrNull(data.createdAt);
     if (!time) continue;
 
     const changed = !(data.time instanceof Timestamp) && !(data.time?.toDate instanceof Function);

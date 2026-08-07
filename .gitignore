@@ -17,3 +17,6 @@ tmp/
 # Backups de dados de produção (contêm PII — nunca commitar)
 _*_backups/
 .rain-watch-state.json
+
+# Configuração local do Claude Code (launch.json de preview, etc.)
+.claude/

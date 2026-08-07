@@ -28,15 +28,6 @@ export function sendError(res, error, fallbackMessage = 'Falha interna do servid
   return sendJson(res, statusCode, { ok: false, error: message });
 }
 
-export function readActorFromHeaders(req) {
-  const email = String(req.headers['x-actor-email'] || '').trim().toLowerCase();
-  const name = String(req.headers['x-actor-name'] || '').trim();
-  if (name && email) return `${name} <${email}>`;
-  if (name) return name;
-  if (email) return email;
-  return 'painel';
-}
-
 export async function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   const raw = await readRawBody(req);

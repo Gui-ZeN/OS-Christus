@@ -23,3 +23,25 @@ export function parseEmailList(input, { splitWhitespace = false } = {}) {
 export function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
 }
+
+/** Junta listas de e-mail (string ou array) numa lista única, sem repetir. */
+export function mergeEmailLists(...inputs) {
+  return [...new Set(inputs.flatMap(input => parseEmailList(input)))];
+}
+
+/**
+ * Tira da lista de cópia quem não deve receber: as caixas do próprio sistema e quem
+ * já é destinatário direto.
+ *
+ * É o filtro que decide o volume de e-mail que a operação recebe. Vivia dentro das
+ * 2.5 mil linhas do mail.js, sem teste, dependendo de env para rodar — aqui é uma
+ * função pura, e quem chama passa a lista de bloqueados.
+ */
+export function filterCopyRecipients(input, blocked = []) {
+  const bloqueados = new Set(
+    blocked
+      .map(value => firstEmail(value) || String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+  return parseEmailList(input).filter(email => !bloqueados.has(email));
+}

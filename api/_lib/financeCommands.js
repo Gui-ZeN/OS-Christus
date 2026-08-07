@@ -1,8 +1,26 @@
+import { toDateOrNull } from './dates.js';
 import { randomUUID } from 'node:crypto';
 import { HttpError } from './http.js';
-import { normalizeIdempotencyKey } from './approvalCommands.js';
+
 import { boundEmbeddedHistory, mergeTicketHistory, writeTicketHistoryEntries } from './tickets.js';
 import { TICKET_STATUS } from './statusFlow.js';
+
+/**
+ * Chave de idempotência dos comandos financeiros.
+ *
+ * Morava em `approvalCommands.js`, que saiu junto com a etapa de aprovação da
+ * diretoria. É o que faz o retry de uma falha de rede virar REPLAY em vez de um
+ * segundo lançamento — não podia sair junto.
+ */
+const COMMAND_KEY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
+
+export function normalizeIdempotencyKey(value) {
+  const key = String(value || '').trim();
+  if (!COMMAND_KEY_PATTERN.test(key)) {
+    throw new HttpError(400, 'idempotencyKey inválida.');
+  }
+  return key;
+}
 
 function parseCurrency(value) {
   const normalized = String(value || '')
@@ -25,17 +43,6 @@ function finiteNumber(value, fallback = null) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function toDate(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
-    return new Date(`${value}T12:00:00.000Z`);
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 function normalizeAttachment(item, fallbackCategory = 'attachment') {
   const path = String(item?.path || '').trim();
   return {
@@ -45,7 +52,7 @@ function normalizeAttachment(item, fallbackCategory = 'attachment') {
     url: path ? '' : String(item?.url || '').trim(),
     contentType: item?.contentType ? String(item.contentType).trim() : null,
     size: finiteNumber(item?.size),
-    uploadedAt: toDate(item?.uploadedAt),
+    uploadedAt: toDateOrNull(item?.uploadedAt),
     category: String(item?.category || fallbackCategory),
   };
 }
@@ -151,9 +158,9 @@ export function resolveLegacyMeasurementPayment({
   const grossValue = String(measurement.grossValue || '').trim();
   const status = String(measurement.status || 'pending').trim();
   const createdAt =
-    toDate(measurement.requestedAt) ||
-    toDate(measurement.approvedAt) ||
-    toDate(measurement.createdAt) ||
+    toDateOrNull(measurement.requestedAt) ||
+    toDateOrNull(measurement.approvedAt) ||
+    toDateOrNull(measurement.createdAt) ||
     new Date();
 
   return {
@@ -170,7 +177,7 @@ export function resolveLegacyMeasurementPayment({
     label: String(fallback?.label || measurement.label || '').trim() || 'Lançamento legado',
     installmentNumber: finiteNumber(fallback?.installmentNumber),
     totalInstallments: finiteNumber(fallback?.totalInstallments),
-    dueAt: toDate(fallback?.dueAt) || createdAt,
+    dueAt: toDateOrNull(fallback?.dueAt) || createdAt,
     measurementId,
     releasedPercent: finiteNumber(measurement.releasePercent),
     milestonePercent: finiteNumber(measurement.progressPercent),
@@ -179,9 +186,9 @@ export function resolveLegacyMeasurementPayment({
       : [],
     receiptFileName: null,
     submittedBy: measurement.submittedBy || null,
-    submittedAt: toDate(measurement.submittedAt) || createdAt,
+    submittedAt: toDateOrNull(measurement.submittedAt) || createdAt,
     createdAt,
-    updatedAt: toDate(measurement.updatedAt) || createdAt,
+    updatedAt: toDateOrNull(measurement.updatedAt) || createdAt,
   };
 }
 
@@ -205,7 +212,7 @@ function mergeClosureChecklist(ticket, patch = {}) {
   return {
     requesterApproved: current.requesterApproved ?? false,
     requesterApprovedBy: current.requesterApprovedBy || null,
-    requesterApprovedAt: toDate(current.requesterApprovedAt),
+    requesterApprovedAt: toDateOrNull(current.requesterApprovedAt),
     infrastructureApprovalPrimary:
       current.infrastructureApprovalPrimary ?? current.infrastructureApprovedByRafael ?? false,
     infrastructureApprovalSecondary:
@@ -214,12 +221,12 @@ function mergeClosureChecklist(ticket, patch = {}) {
     infrastructureApprovedByFernando: current.infrastructureApprovedByFernando ?? null,
     closureNotes: String(current.closureNotes || ''),
     serviceStartedAt:
-      toDate(current.serviceStartedAt) ||
-      toDate(ticket?.executionProgress?.startedAt) ||
-      toDate(ticket?.preliminaryActions?.actualStartAt) ||
-      toDate(ticket?.preliminaryActions?.plannedStartAt),
-    serviceCompletedAt: toDate(current.serviceCompletedAt),
-    closedAt: toDate(current.closedAt),
+      toDateOrNull(current.serviceStartedAt) ||
+      toDateOrNull(ticket?.executionProgress?.startedAt) ||
+      toDateOrNull(ticket?.preliminaryActions?.actualStartAt) ||
+      toDateOrNull(ticket?.preliminaryActions?.plannedStartAt),
+    serviceCompletedAt: toDateOrNull(current.serviceCompletedAt),
+    closedAt: toDateOrNull(current.closedAt),
     documents: Array.isArray(current.documents)
       ? current.documents.map(item => normalizeAttachment(item, 'closure_report'))
       : [],
@@ -247,8 +254,8 @@ export function resolvePaymentClosure(ticket, allPaid, closureDraft, now = new D
   }
 
   const guaranteeMonths = Number(closureDraft?.guaranteeMonths || 0);
-  const serviceStartedAt = toDate(closureDraft?.serviceStartedAt);
-  const serviceCompletedAt = toDate(closureDraft?.serviceCompletedAt);
+  const serviceStartedAt = toDateOrNull(closureDraft?.serviceStartedAt);
+  const serviceCompletedAt = toDateOrNull(closureDraft?.serviceCompletedAt);
   const reasons = [];
   if (!closureDraft?.infrastructureApprovalPrimary) reasons.push('Aprovação técnica 1 pendente');
   if (!closureDraft?.infrastructureApprovalSecondary) reasons.push('Aprovação técnica 2 pendente');
@@ -413,7 +420,7 @@ async function recordMeasurement({ db, user, ticketId, commandKey, body }) {
       label: paymentLabel,
       installmentNumber,
       totalInstallments: finiteNumber(body?.payment?.totalInstallments),
-      dueAt: toDate(body?.payment?.dueAt),
+      dueAt: toDateOrNull(body?.payment?.dueAt),
       measurementId,
       releasedPercent: releasePercent,
       milestonePercent: progressPercent,
@@ -440,7 +447,7 @@ async function recordMeasurement({ db, user, ticketId, commandKey, body }) {
       status: 'approved',
       notes: String(body?.measurement?.notes || '').trim(),
       attachments,
-      requestedAt: toDate(body?.measurement?.requestedAt) || now,
+      requestedAt: toDateOrNull(body?.measurement?.requestedAt) || now,
       approvedAt: now,
       classification,
       submittedBy: submitter,
@@ -461,8 +468,8 @@ async function recordMeasurement({ db, user, ticketId, commandKey, body }) {
       releasedPercent: Math.max(Number(ticket.executionProgress?.releasedPercent || 0), progressPercent),
       measurementSheetUrl: ticket.executionProgress.measurementSheetUrl || null,
       startedAt:
-        toDate(ticket.executionProgress.startedAt) ||
-        toDate(ticket.preliminaryActions?.actualStartAt) ||
+        toDateOrNull(ticket.executionProgress.startedAt) ||
+        toDateOrNull(ticket.preliminaryActions?.actualStartAt) ||
         now,
       lastUpdatedAt: now,
     };
@@ -574,7 +581,7 @@ async function settlePayment({ db, user, ticketId, commandKey, body }) {
       submittedBy: currentPayment.submittedBy || submitter,
       settledBy: submitter,
       settledAt: now,
-      createdAt: toDate(currentPayment.createdAt) || now,
+      createdAt: toDateOrNull(currentPayment.createdAt) || now,
       updatedAt: now,
     };
     delete nextPayment.ref;

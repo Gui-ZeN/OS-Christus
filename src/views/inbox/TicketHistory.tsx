@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { resolveAttachmentPreviewType } from '../../context/AttachmentPreviewContext';
 import { Clock, FileText, Loader2 } from 'lucide-react';
 import type { HistoryItem } from '../../types';
 import { cleanForwardedMessageText } from '../../utils/text';
@@ -9,14 +10,6 @@ import { MessageBody } from './MessageBody';
 type PreviewKind = 'image' | 'pdf' | 'file';
 
 // Pura (espelha a da InboxView): tipo de pré-visualização do anexo.
-function resolveAttachmentPreviewType(contentType?: string | null, fileName?: string | null): PreviewKind {
-  const type = String(contentType || '').toLowerCase();
-  const name = String(fileName || '').toLowerCase();
-  if (type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)) return 'image';
-  if (type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
-  return 'file';
-}
-
 interface TicketHistoryProps {
   ticketId: string;
   history: HistoryItem[];

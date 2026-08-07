@@ -8,6 +8,24 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
  */
 export type AttachmentPreviewKind = 'image' | 'pdf' | 'file';
 
+/**
+ * Que tipo de preview este anexo abre.
+ *
+ * Existia duas vezes, com regras diferentes: na lista do histórico um .gif abria como
+ * imagem, no painel da OS o MESMO arquivo caía em "arquivo genérico". Aqui é a união
+ * das duas, ao lado do tipo que ela devolve.
+ */
+export function resolveAttachmentPreviewType(
+  contentType?: string | null,
+  fileName?: string | null
+): AttachmentPreviewKind {
+  const mime = String(contentType || '').toLowerCase();
+  const name = String(fileName || '').toLowerCase();
+  if (mime.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+  if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)) return 'image';
+  return 'file';
+}
+
 export interface AttachmentPreviewItem {
   title: string;
   type: AttachmentPreviewKind;

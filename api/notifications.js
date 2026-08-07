@@ -1,3 +1,4 @@
+import { toDateOrNull } from './_lib/dates.js';
 import { requireAuthenticatedUser , resolveActor } from './_lib/authz.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
@@ -12,18 +13,6 @@ import {
   notificationTtlAt,
   resolveNotificationTicketId,
 } from './_lib/notificationState.js';
-
-function toDate(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  if (typeof value === 'object' && value !== null) {
-    const seconds = typeof value._seconds === 'number' ? value._seconds : value.seconds;
-    if (typeof seconds === 'number') return new Date(seconds * 1000);
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
 
 // Escopo territorial de uma notificação ligada a uma OS. Admin vê tudo;
 // notificação sem ticketId é geral. Demais perfis só veem se a OS referenciada
@@ -45,7 +34,7 @@ function normalizePageLimit(value) {
 }
 
 function encodeCursor(notificationDoc) {
-  const createdAt = toDate(notificationDoc?.data()?.createdAt);
+  const createdAt = toDateOrNull(notificationDoc?.data()?.createdAt);
   if (!createdAt || !notificationDoc?.id) return null;
   return Buffer.from(JSON.stringify({
     createdAt: createdAt.toISOString(),
@@ -155,7 +144,7 @@ async function readNotifications(db, user, options = {}) {
     collected.push(...(await filterVisibleNotifications(db, user, snap.docs, territory)));
 
     lastScannedDoc = snap.docs.at(-1);
-    cursor = { createdAt: toDate(lastScannedDoc.data()?.createdAt), id: lastScannedDoc.id };
+    cursor = { createdAt: toDateOrNull(lastScannedDoc.data()?.createdAt), id: lastScannedDoc.id };
     if (exhausted) break;
   }
 

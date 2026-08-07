@@ -1,3 +1,4 @@
+import { toDateOrNull } from './dates.js';
 import { randomUUID } from 'node:crypto';
 import { HttpError } from './http.js';
 import { notificationTtlAt } from './notificationState.js';
@@ -39,14 +40,6 @@ const RETRY_DELAYS_MS = [
   4 * 60 * 60 * 1000,
 ];
 
-function toDate(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value?.toDate === 'function') return value.toDate();
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 export function normalizeOutboxKey(value) {
   const key = String(value || '').trim();
   if (!OUTBOX_KEY_PATTERN.test(key)) {
@@ -56,7 +49,7 @@ export function normalizeOutboxKey(value) {
 }
 
 export function isEmailOutboxLeaseActive(data, now = new Date()) {
-  const leaseAt = toDate(data?.leaseAt);
+  const leaseAt = toDateOrNull(data?.leaseAt);
   return Boolean(
     data?.status === 'processing' &&
     leaseAt &&
@@ -79,7 +72,7 @@ export function isEmailOutboxEligible(data, now = new Date()) {
   if (status === 'pending') return true;
   if (status !== 'failed') return false;
 
-  const nextAttemptAt = toDate(data?.nextAttemptAt);
+  const nextAttemptAt = toDateOrNull(data?.nextAttemptAt);
   return !nextAttemptAt || nextAttemptAt.getTime() <= now.getTime();
 }
 
