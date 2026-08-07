@@ -3,6 +3,90 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-01..07 (a reforma: de sistema de ETAPAS para sistema de ACOMPANHAMENTO)
+
+A pergunta que o Serv3 responde deixou de ser *"em que fase está esta OS"* e
+passou a ser *"o que precisa acontecer, e o que ficou sem resposta"*. A medida
+que motivou tudo: **163 das 270 OS paradas na etapa 2**, e **234 das 270**
+nascidas de e-mail — a esteira de etapas descrevia um processo que ninguém
+seguia.
+
+### A tela `Hoje` (`src/views/TodayView.tsx`)
+
+Agrupa por AÇÃO, não por fase: Vencidas / Hoje / Aguardando a sede / Próximos 7
+dias / Suspensas / **Sem próxima ação** — este último é o grupo que o sistema
+antigo não conseguia mostrar, e é onde mora o esquecimento. Entrou atrás de
+porta Admin; abre para o Gestor no passo seguinte.
+
+Junto vieram **suspensão com prazo** (7 motivos, volta sozinha ao vencer) e
+**compromisso de fornecedor** (data prometida, confirmação de comparecimento).
+`sem-confirmacao` é derivado do relógio, nunca gravado.
+
+- Bug de nascença, achado na revisão: o relógio da tela estava **congelado**
+  (`useMemo(() => new Date(), [])`). Visita nenhuma virava "Aguardando a sede",
+  suspensão nenhuma vencia, e depois da meia-noite o cabeçalho dizia ontem.
+
+### A atenção operacional (`api/_lib/operationalAttention.js`)
+
+O sistema **propõe** a próxima ação a partir do que já aconteceu — chegou
+mensagem, alguém prometeu vir, a suspensão venceu — e diz **por que** propôs. A
+pessoa corrige com um clique (`feito` / `adiado` / `não se aplica`), e a correção
+vence a regra. Projeção, não estado: recalculada em transação, com
+`ruleVersion` e `attentionStaleAt` para não mentir em silêncio quando falha.
+
+- `LEGACY_ATTENTION_DAYS = 7` saiu de um dry-run contra produção: sem o corte,
+  **78% das OS nasceriam atrasadas** e o primeiro dia seria uma pauta de 200
+  itens — que ninguém lê. Com ele, ~20.
+
+### A aprovação da diretoria saiu da esteira
+
+Não havia **nenhum** Diretor cadastrado; `directorEmails` estava preenchido em 1
+das 270 OS, com endereço de teste. A autorização real sempre aconteceu por
+e-mail — agora é lida de lá (`api/_lib/authorization.js`): quando alguém de uma
+lista que o gestor cadastra responde "autorizado" / "pode seguir", o sistema
+registra na OS **com a frase exata**. Ele registra; quem decide continua sendo
+a pessoa.
+
+As três etapas viraram estados aposentados (servidor recusa entrada), as 2 OS
+presas foram movidas por script com explicação no histórico, e os 4 testes E2E
+saíram junto com a tela — teste verde para tela que não existe é pior que
+teste nenhum.
+
+### Nenhum e-mail se perde mais
+
+23 mensagens sobre goteira e portão chegaram, não casaram com nenhuma OS e
+sumiram **em silêncio**, com quem escreveu achando que tinha avisado. Agora vão
+para uma fila na Inbox: vincular a uma OS, abrir uma nova, ou dispensar.
+
+Outros dois buracos da mesma família: **261 devoluções (bounce) cegas** — o
+Gmail manda a NDR em HTML e as regexes liam só texto puro — e os carimbos
+`lastInboundAt` / `lastOutboundAt`, que agora alimentam a atenção.
+
+### Água e lugar saem do texto
+
+`waterIssue` e 26 tags de local (telhado, pátio, biblioteca…) reconhecidos no
+próprio pedido, sem caixinha para marcar. É o que permite dizer "a terceira
+goteira no mesmo telhado". Backfill aplicado em 13 OS.
+
+### Código
+
+- Inbox: **4.522 → 3.091 linhas**; cotação, contrato, medição e pagamento
+  voltaram para as telas de Financeiro. A Inbox ficou com o que ela é no dia a
+  dia: conversa e triagem.
+- Uma fonte por conceito: `api/_lib/dates.js` (6 cópias de `toDateOrNull`),
+  `src/constants/ticketLifecycle.ts`, destinatários.
+- SendGrid removido — Gmail é o único provedor; havia dois caminhos e um deles
+  não era exercitado.
+- Aviso automático de chuva em Fortaleza (`RAIN_ALERT_TO`).
+- Furo de território que eu mesmo abri em `?route=commitments` (GET/POST/PATCH
+  sem `canUserAccessTicket`), fechado nos três verbos antes de qualquer deploy.
+
+### Pendências desta reforma
+
+Backfill da atenção (`?route=rebuild-attention`, dry-run primeiro) **depois** do
+deploy; os e-mails dos autorizadores, que só o gestor tem; e avisar a sede antes
+de subir — **60 e-mails represados desde 28/07 saem de uma vez**.
+
 ## 2026-07-31 (conversa encaminhada era descartada — conserto + reparo do passado)
 
 Reportado a partir da **OS-0289** ("Tapumes salas de aula"): a OS nasceu com
