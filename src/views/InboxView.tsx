@@ -1,5 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { CheckCircle, Loader2, FileText, Shield, List, Play, CheckSquare, Paperclip, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, DollarSign, RefreshCw, Trash2, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { CheckCircle, Loader2, FileText, List, CheckSquare, Paperclip, User, Image as ImageIcon, ChevronDown, Plus, MoreHorizontal, Lock, Bold, Italic, ExternalLink, Copy, X, RefreshCw, Trash2, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { DroppedInboundQueue } from './inbox/DroppedInboundQueue';
+import { resolveAttachmentPreviewType } from '../context/AttachmentPreviewContext';
 import { TicketListItem } from '../components/ui/TicketListItem';
 import { PropertyField } from '../components/ui/PropertyField';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -10,78 +12,36 @@ import { useApp } from '../context/AppContext';
 import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useToast } from '../hooks/useToast';
-import { ContractRecord, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Quote, Ticket, TicketAttachment } from '../types';
+import { HistoryItem, Ticket, TicketAttachment } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { mergeEmails, normalizeForMatching, parseEmailTokens } from './inbox/recipients';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
-import { CatalogMacroService, CatalogMaterial, CatalogRegion, CatalogServiceItem, CatalogSite, CatalogVendorPreference, fetchCatalog, saveCatalogEntry } from '../services/catalogApi';
+import { CatalogMacroService, CatalogRegion, CatalogServiceItem, CatalogSite, fetchCatalog, saveCatalogEntry } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryUser, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
-import { fetchProcurementData, saveContract, saveQuotes } from '../services/procurementApi';
-import { runFinanceCommand } from '../services/financeApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
-import { uploadContractAttachment, uploadMeasurementAttachment, uploadMessageAttachment, uploadQuoteAttachment } from '../services/ticketStorage';
+import { uploadMessageAttachment } from '../services/ticketStorage';
 import { deleteTicketInApi, fetchTicketHistoryPage } from '../services/ticketsApi';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
-import { buildBudgetHistorySummary } from '../utils/budgetHistory';
 import { buildValidationClosureChecklist } from '../utils/closureChecklist';
-import { getApprovedReleasePercent, getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
-import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
-import { getAvailableAdditiveRounds, getAvailableInitialRounds, getEditableInitialRoundIndex, getQuotesByRound, isRejectedQuoteRound, normalizeQuoteStatus } from './inbox/quoteRounds';
-import { calculateProgressPercentFromGross, resolveExpectedBaselineValue, roundProgressPercent, stripLegacyFlowPlaceholders } from './inbox/paymentProgress';
 import { DateTimePicker } from './inbox/DateTimePicker';
-import { formatShortDate, parseInputDateTime } from '../utils/date';
-import { getExecutionNextActionLabel, getStageGuidance } from './inbox/stageGuidance';
+import { parseInputDateTime } from '../utils/date';
+import { NextActionStrip } from './inbox/NextActionStrip';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
-import { ContractDispatchModal } from './inbox/ContractDispatchModal';
-import { PreliminaryActionsModal } from './inbox/PreliminaryActionsModal';
-import { ExecutionSetupModal } from './inbox/ExecutionSetupModal';
-import { ProgressUpdateModal } from './inbox/ProgressUpdateModal';
-import { DirectorInterestsPanel } from './inbox/DirectorInterestsPanel';
 import { TicketHistory } from './inbox/TicketHistory';
-import { AdditiveReferenceCard } from './inbox/AdditiveReferenceCard';
-import { QuoteHistoryPanel } from './inbox/QuoteHistoryPanel';
-import { QuoteComparisonPanel } from './inbox/QuoteComparisonPanel';
-import { useQuoteEditor } from './inbox/useQuoteEditor';
-import { QuoteEditorProvider } from './inbox/QuoteEditorContext';
-import { ProposalHeaderForm } from './inbox/ProposalHeaderForm';
-import { QuoteEditorTabs } from './inbox/QuoteEditorTabs';
+
+
+
+
 import {
-  createEmptyQuoteDraft,
-  createEmptyQuoteItem,
-  createProposalHeaderDraft,
-  getRoundMaxQuoteSlots,
-  getRoundMinQuoteSlots,
-  isQuoteDraftFilledForSubmission,
-  normalizeQuoteSection,
-  resolveQuoteDraftSubmittedTotal,
-  summarizeQuoteDraft,
-} from './inbox/quotes';
-import { QuoteEditorCardHeader } from './inbox/QuoteEditorCardHeader';
-import { QuoteVendorFields } from './inbox/QuoteVendorFields';
-import { QuoteConsolidatedView } from './inbox/QuoteConsolidatedView';
-import { QuoteItemsSection } from './inbox/QuoteItemsSection';
-import {
-  arePreliminaryActionsReady,
-  buildPreliminarySummary,
-  createPreliminaryFormState,
-  type PreliminaryChecklistKey,
-  type PreliminaryFormState,
-} from './inbox/preliminary';
-import {
-  createExecutionSetupFormState,
-  createProgressUpdateFormState,
   createTicketDetailsFormState,
-  type ExecutionSetupFormState,
-  type ProgressUpdateFormState,
   type TicketDetailsFormState,
 } from './inbox/ticketForms';
-import {
-  formatCurrency as formatCurrencyInput,
-  normalizeCurrencyInput,
-  parseCurrency as parseCurrencyInput,
-} from '../utils/currency';
+
+
 
 
 const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
@@ -105,50 +65,8 @@ const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
 ] as const;
 
-function parseEmailTokens(input: string) {
-  const valid: string[] = [];
-  const invalid: string[] = [];
-  String(input || '')
-    .split(/[;,\s]+/)
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean)
-    .forEach(value => {
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        if (!valid.includes(value)) valid.push(value);
-      } else if (!invalid.includes(value)) {
-        invalid.push(value);
-      }
-    });
-  return { valid, invalid };
-}
-
-function mergeEmails(...groups: Array<string[] | undefined>) {
-  return [...new Set(groups.flatMap(group => group || []).map(email => String(email || '').trim().toLowerCase()).filter(Boolean))];
-}
-
-function normalizeLocationPart(value?: string | null) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function resolveAttachmentPreviewType(contentType?: string | null, fileName?: string | null): 'image' | 'pdf' | 'file' {
-  const mime = String(contentType || '').toLowerCase();
-  const name = String(fileName || '').toLowerCase();
-  if (mime.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
-  if (
-    mime.startsWith('image/') ||
-    /\.(png|jpe?g|webp|bmp|svg)$/.test(name)
-  ) {
-    return 'image';
-  }
-  return 'file';
-}
-
 function isFinalizedTicketStatus(status?: string | null) {
-  return status === TICKET_STATUS.CLOSED || status === TICKET_STATUS.CANCELED;
+  return !isTicketOpen(status);
 }
 
 const EMPTY_TICKET: Ticket = {
@@ -168,21 +86,9 @@ const EMPTY_TICKET: Ticket = {
   viewingBy: null,
 };
 
-const ALL_INBOX_STATUS_OPTIONS = [
-  TICKET_STATUS.NEW,
-  TICKET_STATUS.WAITING_TECH_OPINION,
-  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-  TICKET_STATUS.WAITING_BUDGET,
-  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-  TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
-  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-  TICKET_STATUS.IN_PROGRESS,
-  TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-  TICKET_STATUS.WAITING_PAYMENT,
-  TICKET_STATUS.CLOSED,
-  TICKET_STATUS.CANCELED,
-] as const;
+// Todas as etapas, na ordem em que foram declaradas. Repetir a lista à mão era
+// convite para ela e o TICKET_STATUS discordarem em silêncio.
+const ALL_INBOX_STATUS_OPTIONS = Object.values(TICKET_STATUS);
 
 function resolveActorRole(role?: string | null): AppActorRole {
   if (role === 'Admin' || role === 'Gestor' || role === 'Diretor') return role;
@@ -191,13 +97,6 @@ function resolveActorRole(role?: string | null): AppActorRole {
 
 // Orientação por etapa: o que o gestor deve fazer agora (ou aguardar).
 // `waiting` = a bola está com outra pessoa (diretoria/solicitante/encerrada).
-function normalizeTagValue(value?: string | null) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
 
 export function InboxView() {
   const { openAttachment } = useAttachmentPreview();
@@ -264,9 +163,7 @@ export function InboxView() {
   const [catalogRegions, setCatalogRegions] = useState<CatalogRegion[]>([]);
   const [catalogSites, setCatalogSites] = useState<CatalogSite[]>([]);
   const [catalogMacroServices, setCatalogMacroServices] = useState<CatalogMacroService[]>([]);
-  const [catalogMaterials, setCatalogMaterials] = useState<CatalogMaterial[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<CatalogServiceItem[]>([]);
-  const [vendorPreferences, setVendorPreferences] = useState<CatalogVendorPreference[]>([]);
   const [newMacroServiceName, setNewMacroServiceName] = useState('');
   const [newServiceName, setNewServiceName] = useState('');
   const [savingQuickCatalog, setSavingQuickCatalog] = useState(false);
@@ -305,7 +202,6 @@ export function InboxView() {
   // @menção: marca uma pessoa (insere @Nome no texto + adiciona o e-mail ao CC).
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [progressReportFiles, setProgressReportFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (currentView !== 'inbox') return undefined;
@@ -385,8 +281,8 @@ export function InboxView() {
       };
     }
 
-    const activeSiteKey = normalizeLocationPart(activeTicket.siteId || getTicketSiteLabel(activeTicket, catalogSites) || activeTicket.sede);
-    const activeSectorKey = normalizeLocationPart(activeTicket.sector);
+    const activeSiteKey = normalizeForMatching(activeTicket.siteId || getTicketSiteLabel(activeTicket, catalogSites) || activeTicket.sede);
+    const activeSectorKey = normalizeForMatching(activeTicket.sector);
     if (!activeSiteKey || !activeSectorKey) {
       return {
         relatedTickets: [] as Ticket[],
@@ -398,8 +294,8 @@ export function InboxView() {
 
     const relatedTickets = tickets.filter(ticket => {
       if (ticket.id === activeTicket.id) return false;
-      const ticketSiteKey = normalizeLocationPart(ticket.siteId || getTicketSiteLabel(ticket, catalogSites) || ticket.sede);
-      const ticketSectorKey = normalizeLocationPart(ticket.sector);
+      const ticketSiteKey = normalizeForMatching(ticket.siteId || getTicketSiteLabel(ticket, catalogSites) || ticket.sede);
+      const ticketSectorKey = normalizeForMatching(ticket.sector);
       return ticketSiteKey === activeSiteKey && ticketSectorKey === activeSectorKey;
     });
     const latestTicket = [...relatedTickets].sort((a, b) => b.time.getTime() - a.time.getTime())[0] || null;
@@ -414,8 +310,8 @@ export function InboxView() {
   const recurrentTicketIds = useMemo(() => {
     const groups = new Map<string, string[]>();
     tickets.forEach(ticket => {
-      const siteKey = normalizeLocationPart(ticket.siteId || getTicketSiteLabel(ticket, catalogSites) || ticket.sede);
-      const sectorKey = normalizeLocationPart(ticket.sector);
+      const siteKey = normalizeForMatching(ticket.siteId || getTicketSiteLabel(ticket, catalogSites) || ticket.sede);
+      const sectorKey = normalizeForMatching(ticket.sector);
       if (!siteKey || !sectorKey) return;
       const key = `${siteKey}::${sectorKey}`;
       groups.set(key, [...(groups.get(key) || []), ticket.id]);
@@ -459,8 +355,6 @@ export function InboxView() {
     setShowStageControls(false);
     setWaterIssueDraft(Boolean(activeTicket.waterIssue));
     setTicketDetailsForm(createTicketDetailsFormState(activeTicket));
-    setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
-    setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
     setThirdPartyTag('');
     if (activeTicket.assignedEmail) {
       const assignedEmails = String(activeTicket.assignedEmail || '')
@@ -484,8 +378,6 @@ export function InboxView() {
     setNewThirdPartyTags([]);
     setReplyFiles([]);
     setInlineImages([]);
-    setProgressReportFiles([]);
-    setContractDispatchFile(null);
     if (replyFileRef.current) replyFileRef.current.value = '';
     if (progressReportFileRef.current) progressReportFileRef.current.value = '';
   }, [
@@ -517,10 +409,6 @@ export function InboxView() {
       ] as Ticket['status'][]).includes(activeTicket.status),
     });
   }, [activeTicket.id, activeTicket.status]);
-
-  useEffect(() => {
-    setPrelimForm(createPreliminaryFormState(activeTicket.preliminaryActions));
-  }, [activeTicket.id, activeTicket.preliminaryActions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -578,42 +466,14 @@ export function InboxView() {
           setCatalogRegions(catalog.regions);
           setCatalogSites(catalog.sites);
           setCatalogMacroServices(catalog.macroServices);
-          setCatalogMaterials(catalog.materials);
           setServiceCatalog(catalog.serviceCatalog);
-          setVendorPreferences(catalog.vendorPreferences);
         }
       } catch {
         if (!cancelled) {
           setCatalogRegions([]);
           setCatalogSites([]);
           setCatalogMacroServices([]);
-          setCatalogMaterials([]);
           setServiceCatalog([]);
-          setVendorPreferences([]);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const procurement = await fetchProcurementData();
-        if (!cancelled) {
-          setStoredQuotesByTicket(procurement.quotesByTicket);
-          setContractsByTicket(procurement.contractsByTicket);
-          setPaymentsByTicket(procurement.paymentsByTicket);
-        }
-      } catch {
-        if (!cancelled) {
-          setStoredQuotesByTicket({});
-          setContractsByTicket({});
-          setPaymentsByTicket({});
         }
       }
     })();
@@ -643,7 +503,7 @@ export function InboxView() {
     }
 
     const tags = newThirdPartyTags
-      .map(tag => normalizeTagValue(tag))
+      .map(tag => normalizeForMatching(tag))
       .filter(Boolean);
 
     try {
@@ -655,7 +515,7 @@ export function InboxView() {
         active: true,
       });
       const nextVendor = response.vendor || {
-        id: normalizeTagValue(name).replace(/[^a-z0-9-]/g, '-') || `terceiro-${Date.now()}`,
+        id: normalizeForMatching(name).replace(/[^a-z0-9-]/g, '-') || `terceiro-${Date.now()}`,
         name,
         email: newThirdPartyEmail.trim(),
         contact: newThirdPartyContact.trim(),
@@ -745,14 +605,14 @@ export function InboxView() {
       a.localeCompare(b, 'pt-BR')
     );
   }, [sharedThirdPartyTags]);
-  const sharedThirdPartyTagSet = useMemo(() => new Set(thirdPartyTagOptions.map(tag => normalizeTagValue(tag))), [thirdPartyTagOptions]);
+  const sharedThirdPartyTagSet = useMemo(() => new Set(thirdPartyTagOptions.map(tag => normalizeForMatching(tag))), [thirdPartyTagOptions]);
   const resolveVendorSharedTags = (vendor: DirectoryVendor) =>
-    (vendor.tags || []).filter(tag => sharedThirdPartyTagSet.has(normalizeTagValue(tag)));
+    (vendor.tags || []).filter(tag => sharedThirdPartyTagSet.has(normalizeForMatching(tag)));
   const filteredThirdParties = useMemo(() => {
     if (!thirdPartyTag.trim()) return vendors;
-    const normalizedTag = normalizeTagValue(thirdPartyTag);
+    const normalizedTag = normalizeForMatching(thirdPartyTag);
     return vendors.filter(vendor =>
-      resolveVendorSharedTags(vendor).some(tag => normalizeTagValue(tag) === normalizedTag)
+      resolveVendorSharedTags(vendor).some(tag => normalizeForMatching(tag) === normalizedTag)
     );
   }, [thirdPartyTag, vendors, sharedThirdPartyTagSet]);
 
@@ -772,7 +632,6 @@ export function InboxView() {
     panelStatus === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
     panelStatus === TICKET_STATUS.WAITING_PAYMENT ||
     panelStatus === TICKET_STATUS.CLOSED;
-  const executionNextActionLabel = getExecutionNextActionLabel(activeTicket);
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
     return serviceCatalog.filter(item => item.macroServiceId === ticketDetailsForm.macroServiceId);
@@ -1288,314 +1147,15 @@ export function InboxView() {
     }
   };
 
-  const handlePrelimFieldToggle = (field: PreliminaryChecklistKey) => {
-    setPrelimForm(prev => ({ ...prev, [field]: !prev[field] }));
-  };
 
-  const handlePrelimFieldChange = (field: 'materialEta' | 'plannedStartAt' | 'blockerNotes', value: string) => {
-    setPrelimForm(prev => ({ ...prev, [field]: value }));
-  };
 
-  const buildPreliminaryActionsPayload = (withActualStart: boolean): PreliminaryActions => ({
-    materialRequested: prelimForm.materialRequested,
-    materialEta: prelimForm.materialEta ? new Date(`${prelimForm.materialEta}T12:00:00`) : null,
-    teamConfirmed: prelimForm.teamConfirmed,
-    sitePrepared: prelimForm.sitePrepared,
-    scheduleDefined: prelimForm.scheduleDefined,
-    stakeholderAligned: prelimForm.stakeholderAligned,
-    accessReleased: prelimForm.accessReleased,
-    plannedStartAt: prelimForm.plannedStartAt ? new Date(`${prelimForm.plannedStartAt}T12:00:00`) : null,
-    actualStartAt: withActualStart ? new Date() : activeTicket.preliminaryActions?.actualStartAt || null,
-    blockerNotes: prelimForm.blockerNotes.trim(),
-    updatedAt: new Date(),
-  });
 
-  const handleSavePreliminaryActions = async (startExecution: boolean) => {
-    if (isSending) return;
-    const isReady = arePreliminaryActionsReady(prelimForm);
-    if (startExecution && !isReady) {
-      showToast('Erro: conclua todas as ações preliminares antes de iniciar a execução.', 3000);
-      return;
-    }
-
-    if (startExecution && !prelimForm.plannedStartAt) {
-      showToast('Erro: informe a data prevista de início antes de iniciar a execução.', 3000);
-      return;
-    }
-
-    const now = new Date();
-    const preliminaryActions = buildPreliminaryActionsPayload(false);
-    const historyText = startExecution
-      ? `Ações preliminares concluídas. Obra pronta para iniciar execução em ${formatShortDate(preliminaryActions.plannedStartAt)}.`
-      : `Ações preliminares atualizadas. ${buildPreliminarySummary(preliminaryActions)}.`;
-
-    const item: HistoryItem = {
-      id: crypto.randomUUID(),
-      type: 'system',
-      sender: displayActorLabel,
-      time: now,
-      text: historyText,
-    };
-
-    setIsSending(true);
-    try {
-      const persisted = await updateTicket(activeTicket.id, {
-        preliminaryActions,
-        history: [...activeTicket.history, item],
-      });
-      if (!persisted) {
-        // Modal segue aberto: o checklist preenchido não se perde.
-        showToast('Não foi possível salvar as ações preliminares. Tente de novo.', 5000);
-        return;
-      }
-
-      setShowPrelimModal(false);
-      if (startExecution) {
-        setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
-        setShowExecutionSetupModal(true);
-        showToast('Checklist concluído. Defina o fluxo para iniciar a execução.', 3000);
-      }
-    } finally {
-      window.setTimeout(() => setIsSending(false), 600);
-    }
-  };
 
   // Controle de Execução
-  const handleStartExecution = () => {
-    if (isSending) return;
-    if (activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) {
-      setShowPrelimModal(true);
-      return;
-    }
 
-    setExecutionSetupForm(createExecutionSetupFormState(activeTicket));
-    setShowExecutionSetupModal(true);
-  };
 
-  const handleConfirmExecutionStart = async () => {
-    if (isSending) return;
 
-    const paymentFlowParts = Number(executionSetupForm.paymentFlowParts || 0);
-    const measurementSheetUrl = String(executionSetupForm.measurementSheetUrl || '').trim();
-    if (!Number.isFinite(paymentFlowParts) || paymentFlowParts < 1 || paymentFlowParts > 5) {
-      showToast('Erro: escolha um fluxo de pagamento entre 1x e 5x.', 3000);
-      return;
-    }
 
-    setIsSending(true);
-    const now = new Date();
-    const preliminaryActions = activeTicket.preliminaryActions
-      ? { ...activeTicket.preliminaryActions, actualStartAt: activeTicket.preliminaryActions.actualStartAt || now, updatedAt: now }
-      : undefined;
-    try {
-      const persisted = await updateTicket(activeTicket.id, {
-        status: TICKET_STATUS.IN_PROGRESS,
-        preliminaryActions,
-        executionProgress: {
-          paymentFlowParts,
-          currentPercent: Number(activeTicket.executionProgress?.currentPercent || 0),
-          releasedPercent: Number(activeTicket.executionProgress?.releasedPercent || 0),
-          measurementSheetUrl: measurementSheetUrl || null,
-          startedAt: activeTicket.executionProgress?.startedAt || preliminaryActions?.actualStartAt || now,
-          lastUpdatedAt: now,
-        },
-        history: [
-          ...activeTicket.history,
-          {
-            id: crypto.randomUUID(),
-            type: 'system',
-            sender: displayActorLabel,
-            time: now,
-            text: executionSetupForm.notes.trim()
-              ? `Execução iniciada com fluxo financeiro por marcos de andamento. ${executionSetupForm.notes.trim()}`
-              : 'Execução iniciada com fluxo financeiro por marcos de andamento.',
-          },
-        ],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
-
-      if (!persisted) {
-        showToast('A execução não foi iniciada — verifique a conexão e tente de novo.', 5000);
-        return;
-      }
-      setShowExecutionSetupModal(false);
-      showToast(`Execução iniciada. Fluxo ${paymentFlowParts}x registrado.`, 3000);
-    } finally {
-      window.setTimeout(() => setIsSending(false), 500);
-    }
-  };
-
-  const handleOpenProgressModal = () => {
-    setProgressUpdateForm(createProgressUpdateFormState(activeTicket));
-    setProgressReportFiles([]);
-    if (progressReportFileRef.current) progressReportFileRef.current.value = '';
-    setShowProgressModal(true);
-  };
-
-  const handleSaveProgressUpdate = async () => {
-    if (isSending) return;
-    if (!activeTicket.executionProgress?.paymentFlowParts) {
-      showToast('Erro: inicie a execução e defina o fluxo antes de atualizar o andamento.', 3000);
-      return;
-    }
-
-    const baselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
-    if (baselineValue <= 0) {
-      showToast('Erro: valor previsto da obra não encontrado para calcular o andamento.', 3000);
-      return;
-    }
-
-    const grossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
-    const budgetSource = progressUpdateForm.budgetSource === 'additive' ? 'additive' : 'initial';
-    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
-      return;
-    }
-
-    const currentGross = (baselineValue * activeProgressPercent) / 100;
-    const accumulatedGross = currentGross + grossAmount;
-    const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
-    if (progressPercent < activeProgressPercent) {
-      showToast('Erro: o percentual calculado não pode ser menor do que o andamento já registrado.', 3000);
-      return;
-    }
-
-    setIsSending(true);
-
-    const existingDynamicPayments = stripLegacyFlowPlaceholders(activePayments);
-    const vendor =
-      activeContract?.vendor ||
-      existingDynamicPayments[0]?.vendor ||
-      activePayments[0]?.vendor ||
-      activeTicket.assignedTeam ||
-      'Fornecedor não definido';
-    const now = new Date();
-    const classification = buildProcurementClassification(activeTicket);
-    const expectedBaselineFormatted = formatCurrencyInput(baselineValue);
-    const normalizedProgress = progressPercent;
-    const progressDelta = Math.max(0, roundProgressPercent(normalizedProgress - activeProgressPercent));
-    const nextInstallmentNumber = existingDynamicPayments.length + 1;
-    const configuredFlowParts = Number(activeTicket.executionProgress.paymentFlowParts || 0);
-    const formattedGrossAmount = formatCurrencyInput(grossAmount);
-    const paymentLabel = `Lançamento ${nextInstallmentNumber}`;
-    const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
-    const measurementId = `measurement-${Date.now()}`;
-    const nextPayment: PaymentRecord = {
-      id: `payment-${Date.now()}-${nextInstallmentNumber}`,
-      vendor,
-      value: formattedGrossAmount,
-      grossValue: formattedGrossAmount,
-      budgetSource,
-      taxValue: '',
-      netValue: formattedGrossAmount,
-      progressPercent: normalizedProgress,
-      expectedBaselineValue: expectedBaselineFormatted,
-      status: 'approved',
-      label: paymentLabel,
-      installmentNumber: nextInstallmentNumber,
-      totalInstallments: configuredFlowParts > 0 ? configuredFlowParts : null,
-      dueAt,
-      measurementId,
-      releasedPercent: progressDelta,
-      milestonePercent: normalizedProgress,
-      attachments: [],
-      receiptFileName: null,
-    };
-
-    // Chave estável por lançamento: sobrevive ao retry do usuário (mesma chave =
-    // replay no servidor) e só é descartada depois do sucesso.
-    const commandScope = `${activeTicket.id}:recordMeasurement:${nextInstallmentNumber}`;
-    const idempotencyKey = getFinanceCommandKey(commandScope);
-
-    try {
-      const uploadedMeasurementAttachments: TicketAttachment[] = [];
-      for (const file of progressReportFiles) {
-        const uploaded = await uploadMeasurementAttachment(activeTicket.id, measurementId, file);
-        uploadedMeasurementAttachments.push(uploaded);
-      }
-      const measurement: MeasurementRecord = {
-        id: measurementId,
-        label: `Andamento atualizado para ${normalizedProgress}% (bruto ${formattedGrossAmount} | acumulado ${formatCurrencyInput(accumulatedGross)})`,
-        progressPercent: normalizedProgress,
-        releasePercent: progressDelta,
-        status: 'approved',
-        grossValue: formattedGrossAmount,
-        budgetSource,
-        notes: progressUpdateForm.notes.trim(),
-        attachments: uploadedMeasurementAttachments,
-        requestedAt: now,
-        approvedAt: now,
-      };
-
-      // UM comando transacional (api/_lib/financeCommands.js → recordMeasurement):
-      // grava pagamento + medição, escreve o histórico e atualiza o
-      // executionProgress na MESMA transação. Antes eram três chamadas soltas
-      // (savePayment → saveMeasurement → updateTicket sem await): falhar no meio
-      // deixava pagamento sem medição, ou tudo gravado com a OS parada — e sem
-      // erro visível, porque não havia catch. O `idempotencyKey` estável faz o
-      // retry de uma falha de rede ser replay, não lançamento duplicado.
-      const result = await runFinanceCommand({
-        action: 'recordMeasurement',
-        ticketId: activeTicket.id,
-        idempotencyKey,
-        payment: nextPayment,
-        measurement,
-        classification,
-      });
-      financeCommandKeysRef.current.delete(commandScope);
-
-      // O servidor recalcula percentual e baseline com os dados frescos, então o
-      // estado local vem da RESPOSTA — não do que o cliente supôs.
-      if (result.payment) {
-        setPaymentsByTicket(prev => ({
-          ...prev,
-          [activeTicket.id]: [
-            ...stripLegacyFlowPlaceholders(prev[activeTicket.id] || []),
-            result.payment as PaymentRecord,
-          ],
-        }));
-      }
-      await refreshTickets({ silent: true });
-
-      setShowProgressModal(false);
-      setProgressReportFiles([]);
-      if (progressReportFileRef.current) progressReportFileRef.current.value = '';
-      showToast(`${paymentLabel} registrada e liberada para o financeiro.`, 3000);
-    } catch (error) {
-      // Modal segue aberto de propósito: o rascunho é preservado e o mesmo
-      // idempotencyKey permite tentar de novo sem duplicar o lançamento.
-      showToast(
-        error instanceof Error ? error.message : 'Falha ao registrar o andamento da obra.',
-        4000
-      );
-    } finally {
-      window.setTimeout(() => setIsSending(false), 500);
-    }
-  };
-
-  const handleSendForValidation = async () => {
-    if (isSending) return;
-    setIsSending(true);
-    const now = new Date();
-    const item: HistoryItem = {
-      id: crypto.randomUUID(), type: 'system', sender: displayActorLabel,
-      time: now, text: 'Serviço concluído. OS enviada para validação do solicitante.',
-    };
-    try {
-      const persisted = await updateTicket(activeTicket.id, {
-        status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-        closureChecklist: buildValidationClosureChecklist(activeTicket, now),
-        history: [...activeTicket.history, item],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
-      showToast(
-        persisted
-          ? 'OS enviada para validação do solicitante.'
-          : 'A OS não foi enviada para validação — verifique a conexão e tente de novo.',
-        persisted ? 2500 : 5000
-      );
-    } finally {
-      window.setTimeout(() => setIsSending(false), 500);
-    }
-  };
 
   const [isSending, setIsSending] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
@@ -1614,64 +1174,16 @@ export function InboxView() {
   });
   // Movido pra antes da chamada do useQuoteEditor (que recebe como param p/ os
   // handlers de adicionar item). Não depende de `quotes`, só de catálogo/OS.
-  const suggestedQuoteMaterials = useMemo(() => {
-    const service = serviceCatalog.find(item => item.id === activeTicket.serviceCatalogId);
-    if (!service?.suggestedMaterialIds?.length) return [];
-    return service.suggestedMaterialIds
-      .map(materialId => catalogMaterials.find(material => material.id === materialId))
-      .filter((value): value is CatalogMaterial => Boolean(value));
-  }, [activeTicket.serviceCatalogId, catalogMaterials, serviceCatalog]);
 
-  const quoteEditor = useQuoteEditor({ activeTicket, catalogMaterials, suggestedQuoteMaterials, getRoundMinQuoteSlots, getRoundMaxQuoteSlots });
-  const {
-    showQuotesModal, setShowQuotesModal,
-    quoteAttachments, setQuoteAttachments,
-    setPendingCustomUnitByItem,
-    quotes, setQuotes,
-    quoteRoundType, setQuoteRoundType,
-    quoteInitialRoundIndex, setQuoteInitialRoundIndex,
-    quoteAdditiveIndex, setQuoteAdditiveIndex,
-    showQuoteDirectorInterests, setShowQuoteDirectorInterests,
-    showQuoteContextPanel, setShowQuoteContextPanel,
-    showQuoteHistoryPanel, setShowQuoteHistoryPanel,
-    showQuoteComparisonPanel, setShowQuoteComparisonPanel,
-    showAdditiveReference, setShowAdditiveReference,
-    quoteEditorFocus, setQuoteEditorFocus,
-    setExpandedQuoteItems,
-    proposalHeader, setProposalHeader,
-    handleProposalHeaderChange, handleProposalCurrencyBlur,
-    handleQuoteAttachmentChange,
-    handleAddQuoteSlot, handleRemoveQuoteSlot,
-    quoteGrandTotals, visibleQuoteEditors,
-  } = quoteEditor;
-  const [showContractDispatchModal, setShowContractDispatchModal] = useState(false);
-  const [showPrelimModal, setShowPrelimModal] = useState(false);
-  const [showExecutionSetupModal, setShowExecutionSetupModal] = useState(false);
-  const [showProgressModal, setShowProgressModal] = useState(false);
   const [showDeleteTicketModal, setShowDeleteTicketModal] = useState(false);
   const [showCancelTicketModal, setShowCancelTicketModal] = useState(false);
   const [pendingCancelTicketUpdates, setPendingCancelTicketUpdates] = useState<Partial<Ticket> | null>(null);
   const [isDeletingTicket, setIsDeletingTicket] = useState(false);
-  const [storedQuotesByTicket, setStoredQuotesByTicket] = useState<Record<string, Quote[]>>({});
-  const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
-  const [contractDispatchFile, setContractDispatchFile] = useState<File | null>(null);
-  const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
-  const [prelimForm, setPrelimForm] = useState<PreliminaryFormState>(createPreliminaryFormState());
-  const [executionSetupForm, setExecutionSetupForm] = useState<ExecutionSetupFormState>(createExecutionSetupFormState());
-  const [progressUpdateForm, setProgressUpdateForm] = useState<ProgressUpdateFormState>(createProgressUpdateFormState());
   const [historyLoadingTicketId, setHistoryLoadingTicketId] = useState<string | null>(null);
   // Chaves de idempotência dos comandos financeiros, por escopo (mesmo padrão da
   // FinanceView): retry após falha reusa a chave, então o servidor faz replay em
   // vez de criar um segundo lançamento.
-  const financeCommandKeysRef = useRef<Map<string, string>>(new Map());
 
-  const getFinanceCommandKey = (scope: string) => {
-    const existing = financeCommandKeysRef.current.get(scope);
-    if (existing) return existing;
-    const next = crypto.randomUUID();
-    financeCommandKeysRef.current.set(scope, next);
-    return next;
-  };
   const { toast, showToast } = useToast();
 
   const handleLoadOlderHistory = useCallback(async () => {
@@ -1729,24 +1241,6 @@ export function InboxView() {
         )
       );
   }, [canManageStatus, isSending, activeTicket, updateTicket, showToast]);
-  const activeContract = activeTicket.id ? contractsByTicket[activeTicket.id] : undefined;
-  const activePayments = activeTicket.id ? paymentsByTicket[activeTicket.id] || [] : [];
-  const activeDynamicPayments = useMemo(() => stripLegacyFlowPlaceholders(activePayments), [activePayments]);
-  const activeExpectedBaselineValue = resolveExpectedBaselineValue(activeContract, activePayments);
-  const activeProgressPercent = Math.max(0, Number(activeTicket.executionProgress?.currentPercent || 0));
-  const activeProgressBarPercent = Math.min(100, activeProgressPercent);
-  const activeReleasedPercent = activeTicket.executionProgress?.releasedPercent ?? getApprovedReleasePercent(activeDynamicPayments);
-  const activeNextMilestonePercent = activeTicket.executionProgress?.paymentFlowParts
-    ? getNextMilestonePercentByProgress(activeTicket.executionProgress.paymentFlowParts, activeProgressPercent)
-    : null;
-  const activeMilestones = useMemo(
-    () => (activeTicket.executionProgress?.paymentFlowParts ? getPaymentFlowMilestones(activeTicket.executionProgress.paymentFlowParts) : []),
-    [activeTicket.executionProgress?.paymentFlowParts]
-  );
-  const draftGrossAmount = parseCurrencyInput(progressUpdateForm.grossAmount || '');
-  const currentAccumulatedGross = activeExpectedBaselineValue > 0 ? (activeExpectedBaselineValue * activeProgressPercent) / 100 : 0;
-  const projectedAccumulatedGross = currentAccumulatedGross + draftGrossAmount;
-  const draftProgressPercent = calculateProgressPercentFromGross(projectedAccumulatedGross, activeExpectedBaselineValue);
   const ticketAttachmentItems = (activeTicket.attachments || [])
     .filter(attachment => attachment?.path || attachment?.driveFileId || attachment?.url)
     .map(attachment => ({
@@ -1759,16 +1253,11 @@ export function InboxView() {
     }));
   const isMobileOverlayOpen = showMobileTicketList || showMobileContext;
   const shouldLockBodyScroll =
-    isMobileOverlayOpen || showQuotesModal || showContractDispatchModal || showPrelimModal || showExecutionSetupModal || showProgressModal || showDeleteTicketModal || showCancelTicketModal;
+    isMobileOverlayOpen || showDeleteTicketModal || showCancelTicketModal;
 
   useEffect(() => {
     function handleEsc(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
-      if (showQuotesModal) setShowQuotesModal(false);
-      if (showContractDispatchModal) setShowContractDispatchModal(false);
-      if (showPrelimModal) setShowPrelimModal(false);
-      if (showExecutionSetupModal) setShowExecutionSetupModal(false);
-      if (showProgressModal) setShowProgressModal(false);
       if (showActionsMenu) setShowActionsMenu(false);
       if (showDeleteTicketModal) setShowDeleteTicketModal(false);
       if (showCancelTicketModal) setShowCancelTicketModal(false);
@@ -1777,7 +1266,7 @@ export function InboxView() {
     }
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [showQuotesModal, showContractDispatchModal, showPrelimModal, showExecutionSetupModal, showProgressModal, showActionsMenu, showDeleteTicketModal, showCancelTicketModal, showMobileTicketList, showMobileContext]);
+  }, [showActionsMenu, showDeleteTicketModal, showCancelTicketModal, showMobileTicketList, showMobileContext]);
 
   useEffect(() => {
     setShowActionsMenu(false);
@@ -1816,184 +1305,8 @@ export function InboxView() {
   // useClickOutside substitui o useEffect manual anterior
   const actionsMenuRef = useClickOutside<HTMLDivElement>(() => setShowActionsMenu(false));
 
-  const [additiveReason, setAdditiveReason] = useState('');
-  const [directorInterestedEmails, setDirectorInterestedEmails] = useState<string[]>([]);
-  const [directorInterestedDraft, setDirectorInterestedDraft] = useState('');
-  const toggleQuoteMetaPanel = (panel: 'context' | 'history' | 'comparison') => {
-    const isContextOpen = showQuoteContextPanel;
-    const isHistoryOpen = showQuoteHistoryPanel;
-    const isComparisonOpen = showQuoteComparisonPanel;
-    const isPanelOpen =
-      (panel === 'context' && isContextOpen) ||
-      (panel === 'history' && isHistoryOpen) ||
-      (panel === 'comparison' && isComparisonOpen);
-
-    if (isPanelOpen) {
-      setShowQuoteContextPanel(false);
-      setShowQuoteHistoryPanel(false);
-      setShowQuoteComparisonPanel(false);
-      return;
-    }
-
-    setShowQuoteContextPanel(panel === 'context');
-    setShowQuoteHistoryPanel(panel === 'history');
-    setShowQuoteComparisonPanel(panel === 'comparison');
-  };
-  const ticketQuotes = useMemo(
-    () => storedQuotesByTicket[activeTicketId] || [],
-    [activeTicketId, storedQuotesByTicket]
-  );
-  const availableInitialRounds = useMemo(
-    () => getAvailableInitialRounds(ticketQuotes),
-    [ticketQuotes]
-  );
-  const availableAdditiveRounds = useMemo(
-    () => getAvailableAdditiveRounds(ticketQuotes),
-    [ticketQuotes]
-  );
-  const nextEditableInitialRoundIndex = useMemo(
-    () => getEditableInitialRoundIndex(ticketQuotes),
-    [ticketQuotes]
-  );
-  const rejectedInitialRounds = useMemo(
-    () =>
-      availableInitialRounds
-        .map(roundIndex => ({
-          roundIndex,
-          quotes: getQuotesByRound(ticketQuotes, 'initial', roundIndex),
-        }))
-        .filter(round => isRejectedQuoteRound(round.quotes))
-        .sort((a, b) => b.roundIndex - a.roundIndex),
-    [availableInitialRounds, ticketQuotes]
-  );
-  const directorEmailSuggestions = useMemo(() => {
-    const siteKey = String(activeTicket.siteId || activeTicket.sede || '').trim().toLowerCase();
-    const suggestions = tickets
-      .filter(ticket => {
-        const candidate = String(ticket.siteId || ticket.sede || '').trim().toLowerCase();
-        return siteKey && candidate === siteKey && ticket.id !== activeTicket.id;
-      })
-      .flatMap(ticket => ticket.directorCcEmails || []);
-    return mergeEmails(suggestions).filter(email => !directorInterestedEmails.includes(email));
-  }, [activeTicket.id, activeTicket.sede, activeTicket.siteId, directorInterestedEmails, tickets]);
-  const quoteDraftTicketRef = useRef<string>('');
-  const quoteDraftSessionKeyRef = useRef<string>('');
 
   // Carrega as cotações da rodada ativa (inicial/aditivo) quando o modal estiver aberto
-  useEffect(() => {
-    if (!showQuotesModal) return;
-
-    const ticketChanged = quoteDraftTicketRef.current !== activeTicketId;
-    const allTicketQuotes = ticketQuotes;
-    const additiveRounds = getAvailableAdditiveRounds(allTicketQuotes);
-    if (ticketChanged && quoteRoundType !== 'additive') {
-      const nextAdditiveRoundIndex = additiveRounds.length > 0 ? Math.max(...additiveRounds) : 1;
-      const shouldResetInitialRound = quoteInitialRoundIndex !== nextEditableInitialRoundIndex;
-      const shouldResetAdditiveRound = quoteAdditiveIndex !== nextAdditiveRoundIndex;
-      quoteDraftTicketRef.current = activeTicketId;
-      quoteDraftSessionKeyRef.current = '';
-      if (shouldResetInitialRound) setQuoteInitialRoundIndex(nextEditableInitialRoundIndex);
-      if (shouldResetAdditiveRound) setQuoteAdditiveIndex(nextAdditiveRoundIndex);
-      if (shouldResetInitialRound || shouldResetAdditiveRound) return;
-    }
-
-    const targetRoundType: 'initial' | 'additive' = quoteRoundType;
-    const nextAdditiveIndex = additiveRounds.length > 0 ? Math.max(...additiveRounds) + 1 : 1;
-    const effectiveAdditiveIndex =
-      targetRoundType === 'additive'
-        ? Math.max(1, Number(quoteAdditiveIndex || nextAdditiveIndex))
-        : quoteAdditiveIndex;
-    const effectiveInitialRoundIndex = Math.max(1, Number(quoteInitialRoundIndex || nextEditableInitialRoundIndex || 1));
-    const targetRoundIndex = targetRoundType === 'additive' ? effectiveAdditiveIndex : effectiveInitialRoundIndex;
-    const draftSessionKey = `${activeTicketId}:${targetRoundType}:${targetRoundIndex}`;
-    if (quoteDraftSessionKeyRef.current === draftSessionKey) return;
-    const targetRoundMinSlots = getRoundMinQuoteSlots(targetRoundType);
-    const targetRoundMaxSlots = getRoundMaxQuoteSlots(targetRoundType);
-    const roundQuotes = getQuotesByRound(allTicketQuotes, targetRoundType, targetRoundIndex);
-    const currentQuotes = roundQuotes.filter(quote => normalizeQuoteStatus(quote.status) !== 'rejected');
-    const referenceQuote = currentQuotes[0] || roundQuotes[0] || null;
-    const fallbackQuotes = Array.from({ length: targetRoundMinSlots }, () => createEmptyQuoteDraft());
-    const currentSiteLabel = getTicketSiteLabel(activeTicket, catalogSites);
-    const slotCount = currentQuotes.length > 0
-      ? Math.min(targetRoundMaxSlots, Math.max(targetRoundMinSlots, currentQuotes.length))
-      : targetRoundMinSlots;
-    const nextQuotes =
-      currentQuotes.length > 0
-        ? Array.from({ length: slotCount }, (_, index) => ({
-            vendor: currentQuotes[index]?.vendor || '',
-            value: currentQuotes[index]?.value || '',
-            laborValue: currentQuotes[index]?.laborValue || '',
-            materialValue: currentQuotes[index]?.materialValue || '',
-            totalValue: currentQuotes[index]?.totalValue || '',
-            items:
-              currentQuotes[index]?.items?.length
-                ? currentQuotes[index].items!.map(item => ({
-                    id: item.id || crypto.randomUUID(),
-                    section: normalizeQuoteSection(item.section),
-                    description: item.description || '',
-                    materialId: item.materialId || null,
-                    materialName: item.materialName || null,
-                    unit: item.unit || null,
-                    quantity: item.quantity ?? null,
-                    costUnitPrice: item.costUnitPrice || null,
-                    unitPrice: null,
-                    totalPrice: item.totalPrice || null,
-                  }))
-                : [createEmptyQuoteItem()],
-          }))
-        : fallbackQuotes;
-    setQuotes(nextQuotes);
-    setAdditiveReason(currentQuotes[0]?.additiveReason ? String(currentQuotes[0].additiveReason) : '');
-    setProposalHeader(
-      referenceQuote?.proposalHeader
-        ? {
-            unitName: referenceQuote.proposalHeader?.unitName || currentSiteLabel || activeTicket.sede || '',
-            location: referenceQuote.proposalHeader?.location || '',
-            folderLink: referenceQuote.proposalHeader?.folderLink || '',
-            contractedVendor: referenceQuote.proposalHeader?.contractedVendor || '',
-            totalQuantity: referenceQuote.proposalHeader?.totalQuantity || '',
-            totalEstimatedValue: referenceQuote.proposalHeader?.totalEstimatedValue || '',
-          }
-        : createProposalHeaderDraft(activeTicket, currentSiteLabel)
-    );
-    setQuoteAttachments(Array.from({ length: nextQuotes.length }, () => null));
-    setPendingCustomUnitByItem({});
-    quoteDraftTicketRef.current = activeTicketId;
-    quoteDraftSessionKeyRef.current = draftSessionKey;
-  }, [activeTicket, activeTicketId, catalogSites, nextEditableInitialRoundIndex, quoteAdditiveIndex, quoteInitialRoundIndex, quoteRoundType, showQuotesModal]);
-
-  useEffect(() => {
-    if (showQuotesModal) return;
-    quoteDraftSessionKeyRef.current = '';
-  }, [showQuotesModal]);
-
-  useEffect(() => {
-    if (!showQuotesModal) return;
-    setShowQuoteContextPanel(false);
-    setShowQuoteHistoryPanel(false);
-    setShowQuoteComparisonPanel(false);
-    setShowAdditiveReference(true);
-    setQuoteEditorFocus(0);
-    setShowQuoteDirectorInterests(false);
-    setDirectorInterestedDraft('');
-    setDirectorInterestedEmails(mergeEmails(activeTicket.directorCcEmails || []));
-  }, [showQuotesModal, activeTicketId, quoteRoundType]);
-
-  useEffect(() => {
-    setExpandedQuoteItems(current => {
-      const next = { ...current };
-      quotes.forEach((quote, quoteIndex) => {
-        quote.items.forEach((item, itemIndex) => {
-          const key = `${quoteIndex}:${item.id}`;
-          if (!(key in next)) {
-            next[key] = itemIndex < 2;
-          }
-        });
-      });
-      return next;
-    });
-  }, [quotes]);
-
   // useMemo evita recalcular em todo re-render
   const [showFinalized, setShowFinalized] = useState(false);
 
@@ -2046,56 +1359,9 @@ export function InboxView() {
   // budgetHistory (cálculo O(n×m) sobre TODOS os tickets) só é exibido no modal
   // de cotações. Fora dele, passa lista vazia para não recalcular a cada
   // resposta na OS — era a causa da trava ao responder.
-  const budgetHistory = useMemo(
-    () => buildBudgetHistorySummary(activeTicket, showQuotesModal ? tickets : [], storedQuotesByTicket, vendors),
-    [activeTicket, showQuotesModal, tickets, storedQuotesByTicket, vendors]
-  );
-
-  const budgetBaselineAndRealized = useMemo(() => {
-    const allQuotes = storedQuotesByTicket[activeTicket.id] || [];
-    const parseValue = (value?: string | null) => parseCurrencyInput(String(value || ''));
-    const approvedInitial = allQuotes.find(quote => (quote.category || 'initial') === 'initial' && quote.status === 'approved') || null;
-    const plannedValue = approvedInitial ? parseValue(approvedInitial.totalValue || approvedInitial.value) : 0;
-    const approvedAdditives = allQuotes
-      .filter(quote => quote.category === 'additive' && quote.status === 'approved')
-      .reduce((sum, quote) => sum + parseValue(quote.totalValue || quote.value), 0);
-    return {
-      plannedValue,
-      realizedValue: plannedValue + approvedAdditives,
-      additiveValue: approvedAdditives,
-    };
-  }, [activeTicket.id, storedQuotesByTicket]);
-  const approvedInitialQuote = useMemo(() => {
-    const allQuotes = storedQuotesByTicket[activeTicket.id] || [];
-    const approved = allQuotes.find(quote => (quote.category || 'initial') === 'initial' && quote.status === 'approved');
-    if (approved) return approved;
-    return allQuotes.find(quote => (quote.category || 'initial') === 'initial') || null;
-  }, [activeTicket.id, storedQuotesByTicket]);
 
 
-  const persistedServicePreference = useMemo(() => {
-    const exactService = vendorPreferences
-      .filter(
-        item =>
-          item.scopeType === 'service' &&
-          activeTicket.serviceCatalogId &&
-          item.scopeId === activeTicket.serviceCatalogId
-      )
-      .sort((a, b) => b.approvalCount - a.approvalCount)[0];
 
-    if (exactService) return exactService;
-
-    return (
-      vendorPreferences
-        .filter(
-          item =>
-            item.scopeType === 'macroService' &&
-            activeTicket.macroServiceId &&
-            item.scopeId === activeTicket.macroServiceId
-        )
-        .sort((a, b) => b.approvalCount - a.approvalCount)[0] ?? null
-    );
-  }, [activeTicket.macroServiceId, activeTicket.serviceCatalogId, vendorPreferences]);
 
   const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Acumula (em vez de substituir) e limpa o value, para permitir adicionar
@@ -2199,20 +1465,7 @@ export function InboxView() {
     internalActionText = 'Ação: Registrar no histórico interno';
   }
 
-  const addDirectorInterestedEmails = (input: string) => {
-    const parsed = parseEmailTokens(input);
-    if (parsed.invalid.length > 0) {
-      showToast(`E-mail inválido: ${parsed.invalid[0]}`, 3000);
-      return;
-    }
-    if (parsed.valid.length === 0) return;
-    setDirectorInterestedEmails(current => mergeEmails(current, parsed.valid));
-    setDirectorInterestedDraft('');
-  };
 
-  const removeDirectorInterestedEmail = (email: string) => {
-    setDirectorInterestedEmails(current => current.filter(item => item !== email));
-  };
 
   const addPublicInterestedEmails = (input: string) => {
     const parsed = parseEmailTokens(input);
@@ -2248,254 +1501,7 @@ export function InboxView() {
     setReplyTextValue(next);
   };
 
-  const handleSendToDirector = () => {
-    const roundType = quoteRoundType;
-    const filled = quotes
-      .map((quote, index) => ({ quote, index }))
-      .filter(({ quote }) => isQuoteDraftFilledForSubmission(quote));
-    if (roundType === 'additive' && filled.length !== 1) {
-      showToast('Erro: aditivo deve ter exatamente 1 cotação preenchida com fornecedor e valor total.', 3500);
-      return;
-    }
-    if (roundType === 'initial' && filled.length < 2) {
-      showToast('Erro: Informe no mínimo 2 cotações antes de enviar.', 3000);
-      return;
-    }
-    setIsSending(true);
-    setTimeout(async () => {
-      const initialRoundIndex = roundType === 'initial' ? Math.max(1, Number(quoteInitialRoundIndex || 1)) : null;
-      const additiveIndex = roundType === 'additive' ? Math.max(1, Number(quoteAdditiveIndex || 1)) : null;
-      const normalizedAdditiveReason = additiveReason.trim();
-      if (roundType === 'additive' && !normalizedAdditiveReason) {
-        setIsSending(false);
-        showToast('Erro: informe o motivo do aditivo antes de enviar à diretoria.', 3000);
-        return;
-      }
-      const roundAttachmentKey = roundType === 'additive' ? `additive-${additiveIndex}` : `initial-${initialRoundIndex}`;
-      const uploadedAttachments = await Promise.all(
-        filled.map(async ({ index }, quoteOrder) => {
-          const attachmentFile = quoteAttachments[index];
-          if (!attachmentFile) return { index, uploaded: null as Awaited<ReturnType<typeof uploadQuoteAttachment>> | null };
-          try {
-            const uploaded = await uploadQuoteAttachment(activeTicket.id, roundAttachmentKey, `quote-${quoteOrder + 1}`, attachmentFile);
-            return { index, uploaded };
-          } catch {
-            return { index, uploaded: null, uploadFailed: true };
-          }
-        })
-      );
-      const failedUploads = uploadedAttachments.filter(item => Boolean((item as { uploadFailed?: boolean }).uploadFailed));
-      if (failedUploads.length > 0) {
-        setIsSending(false);
-        showToast('Falha ao enviar um ou mais anexos de cotação. Revise os arquivos e tente novamente.', 3500);
-        return;
-      }
-      const uploadedByOriginalIndex = new Map<number, Awaited<ReturnType<typeof uploadQuoteAttachment>>>();
-      uploadedAttachments.forEach(item => {
-        if (item.uploaded) uploadedByOriginalIndex.set(item.index, item.uploaded);
-      });
-      const nextQuotes: Quote[] = filled.map(({ quote, index: originalIndex }, index) => {
-        const summary = summarizeQuoteDraft(quote);
-        const resolvedTotal = resolveQuoteDraftSubmittedTotal(quote).trim();
-        const resolvedValue = quote.value.trim() || resolvedTotal;
-        return ({
-        // Id ÚNICO POR RODADA (não `quote-N` do zero): o servidor chaveia os docs por
-        // quote.id (procurement.js), então `quote-1` regenerado a cada rodada fazia a
-        // rodada nova / o aditivo SOBRESCREVER os docs da rodada anterior (perda de
-        // auditoria/comparação). roundAttachmentKey já é único por rodada
-        // (initial-<n> / additive-<n>) — mesmo esquema já usado nos paths de anexo.
-        id: `${roundAttachmentKey}-quote-${index + 1}`,
-        vendor: quote.vendor.trim(),
-        value: resolvedValue,
-        laborValue: quote.laborValue || summary.laborValue,
-        materialValue: quote.materialValue || summary.materialValue,
-        totalValue: resolvedTotal,
-        category: roundType,
-        initialRoundIndex,
-        additiveIndex,
-        additiveReason: roundType === 'additive' ? normalizedAdditiveReason : null,
-        recommended: false,
-        status: 'pending',
-        attachmentName: uploadedByOriginalIndex.get(originalIndex)?.name || quoteAttachments[originalIndex]?.name || null,
-        attachmentUrl: uploadedByOriginalIndex.get(originalIndex)?.url || null,
-        attachmentPath: uploadedByOriginalIndex.get(originalIndex)?.path || null,
-        proposalHeader: {
-          unitName: proposalHeader.unitName.trim() || null,
-          location: proposalHeader.location.trim() || null,
-          folderLink: proposalHeader.folderLink.trim() || null,
-          contractedVendor: proposalHeader.contractedVendor.trim() || null,
-          totalQuantity: proposalHeader.totalQuantity.trim() || null,
-          totalEstimatedValue: proposalHeader.totalEstimatedValue.trim() || null,
-        },
-        items: quote.items
-          .map(item => ({
-            ...item,
-            section: normalizeQuoteSection(item.section),
-            description: String(item.description || '').trim(),
-            unit: item.unit ? String(item.unit).trim() : null,
-            materialName: item.materialName ? String(item.materialName).trim() : null,
-            costUnitPrice: item.costUnitPrice ? String(item.costUnitPrice).trim() : null,
-            unitPrice: null,
-            totalPrice: item.totalPrice ? String(item.totalPrice).trim() : null,
-          }))
-          .filter(item => item.description || item.totalPrice || item.quantity),
-      })});
-      try {
-        await saveQuotes(activeTicket.id, nextQuotes, buildProcurementClassification(activeTicket));
-      } catch (error) {
-        const details = error instanceof Error ? error.message : 'Erro desconhecido ao salvar cotações.';
-        setIsSending(false);
-        showToast(`Falha ao salvar cotações no servidor: ${details}`, 5000);
-        return;
-      }
-      setStoredQuotesByTicket(prev => {
-        const existing = prev[activeTicket.id] || [];
-        const merged = [
-          ...existing.filter(quote => {
-            const category = quote.category === 'additive' ? 'additive' : 'initial';
-            if (category !== roundType) return true;
-            if (roundType === 'additive') return Number(quote.additiveIndex || 1) !== Number(additiveIndex || 1);
-            return Number(quote.initialRoundIndex || 1) !== Number(initialRoundIndex || 1);
-          }),
-          ...nextQuotes,
-        ];
-        return { ...prev, [activeTicket.id]: merged };
-      });
-      const historyItem: HistoryItem = {
-        id: crypto.randomUUID(),
-        type: 'system',
-        sender: displayActorLabel,
-        time: new Date(),
-        text:
-          roundType === 'additive'
-            ? (hasInvolvedDirectors
-              ? `Aditivo ${additiveIndex} consolidado e enviado para aprovação da Diretoria.`
-              : `Aditivo ${additiveIndex} consolidado sem diretores envolvidos. Aprovação da Diretoria pulada.`)
-            : (hasInvolvedDirectors
-              ? `Orçamentos da rodada ${initialRoundIndex} consolidados e enviados para aprovação da Diretoria.`
-              : `Orçamentos da rodada ${initialRoundIndex} consolidados sem diretores envolvidos. Aprovação da Diretoria pulada.`),
-      };
-      try {
-        const persisted = await updateTicket(activeTicket.id, {
-          status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_BUDGET_APPROVAL : TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-          directorIds: selectedDirectors.map(director => director.id),
-          directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
-          directorCcEmails: directorInterestedEmails,
-          history: [...activeTicket.history, historyItem],
-        }, { sendEmailUpdate: sendStatusEmailUpdate });
-        if (!persisted) {
-          // Editor continua aberto: as cotações já foram gravadas pelo saveQuotes,
-          // então fechar aqui esconderia que a OS não avançou de etapa.
-          showToast('Cotações salvas, mas a OS não foi enviada para a Diretoria. Tente de novo.', 6000);
-          return;
-        }
-        setShowQuotesModal(false);
-        showToast(
-          hasInvolvedDirectors
-            ? (roundType === 'additive'
-              ? `Aditivo ${additiveIndex} enviado para a Diretoria com sucesso!`
-              : `Rodada ${initialRoundIndex} de orçamentos enviada para a Diretoria com sucesso!`)
-            : 'Sem diretores envolvidos: a etapa de aprovação da Diretoria foi pulada.',
-          3000
-        );
-      } catch (error) {
-        showToast(
-          error instanceof Error ? error.message : 'Falha ao enviar para a Diretoria.',
-          4000
-        );
-      } finally {
-        setIsSending(false);
-      }
-    }, 1500);
-  };
 
-  const handleSendContractToDirector = async () => {
-    if (!activeContract) {
-      showToast('Contrato base não encontrado. Aprove o orçamento antes de enviar contrato.', 3000);
-      return;
-    }
-    if (!contractDispatchFile) {
-      showToast('Selecione o arquivo do contrato (PDF) antes de enviar à Diretoria.', 3000);
-      return;
-    }
-
-    setIsSending(true);
-    const now = new Date();
-    let uploadedContract: Awaited<ReturnType<typeof uploadContractAttachment>> | null = null;
-    try {
-      uploadedContract = await uploadContractAttachment(activeTicket.id, contractDispatchFile);
-    } catch {
-      setIsSending(false);
-      showToast('Falha ao enviar o PDF do contrato. Tente novamente.', 3000);
-      return;
-    }
-
-    const nextContract: ContractRecord = {
-      ...activeContract,
-      status: 'pending_approval',
-      signedFileName: uploadedContract?.name || contractDispatchFile.name,
-      signedFileUrl: uploadedContract?.url || null,
-      signedFilePath: uploadedContract?.path || null,
-      signedFileContentType: uploadedContract?.contentType || null,
-      signedFileSize: uploadedContract?.size ?? null,
-      viewingBy: null,
-    };
-
-    try {
-      await saveContract(activeTicket.id, nextContract, buildProcurementClassification(activeTicket));
-    } catch (error) {
-      console.error('[contract-dispatch] failed to save contract', error);
-      const details = error instanceof Error ? error.message : 'Erro desconhecido ao salvar contrato.';
-      setIsSending(false);
-      showToast(`Falha ao registrar contrato no servidor: ${details}`, 6000);
-      return;
-    }
-
-    setContractsByTicket(prev => ({ ...prev, [activeTicket.id]: nextContract }));
-    try {
-      const persisted = await updateTicket(activeTicket.id, {
-        status: hasInvolvedDirectors ? TICKET_STATUS.WAITING_CONTRACT_APPROVAL : TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-      directorIds: selectedDirectors.map(director => director.id),
-      directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
-      history: [
-        ...activeTicket.history,
-        {
-          id: crypto.randomUUID(),
-          type: 'system',
-          sender: displayActorLabel,
-          time: now,
-          text: hasInvolvedDirectors
-            ? `Contrato anexado pelo gestor (${contractDispatchFile.name}) e enviado para aprovação da Diretoria.`
-            : `Contrato anexado pelo gestor (${contractDispatchFile.name}) sem diretores envolvidos. Aprovação da Diretoria pulada e OS liberada para ações preliminares.`,
-        },
-      ],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
-      if (!persisted) {
-        // O contrato JÁ foi salvo acima; o que falhou foi avançar a OS. Modal segue
-        // aberto e o arquivo preservado para não reanexar do zero.
-        showToast('Contrato salvo, mas a OS não avançou de etapa. Tente de novo.', 6000);
-        return;
-      }
-
-      setContractDispatchFile(null);
-      setShowContractDispatchModal(false);
-      showToast(
-        hasInvolvedDirectors
-          ? 'Contrato enviado para aprovação da Diretoria.'
-          : 'Sem diretores envolvidos: contrato registrado e OS liberada para ações preliminares.',
-        3000
-      );
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? `Contrato salvo, mas a OS não avançou: ${error.message}`
-          : 'Contrato salvo, mas a OS não avançou de etapa.',
-        6000
-      );
-    } finally {
-      setIsSending(false);
-    }
-  };
 
   // Usa trackingToken (opaco) em vez do ID sequencial
   const handleCopyLink = () => {
@@ -2820,6 +1826,14 @@ export function InboxView() {
           </div>
         )}
 
+        {/* Mensagens que entraram e não casaram com OS nenhuma. Fica aqui, e não
+            na tela de Saúde de E-mail, porque isto é TRIAGEM — e a tela de saúde
+            nem abre para o papel Gestor. Some sozinha quando a fila está vazia. */}
+        <DroppedInboundQueue
+          onLinked={handleSelectTicket}
+          sedes={catalogSites.map(site => site.code).filter(Boolean)}
+        />
+
         {/* Ticket List */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredTickets.length === 0 ? (
@@ -2943,19 +1957,22 @@ export function InboxView() {
             <div className="min-w-0 bg-roman-surface px-3 py-2.5 md:px-4 md:py-3 border-b border-roman-border">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
-                  {/* Etapa atual em destaque (informação principal) */}
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <StatusBadge status={activeTicket.status} />
-                    {activeTicket.waterIssue ? (
-                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-800">
-                        Goteira/Infiltração
-                      </span>
-                    ) : null}
-                  </div>
+                  {/* A ETAPA saiu daqui de cima.
+                      Era "informação principal" e não era: o histórico mostra que 163
+                      das 270 OS estão paradas na mesma etapa há meses, então ela quase
+                      nunca diz o que está acontecendo. Quem diz é a faixa de próxima
+                      ação, logo abaixo. A etapa continua visível, junto do resto do
+                      contexto. */}
                   <h1 className="text-[1.2rem] leading-tight font-serif font-medium text-roman-text-main lg:text-[1.3rem] 2xl:text-[1.5rem]">{activeTicket.subject}</h1>
                   {/* Identidade + escopo + data, consolidados numa única linha */}
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-roman-text-sub">
                     <span className="font-medium text-roman-text-main">{activeTicket.id}</span>
+                    <StatusBadge status={activeTicket.status} />
+                    {activeTicket.waterIssue ? (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                        Goteira/Infiltração
+                      </span>
+                    ) : null}
                     <span className="text-roman-border">·</span>
                     <span>Solic.: <span className="font-medium text-roman-text-main">{activeTicket.requester || 'Não informado'}</span></span>
                     <span className="text-roman-border">·</span>
@@ -3034,28 +2051,7 @@ export function InboxView() {
                   )}
                 </div>
               </div>
-              {(() => {
-                const guidance = getStageGuidance(activeTicket.status);
-                if (!guidance) return null;
-                return (
-                  <div
-                    className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
-                      guidance.waiting
-                        ? 'border-roman-border bg-roman-bg text-roman-text-sub'
-                        : 'border-roman-primary/30 bg-roman-primary/8 text-roman-text-main'
-                    }`}
-                  >
-                    <span
-                      className={`mt-0.5 shrink-0 font-serif text-[10px] font-semibold uppercase tracking-widest ${
-                        guidance.waiting ? 'text-roman-text-sub' : 'text-roman-primary'
-                      }`}
-                    >
-                      {guidance.waiting ? 'Aguardando' : 'Próximo passo'}
-                    </span>
-                    <span className="min-w-0">{guidance.text}</span>
-                  </div>
-                );
-              })()}
+              <NextActionStrip ticket={activeTicket} />
 
               {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
                 <div className="mt-4 rounded-sm border border-roman-primary/30 bg-roman-primary/8 px-4 py-3 text-roman-text-main">
@@ -3457,199 +2453,33 @@ export function InboxView() {
                 </button>
               </div>
 
-              {/* EXECUTION CONTROL — só aparece quando há ações relevantes */}
-              {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
-                activeTicket.status === TICKET_STATUS.IN_PROGRESS ||
-                activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
-                activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
-                activeTicket.status === TICKET_STATUS.CLOSED) && (
-                <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setSidebarSections(prev => ({ ...prev, execution: !prev.execution }))}
-                    className="flex w-full items-start justify-between gap-3 text-left"
-                  >
-                    <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Execução</div>
-                      <div className="mt-1 text-[11px] text-roman-text-sub">Preliminares, andamento físico e próximos passos da obra.</div>
-                    </div>
-                    <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.execution ? 'rotate-180' : ''}`} />
-                  </button>
 
-                  {sidebarSections.execution ? (
-                    <div className="mt-3 space-y-2">
-                      <div className="rounded-xl border border-roman-primary/20 bg-roman-primary/5 px-3 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Próxima ação</div>
-                        <div className="mt-1 text-[12px] font-medium text-roman-text-main">{executionNextActionLabel}</div>
-                      </div>
-
-                      {activeTicket.preliminaryActions && (
-                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                          <div className="font-medium text-roman-text-main">Resumo das preliminares</div>
-                          <div>{buildPreliminarySummary(activeTicket.preliminaryActions)}</div>
-                          <div>Início previsto: {formatShortDate(activeTicket.preliminaryActions.plannedStartAt)}</div>
-                          <div>Material previsto: {formatShortDate(activeTicket.preliminaryActions.materialEta)}</div>
-                        </div>
-                      )}
-
-                      {activeTicket.executionProgress && (
-                        <div className="mb-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
-                          <div className="flex items-center justify-between text-xs text-roman-text-sub mb-2">
-                            <span className="font-medium text-roman-text-main">Andamento da obra</span>
-                            <span>{activeProgressPercent}%</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
-                            <div className="h-full rounded-full bg-roman-sidebar transition-all" style={{ width: `${activeProgressBarPercent}%` }} />
-                          </div>
-                          <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
-                            <div>Fluxo: {activeTicket.executionProgress.paymentFlowParts}x</div>
-                            <div>Marcos liberados: {activeReleasedPercent}%</div>
-                            <div>Próximo marco: {activeNextMilestonePercent != null ? `${activeNextMilestonePercent}%` : 'todos os marcos liberados'}</div>
-                            {activeTicket.executionProgress.measurementSheetUrl && (
-                              <div>
-                                Planilha de medição:{' '}
-                                <a
-                                  href={activeTicket.executionProgress.measurementSheetUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-roman-primary hover:underline"
-                                >
-                                  abrir link
-                                </a>
-                              </div>
-                            )}
-                            <div>Última atualização: {formatDateTimeSafe(activeTicket.executionProgress.lastUpdatedAt || activeTicket.time)}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS && (
-                          <button onClick={() => setShowPrelimModal(true)} className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2">
-                            <List size={14} /> Ações Preliminares (Compras)
-                          </button>
-                        )}
-
-                        {(activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS || activeTicket.status === TICKET_STATUS.IN_PROGRESS) && (
-                          <button
-                            onClick={handleStartExecution}
-                            className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
-                          >
-                            <Play size={14} /> {activeTicket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ? 'Revisar Checklist para Início' : 'Revisar Fluxo da Execução'}
-                          </button>
-                        )}
-
-                        {/* executionProgress is only set for active execution statuses (not CANCELED), so only CLOSED needs to be excluded */}
-                        {canManageStatus &&
-                          activeTicket.executionProgress &&
-                          activeTicket.status !== TICKET_STATUS.CLOSED && (
-                            <button
-                              onClick={handleOpenProgressModal}
-                              className="w-full bg-roman-sidebar hover:bg-stone-900 text-white py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
-                            >
-                              <RefreshCw size={14} /> Atualizar Andamento da Obra
-                            </button>
-                          )}
-
-                        {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setQuoteRoundType('additive');
-                              setQuoteAdditiveIndex((availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1);
-                              setShowQuotesModal(true);
-                            }}
-                            className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-2 rounded-sm font-medium transition-colors text-xs flex items-center justify-center gap-2"
-                          >
-                            <Plus size={14} /> Criar Aditivo
-                          </button>
-                        )}
-
-                        {activeTicket.status === TICKET_STATUS.IN_PROGRESS && (
-                          <button
-                            onClick={handleSendForValidation}
-                            className="w-full bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2.5 rounded-sm font-medium transition-colors text-xs text-center leading-tight"
-                          >
-                            <span className="block">Concluir execução e enviar ao solicitante</span>
-                          </button>
-                        )}
-
-                        {(activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
-                          activeTicket.status === TICKET_STATUS.WAITING_PAYMENT ||
-                          activeTicket.status === TICKET_STATUS.CLOSED) &&
-                          activeTicket.closureChecklist && (
-                            <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                              <div className="font-medium text-roman-text-main">Checklist de encerramento</div>
-                              <div>Infraestrutura 1: {activeTicket.closureChecklist.infrastructureApprovalPrimary ? 'confirmado' : 'pendente'}</div>
-                              <div>Infraestrutura 2: {activeTicket.closureChecklist.infrastructureApprovalSecondary ? 'confirmado' : 'pendente'}</div>
-                              <div>Início do serviço: {formatShortDate(activeTicket.closureChecklist.serviceStartedAt)}</div>
-                              <div>Término do serviço: {formatShortDate(activeTicket.closureChecklist.serviceCompletedAt)}</div>
-                              <div>Laudos anexados: {activeTicket.closureChecklist.documents?.length || 0}</div>
-                            </div>
-                          )}
-
-                        {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
-                          <div className="rounded-sm border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
-                            Pagamento e encerramento final agora são concluídos no painel Financeiro, com checklist e garantia.
-                          </div>
-                        )}
-                        {activeTicket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL && (
-                          <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
-                            Aguardando confirmação do solicitante no link de acompanhamento para seguir para o financeiro.
-                          </div>
-                        )}
-
-                        {activeTicket.status === TICKET_STATUS.CLOSED && activeTicket.guarantee && (
-                          <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub space-y-1">
-                            <div className="font-medium text-roman-text-main">Garantia</div>
-                            <div>Status: {activeTicket.guarantee.status === 'active' ? 'Ativa' : activeTicket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
-                            <div>Início: {formatShortDate(activeTicket.guarantee.startAt)}</div>
-                            <div>Fim: {formatShortDate(activeTicket.guarantee.endAt)}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
-              )}
-
+              {/* O FLUXO FINANCEIRO SAIU DAQUI.
+                  Cotação, contrato, medição e pagamento já tinham telas próprias
+                  (Aprovações e Financeiro) E uma segunda cópia aqui dentro — ~330
+                  linhas de modal e uma dúzia de handlers.
+                  O fluxo FOI usado: 235 ações registradas na auditoria entre março e
+                  maio de 2026. Mas parou em 19/05, e do que foi lançado sobraram 3
+                  cotações, 1 contrato e 2 pagamentos em 3 OS — o resto foi apagado.
+                  Enquanto ninguém decide se ele volta, a Inbox fica com o que ela
+                  comprovadamente é: a conversa e a triagem. */}
               {canManageBudgetRounds && (
                 <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">Gestão de Orçamentos</h4>
+                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">
+                    Orçamento e execução
                   </div>
-                  <div className="space-y-2">
+                  <p className="mt-1 text-[11px] text-roman-text-sub">
+                    Cotações, contrato, medições e pagamento seguem no Financeiro. A
+                    aprovação da diretoria saiu da esteira: agora ela é capturada do
+                    e-mail de quem está em cópia.
+                  </p>
+                  <div className="mt-3 space-y-2">
                     <button
-                      onClick={() => {
-                        setQuoteRoundType('initial');
-                        setQuoteInitialRoundIndex(nextEditableInitialRoundIndex);
-                        setShowQuotesModal(true);
-                      }}
-                      className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
+                      onClick={() => navigateTo('finance')}
+                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
                     >
-                      <DollarSign size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                      Gerenciar Cotações ({quotes.filter(isQuoteDraftFilledForSubmission).length}/5)
+                      Abrir em Financeiro
                     </button>
-                    <button
-                      onClick={() => {
-                        setQuoteRoundType('additive');
-                        setQuoteAdditiveIndex((availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1);
-                        setShowQuotesModal(true);
-                      }}
-                      className="w-full bg-roman-bg border border-roman-border hover:border-roman-primary text-roman-text-main py-3 rounded-xl font-medium transition-colors text-xs flex items-center justify-center gap-2 group"
-                    >
-                      <Plus size={16} className="text-roman-text-sub group-hover:text-roman-primary" />
-                      Criar Aditivo
-                    </button>
-                    {(panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD || (panelStatus.includes('Anexo') && panelStatus.includes('Contrato'))) && (
-                      <button
-                        onClick={() => setShowContractDispatchModal(true)}
-                        className="w-full min-h-[52px] bg-roman-sidebar hover:bg-stone-900 text-white px-3 py-2 rounded-xl font-medium transition-colors text-sm leading-tight text-center flex items-center justify-center gap-2"
-                      >
-                        <FileText size={15} className="shrink-0" />
-                        <span className="leading-tight text-center block">Anexar Contrato e Enviar para Diretoria</span>
-                      </button>
-                    )}
                   </div>
                 </section>
               )}
@@ -4260,335 +3090,6 @@ export function InboxView() {
         </ModalShell>
       )}
 
-      {showQuotesModal && (
-        <QuoteEditorProvider value={quoteEditor}>
-        <ModalShell
-          isOpen={showQuotesModal}
-          onClose={() => setShowQuotesModal(false)}
-          title={quoteRoundType === 'additive' ? 'Gestão de Aditivos' : 'Gestão de Orçamentos'}
-          description={quoteRoundType === 'additive' ? 'Registre o aditivo com 1 cotação para aprovação da diretoria.' : 'Registre no mínimo duas cotações para submeter a rodada à diretoria.'}
-          maxWidthClass="max-w-6xl"
-          footer={(
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowQuotesModal(false)} className="px-4 py-2 border border-roman-border text-roman-text-main hover:bg-roman-bg rounded-sm font-medium transition-colors text-sm">
-                Fechar
-              </button>
-              <button
-                onClick={handleSendToDirector}
-                disabled={isSending}
-                className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-70"
-              >
-                {isSending ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-                {isSending ? 'Enviando...' : 'Enviar para Diretoria'}
-              </button>
-            </div>
-          )}
-        >
-              <div className="flex items-center justify-between mb-6">
-                <p className="text-sm text-roman-text-sub">
-                  {quoteRoundType === 'additive'
-                    ? 'Aditivo deve ser enviado com 1 cotação.'
-                    : 'Informe de 2 a 5 cotações para enviar à diretoria.'}
-                </p>
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-sm font-medium">
-                  {quoteRoundType === 'initial' ? `Rodada ${quoteInitialRoundIndex} · Orçamento Inicial` : `Aditivo ${quoteAdditiveIndex}`}
-                </span>
-              </div>
-
-              {quoteRoundType === 'initial' && rejectedInitialRounds.length > 0 && (
-                <div className="mb-6 rounded-sm border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h4 className="text-sm font-serif text-amber-950">Rodadas recusadas</h4>
-                      <p className="text-xs text-amber-900">As rodadas anteriores ficam preservadas só para consulta. A área abaixo é exclusiva da nova rodada.</p>
-                    </div>
-                    <span className="rounded-sm border border-amber-300 bg-white px-2 py-1 text-[11px] text-amber-900">
-                      Nova rodada: {quoteInitialRoundIndex}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-                    {rejectedInitialRounds.map(round => (
-                      <div key={`rejected-round-${round.roundIndex}`} className="rounded-sm border border-amber-300 bg-white p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-medium text-amber-950">Rodada {round.roundIndex}</div>
-                          <span className="rounded-sm border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] text-red-700">Recusada</span>
-                        </div>
-                        <div className="mt-2 space-y-2">
-                          {round.quotes.map((quote, index) => (
-                            <div key={`rejected-round-${round.roundIndex}-quote-${index}`} className="rounded-sm border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
-                              <div className="font-medium text-stone-900">{quote.vendor || `Cotação ${index + 1}`}</div>
-                              <div className="mt-1 text-xs text-stone-600">
-                                Total: {quote.totalValue || quote.value || '-'} · Material: {quote.materialValue || '-'} · Mão de obra: {quote.laborValue || '-'}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => document.getElementById('quote-editor-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                  className="inline-flex items-center gap-2 rounded-sm border border-roman-primary bg-roman-primary/10 px-3 py-1.5 text-xs font-medium text-roman-primary hover:bg-roman-primary/15"
-                >
-                  <Plus size={12} />
-                  Montar cotações
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleQuoteMetaPanel('context')}
-                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                >
-                  <ChevronDown size={12} className={`transition-transform ${showQuoteContextPanel ? 'rotate-180' : ''}`} />
-                  {showQuoteContextPanel ? 'Ocultar contexto' : 'Mostrar contexto'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleQuoteMetaPanel('history')}
-                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                >
-                  <ChevronDown size={12} className={`transition-transform ${showQuoteHistoryPanel ? 'rotate-180' : ''}`} />
-                  Base histórica
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleQuoteMetaPanel('comparison')}
-                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                >
-                  <ChevronDown size={12} className={`transition-transform ${showQuoteComparisonPanel ? 'rotate-180' : ''}`} />
-                  Comparativo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowQuoteDirectorInterests(current => !current)}
-                  className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
-                >
-                  <Plus size={12} />
-                  Adicionar interessados
-                  {directorInterestedEmails.length > 0 && (
-                    <span className="rounded-full bg-roman-primary px-1.5 py-0.5 text-[10px] text-white">
-                      {directorInterestedEmails.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {showQuoteDirectorInterests && (
-                <DirectorInterestsPanel
-                  draft={directorInterestedDraft}
-                  emails={directorInterestedEmails}
-                  suggestions={directorEmailSuggestions}
-                  onDraftChange={setDirectorInterestedDraft}
-                  onAdd={() => addDirectorInterestedEmails(directorInterestedDraft)}
-                  onAddSuggestion={email => setDirectorInterestedEmails(current => mergeEmails(current, [email]))}
-                  onRemove={removeDirectorInterestedEmail}
-                />
-              )}
-
-              <div className="mb-6 rounded-sm border border-roman-border bg-roman-surface p-4">
-                {quoteRoundType === 'additive' && (
-                  <div className="space-y-3">
-                    <AdditiveReferenceCard
-                      expanded={showAdditiveReference}
-                      onToggle={() => setShowAdditiveReference(current => !current)}
-                      approvedQuote={approvedInitialQuote}
-                    />
-                    <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Rodada de aditivo</label>
-                    <select
-                      value={quoteAdditiveIndex}
-                      onChange={event => setQuoteAdditiveIndex(Number(event.target.value) || 1)}
-                      className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                    >
-                      {availableAdditiveRounds.map(round => (
-                        <option key={`aditivo-round-${round}`} value={round}>
-                          Aditivo {round}
-                        </option>
-                      ))}
-                      <option value={(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1}>
-                        Novo aditivo ({(availableAdditiveRounds.length > 0 ? Math.max(...availableAdditiveRounds) : 0) + 1})
-                      </option>
-                    </select>
-                    <div>
-                      <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Motivo do aditivo</label>
-                      <textarea
-                        value={additiveReason}
-                        onChange={event => setAdditiveReason(event.target.value)}
-                        placeholder="Descreva o motivo técnico/operacional do aditivo..."
-                        className="w-full min-h-[76px] text-sm p-2 border border-roman-border rounded-sm bg-roman-bg outline-none focus:border-roman-primary"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {showQuoteContextPanel && (
-                <>
-                  {(activeTicket.macroServiceName || activeTicket.serviceCatalogName) && (
-                    <div className="mb-6 rounded-sm border border-roman-primary/20 bg-roman-primary/5 px-4 py-3 text-sm text-roman-text-main">
-                      <div className="font-medium">Classificação da OS</div>
-                      <div className="mt-1 text-roman-text-sub">
-                        {activeTicket.macroServiceName || 'Sem macroserviço'} {activeTicket.serviceCatalogName ? `· ${activeTicket.serviceCatalogName}` : ''}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor previsto</div>
-                      <div className="mt-1 text-base font-serif text-roman-text-main">
-                        {budgetBaselineAndRealized.plannedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.plannedValue) : '-'}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Aditivos aprovados</div>
-                      <div className="mt-1 text-base font-serif text-roman-text-main">
-                        {budgetBaselineAndRealized.additiveValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.additiveValue) : '-'}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
-                      <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor realizado</div>
-                      <div className="mt-1 text-base font-serif text-roman-text-main">
-                        {budgetBaselineAndRealized.realizedValue > 0 ? formatCurrencyInput(budgetBaselineAndRealized.realizedValue) : '-'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <ProposalHeaderForm value={proposalHeader} onChange={handleProposalHeaderChange} onCurrencyBlur={handleProposalCurrencyBlur} />
-
-              {showQuoteHistoryPanel && (
-                <QuoteHistoryPanel history={budgetHistory} servicePreference={persistedServicePreference} ticketId={activeTicket.id} />
-              )}
-
-                  <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {quotes.map((quote, index) => (
-                      <div key={`quote-total-${index}`} className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-3">
-                        <div className="text-[10px] uppercase tracking-[0.22em] text-roman-text-sub">
-                          Fornecedor {index < 26 ? String.fromCharCode(65 + index) : index + 1}
-                        </div>
-                        <div className="mt-1 text-sm font-medium text-roman-text-main break-words">
-                          {quote.vendor || 'Fornecedor não informado'}
-                        </div>
-                        <div className="mt-2 text-[11px] text-roman-text-sub">Total geral da proposta</div>
-                        <div className="mt-1 text-lg font-serif text-roman-text-main">
-                          {quoteGrandTotals[index] > 0 ? formatCurrencyInput(quoteGrandTotals[index]) : quote.value || '-'}
-                        </div>
-                        <div className="mt-2 space-y-1 text-[11px] text-roman-text-sub">
-                          <div>Material: {quote.materialValue || '-'}</div>
-                          <div>Mão de obra: {quote.laborValue || '-'}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-              {showQuoteComparisonPanel && (
-                  <QuoteComparisonPanel />
-                )}
-                </>
-              )}
-
-              <QuoteEditorTabs quotes={quotes} focus={quoteEditorFocus} onSelectFocus={setQuoteEditorFocus} onAddSlot={handleAddQuoteSlot} canAddSlot={quotes.length < getRoundMaxQuoteSlots(quoteRoundType)} />
-
-              {quoteEditorFocus === 'all' ? (
-                <QuoteConsolidatedView />
-              ) : (
-              <div className="grid grid-cols-1 gap-4 mb-6 items-start xl:grid-cols-1">
-                {visibleQuoteEditors.map(({ quote, index: i }) => (
-                  <div key={`quote-editor-${i}`} className="border border-roman-border rounded-sm p-4 bg-roman-bg flex flex-col self-start min-h-0">
-                    <QuoteEditorCardHeader i={i} canRemoveSlot={quotes.length > getRoundMinQuoteSlots(quoteRoundType)} attachment={quoteAttachments[i]} handleRemoveQuoteSlot={handleRemoveQuoteSlot} handleQuoteAttachmentChange={handleQuoteAttachmentChange} />
-                    <div className="space-y-3 flex-1">
-                      <QuoteVendorFields quote={quote} i={i} persistedServicePreference={persistedServicePreference} preferredVendor={budgetHistory.preferredVendor} />
-                      <QuoteItemsSection quote={quote} i={i} suggestedQuoteMaterials={suggestedQuoteMaterials} itemReferences={budgetHistory.itemReferences} />
-                      {quoteAttachments[i] && (
-                        <div className="text-[11px] text-roman-text-sub truncate">
-                          PDF: {quoteAttachments[i]!.name}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              )}
-
-        </ModalShell>
-        </QuoteEditorProvider>
-      )}
-
-      {showContractDispatchModal && (
-        <ContractDispatchModal
-          isOpen={showContractDispatchModal}
-          onClose={() => setShowContractDispatchModal(false)}
-          isSending={isSending}
-          onSend={() => void handleSendContractToDirector()}
-          file={contractDispatchFile}
-          onFileChange={file => setContractDispatchFile(file)}
-          contractVendor={activeContract?.vendor || 'Não informado'}
-          contractValue={activeContract?.value || 'Não informado'}
-        />
-      )}
-
-      {/* Ações Preliminares Modal */}
-      {showPrelimModal && (
-        <PreliminaryActionsModal
-          isOpen={showPrelimModal}
-          onClose={() => setShowPrelimModal(false)}
-          form={prelimForm}
-          onToggleItem={handlePrelimFieldToggle}
-          onFieldChange={handlePrelimFieldChange}
-          onSaveChecklist={() => handleSavePreliminaryActions(false)}
-          onCompleteAndStart={() => handleSavePreliminaryActions(true)}
-          canComplete={arePreliminaryActionsReady(prelimForm) && !!prelimForm.plannedStartAt}
-          summary={buildPreliminarySummary(buildPreliminaryActionsPayload(false))}
-        />
-      )}
-
-      {showExecutionSetupModal && (
-        <ExecutionSetupModal
-          isOpen={showExecutionSetupModal}
-          onClose={() => setShowExecutionSetupModal(false)}
-          isSending={isSending}
-          onConfirm={() => void handleConfirmExecutionStart()}
-          paymentFlowParts={executionSetupForm.paymentFlowParts}
-          measurementSheetUrl={executionSetupForm.measurementSheetUrl}
-          notes={executionSetupForm.notes}
-          onFieldChange={(field, value) => setExecutionSetupForm(prev => ({ ...prev, [field]: value }))}
-          contractVendor={activeContract?.vendor || activeTicket.assignedTeam || 'Não definido'}
-          contractValue={activeContract?.value || 'Não informado'}
-          progressPercent={activeProgressPercent}
-        />
-      )}
-
-      {showProgressModal && (
-        <ProgressUpdateModal
-          isOpen={showProgressModal}
-          onClose={() => setShowProgressModal(false)}
-          isSending={isSending}
-          onSave={() => void handleSaveProgressUpdate()}
-          grossAmount={progressUpdateForm.grossAmount}
-          budgetSource={progressUpdateForm.budgetSource}
-          notes={progressUpdateForm.notes}
-          onGrossChange={value => setProgressUpdateForm(prev => ({ ...prev, grossAmount: value }))}
-          onGrossBlur={() => setProgressUpdateForm(prev => ({ ...prev, grossAmount: normalizeCurrencyInput(prev.grossAmount) }))}
-          onBudgetSourceChange={value => setProgressUpdateForm(prev => ({ ...prev, budgetSource: value }))}
-          onNotesChange={value => setProgressUpdateForm(prev => ({ ...prev, notes: value }))}
-          draftProgressPercent={draftProgressPercent}
-          activeProgressPercent={activeProgressPercent}
-          projectedAccumulatedGross={projectedAccumulatedGross}
-          currentAccumulatedGross={currentAccumulatedGross}
-          activeExpectedBaselineValue={activeExpectedBaselineValue}
-          activeReleasedPercent={activeReleasedPercent}
-          activeNextMilestonePercent={activeNextMilestonePercent}
-          activeMilestones={activeMilestones}
-          paymentFlowParts={activeTicket.executionProgress?.paymentFlowParts}
-          files={progressReportFiles}
-          fileInputRef={progressReportFileRef}
-          onAddFiles={next => setProgressReportFiles(prev => [...prev, ...next])}
-          onRemoveFile={index => setProgressReportFiles(prev => prev.filter((_, i) => i !== index))}
-        />
-      )}
     </div>
   );
 }

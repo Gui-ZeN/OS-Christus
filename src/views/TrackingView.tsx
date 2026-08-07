@@ -1,12 +1,13 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
 import { TICKET_STATUS, type TicketStatus } from '../constants/ticketStatus';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { fetchTrackingDetailsFromApi, patchTrackingTicketInApi, postTrackingMessageInApi } from '../services/ticketsApi';
 import type { HistoryItem, Ticket } from '../types';
 import { formatDateTimeSafe } from '../utils/date';
-import { cleanForwardedMessageText, repairMojibake } from '../utils/text';
+import { cleanForwardedMessageText, normalizeText as stripAccents, repairMojibake } from '../utils/text';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 
 interface TrackingViewProps {
@@ -111,11 +112,10 @@ const NORMALIZED_STATUS_TO_VALUE = new Map<string, TicketStatus>(
   Object.values(TICKET_STATUS).map(status => [normalizeText(status), status as TicketStatus]),
 );
 
+// Busca na página pública: conserta mojibake ANTES de tirar acento, senão um
+// "Refeitório" quebrado nunca casa com o que a pessoa digita.
 function normalizeText(value: unknown) {
-  return repairMojibake(String(value ?? ''))
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+  return stripAccents(repairMojibake(String(value ?? '')));
 }
 
 function parseDate(value: unknown): Date | null {
@@ -692,7 +692,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             </div>
           )}
 
-          {ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED && (
+          {isTicketOpen(ticket.status) && (
             <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
               <div className="text-sm font-medium text-roman-text-main">Mensagem para a equipe</div>
               <p className="mt-1 text-sm text-roman-text-sub">

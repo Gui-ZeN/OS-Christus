@@ -10,6 +10,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { parseCurrency } from '../utils/currency';
 
@@ -563,8 +564,7 @@ export function KpiView() {
     () =>
       filteredTickets.filter(ticket =>
         (ticket.priority === 'Urgente' || ticket.priority === 'Alta') &&
-        ticket.status !== TICKET_STATUS.CLOSED &&
-        ticket.status !== TICKET_STATUS.CANCELED
+        isTicketOpen(ticket.status)
       ).length,
     [filteredTickets]
   );
@@ -580,7 +580,7 @@ export function KpiView() {
   );
 
   const oldestOpenTicket = useMemo(() => {
-    const openTickets = filteredTickets.filter(ticket => ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED);
+    const openTickets = filteredTickets.filter(ticket => isTicketOpen(ticket.status));
     const oldest = [...openTickets].sort((a, b) => a.time.getTime() - b.time.getTime())[0];
     if (!oldest) return null;
     return {
@@ -926,7 +926,7 @@ export function KpiView() {
                 <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Volume operacional</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{filteredTickets.length}</div>
                 <div className="text-sm text-roman-text-sub mb-4">
-                  {filteredTickets.filter(ticket => ticket.status !== TICKET_STATUS.CLOSED && ticket.status !== TICKET_STATUS.CANCELED).length} obras ou solicitações ainda em curso
+                  {filteredTickets.filter(ticket => isTicketOpen(ticket.status)).length} obras ou solicitações ainda em curso
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
                   Entregas concluídas: {filteredTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length}

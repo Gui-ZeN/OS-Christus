@@ -7,6 +7,7 @@ import { FloatingToast } from '../components/ui/FloatingToast';
 import { ModalShell } from '../components/ui/ModalShell';
 import { useToast } from '../hooks/useToast';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
 import { fetchProcurementData, savePayment } from '../services/procurementApi';
@@ -357,7 +358,7 @@ export function FinanceView() {
   }, [financeTickets]);
 
   const isFinanceEntryHistorical = useCallback((entry: (typeof financeTickets)[number]) => {
-    if (entry.ticket.status === TICKET_STATUS.CLOSED || entry.ticket.status === TICKET_STATUS.CANCELED) {
+    if (!isTicketOpen(entry.ticket.status)) {
       return true;
     }
     const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
