@@ -28,16 +28,28 @@ export const ATTENTION_KIND = {
   CHECK_VISIT: 'verificar-comparecimento',
   /** A suspensão venceu. */
   REVIEW_SUSPENSION: 'reavaliar-suspensao',
+  /** Parada, sem ninguém respondendo por ela. */
+  SET_OWNER: 'definir-responsavel',
 };
 
 /**
  * Versão das regras. Gravada junto da atenção para permitir reprocessar só o que foi
  * calculado por uma versão antiga, em vez de recalcular tudo às cegas.
  */
-export const ATTENTION_RULE_VERSION = 1;
+export const ATTENTION_RULE_VERSION = 2;
 
 /** Dias úteis a esperar antes de cobrar um retorno que pedimos. */
 export const FOLLOW_UP_BUSINESS_DAYS = 3;
+
+/**
+ * Dias CORRIDOS parada até virar cobrança de responsável.
+ *
+ * Corridos, não úteis: uma semana parada é uma semana parada, e a pessoa que abriu
+ * não conta em dias úteis. Sete dias porque é o ciclo em que a operação já se
+ * organiza (a revisão de fila do processo é semanal) — abaixo disso a regra brigaria
+ * com trabalho normal em andamento.
+ */
+export const IDLE_WITHOUT_OWNER_DAYS = 7;
 
 const FIM_DE_SEMANA = new Set([0, 6]);
 
@@ -80,6 +92,30 @@ function depoisDe(a, b) {
 
 /** OS encerrada ou cancelada não cobra nada de ninguém. */
 const MORTAS = new Set(['Encerrada', 'Cancelada']);
+
+/**
+ * Quando esta OS se mexeu pela última vez.
+ *
+ * Olha o histórico junto com os carimbos de e-mail de propósito: `lastInboundAt`
+ * existe em 4 das 195 OS vivas e `lastOutboundAt` em 9 — eles só passaram a ser
+ * gravados nas mensagens novas. Uma regra que dependesse só deles trataria 190 OS
+ * como se nunca tivessem se mexido.
+ *
+ * `updatedAt` fica FORA: o servidor carimba a cada escrita, inclusive nos
+ * recálculos automáticos, então ele diria que a OS se mexeu quando quem mexeu foi o
+ * próprio sistema.
+ *
+ * Cai na data de abertura quando não há mais nada — OS recém-criada e nunca tocada
+ * está parada desde que nasceu, e é exatamente o caso que precisa aparecer.
+ */
+export function ultimaMovimentacao(ticket) {
+  let ultima = maisRecente(ticket?.lastInboundAt, ticket?.lastOutboundAt);
+  const historico = Array.isArray(ticket?.history) ? ticket.history : [];
+  for (const entrada of historico) {
+    ultima = maisRecente(ultima, entrada?.time);
+  }
+  return ultima || toDateOrNull(ticket?.time) || toDateOrNull(ticket?.createdAt) || null;
+}
 
 /**
  * O que esta OS exige, e quando.
@@ -167,6 +203,35 @@ export function computeOperationalAttention(input, now = new Date()) {
     }
   }
 
+  // 6. Parada, e ninguém responde por ela.
+  //
+  //    A regra que faltava, e a que casa com a falha REAL desta operação: 155 OS
+  //    (57% do estoque) paradas em Parecer Técnico há 39 dias na mediana, e 154
+  //    delas COM equipe atribuída. Equipe responde pelo trabalho; pessoa responde
+  //    pelo prazo. As outras cinco regras só enxergam "alguém está esperando por
+  //    nós" — por isso 101 OS não geravam atenção nenhuma justamente por estarem
+  //    abandonadas, que é o oposto do que deveria acontecer.
+  //
+  //    Vem por ÚLTIMO de propósito: se há mensagem sem resposta ou visita marcada,
+  //    isso é mais específico e mais útil do que "defina um responsável".
+  if (!String(ticket.responsible?.email || '').trim()) {
+    const parouEm = ultimaMovimentacao(ticket);
+    if (parouEm) {
+      const cobrarEm = new Date(parouEm.getTime() + IDLE_WITHOUT_OWNER_DAYS * 24 * 3600_000);
+      if (cobrarEm.getTime() <= now.getTime()) {
+        return {
+          kind: ATTENTION_KIND.SET_OWNER,
+          // `sourceId` preso à última movimentação, não à contagem de dias: com os
+          // dias no id, dispensar hoje e o id mudar amanhã traria a mesma proposta
+          // de volta todo dia. Assim a dispensa vale até algo realmente acontecer.
+          sourceId: `sem-responsavel-${parouEm.getTime()}`,
+          dueAt: cobrarEm,
+          ruleVersion: ATTENTION_RULE_VERSION,
+        };
+      }
+    }
+  }
+
   return null;
 }
 
@@ -217,6 +282,12 @@ export const LEGACY_ATTENTION_DAYS = 7;
 
 /** Esta atenção é trabalho de hoje ou passivo antigo? */
 export function isLegacyAttention(atencao, now = new Date(), dias = LEGACY_ATTENTION_DAYS) {
+  // "Sem responsável" NUNCA é passivo antigo. A janela existe porque mensagem velha
+  // sem resposta é notícia vencida — responder um e-mail de 60 dias atrás raramente
+  // ajuda alguém. Já uma OS parada há 60 dias sem ninguém respondendo por ela não
+  // fica menos urgente com o tempo: fica MAIS. Aplicar o corte aqui esconderia
+  // justamente as piores, e a regra nasceria inútil.
+  if (atencao?.kind === ATTENTION_KIND.SET_OWNER) return false;
   const dueAt = toDateOrNull(atencao?.dueAt);
   if (!dueAt) return false;
   return now.getTime() - dueAt.getTime() > dias * 24 * 3600_000;

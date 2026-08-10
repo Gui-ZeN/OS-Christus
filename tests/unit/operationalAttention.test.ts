@@ -7,6 +7,8 @@ import {
   attentionChanged,
   computeOperationalAttention,
   nextBusinessDay,
+  ultimaMovimentacao,
+  IDLE_WITHOUT_OWNER_DAYS,
 } from '../../api/_lib/operationalAttention.js';
 
 /** Quarta, 5 de agosto de 2026, 09h em Fortaleza (12h UTC). */
@@ -128,6 +130,86 @@ describe('computeOperationalAttention — precedência', () => {
     // 163 das 270 OS estão paradas há meses. Inventar atenção para todas de uma vez
     // encheria a tela de ruído e ensinaria a ignorá-la.
     expect(computeOperationalAttention(os(), AGORA)).toBeNull();
+  });
+});
+
+describe('parada sem responsável — a regra que faltava', () => {
+  const parada = (diasAtras: number, over: Record<string, unknown> = {}) =>
+    os({ history: [{ id: 'h1', type: 'customer', time: emDias(-diasAtras) }], ...over });
+
+  it('OS parada além do limiar e sem responsável cobra um responsável', () => {
+    const r = computeOperationalAttention(parada(IDLE_WITHOUT_OWNER_DAYS + 1), AGORA);
+    expect(r?.kind).toBe(ATTENTION_KIND.SET_OWNER);
+  });
+
+  it('parada há menos que o limiar não cobra nada — trabalho normal em andamento', () => {
+    expect(computeOperationalAttention(parada(IDLE_WITHOUT_OWNER_DAYS - 1), AGORA)).toBeNull();
+  });
+
+  // A distinção que motiva a regra: 154 das 155 OS paradas TÊM equipe atribuída.
+  it('ter EQUIPE não substitui ter responsável', () => {
+    const r = computeOperationalAttention(parada(30, { assignedTeam: 'Construtora' }), AGORA);
+    expect(r?.kind).toBe(ATTENTION_KIND.SET_OWNER);
+  });
+
+  it('com responsável definido, silêncio', () => {
+    const r = computeOperationalAttention(
+      parada(30, { responsible: { email: 'gestor@px.com.br', name: 'Gestor' } }),
+      AGORA
+    );
+    expect(r).toBeNull();
+  });
+
+  it('responsável em branco não conta como responsável', () => {
+    const r = computeOperationalAttention(parada(30, { responsible: { email: '   ', name: '' } }), AGORA);
+    expect(r?.kind).toBe(ATTENTION_KIND.SET_OWNER);
+  });
+
+  it('vem por ÚLTIMO: mensagem sem resposta é mais específica e ganha', () => {
+    const r = computeOperationalAttention(
+      os({ history: [{ id: 'h1', type: 'customer', time: emDias(-30) }], lastInboundAt: emDias(-30) }),
+      AGORA
+    );
+    expect(r?.kind).toBe(ATTENTION_KIND.REVIEW_MESSAGE);
+  });
+
+  // Com os dias no id, dispensar hoje traria a mesma proposta de volta amanhã.
+  it('o sourceId não muda enquanto nada acontece', () => {
+    const t = parada(30);
+    const hoje = computeOperationalAttention(t, AGORA);
+    const amanha = computeOperationalAttention(t, new Date(AGORA.getTime() + 86400000));
+    expect(hoje?.sourceId).toBe(amanha?.sourceId);
+  });
+
+  it('NUNCA é escondida como passivo antigo — velha é mais urgente, não menos', () => {
+    const r = computeOperationalAttention(parada(75), AGORA);
+    expect(isLegacyAttention(r, AGORA)).toBe(false);
+    // Uma atenção comum com o mesmo atraso seria escondida:
+    expect(isLegacyAttention({ ...r, kind: ATTENTION_KIND.REVIEW_MESSAGE }, AGORA)).toBe(true);
+  });
+});
+
+describe('ultimaMovimentacao', () => {
+  it('usa o histórico quando os carimbos de e-mail não existem (190 das 195 OS)', () => {
+    const t = { history: [{ time: emDias(-10) }, { time: emDias(-3) }] };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-3).getTime());
+  });
+
+  it('o carimbo mais recente ganha, venha de onde vier', () => {
+    const t = { history: [{ time: emDias(-10) }], lastOutboundAt: emDias(-1) };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-1).getTime());
+  });
+
+  // updatedAt é carimbado pelo servidor a cada recálculo: usá-lo diria que a OS se
+  // mexeu quando quem mexeu foi o próprio sistema.
+  it('IGNORA updatedAt', () => {
+    const t = { time: emDias(-40), updatedAt: emDias(0) };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-40).getTime());
+  });
+
+  it('sem nada, cai na data de abertura', () => {
+    expect(ultimaMovimentacao({ time: emDias(-5) })?.getTime()).toBe(emDias(-5).getTime());
+    expect(ultimaMovimentacao({})).toBeNull();
   });
 });
 
