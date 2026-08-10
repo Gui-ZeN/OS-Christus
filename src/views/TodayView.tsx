@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CircleAlert, Clock, Hourglass, PauseCircle, Search } from 'lucide-react';
+import { ArrowRight, CalendarClock, CircleAlert, Clock, Hourglass, PauseCircle, Search, UserRound } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
   AGENDA_GROUP,
@@ -115,7 +115,7 @@ function emDias(base: Date, dias: number, hora: number): Date {
 }
 
 export function TodayView() {
-  const { tickets, navigateTo, setActiveTicketId, updateTicket, currentUser } = useApp();
+  const { tickets, navigateTo, setActiveTicketId, updateTicket, currentUser, osBoardFilter, setOsBoardFilter } = useApp();
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<string | null>(null);
   // Compromissos vivem fora do `tickets` (uma visita atende várias OS) e por isso não
@@ -313,6 +313,38 @@ export function TodayView() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pb-10 md:px-6">
+        {/* O PASSIVO COMO NÚMERO, NÃO COMO LISTA.
+            São 154 OS paradas sem responsável hoje. Item a item, elas cairiam quase
+            todas em "Vencidas" e afogariam as atenções que são trabalho de verdade.
+            Como número, cabem numa linha e se resolvem em lote na Gestão — que é
+            onde estão o filtro "Sem responsável" e a coluna clicável.
+            Quando o passivo cair abaixo de MAX_SEM_RESPONSAVEL_NA_PAUTA, esta linha
+            some sozinha e as OS voltam a aparecer uma a uma. */}
+        {agenda.semResponsavel.agrupado && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-sm border border-amber-300 bg-amber-50 p-4">
+            <UserRound size={18} className="text-amber-800" />
+            <div className="min-w-[14rem] flex-1">
+              <div className="font-medium text-amber-900">
+                {agenda.semResponsavel.total} OS paradas sem responsável
+              </div>
+              <p className="text-sm text-amber-900/80">
+                Não estão na lista abaixo de propósito: é passivo acumulado, e ele se resolve
+                em lote — não uma por dia.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setOsBoardFilter({ ...osBoardFilter, responsible: 'none' });
+                navigateTo('os-board');
+              }}
+              className="inline-flex items-center gap-1.5 rounded-sm bg-amber-800 px-3 py-2 text-sm font-medium text-white hover:bg-amber-900"
+            >
+              Definir responsáveis <ArrowRight size={14} />
+            </button>
+          </div>
+        )}
+
         {GROUP_ORDER.map(grupo => {
           const itens = filtra(agenda.groups[grupo]);
           if (itens.length === 0) return null;

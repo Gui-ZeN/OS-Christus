@@ -10,7 +10,12 @@ import {
   idleDays,
   isPastTolerance,
 } from '../../src/utils/agenda';
-import { ATTENTION_STATE, SUSPENSION_REASON } from '../../src/constants/agenda';
+import {
+  ATTENTION_STATE,
+  MAX_SEM_RESPONSAVEL_NA_PAUTA,
+  SUSPENSION_REASON,
+} from '../../src/constants/agenda';
+import { ATTENTION_KIND } from '../../src/constants/attentionKind';
 import { TICKET_STATUS } from '../../src/constants/ticketStatus';
 import type { Ticket } from '../../src/types';
 
@@ -143,6 +148,50 @@ describe('agendaGroupOf', () => {
   it('dentro de 7 dias → Próximos; depois disso, fora da tela', () => {
     expect(agendaGroupOf(comAcao(new Date('2026-08-09T12:00:00Z')), AGORA)).toBe(AGENDA_GROUP.UPCOMING);
     expect(agendaGroupOf(comAcao(new Date('2026-09-30T12:00:00Z')), AGORA)).toBeNull();
+  });
+});
+
+describe('buildAgenda — passivo sem responsável: número ou lista', () => {
+  const semDono = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      os({
+        id: `OS-${900 + i}`,
+        operationalAttention: {
+          kind: ATTENTION_KIND.SET_OWNER,
+          dueAt: new Date('2026-07-01T12:00:00Z'),
+          sourceId: `sem-responsavel-${i}`,
+          ruleVersion: 2,
+        },
+      } as Partial<Ticket>)
+    );
+
+  it('acima da régua vira UM número e sai da pauta', () => {
+    const agenda = buildAgenda(semDono(MAX_SEM_RESPONSAVEL_NA_PAUTA + 1), AGORA);
+    expect(agenda.semResponsavel).toEqual({
+      total: MAX_SEM_RESPONSAVEL_NA_PAUTA + 1,
+      agrupado: true,
+    });
+    // Nenhuma delas polui os grupos — item a item cairiam todas em "Vencidas".
+    const total = Object.values(agenda.groups).reduce((s, g) => s + g.length, 0);
+    expect(total).toBe(0);
+  });
+
+  it('dentro da régua, cada uma aparece na pauta', () => {
+    const agenda = buildAgenda(semDono(MAX_SEM_RESPONSAVEL_NA_PAUTA), AGORA);
+    expect(agenda.semResponsavel.agrupado).toBe(false);
+    expect(agenda.groups.vencidas).toHaveLength(MAX_SEM_RESPONSAVEL_NA_PAUTA);
+  });
+
+  it('agrupar o passivo NÃO esconde as outras atenções — é o ponto da régua', () => {
+    const lista = [...semDono(50), comAcao(hoje(9))];
+    const agenda = buildAgenda(lista, AGORA);
+    expect(agenda.semResponsavel.total).toBe(50);
+    expect(agenda.groups.hoje).toHaveLength(1);
+  });
+
+  it('sem nenhuma parada, o contador some', () => {
+    const agenda = buildAgenda([comAcao(hoje(9))], AGORA);
+    expect(agenda.semResponsavel).toEqual({ total: 0, agrupado: false });
   });
 });
 

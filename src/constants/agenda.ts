@@ -71,6 +71,25 @@ export const DEFAULT_SUSPENSION_DAYS = 7;
 export const MAX_SUSPENSION_DAYS = 90;
 
 /**
+ * A partir de quantas OS "paradas sem responsável" a pauta vira UM contador.
+ *
+ * A regra que as detecta acorda 154 das 195 OS vivas hoje — o passivo inteiro de
+ * uma vez. Isso é verdade, e é inútil como pauta: 154 linhas numa tela diária é o
+ * painel de culpa que ninguém lê, e ele afogaria as outras atenções (hoje seriam 2)
+ * que são trabalho de verdade.
+ *
+ * Então: **acima deste número é passivo, e passivo se mostra como número** — uma
+ * linha que leva para a Gestão já filtrada, onde ele se resolve em lote. **Abaixo,
+ * é trabalho, e trabalho se mostra item a item**, com nome e tempo parado.
+ *
+ * Dez porque é o que sobra de espaço numa pauta diária depois das atenções que já
+ * têm data. Quando o mutirão derrubar o passivo, a régua vira sozinha e a regra
+ * passa a ser o alarme que impede a pilha de se formar de novo — que é para o que
+ * ela serve.
+ */
+export const MAX_SEM_RESPONSAVEL_NA_PAUTA = 10;
+
+/**
  * Tipo de compromisso. **A V1 tem UM só**, por decisão de escopo: é exatamente a dor
  * que o Diretor descreveu ("era pro terceiro ir em tal dia e não apareceu"), e um tipo
  * já obriga a acertar a estrutura inteira — política, responsabilidade, confirmação,

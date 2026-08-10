@@ -1,4 +1,10 @@
-import { ATTENTION_STATE, DEFAULT_TOLERANCE_MINUTES, type AttentionState } from '../constants/agenda';
+import {
+  ATTENTION_STATE,
+  DEFAULT_TOLERANCE_MINUTES,
+  MAX_SEM_RESPONSAVEL_NA_PAUTA,
+  type AttentionState,
+} from '../constants/agenda';
+import { ATTENTION_KIND } from '../constants/attentionKind';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import type { Ticket } from '../types';
 
@@ -177,6 +183,14 @@ export interface AgendaBuckets {
   withoutNextAction: number;
   /** Quantas exigem ação hoje (hoje + vencidas). */
   needingActionToday: number;
+  /**
+   * Paradas sem ninguém respondendo por elas.
+   *
+   * Quando são muitas (`agrupado`), NÃO entram nos grupos: viram uma linha só. Ver
+   * `MAX_SEM_RESPONSAVEL_NA_PAUTA` para o porquê — passivo se mostra como número e
+   * se resolve em lote; trabalho se mostra item a item.
+   */
+  semResponsavel: { total: number; agrupado: boolean };
 }
 
 /**
@@ -195,7 +209,19 @@ export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
     [AGENDA_GROUP.NO_ACTION]: [] as Ticket[],
   };
 
+  // Separa antes de agrupar: se forem muitas, não podem entrar na pauta — cairiam
+  // quase todas em "Vencidas" (a cobrança nasce com data no passado) e afogariam as
+  // atenções que são trabalho de verdade.
+  const semResponsavel: Ticket[] = [];
+  const demais: Ticket[] = [];
   for (const ticket of tickets) {
+    const alvo =
+      resolvedAttentionOf(ticket)?.kind === ATTENTION_KIND.SET_OWNER ? semResponsavel : demais;
+    alvo.push(ticket);
+  }
+  const agrupado = semResponsavel.length > MAX_SEM_RESPONSAVEL_NA_PAUTA;
+
+  for (const ticket of agrupado ? demais : [...demais, ...semResponsavel]) {
     const group = agendaGroupOf(ticket, now);
     if (group) groups[group].push(ticket);
   }
@@ -221,5 +247,6 @@ export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
     groups,
     withoutNextAction: groups[AGENDA_GROUP.NO_ACTION].length,
     needingActionToday: groups[AGENDA_GROUP.TODAY].length + groups[AGENDA_GROUP.OVERDUE].length,
+    semResponsavel: { total: semResponsavel.length, agrupado },
   };
 }
