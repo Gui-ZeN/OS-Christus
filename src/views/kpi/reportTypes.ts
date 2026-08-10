@@ -1,9 +1,15 @@
 /** Forma dos dados do relatório gerencial (o front computa em KpiView e envia ao
  *  endpoint /api/report-pdf, que desenha o PDF com pdfkit). */
 export interface KpiReportData {
-  periodoLabel: string;
-  sedeLabel: string;
-  regiaoLabel: string;
+  /**
+   * O recorte que gerou estes números, na ordem em que deve ser lido.
+   *
+   * É uma lista, e não três campos fixos, porque relatório filtrado que não diz
+   * que está filtrado é o pior tipo de relatório: 12 OS numa folha com o timbre
+   * do grupo passa por "a empresa inteira tem 12 OS". Todo filtro aplicado
+   * aparece aqui, e o PDF imprime todos.
+   */
+  filtros: Array<{ label: string; value: string }>;
   geradoEm: string;
   totalOs: number;
   abertas: number;

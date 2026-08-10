@@ -13,13 +13,17 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { parseCurrency } from '../utils/currency';
-import { mensagemDeErro } from '../utils/errorMessage';
-import { UserFacingError } from '../utils/errorMessage';
+import { mensagemDeErro, UserFacingError } from '../utils/errorMessage';
+import { repairMojibake } from '../utils/text';
 function formatCurrencyBRL(value: number) {
   return `R$ ${value.toLocaleString('pt-BR')}`;
 }
 
 // Rótulo de dados dos gráficos: compacto (esconde zeros; 15k / 1.2M pros valores altos).
+/** Severidade, para ordenar o filtro. Produção hoje usa só as três primeiras.
+ *  `Moderado` fica porque o formulário ainda o oferece. */
+const PRIORITY_ORDER = ['Urgente', 'Alta', 'Moderado', 'Trivial'];
+
 const CHART_LABEL_STYLE = { fontSize: 11, fill: '#525252', fontWeight: 500 };
 function compactChartValue(value: number | string) {
   const n = Number(value);
@@ -99,6 +103,11 @@ export function KpiView() {
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
   const [selectedVendor, setSelectedVendor] = useState('all');
+  // Status, urgência e equipe entraram por pedido de quem usa: o relatório saía
+  // sempre com tudo, e a pergunta real é "o que está parado na sede X".
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedPriority, setSelectedPriority] = useState('all');
+  const [selectedTeam, setSelectedTeam] = useState('all');
   const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
   const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
@@ -314,13 +323,42 @@ export function KpiView() {
     return periodTickets.filter(ticket => {
       if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
       if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
+      if (selectedStatus !== 'all' && ticket.status !== selectedStatus) return false;
+      if (selectedPriority !== 'all' && ticket.priority !== selectedPriority) return false;
+      if (selectedTeam !== 'all' && repairMojibake(ticket.assignedTeam || '') !== selectedTeam) return false;
       if (selectedVendor !== 'all') {
         const vendor = contractsByTicket[ticket.id]?.vendor || '';
         if (vendor !== selectedVendor) return false;
       }
       return true;
     });
-  }, [contractsByTicket, periodTickets, regions, selectedRegion, selectedSite, selectedVendor, sites]);
+  }, [contractsByTicket, periodTickets, regions, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]);
+
+  const statusOptions = useMemo(() => {
+    const presentes = new Set<string>(periodTickets.map(ticket => String(ticket.status)).filter(Boolean));
+    // Ordem do fluxo, não alfabética: quem lê procura a etapa onde a OS está. Etapas
+    // aposentadas continuam na lista SE houver OS nelas — esconder o filtro não
+    // esconde a OS, só impede de achá-la.
+    const conhecidas = (Object.values(TICKET_STATUS) as string[]).filter(status => presentes.has(status));
+    const outras = [...presentes].filter(status => !conhecidas.includes(status)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return [...conhecidas, ...outras];
+  }, [periodTickets]);
+
+  const priorityOptions = useMemo(() => {
+    const presentes = [...new Set(periodTickets.map(ticket => ticket.priority).filter(Boolean))];
+    // Conhecidas primeiro, por severidade; qualquer valor novo entra no fim em vez
+    // de sumir — opção que desaparece em silêncio vira OS que ninguém consegue filtrar.
+    const conhecidas = PRIORITY_ORDER.filter(priority => presentes.includes(priority));
+    const outras = presentes.filter(priority => !PRIORITY_ORDER.includes(priority)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return [...conhecidas, ...outras];
+  }, [periodTickets]);
+
+  const teamOptions = useMemo(() => {
+    const values = periodTickets
+      .map(ticket => repairMojibake(ticket.assignedTeam || ''))
+      .filter(Boolean);
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [periodTickets]);
 
   const osPorSede = useMemo(() => {
     const grouped = new Map<string, { name: string; abertas: number; fechadas: number }>();
@@ -729,10 +767,20 @@ export function KpiView() {
     const encerradas = filteredTickets.filter(t => t.status === TICKET_STATUS.CLOSED).length;
     const canceladas = filteredTickets.filter(t => t.status === TICKET_STATUS.CANCELED).length;
     const abertas = filteredTickets.length - encerradas - canceladas;
+    // Período, sede e região saem SEMPRE (mesmo em "Todas"), porque a ausência
+    // delas seria lida como esquecimento. Os demais só aparecem quando restringem
+    // de fato — linha de recorte com sete "Todos" não informa, atrapalha.
+    const filtros = [
+      { label: 'Período', value: periodLabel },
+      { label: 'Sede', value: selectedSite === 'all' ? 'Todas' : selectedSite },
+      { label: 'Região', value: selectedRegion === 'all' ? 'Todas' : selectedRegion },
+      ...(selectedStatus !== 'all' ? [{ label: 'Etapa', value: selectedStatus }] : []),
+      ...(selectedPriority !== 'all' ? [{ label: 'Urgência', value: selectedPriority }] : []),
+      ...(selectedTeam !== 'all' ? [{ label: 'Equipe', value: selectedTeam }] : []),
+      ...(selectedVendor !== 'all' ? [{ label: 'Fornecedor', value: selectedVendor }] : []),
+    ];
     return {
-      periodoLabel: periodLabel,
-      sedeLabel: selectedSite === 'all' ? 'Todas' : selectedSite,
-      regiaoLabel: selectedRegion === 'all' ? 'Todas' : selectedRegion,
+      filtros,
       geradoEm: '',
       totalOs: filteredTickets.length,
       abertas,
@@ -748,7 +796,7 @@ export function KpiView() {
       distribuicaoUrgencia,
       backlogPorEquipe,
     };
-  }, [filteredTickets, periodLabel, selectedSite, selectedRegion, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
+  }, [filteredTickets, periodLabel, selectedSite, selectedRegion, selectedStatus, selectedPriority, selectedTeam, selectedVendor, urgentOpenCount, oldestOpenTicket, osPorSede, backlogPorEtapa, agingBuckets, tempoPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
 
   const handleExportPdf = async () => {
     if (generating) return;
@@ -887,6 +935,44 @@ export function KpiView() {
               ))}
             </select>
 
+            <select
+              value={selectedStatus}
+              onChange={event => setSelectedStatus(event.target.value)}
+              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              aria-label="Filtrar por etapa"
+            >
+              <option value="all">Todas as etapas</option>
+              {statusOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedPriority}
+              onChange={event => setSelectedPriority(event.target.value)}
+              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              aria-label="Filtrar por urgência"
+            >
+              <option value="all">Todas as urgências</option>
+              {priorityOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            {teamOptions.length > 0 && (
+              <select
+                value={selectedTeam}
+                onChange={event => setSelectedTeam(event.target.value)}
+                className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                aria-label="Filtrar por equipe"
+              >
+                <option value="all">Todas as equipes</option>
+                {teamOptions.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            )}
+
             {perspective === 'financial' && (
               <select
                 value={selectedVendor}
@@ -901,13 +987,16 @@ export function KpiView() {
               </select>
             )}
 
-            {(selectedRegion !== 'all' || selectedSite !== 'all' || selectedVendor !== 'all') && (
+            {(selectedRegion !== 'all' || selectedSite !== 'all' || selectedVendor !== 'all' || selectedStatus !== 'all' || selectedPriority !== 'all' || selectedTeam !== 'all') && (
               <button
                 type="button"
                 onClick={() => {
                   setSelectedRegion('all');
                   setSelectedSite('all');
                   setSelectedVendor('all');
+                  setSelectedStatus('all');
+                  setSelectedPriority('all');
+                  setSelectedTeam('all');
                 }}
                 className="ml-auto rounded-lg px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg hover:text-roman-text-main"
               >

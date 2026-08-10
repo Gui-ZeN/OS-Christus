@@ -173,14 +173,42 @@ export async function buildReportPdf(data) {
     doc.rect(M, y, CW, 2.5).fill(C.gold);
     y += 12;
 
-    // recorte
+    // ── Recorte ───────────────────────────────────────────────
+    // Quebra de linha própria: a lista de filtros é variável (período, sede,
+    // região, status, urgência, equipe, fornecedor) e o `lineBreak: false` de
+    // cada pedaço faria o excedente sair pela margem sem avisar.
     doc.font('Helvetica').fontSize(9.5);
-    const recorte = [['Período', data.periodoLabel], ['Sede', data.sedeLabel], ['Região', data.regiaoLabel]];
+    const SEP = '  |  ';
+    // A aba aberta durante o deploy ainda tem o bundle antigo e manda o formato
+    // velho por alguns minutos. Sem esta ponte, o relatório sairia com o recorte em
+    // branco — pior que sair errado, porque parece que não havia filtro nenhum.
+    const filtros = Array.isArray(data.filtros)
+      ? data.filtros
+      : [
+          { label: 'Período', value: data.periodoLabel },
+          { label: 'Sede', value: data.sedeLabel },
+          { label: 'Região', value: data.regiaoLabel },
+        ].filter(item => item.value);
     let rx = M;
-    recorte.forEach(([k, v], i) => {
-      if (i > 0) { doc.fillColor(C.line).text('  |  ', rx, y, { lineBreak: false }); rx += doc.widthOfString('  |  '); }
-      doc.font('Helvetica').fillColor(C.sub).text(`${k}: `, rx, y, { lineBreak: false }); rx += doc.widthOfString(`${k}: `);
-      doc.font('Helvetica-Bold').fillColor(C.ink).text(String(v), rx, y, { lineBreak: false }); rx += doc.widthOfString(String(v));
+    filtros.forEach((filtro, i) => {
+      const rotulo = `${filtro.label}: `;
+      const valor = String(filtro.value);
+      doc.font('Helvetica');
+      const wSep = i > 0 ? doc.widthOfString(SEP) : 0;
+      const wRotulo = doc.widthOfString(rotulo);
+      doc.font('Helvetica-Bold');
+      const wValor = doc.widthOfString(valor);
+      if (rx + wSep + wRotulo + wValor > M + CW) {
+        rx = M;
+        y += 13;
+      } else if (i > 0) {
+        doc.font('Helvetica').fillColor(C.line).text(SEP, rx, y, { lineBreak: false });
+        rx += wSep;
+      }
+      doc.font('Helvetica').fillColor(C.sub).text(rotulo, rx, y, { lineBreak: false });
+      rx += wRotulo;
+      doc.font('Helvetica-Bold').fillColor(C.ink).text(valor, rx, y, { lineBreak: false });
+      rx += wValor;
     });
     y += 20;
 
