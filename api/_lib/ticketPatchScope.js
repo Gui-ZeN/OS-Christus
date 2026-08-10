@@ -34,6 +34,9 @@ export const DIRECTOR_PATCH_FIELDS = new Set(['viewingBy', 'history']);
 export const ALLOWED_TICKET_PATCH_FIELDS = new Set([
   'status', 'priority', 'sector', 'location', 'time', 'waterIssue',
   'assignedTeam', 'assignedEmail',
+  // Quem responde por a OS nao parar. Operacional, nao territorial: definir
+  // responsavel nao move a OS de sede, entao Gestor grava.
+  'responsible',
   'macroServiceId', 'macroServiceName', 'serviceCatalogId', 'serviceCatalogName',
   'directorIds', 'directorEmails', 'directorCcEmails', 'requesterCcEmails',
   'attachments', 'history', 'viewingBy',

@@ -115,6 +115,8 @@ export interface OsBoardFilter {
   service: string;
   team: string;
   status: string;
+  /** E-mail do responsável, `all`, ou `none` para "sem responsável". */
+  responsible: string;
   showClosed: boolean;
 }
 
@@ -237,6 +239,18 @@ export interface Ticket {
   sede: string;
   assignedTeam?: string;
   assignedEmail?: string;
+  /**
+   * Quem responde por esta OS não parar.
+   *
+   * Não é quem executa — para isso existe `assignedTeam`, preenchido em 180 das 195
+   * OS vivas. Ter equipe não moveu nenhuma das 155 paradas há 39 dias (mediana), e
+   * o motivo é que equipe responde pelo trabalho e pessoa responde pelo prazo:
+   * "Construtora" não abre o sistema nem é cobrada por uma OS específica.
+   *
+   * Sem data de propósito — quando e por quem foi definido está no histórico, que é
+   * onde se procura essa resposta.
+   */
+  responsible?: { email: string; name: string } | null;
   sector: string;
   location?: string;
   priority: string;

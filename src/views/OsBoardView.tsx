@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { ArrowRightLeft, MessageSquare, Search, X } from 'lucide-react';
+import { ArrowRightLeft, MessageSquare, Search, UserRound, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -11,9 +11,11 @@ import { formatDateTimeSafe } from '../utils/date';
 import { matchesSearch } from '../utils/search';
 import { ConversaModal } from './osboard/ConversaModal';
 import { EtapaModal } from './osboard/EtapaModal';
+import { ResponsavelModal } from './osboard/ResponsavelModal';
 import { repairMojibake } from '../utils/text';
 
 const ALL = 'all';
+const NONE = 'none';
 const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
 
 /**
@@ -28,12 +30,13 @@ export function OsBoardView() {
   // instante em que abriram — a resposta enviada não aparecia na própria conversa.
   const [conversaDe, setConversaDe] = useState<string | null>(null);
   const [etapaDe, setEtapaDe] = useState<string | null>(null);
+  const [responsavelDe, setResponsavelDe] = useState<string | null>(null);
   const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
 
   // O filtro mora no CONTEXTO, não em estado local: esta view desmonta ao abrir
   // uma OS, e com `useState` a seleção se perdia toda vez que a pessoa voltava.
-  const { search, sede, macroService, service, team, status, showClosed } = osBoardFilter;
+  const { search, sede, macroService, service, team, status, responsible, showClosed } = osBoardFilter;
   const setFilter = (patch: Partial<typeof osBoardFilter>) => setOsBoardFilter({ ...osBoardFilter, ...patch });
 
   useEffect(() => {
@@ -70,6 +73,16 @@ export function OsBoardView() {
   const macroOptions = useMemo(() => distinct(decorated.map(d => d.macro)), [decorated]);
   const serviceOptions = useMemo(() => distinct(decorated.map(d => d.service)), [decorated]);
   const teamOptions = useMemo(() => distinct(decorated.map(d => d.team)), [decorated]);
+  // Sai das OS, não do diretório: a lista mostra quem REALMENTE responde por alguma
+  // coisa. Diretório inteiro traria nomes sem nenhuma OS e o filtro viraria ruído.
+  const responsibleOptions = useMemo(() => {
+    const porEmail = new Map<string, string>();
+    decorated.forEach(d => {
+      const r = d.ticket.responsible;
+      if (r?.email) porEmail.set(r.email, r.name || r.email);
+    });
+    return [...porEmail.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+  }, [decorated]);
   const statusOptions = useMemo(() => {
     const present = new Set<string>(tickets.map(t => t.status));
     return STATUS_ORDER.filter(s => present.has(s));
@@ -82,6 +95,10 @@ export function OsBoardView() {
       if (service !== ALL && entry.service !== service) return false;
       if (team !== ALL && entry.team !== team) return false;
       if (status !== ALL && entry.ticket.status !== status) return false;
+      // `none` é filtro de primeira classe: "quais OS ninguém assumiu" é a pergunta
+      // que o campo existe para responder, e ela não cabe numa lista de e-mails.
+      if (responsible === NONE && entry.ticket.responsible?.email) return false;
+      if (responsible !== ALL && responsible !== NONE && entry.ticket.responsible?.email !== responsible) return false;
       // Encerrada/Cancelada só entram com a caixa marcada — a não ser que a pessoa
       // tenha filtrado explicitamente por uma delas, quando esconder seria absurdo.
       if (!showClosed && status === ALL && !isTicketOpen(entry.ticket.status)) return false;
@@ -91,7 +108,7 @@ export function OsBoardView() {
       const haystack = `${entry.ticket.id} ${repairMojibake(entry.ticket.subject)} ${repairMojibake(entry.ticket.requester || '')} ${entry.siteLabel} ${entry.ticket.sede || ''}`;
       return matchesSearch(haystack, search);
     });
-  }, [decorated, sede, macroService, service, team, status, search, showClosed]);
+  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed]);
 
   const openTicket = (id: string) => {
     setActiveTicketId(id);
@@ -99,9 +116,9 @@ export function OsBoardView() {
   };
 
   const hasActiveFilter =
-    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || search.trim() !== '' || showClosed;
+    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed;
   const clearFilters = () =>
-    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, showClosed: false });
+    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false });
 
   const selectClass =
     'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
@@ -157,6 +174,13 @@ export function OsBoardView() {
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
+        <select value={responsible} onChange={e => setFilter({ responsible: e.target.value })} className={selectClass} aria-label="Filtrar por responsável">
+          <option value={ALL}>Responsável: todos</option>
+          <option value={NONE}>Sem responsável</option>
+          {responsibleOptions.map(([email, nome]) => (
+            <option key={email} value={email}>{nome}</option>
+          ))}
+        </select>
         <select value={status} onChange={e => setFilter({ status: e.target.value })} className={selectClass} aria-label="Filtrar por status">
           <option value={ALL}>Status: todos</option>
           {statusOptions.map(option => (
@@ -205,6 +229,7 @@ export function OsBoardView() {
                 <th className="px-3 py-2.5 font-medium">Macroserviço</th>
                 <th className="px-3 py-2.5 font-medium">Serviço</th>
                 <th className="px-3 py-2.5 font-medium">Equipe</th>
+                <th className="px-3 py-2.5 font-medium">Responsável</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
                 <th className="px-3 py-2.5 font-medium">Prioridade</th>
                 <th className="px-3 py-2.5 font-medium">Atualizado</th>
@@ -237,6 +262,22 @@ export function OsBoardView() {
                   <td className="px-3 py-2.5 text-roman-text-sub">{macro || '—'}</td>
                   <td className="px-3 py-2.5 text-roman-text-sub">{svc || '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{tm || '—'}</td>
+                  {/* Clicável na própria célula: definir responsável tem que custar um
+                      clique, senão continua não sendo feito. */}
+                  <td className="whitespace-nowrap px-3 py-2.5" onClick={event => event.stopPropagation()}>
+                    {podeTrocarEtapa ? (
+                      <button
+                        type="button"
+                        onClick={() => setResponsavelDe(ticket.id)}
+                        className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-1 text-left hover:bg-roman-primary/10 ${ticket.responsible?.name ? 'text-roman-text-main' : 'text-roman-text-sub italic'}`}
+                      >
+                        <UserRound size={13} />
+                        {ticket.responsible?.name || 'definir'}
+                      </button>
+                    ) : (
+                      <span className="text-roman-text-sub">{ticket.responsible?.name || '—'}</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5"><StatusBadge status={ticket.status} /></td>
                   <td className={`whitespace-nowrap px-3 py-2.5 font-medium ${priorityClass(repairMojibake(ticket.priority || ''))}`}>
                     {repairMojibake(ticket.priority || '—')}
@@ -274,6 +315,7 @@ export function OsBoardView() {
 
       {conversaDe && <ConversaModal ticketId={conversaDe} onClose={() => setConversaDe(null)} />}
       {etapaDe && <EtapaModal ticketId={etapaDe} onClose={() => setEtapaDe(null)} />}
+      {responsavelDe && <ResponsavelModal ticketId={responsavelDe} onClose={() => setResponsavelDe(null)} />}
     </div>
   );
 }

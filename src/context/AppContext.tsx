@@ -69,6 +69,7 @@ const DEFAULT_OS_BOARD_FILTER: OsBoardFilter = {
   service: 'all',
   team: 'all',
   status: 'all',
+  responsible: 'all',
   // Encerradas e canceladas ficam FORA por padrão: são 65 das 268 OS, e quem abre
   // a Gestão está olhando o que ainda dá trabalho.
   showClosed: false,

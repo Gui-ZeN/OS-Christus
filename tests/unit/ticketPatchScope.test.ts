@@ -19,6 +19,7 @@ const OPERACIONAIS = [
   'waterIssue',
   'assignedTeam',
   'assignedEmail',
+  'responsible',
   'macroServiceId',
   'serviceCatalogId',
   'directorIds',
