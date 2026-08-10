@@ -33,6 +33,7 @@ import { NextActionStrip } from './inbox/NextActionStrip';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { TicketHistory } from './inbox/TicketHistory';
 import { mensagemDeErro } from '../utils/errorMessage';
+import { motivoQueImpedeEtapa } from '../utils/statusChangeGuard';
 
 
 
@@ -997,12 +998,12 @@ export function InboxView() {
             visibility: 'internal',
           });
         } else if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
-          // Trava: a OS só avança de "Parecer Técnico" para orçamento/aprovação com
-          // o serviço classificado (macroserviço + serviço). Garante que a
-          // classificação adiada na triagem não seja esquecida — o medo do "deixar
-          // pra depois". O erro aparece no momento certo, não como parede no dia 1.
-          if (!activeTicket.macroServiceId || !activeTicket.serviceCatalogId) {
-            showToast('Classifique o serviço (macroserviço + serviço) no painel antes de avançar para orçamento.', 4000);
+          // A trava de classificação mora em `motivoQueImpedeEtapa` — a mesma que a
+          // tela de Gestão consulta. Enquanto ela vivia só aqui, qualquer tela nova
+          // que trocasse etapa nascia como atalho para burlá-la.
+          const impedimento = motivoQueImpedeEtapa(activeTicket, TICKET_STATUS.WAITING_BUDGET);
+          if (impedimento) {
+            showToast(impedimento, 4000);
             setIsSending(false);
             return;
           }

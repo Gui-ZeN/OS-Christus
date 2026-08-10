@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-// @ts-expect-error — módulo JS do backend, sem tipos
 import { buildReportPdf } from '../../api/_lib/reportPdf.js';
 
 /** Payload mínimo válido; cada teste troca só o recorte. */

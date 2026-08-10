@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { Search, X } from 'lucide-react';
+import { ArrowRightLeft, MessageSquare, Search, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -9,6 +9,8 @@ import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatDateTimeSafe } from '../utils/date';
 import { matchesSearch } from '../utils/search';
+import { ConversaModal } from './osboard/ConversaModal';
+import { EtapaModal } from './osboard/EtapaModal';
 import { repairMojibake } from '../utils/text';
 
 const ALL = 'all';
@@ -20,7 +22,13 @@ const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
  * na Caixa de Entrada. Para Admin/Gestor (ver canAccess no App).
  */
 export function OsBoardView() {
-  const { tickets, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter } = useApp();
+  const { tickets, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser } = useApp();
+  // As duas ações que dispensam abrir a OS inteira. Guardam o ID, não a OS: os
+  // modais resolvem a versão viva do contexto, senão o que eles mostram congela no
+  // instante em que abriram — a resposta enviada não aparecia na própria conversa.
+  const [conversaDe, setConversaDe] = useState<string | null>(null);
+  const [etapaDe, setEtapaDe] = useState<string | null>(null);
+  const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
 
   // O filtro mora no CONTEXTO, não em estado local: esta view desmonta ao abrir
@@ -200,6 +208,7 @@ export function OsBoardView() {
                 <th className="px-3 py-2.5 font-medium">Status</th>
                 <th className="px-3 py-2.5 font-medium">Prioridade</th>
                 <th className="px-3 py-2.5 font-medium">Atualizado</th>
+                <th className="px-3 py-2.5 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -233,12 +242,38 @@ export function OsBoardView() {
                     {repairMojibake(ticket.priority || '—')}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                  {/* `stopPropagation` porque a linha inteira abre a OS: sem isso,
+                      clicar em "Etapa" abria o modal E navegava para a Inbox — que é
+                      exatamente o que estas ações existem para evitar. */}
+                  <td className="whitespace-nowrap px-3 py-2.5" onClick={event => event.stopPropagation()}>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setConversaDe(ticket.id)}
+                        className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
+                      >
+                        <MessageSquare size={13} /> Conversa
+                      </button>
+                      {podeTrocarEtapa && (
+                        <button
+                          type="button"
+                          onClick={() => setEtapaDe(ticket.id)}
+                          className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
+                        >
+                          <ArrowRightLeft size={13} /> Etapa
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {conversaDe && <ConversaModal ticketId={conversaDe} onClose={() => setConversaDe(null)} />}
+      {etapaDe && <EtapaModal ticketId={etapaDe} onClose={() => setEtapaDe(null)} />}
     </div>
   );
 }
