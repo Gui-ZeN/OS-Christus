@@ -31,9 +31,10 @@ import {
   type HydratedCommitment,
 } from '../services/commitmentsApi';
 import { ATTENTION_KIND_LABEL, ATTENTION_KIND_WHY } from '../constants/attentionKind';
+import { matchesSearch } from '../utils/search';
 import { repairMojibake } from '../utils/text';
 import type { NextAction, Ticket, TicketAttention } from '../types';
-
+import { mensagemDeErro } from '../utils/errorMessage';
 /**
  * HOJE — a tela central da versão nova.
  *
@@ -127,7 +128,7 @@ export function TodayView() {
       setCompromissos(await fetchCommitments());
       setErroCompromissos('');
     } catch (e) {
-      setErroCompromissos(e instanceof Error ? e.message : 'Falha ao carregar compromissos.');
+      setErroCompromissos(mensagemDeErro(e, 'Falha ao carregar compromissos.'));
     }
   }, []);
 
@@ -166,15 +167,13 @@ export function TodayView() {
 
   const agenda = useMemo(() => buildAgenda(tickets, agora), [tickets, agora]);
 
-  const q = busca.trim().toLowerCase();
   const filtra = (lista: Ticket[]) =>
-    q
-      ? lista.filter(t =>
-          `${t.id} ${repairMojibake(t.subject)} ${t.sede || ''} ${t.nextAction?.what || ''}`
-            .toLowerCase()
-            .includes(q)
-        )
-      : lista;
+    lista.filter(t =>
+      matchesSearch(
+        `${t.id} ${repairMojibake(t.subject)} ${t.sede || ''} ${t.nextAction?.what || ''}`,
+        busca
+      )
+    );
 
   const abrir = (id: string) => {
     setActiveTicketId(id);
@@ -664,7 +663,7 @@ function EditorDeAcao({
         nova.commitmentId = await onVirarVisita(nova, fornecedor.trim());
       } catch (e) {
         setSalvando(false);
-        return setErro(e instanceof Error ? e.message : 'Não foi possível criar a visita.');
+        return setErro(mensagemDeErro(e, 'Não foi possível criar a visita.'));
       }
     }
 
@@ -919,7 +918,7 @@ function ConfirmacaoDaVisita({
     try {
       await onConfirmar(compromisso.id, state, outcome);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível registrar.');
+      setErro(mensagemDeErro(e, 'Não foi possível registrar.'));
     } finally {
       setSalvando(false);
     }

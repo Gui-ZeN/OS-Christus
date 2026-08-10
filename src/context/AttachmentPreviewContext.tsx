@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-
+import { UserFacingError } from '../utils/errorMessage';
 /**
  * Contexto isolado do preview de anexos (modal abrir/fechar). Extraído do
  * `AppContext` (god-context) — é estado puramente de UI, sem acoplamento com
@@ -78,7 +78,7 @@ export function AttachmentPreviewProvider({ children }: { children: ReactNode })
 export function useAttachmentPreview() {
   const context = useContext(AttachmentPreviewContext);
   if (!context) {
-    throw new Error('useAttachmentPreview must be used within an AttachmentPreviewProvider');
+    throw new UserFacingError('useAttachmentPreview must be used within an AttachmentPreviewProvider');
   }
   return context;
 }

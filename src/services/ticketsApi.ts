@@ -3,7 +3,7 @@ import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
 import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 import { repairMojibake } from '../utils/text';
-
+import { UserFacingError } from '../utils/errorMessage';
 type ApiTicket = Omit<
   Ticket,
   | 'time'
@@ -282,7 +282,7 @@ export async function fetchTicketsFromApi(since?: string | null): Promise<Ticket
     'Falha ao buscar tickets da API.'
   );
   if (!json.ok || !Array.isArray(json.tickets)) {
-    throw new Error('Resposta inválida da API de tickets.');
+    throw new UserFacingError('Resposta inválida da API de tickets.');
   }
 
   return {
@@ -337,7 +337,7 @@ export async function fetchTicketHistoryPage(
     response,
     'Falha ao carregar histórico da OS.'
   );
-  if (!json.ok || !Array.isArray(json.history)) throw new Error('Resposta inválida do histórico da OS.');
+  if (!json.ok || !Array.isArray(json.history)) throw new UserFacingError('Resposta inválida do histórico da OS.');
   return {
     history: json.history.map(item => ({
       ...item,
@@ -362,7 +362,7 @@ export async function createTicketInApi(ticket: Partial<Ticket>): Promise<Ticket
   });
   const json = await expectApiJson<{ ok: boolean; ticket?: ApiTicket }>(response, 'Falha ao criar ticket na API.');
   if (!json.ok || !json.ticket) {
-    throw new Error('Resposta inválida ao criar ticket.');
+    throw new UserFacingError('Resposta inválida ao criar ticket.');
   }
 
   return hydrateTicket(json.ticket as ApiTicket);
@@ -381,7 +381,7 @@ export async function createTicketWithFilesInApi(ticket: Partial<Ticket>, files:
   });
   const json = await expectApiJson<{ ok: boolean; ticket?: ApiTicket }>(response, 'Falha ao criar ticket na API.');
   if (!json.ok || !json.ticket) {
-    throw new Error('Resposta inválida ao criar ticket.');
+    throw new UserFacingError('Resposta inválida ao criar ticket.');
   }
 
   return hydrateTicket(json.ticket as ApiTicket);

@@ -17,7 +17,8 @@ import {
 import { requestPasswordResetInApi } from '../services/passwordResetApi';
 import { InboxFilter, OsBoardFilter, Ticket, ViewState } from '../types';
 import { isPendingUpdateStillProtecting } from '../utils/pendingTicketUpdates';
-
+import { mensagemDeErro } from '../utils/errorMessage';
+import { UserFacingError } from '../utils/errorMessage';
 interface TicketUpdateOptions {
   sendEmailUpdate?: boolean;
   /** Edição pontual do horário de UMA entrada de histórico já existente
@@ -127,11 +128,11 @@ async function resolveAuthorizedUser(email: string) {
   const found = users.find(user => user.email.toLowerCase() === email.toLowerCase()) || null;
 
   if (!found) {
-    throw new Error('Acesso não autorizado. Seu e-mail ainda não foi liberado no sistema. Solicite o cadastro ao administrador.');
+    throw new UserFacingError('Acesso não autorizado. Seu e-mail ainda não foi liberado no sistema. Solicite o cadastro ao administrador.');
   }
 
   if (found.status !== 'Ativo' || found.active === false) {
-    throw new Error('Acesso indisponível. Seu usuário está inativo no sistema. Procure o administrador para reativação.');
+    throw new UserFacingError('Acesso indisponível. Seu usuário está inativo no sistema. Procure o administrador para reativação.');
   }
 
   return found;
@@ -349,11 +350,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       if (generation === refreshCountRef.current) {
-        setTicketsError(
-          error instanceof Error && error.message
-            ? error.message
-            : 'Não foi possível atualizar os tickets.'
-        );
+        setTicketsError(mensagemDeErro(error, 'Não foi possível atualizar os tickets.'));
       }
     } finally {
       if (!silent && generation === refreshCountRef.current) {
@@ -698,7 +695,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentUser(authorizedUser);
       } catch (error) {
         if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
-          throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
+          throw new UserFacingError('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
         }
         await logoutFirebaseAuth().catch(() => undefined);
         setCurrentUserEmail('');
@@ -706,13 +703,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     } else {
-      throw new Error('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
+      throw new UserFacingError('Não foi possível concluir o login neste ambiente. A autenticação do sistema ainda não foi configurada no frontend. Verifique as variáveis VITE_FIREBASE_* da aplicação e publique um novo deploy.');
     }
   };
 
   const loginWithGoogleAccount = async () => {
     if (!authEnabled) {
-      throw new Error('Login com Google indisponível neste ambiente. A autenticação Firebase ainda não foi configurada no frontend.');
+      throw new UserFacingError('Login com Google indisponível neste ambiente. A autenticação Firebase ainda não foi configurada no frontend.');
     }
 
     try {
@@ -720,14 +717,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await credential.user.getIdToken(true);
       const email = credential.user.email?.trim().toLowerCase();
       if (!email) {
-        throw new Error('Não foi possível identificar o e-mail da conta Google utilizada.');
+        throw new UserFacingError('Não foi possível identificar o e-mail da conta Google utilizada.');
       }
       const authorizedUser = await resolveAuthorizedUser(email);
       setCurrentUserEmail(email);
       setCurrentUser(authorizedUser);
     } catch (error) {
       if ((error as Error)?.message === DIRECTORY_FETCH_FAILED) {
-        throw new Error('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
+        throw new UserFacingError('Não foi possível validar seu acesso agora. Tente novamente em instantes.');
       }
       await logoutFirebaseAuth().catch(() => undefined);
       setCurrentUserEmail('');
@@ -823,7 +820,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 export function useAppContext() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useAppContext must be used within an AppProvider');
+    throw new UserFacingError('useAppContext must be used within an AppProvider');
   }
   return context;
 }

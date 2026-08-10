@@ -1,6 +1,6 @@
 ﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 import { expectApiJson } from './apiClient';
-
+import { UserFacingError } from '../utils/errorMessage';
 export interface EmailTemplateSettings {
   trigger: string;
   subject: string;
@@ -69,7 +69,7 @@ export async function fetchSettings(): Promise<SettingsPayload> {
   });
   const json = await expectApiJson<any>(response, 'Falha ao buscar configurações.');
   if (!json.ok) {
-    throw new Error('Resposta inválida de configurações.');
+    throw new UserFacingError('Resposta inválida de configurações.');
   }
   const emailTemplates = Array.isArray(json.emailTemplates)
     ? (json.emailTemplates as unknown[])

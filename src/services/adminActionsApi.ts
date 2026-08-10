@@ -1,6 +1,6 @@
 ﻿import { getCurrentIdToken } from './authClient';
 import { expectApiJson } from './apiClient';
-
+import { UserFacingError } from '../utils/errorMessage';
 export interface FirestoreBackfillResult {
   updatedUsers: number;
   updatedTickets: number;
@@ -55,7 +55,7 @@ export interface AttachmentMigrationResult {
 export async function runFirestoreLegacyBackfill() {
   const idToken = await getCurrentIdToken();
   if (!idToken) {
-    throw new Error('Sessão inválida. Faça login novamente.');
+    throw new UserFacingError('Sessão inválida. Faça login novamente.');
   }
 
   const response = await fetch('/api/admin-tools?route=backfill', {
@@ -82,7 +82,7 @@ export async function runTicketHistoryBackfill(
   options?: { dryRun?: boolean }
 ) {
   const idToken = await getCurrentIdToken();
-  if (!idToken) throw new Error('Sessão inválida. Faça login novamente.');
+  if (!idToken) throw new UserFacingError('Sessão inválida. Faça login novamente.');
 
   const response = await fetch('/api/admin-tools?route=ticket-history-backfill', {
     method: 'POST',
@@ -103,7 +103,7 @@ export async function runAttachmentSecurityMigration(
   options?: { dryRun?: boolean }
 ) {
   const idToken = await getCurrentIdToken();
-  if (!idToken) throw new Error('Sessão inválida. Faça login novamente.');
+  if (!idToken) throw new UserFacingError('Sessão inválida. Faça login novamente.');
 
   const response = await fetch('/api/attachment-security-migration', {
     method: 'POST',

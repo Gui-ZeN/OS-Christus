@@ -1,7 +1,7 @@
 import type { TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { expectApiJson } from './apiClient';
-
+import { UserFacingError } from '../utils/errorMessage';
 function resolveContentType(file: File, fallback = 'application/octet-stream') {
   const explicit = String(file.type || '').trim().toLowerCase();
   if (explicit) return explicit;
@@ -66,7 +66,7 @@ async function uploadProtectedAttachment(
     response,
     'Falha ao enviar o anexo.'
   );
-  if (!json.ok || !json.attachment) throw new Error('Resposta invalida ao enviar o anexo.');
+  if (!json.ok || !json.attachment) throw new UserFacingError('Resposta invalida ao enviar o anexo.');
   return {
     ...json.attachment,
     uploadedAt: json.attachment.uploadedAt ? new Date(json.attachment.uploadedAt) : new Date(),
@@ -111,7 +111,7 @@ export async function deleteTicketAttachment(path: string) {
   const parts = normalizedPath.split('/');
   const ticketId = parts[3] || '';
   if (!ticketId || parts[0] !== 'attachments' || parts[1] !== 'tickets') {
-    throw new Error('Caminho de anexo invalido.');
+    throw new UserFacingError('Caminho de anexo invalido.');
   }
   const query = new URLSearchParams({ ticketId, path: normalizedPath });
   const response = await fetch(`/api/attachments?${query.toString()}`, {

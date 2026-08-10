@@ -47,7 +47,7 @@ import { matchSiteCode } from './_lib/siteMatch.js';
 import { detectAuthorization } from './_lib/authorization.js';
 import { recomputeOperationalAttention } from './_lib/operationalAttention.js';
 import { detectBounce } from './_lib/bounce.js';
-import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject, isLikelyThreadReply } from './_lib/inboundSubject.js';
+import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubjectCandidates, isLikelyThreadReply } from './_lib/inboundSubject.js';
 import {
   filterCopyRecipients as filterCopyRecipientsPure,
   firstEmail,
@@ -184,7 +184,7 @@ async function deliverStandaloneEmail({ toEmail, subject, text, html, ticketId, 
   return { provider: 'gmail', messageId: result?.messageId || result?.id || null };
 }
 
-// parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubject e
+// parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubjectCandidates e
 // isLikelyThreadReply vivem em ./_lib/inboundSubject.js (parsing puro + testado).
 
 function safeJsonParse(value) {
@@ -1348,17 +1348,27 @@ async function copiarAnexosDaFila(dropId, ticketId, guardados) {
   return copiados;
 }
 
-async function createTicketFromInbound(db, message) {
-  const parsedSubject = parseNewTicketSubject(message.subject);
-  if (!parsedSubject?.siteCode || !parsedSubject?.subject) return null;
+/**
+ * Primeiro candidato de "[SEDE] assunto" que casa com uma sede REAL do catálogo.
+ *
+ * A validação é o que separa `[BS]` de `[GitHub]`/`[Action Required]`: o padrão de
+ * colchete casa com qualquer notificação, e sem o catálogo o sistema criaria OS-lixo
+ * a partir delas. Por isso percorre os candidatos em ordem de confiança em vez de
+ * confiar no primeiro colchete que encontrar.
+ */
+async function resolveSiteFromSubject(db, subject) {
+  for (const candidate of parseNewTicketSubjectCandidates(subject)) {
+    const { site, region } = await resolveSiteContext(db, candidate.siteCode);
+    if (site) return { site, region, parsedSubject: candidate };
+  }
+  return null;
+}
 
-  // Só cria OS se o [CÓDIGO] do assunto casar com uma sede REAL do catálogo.
-  // Como o separador depois do [CÓDIGO] é opcional, notificações como
-  // "[GitHub] ...", "[Action Required] ...", "[NotaQuest] ..." também casam o
-  // padrão — exigir a sede evita criar OS-lixo a partir delas. Checa antes de
-  // consumir um número de OS para não deixar buracos na sequência.
-  const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
-  if (!site) return null;
+async function createTicketFromInbound(db, message) {
+  // Checa antes de consumir um número de OS, para não deixar buracos na sequência.
+  const resolved = await resolveSiteFromSubject(db, message.subject);
+  if (!resolved) return null;
+  const { site, region, parsedSubject } = resolved;
 
   const ticketId = await buildNextTicketId(db);
   const trackingToken = `trk_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -2515,9 +2525,9 @@ async function reprocessInboundWindow(db, sinceDate) {
 
       const ticketData = ticketSnap.data() || {};
       const ticketPatch = {};
-      const parsedSubject = parseNewTicketSubject(inbound.subject || '');
-      if (parsedSubject?.siteCode) {
-        const { site, region } = await resolveSiteContext(db, parsedSubject.siteCode);
+      const resolvedSite = await resolveSiteFromSubject(db, inbound.subject || '');
+      if (resolvedSite) {
+        const { site, region } = resolvedSite;
         if (site?.id && site.id !== ticketData.siteId) ticketPatch.siteId = site.id;
         if (site?.code && site.code !== ticketData.sede) ticketPatch.sede = site.code;
         if (region?.id && region.id !== ticketData.regionId) ticketPatch.regionId = region.id;

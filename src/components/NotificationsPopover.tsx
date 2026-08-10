@@ -10,6 +10,7 @@ import {
 } from '../services/notificationsApi';
 import { AppNotification, ViewState } from '../types';
 import { formatDistanceToNowSafe } from '../utils/date';
+import { mensagemDeErro } from '../utils/errorMessage';
 
 interface NotificationsPopoverProps {
   userKey: string;
@@ -52,7 +53,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
       if (showLoading || !loadedOlderRef.current) setNextCursor(page.nextCursor);
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Falha ao buscar notificações.');
+      setError(mensagemDeErro(requestError, 'Falha ao buscar notificações.'));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -110,7 +111,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
       setIsOpen(false);
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Falha ao abrir a notificação.');
+      setError(mensagemDeErro(requestError, 'Falha ao abrir a notificação.'));
     } finally {
       setPendingId(null);
     }
@@ -123,7 +124,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
       setNotifications(current => current.filter(item => item.id !== notification.id));
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Falha ao dispensar a notificação.');
+      setError(mensagemDeErro(requestError, 'Falha ao dispensar a notificação.'));
     } finally {
       setPendingId(null);
     }
@@ -136,7 +137,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
       setNotifications(current => current.map(item => ({ ...item, read: true })));
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Falha ao marcar as notificações.');
+      setError(mensagemDeErro(requestError, 'Falha ao marcar as notificações.'));
     } finally {
       setPendingId(null);
     }
@@ -156,7 +157,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
       setNextCursor(page.nextCursor);
       setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Falha ao carregar notificações anteriores.');
+      setError(mensagemDeErro(requestError, 'Falha ao carregar notificações anteriores.'));
     } finally {
       setLoadingMore(false);
     }

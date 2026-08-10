@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseNewTicketSubject,
+  parseNewTicketSubjectCandidates,
   parseTicketId,
   isLikelyThreadReply,
   stripReplyForwardPrefixes,
@@ -38,6 +39,44 @@ describe('parseNewTicketSubject', () => {
     expect(parseNewTicketSubject('Assunto importante sobre goteira')).toBeNull();
     expect(parseNewTicketSubject('')).toBeNull();
     expect(parseNewTicketSubject(null as unknown as string)).toBeNull();
+  });
+});
+
+describe('parseNewTicketSubjectCandidates', () => {
+  it('primeiro candidato é o do início — o gabarito continua ganhando', () => {
+    const c = parseNewTicketSubjectCandidates('[PE] Vazamento no [Bloco A]');
+    expect(c[0]).toEqual({ siteCode: 'PE', subject: 'Vazamento no [Bloco A]' });
+  });
+
+  // Caso real, 07/08/2026: descartado com "assunto sem [SEDE] reconhecida".
+  it('acha a sede no FIM do assunto', () => {
+    expect(parseNewTicketSubjectCandidates('SOLICITAÇÃO DE COMPRA [BS]')).toEqual([
+      { siteCode: 'BS', subject: 'SOLICITAÇÃO DE COMPRA' },
+    ]);
+    expect(parseNewTicketSubjectCandidates('Re: SOLICITAÇÃO DE COMPRA [BS]')).toEqual([
+      { siteCode: 'BS', subject: 'SOLICITAÇÃO DE COMPRA' },
+    ]);
+  });
+
+  it('acha a sede no MEIO e costura o resto do assunto', () => {
+    expect(parseNewTicketSubjectCandidates('Goteira (ALD) telhado do bloco 2')).toEqual([
+      { siteCode: 'ALD', subject: 'Goteira telhado do bloco 2' },
+    ]);
+  });
+
+  it('devolve TODOS os grupos — quem tem o catálogo decide qual é sede', () => {
+    const codes = parseNewTicketSubjectCandidates('[GitHub] alerta na sede [PE]').map(c => c.siteCode);
+    expect(codes).toEqual(['GitHub', 'PE']);
+  });
+
+  it('sem colchete nenhum, não há candidato', () => {
+    expect(parseNewTicketSubjectCandidates('Reforma do parquinho.')).toEqual([]);
+    expect(parseNewTicketSubjectCandidates('')).toEqual([]);
+  });
+
+  it('colchete vazio ou sem sobra de assunto não vira candidato', () => {
+    expect(parseNewTicketSubjectCandidates('[PE]')).toEqual([]);
+    expect(parseNewTicketSubjectCandidates('[] Vazamento')).toEqual([]);
   });
 });
 

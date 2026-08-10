@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle, Landmark, Loader2 } from 'lucide-react';
 import { confirmPasswordResetWithCode, verifyPasswordResetActionCode } from '../services/authClient';
-
+import { mensagemDeErro } from '../utils/errorMessage';
 interface PasswordResetViewProps {
   onBack: () => void;
 }
@@ -43,7 +43,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
         const resetEmail = await verifyPasswordResetActionCode(oobCode);
         if (!cancelled) setEmail(resetEmail);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Link de redefinição inválido.');
+        if (!cancelled) setError(mensagemDeErro(err, 'Link de redefinição inválido.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -69,7 +69,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
       await confirmPasswordResetWithCode(oobCode, password);
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível redefinir a senha.');
+      setError(mensagemDeErro(err, 'Não foi possível redefinir a senha.'));
     } finally {
       setSaving(false);
     }

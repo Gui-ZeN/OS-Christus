@@ -26,6 +26,7 @@ import { useApp } from './context/AppContext';
 import { useAttachmentPreview } from './context/AttachmentPreviewContext';
 import type { AttachmentPreviewItem } from './context/AttachmentPreviewContext';
 import { resolveAttachmentUrl } from './services/attachmentAccess';
+import { mensagemDeErro } from './utils/errorMessage';
 import { ViewState } from './types';
 
 const CHUNK_RELOAD_KEY = 'os-chunk-reloaded-once';
@@ -324,7 +325,7 @@ export default function App() {
         } catch (error) {
           return {
             item: { ...item, url: null },
-            error: error instanceof Error ? error.message : 'Não foi possível abrir o anexo.',
+            error: mensagemDeErro(error, 'Não foi possível abrir o anexo.'),
           };
         }
       })

@@ -1,6 +1,6 @@
 ﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
-
+import { UserFacingError } from '../utils/errorMessage';
 export interface CatalogRegion {
   id: string;
   code: string;
@@ -71,7 +71,7 @@ export async function fetchCatalog() {
   const response = await fetch('/api/catalog', { headers: { ...authHeaders } });
   const json = await expectApiJson<any>(response, 'Falha ao buscar catálogo operacional.');
   if (!json.ok || !Array.isArray(json.regions) || !Array.isArray(json.sites)) {
-    throw new Error('Resposta inválida do catálogo.');
+    throw new UserFacingError('Resposta inválida do catálogo.');
   }
   return {
     regions: json.regions as CatalogRegion[],

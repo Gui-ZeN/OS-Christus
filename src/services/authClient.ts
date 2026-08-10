@@ -9,6 +9,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { getFirebaseClientAuth, isFirebaseAuthConfigured } from '../lib/firebaseClient';
+import { UserFacingError } from '../utils/errorMessage';
 
 export function isAuthEnabled() {
   return isFirebaseAuthConfigured();
@@ -45,28 +46,28 @@ function mapFirebaseAuthError(error: unknown) {
 export async function verifyPasswordResetActionCode(oobCode: string) {
   const auth = await getFirebaseClientAuth();
   if (!auth) {
-    throw new Error('Redefinição de senha indisponível neste ambiente.');
+    throw new UserFacingError('Redefinição de senha indisponível neste ambiente.');
   }
   try {
     return await verifyPasswordResetCode(auth, oobCode);
   } catch {
-    throw new Error('Link de redefinição inválido ou expirado. Solicite um novo e-mail de senha.');
+    throw new UserFacingError('Link de redefinição inválido ou expirado. Solicite um novo e-mail de senha.');
   }
 }
 
 export async function confirmPasswordResetWithCode(oobCode: string, password: string) {
   const auth = await getFirebaseClientAuth();
   if (!auth) {
-    throw new Error('Redefinição de senha indisponível neste ambiente.');
+    throw new UserFacingError('Redefinição de senha indisponível neste ambiente.');
   }
   try {
     await confirmPasswordReset(auth, oobCode, password);
   } catch (error) {
     const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code || '') : '';
     if (code === 'auth/weak-password') {
-      throw new Error('Use uma senha mais forte, com pelo menos 6 caracteres.');
+      throw new UserFacingError('Use uma senha mais forte, com pelo menos 6 caracteres.');
     }
-    throw new Error(mapFirebaseAuthError(error) || 'Não foi possível redefinir a senha. Solicite um novo link e tente novamente.');
+    throw new UserFacingError(mapFirebaseAuthError(error) || 'Não foi possível redefinir a senha. Solicite um novo link e tente novamente.');
   }
 }
 
@@ -78,21 +79,21 @@ export async function loginWithEmailPassword(email: string, password: string) {
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (error) {
-    throw new Error(mapFirebaseAuthError(error) || 'Nao foi possivel concluir o login agora. Tente novamente em instantes.');
+    throw new UserFacingError(mapFirebaseAuthError(error) || 'Nao foi possivel concluir o login agora. Tente novamente em instantes.');
   }
 }
 
 export async function loginWithGoogle() {
   const auth = await getFirebaseClientAuth();
   if (!auth) {
-    throw new Error('Login com Google indisponivel neste ambiente. A autenticacao Firebase ainda nao foi configurada no frontend.');
+    throw new UserFacingError('Login com Google indisponivel neste ambiente. A autenticacao Firebase ainda nao foi configurada no frontend.');
   }
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
     return await signInWithPopup(auth, provider);
   } catch (error) {
-    throw new Error(mapFirebaseAuthError(error) || 'Nao foi possivel concluir o login com Google agora. Tente novamente em instantes.');
+    throw new UserFacingError(mapFirebaseAuthError(error) || 'Nao foi possivel concluir o login com Google agora. Tente novamente em instantes.');
   }
 }
 

@@ -29,7 +29,7 @@ import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
 import { ModalShell } from '../components/ui/ModalShell';
 import { DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
-
+import { mensagemDeErro } from '../utils/errorMessage';
 type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'priorities' | 'integrations';
 
 const DEFAULT_TEMPLATE: EmailTemplateSettings = {
@@ -455,7 +455,7 @@ export function SettingsView() {
       setLegacyHealth(legacy);
       setIntegrationsHealth(integrations);
     } catch (error) {
-      setIntegrationsError(error instanceof Error ? error.message : 'Falha ao carregar integrações.');
+      setIntegrationsError(mensagemDeErro(error, 'Falha ao carregar integrações.'));
     } finally {
       setIntegrationsLoading(false);
     }
@@ -473,7 +473,7 @@ export function SettingsView() {
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao carregar catalogo.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao carregar catalogo.'));
     } finally {
       setCatalogLoading(false);
     }
@@ -486,7 +486,7 @@ export function SettingsView() {
       const ordered = [...(directory.vendors || [])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
       setDirectoryVendors(ordered);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao carregar terceiros.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao carregar terceiros.'));
     } finally {
       setVendorsLoading(false);
     }
@@ -524,7 +524,7 @@ export function SettingsView() {
       setTemplateSaved(true);
       setTimeout(() => setTemplateSaved(false), 3000);
     } catch (error) {
-      setTemplateError(error instanceof Error ? error.message : 'Falha ao salvar o template. Tente novamente.');
+      setTemplateError(mensagemDeErro(error, 'Falha ao salvar o template. Tente novamente.'));
     } finally {
       setTemplateSaving(false);
     }
@@ -539,7 +539,7 @@ export function SettingsView() {
       setBackfillResult(result.result);
       await loadIntegrations();
     } catch (error) {
-      setBackfillError(error instanceof Error ? error.message : 'Falha ao executar backfill.');
+      setBackfillError(mensagemDeErro(error, 'Falha ao executar backfill.'));
     } finally {
       setBackfillLoading(false);
     }
@@ -560,7 +560,7 @@ export function SettingsView() {
         sameMode ? mergeHistoryBackfillResults(historyBackfillResult, response.result) : response.result
       );
     } catch (error) {
-      setHistoryBackfillError(error instanceof Error ? error.message : 'Falha ao copiar o histórico das OS.');
+      setHistoryBackfillError(mensagemDeErro(error, 'Falha ao copiar o histórico das OS.'));
     } finally {
       setHistoryBackfillLoading(false);
     }
@@ -581,7 +581,7 @@ export function SettingsView() {
       }
     } catch (error) {
       setAttachmentMigrationError(
-        error instanceof Error ? error.message : 'Falha ao migrar anexos legados.'
+        mensagemDeErro(error, 'Falha ao migrar anexos legados.')
       );
     } finally {
       setAttachmentMigrationLoading(false);
@@ -601,7 +601,7 @@ export function SettingsView() {
       setCatalogSaved('Macroserviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar macroserviço.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao salvar macroserviço.'));
     } finally {
       setCatalogSavingEntity(null);
     }
@@ -620,7 +620,7 @@ export function SettingsView() {
       setCatalogSaved('Serviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar serviço.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao salvar serviço.'));
     } finally {
       setCatalogSavingEntity(null);
     }
@@ -639,7 +639,7 @@ export function SettingsView() {
       setCatalogSaved('Material salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar material.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao salvar material.'));
     } finally {
       setCatalogSavingEntity(null);
     }
@@ -658,7 +658,7 @@ export function SettingsView() {
       setCatalogSaved('Região salva.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar região.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao salvar região.'));
     } finally {
       setCatalogSavingEntity(null);
     }
@@ -678,7 +678,7 @@ export function SettingsView() {
       setCatalogSaved('Sede salva.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar sede.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao salvar sede.'));
     } finally {
       setCatalogSavingEntity(null);
     }
@@ -722,7 +722,7 @@ export function SettingsView() {
       setCatalogSaved(deletedLabelByEntity[entity]);
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao excluir item do catálogo.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao excluir item do catálogo.'));
     } finally {
       setCatalogDeleting(false);
       setPendingCatalogDelete(null);
@@ -759,7 +759,7 @@ export function SettingsView() {
       setCatalogSaved('Terceiro salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao salvar terceiro.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao salvar terceiro.'));
     } finally {
       setVendorSaving(false);
     }
@@ -851,7 +851,7 @@ export function SettingsView() {
       setCatalogSaved('Tag de terceiro removida.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
-      setCatalogError(error instanceof Error ? error.message : 'Falha ao remover a tag de terceiro.');
+      setCatalogError(mensagemDeErro(error, 'Falha ao remover a tag de terceiro.'));
     }
   };
 

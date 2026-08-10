@@ -8,7 +8,7 @@ import {
   type DroppedInboundItem,
 } from '../../services/droppedInboundApi';
 import { repairMojibake } from '../../utils/text';
-
+import { mensagemDeErro } from '../../utils/errorMessage';
 /**
  * ENTRARAM E NÃO VIRARAM NADA.
  *
@@ -44,7 +44,7 @@ export function DroppedInboundQueue({
     } catch (e) {
       // Falha aqui não pode derrubar a Inbox: a fila é um extra sobre a tela que a
       // pessoa veio usar.
-      setErro(e instanceof Error ? e.message : 'Falha ao carregar a fila.');
+      setErro(mensagemDeErro(e, 'Falha ao carregar a fila.'));
     }
   }, []);
 
@@ -64,7 +64,7 @@ export function DroppedInboundQueue({
       onLinked?.(ticketId);
       setErro('');
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível vincular.');
+      setErro(mensagemDeErro(e, 'Não foi possível vincular.'));
     } finally {
       setOcupado(null);
     }
@@ -84,7 +84,7 @@ export function DroppedInboundQueue({
       onLinked?.(ticketId);
       setErro('');
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível criar a OS.');
+      setErro(mensagemDeErro(e, 'Não foi possível criar a OS.'));
     } finally {
       setOcupado(null);
     }
@@ -96,7 +96,7 @@ export function DroppedInboundQueue({
       await dismissDroppedInbound(item.id);
       setItens(atual => atual.filter(i => i.id !== item.id));
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível descartar.');
+      setErro(mensagemDeErro(e, 'Não foi possível descartar.'));
     } finally {
       setOcupado(null);
     }

@@ -11,7 +11,7 @@ import {
   CatalogSite,
   fetchCatalog,
 } from '../services/catalogApi';
-
+import { mensagemDeErro } from '../utils/errorMessage';
 interface PublicFormViewProps {
   onBack: () => void;
 }
@@ -45,7 +45,7 @@ function parseEmailList(input: string) {
 }
 
 function getPublicFormSubmitError(error: unknown) {
-  const message = error instanceof Error ? error.message : '';
+  const message = mensagemDeErro(error, '');
   if (!message) return 'Não foi possível registrar a OS agora. Tente novamente em alguns minutos.';
   if (message === 'Falha ao criar ticket na API.') {
     return 'Não foi possível registrar a solicitação. Se houver foto anexada, tente enviar uma imagem menor ou registre sem foto e envie a imagem depois.';

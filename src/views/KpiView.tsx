@@ -13,7 +13,8 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { parseCurrency } from '../utils/currency';
-
+import { mensagemDeErro } from '../utils/errorMessage';
+import { UserFacingError } from '../utils/errorMessage';
 function formatCurrencyBRL(value: number) {
   return `R$ ${value.toLocaleString('pt-BR')}`;
 }
@@ -763,7 +764,7 @@ export function KpiView() {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: payload }),
       });
-      if (!response.ok) throw new Error('Falha ao gerar o PDF.');
+      if (!response.ok) throw new UserFacingError('Falha ao gerar o PDF.');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -774,7 +775,7 @@ export function KpiView() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Falha ao gerar o PDF.');
+      window.alert(mensagemDeErro(error, 'Falha ao gerar o PDF.'));
     } finally {
       setGenerating(false);
     }

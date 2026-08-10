@@ -6,7 +6,7 @@ import { fetchDirectory } from './directoryApi';
 import { fetchProcurementData } from './procurementApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
-
+import { UserFacingError } from '../utils/errorMessage';
 function resolveTicketEmail(ticket: Ticket): string | null {
   if (ticket.requesterEmail?.trim()) return ticket.requesterEmail.trim();
   return null;
@@ -349,7 +349,7 @@ async function postEmail(payload: Record<string, unknown>, options?: { throwOnEr
   } catch (error) {
     console.error('[ticketEmail] envio falhou', error);
     if (options?.throwOnError) {
-      throw error instanceof Error ? error : new Error('Falha ao enviar e-mail.');
+      throw error instanceof Error ? error : new UserFacingError('Falha ao enviar e-mail.');
     }
     return false;
   }

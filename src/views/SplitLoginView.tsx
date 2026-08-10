@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
-
+import { mensagemDeErro } from '../utils/errorMessage';
 interface SplitLoginViewProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onGoogleLogin?: () => Promise<void>;
@@ -24,7 +24,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
     try {
       await onLogin(loginEmail.trim().toLowerCase(), loginPassword);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha no login.');
+      setError(mensagemDeErro(err, 'Falha no login.'));
     } finally {
       setIsLoading(false);
     }
@@ -37,7 +37,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
     try {
       await onGoogleLogin();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha no login com Google.');
+      setError(mensagemDeErro(err, 'Falha no login com Google.'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -56,7 +56,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
       await onForgotPassword(normalizedEmail);
       setPasswordResetFeedback('Enviamos o e-mail para criar/redefinir sua senha. Verifique sua caixa de entrada.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao solicitar recuperação de senha.');
+      setError(mensagemDeErro(err, 'Falha ao solicitar recuperação de senha.'));
     } finally {
       setIsPasswordResetLoading(false);
     }

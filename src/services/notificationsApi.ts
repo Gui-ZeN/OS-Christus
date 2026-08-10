@@ -2,7 +2,7 @@
 import { expectApiJson } from './apiClient';
 import { AppNotification } from '../types';
 import { coerceDate } from '../utils/date';
-
+import { UserFacingError } from '../utils/errorMessage';
 type NotificationApi = Omit<AppNotification, 'time'> & { time: unknown };
 
 export interface NotificationPage {
@@ -25,7 +25,7 @@ export async function fetchNotifications(cursor?: string | null): Promise<Notifi
     'Falha ao buscar notificações.'
   );
   if (!json.ok || !Array.isArray(json.notifications)) {
-    throw new Error('Resposta inválida de notificações.');
+    throw new UserFacingError('Resposta inválida de notificações.');
   }
   return {
     notifications: (json.notifications as NotificationApi[]).map(item => ({

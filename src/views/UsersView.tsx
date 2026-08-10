@@ -5,7 +5,7 @@ import { createUser, deleteUser, type DirectoryUser, fetchUsers, updateUser } fr
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ModalShell } from '../components/ui/ModalShell';
-
+import { mensagemDeErro } from '../utils/errorMessage';
 type UserStatus = 'Ativo' | 'Inativo';
 type UserRole = 'Diretor' | 'Admin' | 'Gestor' | 'Usuario';
 
@@ -200,7 +200,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
     } catch (error) {
       setFeedback({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Não foi possível salvar o usuário.',
+        text: mensagemDeErro(error, 'Não foi possível salvar o usuário.'),
       });
     } finally {
       setSaving(false);

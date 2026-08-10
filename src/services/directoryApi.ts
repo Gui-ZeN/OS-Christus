@@ -1,6 +1,6 @@
 ﻿import { getActorHeaders, getAuthenticatedActorHeaders } from './actorHeaders';
 import { expectApiJson } from './apiClient';
-
+import { UserFacingError } from '../utils/errorMessage';
 export interface DirectoryUser {
   id: string;
   name: string;
@@ -47,7 +47,7 @@ export async function fetchDirectory() {
     vendors?: DirectoryVendor[];
   }>(response, 'Falha ao buscar diretório.');
   if (!json.ok) {
-    throw new Error('Resposta inválida do diretório.');
+    throw new UserFacingError('Resposta inválida do diretório.');
   }
   return {
     users: (json.users || []) as DirectoryUser[],
@@ -65,7 +65,7 @@ export async function fetchUsers() {
     'Falha ao buscar usuários.'
   );
   if (!json.ok || !Array.isArray(json.users)) {
-    throw new Error('Resposta inválida de usuários.');
+    throw new UserFacingError('Resposta inválida de usuários.');
   }
   return json.users as DirectoryUser[];
 }

@@ -2,7 +2,7 @@
 import { expectApiJson } from './apiClient';
 import { ContractRecord, MeasurementRecord, PaymentRecord, ProcurementClassificationSnapshot, Quote } from '../types';
 import { coerceDate } from '../utils/date';
-
+import { UserFacingError } from '../utils/errorMessage';
 type QuoteApi = Quote & { ticketId?: string };
 type ContractApi = ContractRecord & { ticketId?: string };
 type PaymentApi = Omit<PaymentRecord, 'paidAt' | 'dueAt' | 'attachments'> & {
@@ -42,7 +42,7 @@ export async function fetchProcurementData() {
   });
   const json = await expectApiJson<any>(response, 'Falha ao buscar dados financeiros.');
   if (!json.ok) {
-    throw new Error('Resposta inválida de procurement.');
+    throw new UserFacingError('Resposta inválida de procurement.');
   }
 
   const paymentsByTicket = Object.fromEntries(

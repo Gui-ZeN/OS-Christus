@@ -32,6 +32,7 @@ import { parseInputDateTime } from '../utils/date';
 import { NextActionStrip } from './inbox/NextActionStrip';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { TicketHistory } from './inbox/TicketHistory';
+import { mensagemDeErro } from '../utils/errorMessage';
 
 
 
@@ -539,7 +540,7 @@ export function InboxView() {
       setNewThirdPartyTags([]);
       showToast('Terceiro cadastrado com sucesso.', 2500);
     } catch (error) {
-      showToast(`Erro ao cadastrar terceiro: ${error instanceof Error ? error.message : 'falha inesperada.'}`, 3500);
+      showToast(`Erro ao cadastrar terceiro: ${mensagemDeErro(error, 'falha inesperada.')}`, 3500);
     }
   };
 
@@ -561,7 +562,7 @@ export function InboxView() {
       setNewSharedTagDraft('');
       showToast('Tag compartilhada cadastrada.', 2500);
     } catch (error) {
-      showToast(`Erro ao salvar tag: ${error instanceof Error ? error.message : 'falha inesperada.'}`, 3500);
+      showToast(`Erro ao salvar tag: ${mensagemDeErro(error, 'falha inesperada.')}`, 3500);
     } finally {
       setNewSharedTagSaving(false);
     }
@@ -1575,7 +1576,7 @@ export function InboxView() {
       setShowActionsMenu(false);
       showToast(`OS ${activeTicket.id} duplicada como ${createdTicket.id}.`, 3000);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível duplicar a OS.', 3000);
+      showToast(mensagemDeErro(error, 'Não foi possível duplicar a OS.'), 3000);
     } finally {
       setIsSending(false);
     }
@@ -1620,7 +1621,7 @@ export function InboxView() {
       showToast(`OS ${activeTicket.id} cancelada.`, 3000);
     } catch (error) {
       showToast(
-        error instanceof Error ? `OS não foi cancelada: ${error.message}` : 'Falha ao cancelar a OS.',
+        `OS não foi cancelada: ${mensagemDeErro(error, 'Falha ao cancelar a OS.')}`,
         5000
       );
     }
@@ -1663,7 +1664,7 @@ export function InboxView() {
       showToast(`OS ${activeTicket.id} reaberta.`, 3000);
     } catch (error) {
       showToast(
-        error instanceof Error ? `OS não foi reaberta: ${error.message}` : 'Falha ao reabrir a OS.',
+        `OS não foi reaberta: ${mensagemDeErro(error, 'Falha ao reabrir a OS.')}`,
         5000
       );
     }
@@ -1680,7 +1681,7 @@ export function InboxView() {
       showToast(`OS ${activeTicket.id} excluída com sucesso.`);
       await refreshTickets({ silent: true });
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível excluir a OS.', 4000);
+      showToast(mensagemDeErro(error, 'Não foi possível excluir a OS.'), 4000);
     } finally {
       setIsDeletingTicket(false);
     }

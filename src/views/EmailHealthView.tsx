@@ -5,6 +5,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { formatDateTimeSafe } from '../utils/date';
 import { repairMojibake } from '../utils/text';
+import { explicaErroTecnico, mensagemDeErro } from '../utils/errorMessage';
 
 type EmailHealthResponse = {
   ok: boolean;
@@ -71,7 +72,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       }
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha inesperada.');
+      setError(mensagemDeErro(e, 'Falha inesperada.'));
     } finally {
       setLoading(false);
     }
@@ -94,7 +95,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       await refreshTickets();
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha inesperada ao sincronizar e-mails.');
+      setError(mensagemDeErro(e, 'Falha inesperada ao sincronizar e-mails.'));
     } finally {
       setSyncLoading(false);
     }
@@ -120,7 +121,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       await refreshTickets();
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha inesperada ao reprocessar inbound.');
+      setError(mensagemDeErro(e, 'Falha inesperada ao reprocessar inbound.'));
     } finally {
       setReprocessLoading(false);
     }
@@ -311,7 +312,14 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
                   <span>Tipo: {item.type || '-'}</span>
                   <span>Ticket: {item.ticketId || '-'}</span>
                 </div>
-                <div className="text-sm text-red-700">{item.error}</div>
+                {/* A explicação em português vem primeiro, e o texto original fica
+                    embaixo, menor: é ele que serve para procurar a causa lá fora. */}
+                {explicaErroTecnico(item.error) && (
+                  <div className="text-sm text-roman-text-main">{explicaErroTecnico(item.error)}</div>
+                )}
+                <div className={explicaErroTecnico(item.error) ? 'mt-1 font-mono text-xs text-red-700/80' : 'text-sm text-red-700'}>
+                  {item.error}
+                </div>
               </div>
             ))}
           </div>

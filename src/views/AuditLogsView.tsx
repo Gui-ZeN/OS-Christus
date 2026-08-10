@@ -4,6 +4,7 @@ import { AuditLogEntry, fetchAuditLogs } from '../services/auditLogsApi';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { formatDateTimeSafe } from '../utils/date';
+import { mensagemDeErro } from '../utils/errorMessage';
 
 const ENTITY_LABELS: Record<string, string> = {
   regions: 'Regiões',
@@ -204,7 +205,7 @@ export function AuditLogsView() {
       const result = await fetchAuditLogs(150, includeSystem);
       setLogs(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha inesperada.');
+      setError(mensagemDeErro(err, 'Falha inesperada.'));
     } finally {
       setLoading(false);
     }

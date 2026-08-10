@@ -8,6 +8,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatDateTimeSafe } from '../utils/date';
+import { matchesSearch } from '../utils/search';
 import { repairMojibake } from '../utils/text';
 
 const ALL = 'all';
@@ -67,7 +68,6 @@ export function OsBoardView() {
   }, [tickets]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return decorated.filter(entry => {
       if (sede !== ALL && entry.siteLabel !== sede) return false;
       if (macroService !== ALL && entry.macro !== macroService) return false;
@@ -77,11 +77,11 @@ export function OsBoardView() {
       // Encerrada/Cancelada só entram com a caixa marcada — a não ser que a pessoa
       // tenha filtrado explicitamente por uma delas, quando esconder seria absurdo.
       if (!showClosed && status === ALL && !isTicketOpen(entry.ticket.status)) return false;
-      if (q) {
-        const haystack = `${entry.ticket.id} ${repairMojibake(entry.ticket.subject)} ${repairMojibake(entry.ticket.requester || '')}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
+      // A sede entra no que é vasculhado de propósito: colar o título do Gmail traz
+      // junto o `[SUL 3]`, que foi removido do assunto ao criar a OS. Sem ela na
+      // busca, o termo colado nunca casa. Ver src/utils/search.ts.
+      const haystack = `${entry.ticket.id} ${repairMojibake(entry.ticket.subject)} ${repairMojibake(entry.ticket.requester || '')} ${entry.siteLabel} ${entry.ticket.sede || ''}`;
+      return matchesSearch(haystack, search);
     });
   }, [decorated, sede, macroService, service, team, status, search, showClosed]);
 

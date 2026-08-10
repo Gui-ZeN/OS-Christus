@@ -1,3 +1,20 @@
+import { UserFacingError } from '../utils/errorMessage';
+
+/**
+ * Erro que veio da NOSSA API — e portanto já está em português, escrito para quem
+ * usa o sistema. Carrega o status junto porque algumas telas decidem por ele (401
+ * manda para o login, 409 pede recarregar).
+ */
+export class ApiError extends UserFacingError {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 export async function readApiJson<T = unknown>(response: Response): Promise<T | null> {
   const raw = await response.text().catch(() => '');
   if (!raw) return null;
@@ -27,13 +44,16 @@ export async function expectApiJson<T = unknown>(
 ): Promise<T> {
   const payload = await readApiJson<T & { error?: string }>(response);
   if (response.status === 413) {
-    throw new Error('O anexo enviado é muito grande. Envie uma imagem menor ou tente registrar a solicitação sem foto.');
+    throw new ApiError(
+      'O anexo enviado é muito grande. Envie uma imagem menor ou tente registrar a solicitação sem foto.',
+      413
+    );
   }
   if (!response.ok) {
-    throw new Error(resolveApiError(payload, fallbackMessage));
+    throw new ApiError(resolveApiError(payload, fallbackMessage), response.status);
   }
   if (!payload) {
-    throw new Error(`${fallbackMessage} (resposta inválida do servidor)`);
+    throw new ApiError(`${fallbackMessage} (resposta inválida do servidor)`, response.status);
   }
   return payload as T;
 }

@@ -1,5 +1,5 @@
 import { expectApiJson } from './apiClient';
-
+import { UserFacingError } from '../utils/errorMessage';
 type PasswordResetResponse = {
   ok: boolean;
   message?: string;
@@ -8,7 +8,7 @@ type PasswordResetResponse = {
 export async function requestPasswordResetInApi(email: string) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail) {
-    throw new Error('Informe um e-mail para recuperar a senha.');
+    throw new UserFacingError('Informe um e-mail para recuperar a senha.');
   }
 
   const response = await fetch('/api/auth-password', {
@@ -23,6 +23,6 @@ export async function requestPasswordResetInApi(email: string) {
   );
 
   if (!json.ok) {
-    throw new Error('Nao foi possivel processar a recuperacao de senha.');
+    throw new UserFacingError('Nao foi possivel processar a recuperacao de senha.');
   }
 }

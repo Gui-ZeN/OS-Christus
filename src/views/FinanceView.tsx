@@ -24,6 +24,7 @@ import { getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../
 import { buildProcurementClassification } from '../utils/procurementClassification';
 import { formatDateTimeSafe } from '../utils/date';
 import { formatCurrency, normalizeCurrencyInput, parseCurrency, sanitizeCurrencyTypingInput } from '../utils/currency';
+import { mensagemDeErro } from '../utils/errorMessage';
 // Encerramento da OS: checklist, bloqueios do lançamento final e relatório HTML.
 import {
   buildClosureExportHtml,
@@ -50,7 +51,7 @@ import {
   sumReleasedPercent,
   upsertDynamicPayment,
 } from '../utils/finance';
-
+import { UserFacingError } from '../utils/errorMessage';
 interface MeasurementFormState {
   label: string;
   grossAmount: string;
@@ -578,10 +579,10 @@ export function FinanceView() {
           },
         ],
       });
-      if (!persisted) throw new Error('O arquivo foi enviado, mas não foi possível registrar o documento na OS.');
+      if (!persisted) throw new UserFacingError('O arquivo foi enviado, mas não foi possível registrar o documento na OS.');
       showToast(`Documento ${uploaded.name} anexado com sucesso.`, 3000);
     } catch (error) {
-      showToast(`Erro: ${error instanceof Error ? error.message : 'falha no upload do documento.'}`, 4000);
+      showToast(`Erro: ${mensagemDeErro(error, 'falha no upload do documento.')}`, 4000);
     } finally {
       setUploadingTicketId(null);
     }
@@ -622,7 +623,7 @@ export function FinanceView() {
       }
       showToast(`Documento ${targetDocument.name} removido com sucesso.`, 3000);
     } catch (error) {
-      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover o documento.'}`, 4000);
+      showToast(`Erro: ${mensagemDeErro(error, 'falha ao remover o documento.')}`, 4000);
     } finally {
       setUploadingTicketId(null);
     }
@@ -792,7 +793,7 @@ export function FinanceView() {
       setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
       showToast(`${paymentLabel} registrada e liberada para pagamento.`, 3000);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Falha ao salvar andamento da obra.', 4000);
+      showToast(mensagemDeErro(error, 'Falha ao salvar andamento da obra.'), 4000);
     } finally {
       setProcessingId(null);
     }
@@ -821,7 +822,7 @@ export function FinanceView() {
       }));
       showToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lançamento'}.`, 3000);
     } catch (error) {
-      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao enviar anexos do lançamento.'}`, 4000);
+      showToast(`Erro: ${mensagemDeErro(error, 'falha ao enviar anexos do lançamento.')}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
     }
@@ -863,7 +864,7 @@ export function FinanceView() {
       }));
       showToast(`Anexo removido de ${payment.label || 'lançamento'}.`, 3000);
     } catch (error) {
-      showToast(`Erro: ${error instanceof Error ? error.message : 'falha ao remover anexo do lançamento.'}`, 4000);
+      showToast(`Erro: ${mensagemDeErro(error, 'falha ao remover anexo do lançamento.')}`, 4000);
     } finally {
       setUploadingPaymentKey(null);
     }
@@ -880,7 +881,7 @@ export function FinanceView() {
       await refreshFinanceState().catch(() => undefined);
       showToast(
         `Pagamento preservado, mas o e-mail continua pendente: ${
-          error instanceof Error ? error.message : 'falha desconhecida.'
+          mensagemDeErro(error, 'falha desconhecida.')
         }`,
         5000
       );
@@ -1002,7 +1003,7 @@ export function FinanceView() {
       });
       paymentRecorded = true;
       writeStoredFinanceRecipients(recipients);
-      if (!result.outboxKey) throw new Error('Pagamento registrado sem chave de entrega do e-mail.');
+      if (!result.outboxKey) throw new UserFacingError('Pagamento registrado sem chave de entrega do e-mail.');
       await dispatchPaymentOutbox(ticketId, result.outboxKey);
       await refreshFinanceState();
       financeCommandKeysRef.current.delete(commandScope);
@@ -1028,7 +1029,7 @@ export function FinanceView() {
           : `${payment.label || 'Lançamento'} confirmado e e-mail disparado.`
       , 3000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'falha desconhecida.';
+      const errorMessage = mensagemDeErro(error, 'falha desconhecida.');
       if (!paymentRecorded) {
         const outbox = await fetchFinanceOutbox().catch(() => null);
         paymentRecorded = Boolean(

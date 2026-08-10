@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { QuoteEditorValue } from './useQuoteEditor';
-
+import { UserFacingError } from '../../utils/errorMessage';
 /**
  * Context do editor de Cotações: carrega o retorno do `useQuoteEditor` (estado +
  * handlers + derivados) pra subárvore do modal, matando o prop-drilling — os
@@ -14,7 +14,7 @@ export const QuoteEditorProvider = QuoteEditorContext.Provider;
 export function useQuoteEditorContext(): QuoteEditorValue {
   const ctx = useContext(QuoteEditorContext);
   if (!ctx) {
-    throw new Error('useQuoteEditorContext deve ser usado dentro de <QuoteEditorProvider>.');
+    throw new UserFacingError('useQuoteEditorContext deve ser usado dentro de <QuoteEditorProvider>.');
   }
   return ctx;
 }
