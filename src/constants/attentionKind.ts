@@ -20,13 +20,21 @@ export const ATTENTION_KIND = {
 
 export type AttentionKind = (typeof ATTENTION_KIND)[keyof typeof ATTENTION_KIND];
 
+/**
+ * O rótulo CONSTATA, não exige.
+ *
+ * "Cobrar andamento" era o sistema mandando; "Sem andamento" é o sistema contando o
+ * que houve. A diferença não é de estilo: o Serv3 registra e ajuda a gerir o dia —
+ * quem cobra é gente, e nenhuma dessas linhas fala com fornecedor. Rótulo que dá
+ * ordem promete uma autoridade que o sistema não tem e não deve ter.
+ */
 export const ATTENTION_KIND_LABEL: Record<string, string> = {
-  'revisar-mensagem': 'Revisar mensagem',
-  'cobrar-retorno': 'Cobrar retorno',
-  'verificar-comparecimento': 'Verificar comparecimento',
-  'reavaliar-suspensao': 'Reavaliar suspensão',
-  'definir-responsavel': 'Definir responsável',
-  'sem-progresso': 'Cobrar andamento',
+  'revisar-mensagem': 'Mensagem sem resposta',
+  'cobrar-retorno': 'Retorno pendente',
+  'verificar-comparecimento': 'Visita marcada',
+  'reavaliar-suspensao': 'Suspensão vencendo',
+  'definir-responsavel': 'Sem responsável',
+  'sem-progresso': 'Sem andamento',
 };
 
 /**
