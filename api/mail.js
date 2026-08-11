@@ -2373,7 +2373,11 @@ async function handleHealth(req, res) {
         })),
     });
   } catch (error) {
-    return sendJson(res, 500, { ok: false, error: error.message || 'Falha ao ler saúde de e-mail.' });
+    // O último 500 fixo do arquivo. Ele devolvia a MENSAGEM certa com o STATUS
+    // errado — "Token de autenticação ausente" acompanhado de 500 —, então quem
+    // olhava o código de resposta via falha do servidor onde havia sessão vencida.
+    // Achado por sonda na produção, não por teste.
+    return sendError(res, error, 'Falha ao ler saúde de e-mail.');
   }
 }
 
