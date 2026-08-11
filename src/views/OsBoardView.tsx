@@ -135,8 +135,12 @@ export function OsBoardView() {
     <div className="flex h-full flex-col bg-roman-bg">
       <header className="border-b border-roman-border bg-roman-surface px-4 py-4 md:px-6">
         <h1 className="text-xl font-serif font-medium text-roman-text-main">Gestão de OS</h1>
+        {/* O subtítulo ENSINA. O anterior dizia "clique para abrir" — e o ponto desta
+            tela passou a ser justamente não precisar abrir. Frase permanente errada é
+            pior que aviso faltando: ela ensina o comportamento antigo todo dia, sem
+            data de validade. */}
         <p className="font-serif italic text-roman-text-sub">
-          Todas as ordens de serviço em uma tabela — filtre e clique para abrir.
+          Conversa, etapa e responsável sem sair daqui — a OS completa só quando precisar.
         </p>
       </header>
 
