@@ -1,11 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { ModalShell } from '../../components/ui/ModalShell';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useApp } from '../../context/AppContext';
 import { getAllowedNextStatuses, type AppActorRole } from '../../constants/statusFlow';
 import { TICKET_STATUS, type TicketStatus } from '../../constants/ticketStatus';
-import { motivoQueImpedeEtapa } from '../../utils/statusChangeGuard';
+import { bloqueioParaAvancar, motivoQueImpedeEtapa } from '../../utils/statusChangeGuard';
+import {
+  fetchCatalog,
+  type CatalogMacroService,
+  type CatalogServiceItem,
+} from '../../services/catalogApi';
 import { mensagemDeErro } from '../../utils/errorMessage';
 import { repairMojibake } from '../../utils/text';
 import type { HistoryItem } from '../../types';
@@ -35,15 +40,49 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
   const [avisarSolicitante, setAvisarSolicitante] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  // Classificação DENTRO deste modal, e não numa tela à parte: a trava só aparece
+  // quando alguém tenta avançar, então é aqui que ela precisa ser resolvida. Mandar
+  // a pessoa classificar noutro lugar e voltar é o que faz 88 OS continuarem paradas.
+  const [macros, setMacros] = useState<CatalogMacroService[]>([]);
+  const [servicos, setServicos] = useState<CatalogServiceItem[]>([]);
+  const [macroEscolhido, setMacroEscolhido] = useState('');
+  const [servicoEscolhido, setServicoEscolhido] = useState('');
 
   const opcoes = useMemo(
     () => (ticket ? getAllowedNextStatuses(actorRole, 'inbox', ticket.status as TicketStatus) : []),
     [actorRole, ticket]
   );
 
+  const bloqueio = ticket ? bloqueioParaAvancar(ticket) : null;
+  const precisaClassificar = bloqueio?.campo === 'classificacao';
+
+  useEffect(() => {
+    if (!precisaClassificar) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const catalogo = await fetchCatalog();
+        if (cancelado) return;
+        setMacros((catalogo.macroServices || []).filter(m => m.active !== false));
+        setServicos((catalogo.serviceCatalog || []).filter(s => s.active !== false));
+      } catch {
+        if (!cancelado) setErro('Não foi possível carregar o catálogo de serviços.');
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [precisaClassificar]);
+
   if (!ticket) return null;
 
-  const impedimento = destino ? motivoQueImpedeEtapa(ticket, destino) : null;
+  const servicosDoMacro = servicos.filter(s => s.macroServiceId === macroEscolhido);
+  // A classificação escolhida AQUI vale para a trava: senão o botão continuaria
+  // bloqueado mesmo com a pessoa tendo acabado de preencher os dois campos.
+  const ticketComClassificacao = precisaClassificar
+    ? { ...ticket, macroServiceId: macroEscolhido, serviceCatalogId: servicoEscolhido }
+    : ticket;
+  const impedimento = destino ? motivoQueImpedeEtapa(ticketComClassificacao, destino) : null;
   const podeSalvar = Boolean(destino) && motivo.trim().length > 0 && !impedimento && !salvando;
 
   const salvar = async () => {
@@ -59,9 +98,19 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
         text: `Transição manual via Gestão: ${ticket.status} -> ${destino}. Motivo: ${motivo.trim()}.`,
         visibility: 'internal',
       };
+      // Classificar e avançar numa escrita só: duas escritas separadas deixariam a OS
+      // classificada e parada se a segunda falhasse — que é a situação de hoje.
+      const classificacao = precisaClassificar
+        ? {
+            macroServiceId: macroEscolhido,
+            macroServiceName: macros.find(m => m.id === macroEscolhido)?.name || '',
+            serviceCatalogId: servicoEscolhido,
+            serviceCatalogName: servicos.find(s => s.id === servicoEscolhido)?.name || '',
+          }
+        : {};
       const ok = await updateTicket(
         ticket.id,
-        { status: destino, history: [...(ticket.history || []), entrada] },
+        { ...classificacao, status: destino, history: [...(ticket.history || []), entrada] },
         { sendEmailUpdate: avisarSolicitante }
       );
       // `updateTicket` reverte o otimista sozinho e não lança — o modal fica aberto
@@ -126,7 +175,45 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
           </select>
         </label>
 
-        {impedimento && (
+        {precisaClassificar && (
+          <div className="space-y-3 rounded-sm border border-amber-300 bg-amber-50 p-3">
+            <p className="text-sm text-amber-900">
+              <strong>{bloqueio?.motivo}.</strong> Classifique aqui e a OS avança na mesma ação.
+            </p>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-amber-900">Macroserviço</span>
+              <select
+                value={macroEscolhido}
+                onChange={event => {
+                  setMacroEscolhido(event.target.value);
+                  setServicoEscolhido('');
+                }}
+                className="w-full rounded-sm border border-amber-300 bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+              >
+                <option value="">Escolha…</option>
+                {macros.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-amber-900">Serviço</span>
+              <select
+                value={servicoEscolhido}
+                onChange={event => setServicoEscolhido(event.target.value)}
+                disabled={!macroEscolhido}
+                className="w-full rounded-sm border border-amber-300 bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+              >
+                <option value="">{macroEscolhido ? 'Escolha…' : 'Escolha o macroserviço antes'}</option>
+                {servicosDoMacro.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
+        {impedimento && !precisaClassificar && (
           <div className="rounded-sm border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             {impedimento}
           </div>

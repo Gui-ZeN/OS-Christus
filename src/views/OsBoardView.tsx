@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { ArrowRightLeft, MessageSquare, Search, UserRound, X } from 'lucide-react';
+import { ArrowRightLeft, MessageSquare, Search, TriangleAlert, UserRound, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -9,6 +9,7 @@ import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatDateTimeSafe } from '../utils/date';
 import { matchesSearch } from '../utils/search';
+import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import { ConversaModal } from './osboard/ConversaModal';
 import { EtapaModal } from './osboard/EtapaModal';
 import { ResponsavelModal } from './osboard/ResponsavelModal';
@@ -278,7 +279,21 @@ export function OsBoardView() {
                       <span className="text-roman-text-sub">{ticket.responsible?.name || '—'}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5"><StatusBadge status={ticket.status} /></td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <StatusBadge status={ticket.status} />
+                    {/* O bloqueio deixa de ser invisível: até agora ele só aparecia
+                        para quem TENTAVA avançar, e por isso 88 OS estavam paradas
+                        por um motivo que ninguém sabia que existia. */}
+                    {bloqueioParaAvancar(ticket) && (
+                      <div
+                        className="mt-1 inline-flex items-center gap-1 rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900"
+                        title="A OS não avança enquanto isto não for resolvido. Use o botão Etapa."
+                      >
+                        <TriangleAlert size={11} />
+                        {bloqueioParaAvancar(ticket)?.motivo}
+                      </div>
+                    )}
+                  </td>
                   <td className={`whitespace-nowrap px-3 py-2.5 font-medium ${priorityClass(repairMojibake(ticket.priority || ''))}`}>
                     {repairMojibake(ticket.priority || '—')}
                   </td>
