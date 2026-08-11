@@ -116,7 +116,7 @@ describe('computeOperationalAttention — precedência', () => {
 
   it('cobrança de retorno só nasce de sinal ESTRUTURADO, com 3 dias úteis', () => {
     const r = computeOperationalAttention(os({ followUpRequestedAt: emDias(0, 10) }), AGORA);
-    expect(r?.kind).toBe(ATTENTION_KIND.FOLLOW_UP);
+    expect(r?.kind).toBe(ATTENTION_KIND.AWAITING_REPLY);
     expect(r?.dueAt.toISOString().slice(0, 10)).toBe('2026-08-10'); // pula o fim de semana
   });
 
@@ -132,6 +132,45 @@ describe('computeOperationalAttention — precedência', () => {
     // 163 das 270 OS estão paradas há meses. Inventar atenção para todas de uma vez
     // encheria a tela de ruído e ensinaria a ignorá-la.
     expect(computeOperationalAttention(os(), AGORA)).toBeNull();
+  });
+});
+
+describe('retorno pendente — registro, não cobrança', () => {
+  it('registrado e vencido, a OS volta para a vista de quem registrou', () => {
+    const r = computeOperationalAttention(os({ followUpRequestedAt: emDias(-10) }), AGORA);
+    expect(r?.kind).toBe(ATTENTION_KIND.AWAITING_REPLY);
+  });
+
+  // Dentro do prazo ela EXISTE, com data no futuro — quem registrou quer ver a OS
+  // voltar, e a agenda a coloca em "Próximos 7 dias". Não exige nada hoje.
+  it('dentro do prazo, a data fica no futuro — não cobra hoje', () => {
+    const r = computeOperationalAttention(os({ followUpRequestedAt: emDias(0, 8) }), AGORA);
+    expect(r?.kind).toBe(ATTENTION_KIND.AWAITING_REPLY);
+    expect(r!.dueAt.getTime()).toBeGreaterThan(AGORA.getTime());
+  });
+
+  // Retorno que chegou não é retorno pendente: some sozinho, sem ninguém desmarcar.
+  it('mensagem posterior ao pedido encerra a espera', () => {
+    const r = computeOperationalAttention(
+      os({ followUpRequestedAt: emDias(-10), lastInboundAt: emDias(-2), lastOutboundAt: emDias(-1) }),
+      AGORA
+    );
+    expect(r?.kind).not.toBe(ATTENTION_KIND.AWAITING_REPLY);
+  });
+
+  it('mensagem ANTERIOR ao pedido não conta como retorno', () => {
+    const r = computeOperationalAttention(
+      os({ followUpRequestedAt: emDias(-5), lastInboundAt: emDias(-20), lastOutboundAt: emDias(-19) }),
+      AGORA
+    );
+    expect(r?.kind).toBe(ATTENTION_KIND.AWAITING_REPLY);
+  });
+
+  it('o sourceId é estável enquanto o registro for o mesmo', () => {
+    const t = os({ followUpRequestedAt: emDias(-10) });
+    const hoje = computeOperationalAttention(t, AGORA);
+    const amanha = computeOperationalAttention(t, new Date(AGORA.getTime() + 86400000));
+    expect(hoje?.sourceId).toBe(amanha?.sourceId);
   });
 });
 
@@ -390,7 +429,7 @@ describe('attentionChanged', () => {
   });
 
   it('grava quando muda motivo, origem ou data', () => {
-    expect(attentionChanged(a, { ...a, kind: 'cobrar-retorno' })).toBe(true);
+    expect(attentionChanged(a, { ...a, kind: 'retorno-pendente' })).toBe(true);
     expect(attentionChanged(a, { ...a, sourceId: 'm2' })).toBe(true);
     expect(attentionChanged(a, { ...a, dueAt: emDias(3) })).toBe(true);
   });

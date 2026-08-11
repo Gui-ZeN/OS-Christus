@@ -261,6 +261,15 @@ export interface Ticket {
    * exatamente quem acabou de fazer a coisa certa.
    */
   responsible?: { email: string; name: string; setAt?: Date | null } | null;
+  /**
+   * Desde quando alguém REGISTROU que espera retorno nesta OS.
+   *
+   * Declaração da pessoa, não verificação do sistema: o Serv3 não checa se ela
+   * realmente pediu, nem fala com quem deve responder. Ele guarda a data e devolve a
+   * OS para a vista dela alguns dias depois. Some sozinho quando chega mensagem
+   * posterior ao pedido — retorno que chegou não é retorno pendente.
+   */
+  followUpRequestedAt?: string | Date | null;
   sector: string;
   location?: string;
   priority: string;

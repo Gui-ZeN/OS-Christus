@@ -22,8 +22,8 @@ import { effectiveCommitmentState, COMMITMENT_STATE } from './commitments.js';
 export const ATTENTION_KIND = {
   /** Chegou mensagem de gente e ninguém respondeu ainda. */
   REVIEW_MESSAGE: 'revisar-mensagem',
-  /** Pedimos algo e o prazo passou. Só nasce de sinal ESTRUTURADO. */
-  FOLLOW_UP: 'cobrar-retorno',
+  /** Alguém registrou que está esperando retorno, e o prazo passou. */
+  AWAITING_REPLY: 'retorno-pendente',
   /** Fornecedor prometeu vir. */
   CHECK_VISIT: 'verificar-comparecimento',
   /** A suspensão venceu. */
@@ -40,8 +40,13 @@ export const ATTENTION_KIND = {
  */
 export const ATTENTION_RULE_VERSION = 2;
 
-/** Dias úteis a esperar antes de cobrar um retorno que pedimos. */
-export const FOLLOW_UP_BUSINESS_DAYS = 3;
+/**
+ * Dias úteis entre registrar que se espera retorno e a OS voltar a aparecer.
+ *
+ * O sistema NÃO cobra ninguém: ele guarda a data que a pessoa registrou e devolve a
+ * OS para a vista dela depois. Quem liga, escreve ou cobra é gente — o Serv3 lembra.
+ */
+export const AWAITING_REPLY_BUSINESS_DAYS = 3;
 
 /**
  * Dias CORRIDOS parada até virar cobrança de responsável.
@@ -239,16 +244,22 @@ export function computeOperationalAttention(input, now = new Date()) {
     }
   }
 
-  // 5. Retorno que NÓS pedimos, com prazo vencido. Só nasce de sinal estruturado
-  //    (alguém clicou "solicitar retorno") — nunca de adivinhar o texto do e-mail.
-  const pedidoEm = toDateOrNull(ticket.followUpRequestedAt);
-  if (pedidoEm) {
-    const cobrarEm = nextBusinessDay(pedidoEm, FOLLOW_UP_BUSINESS_DAYS);
-    if (!lastInboundAt || lastInboundAt.getTime() < pedidoEm.getTime()) {
+  // 5. Alguém REGISTROU que está esperando retorno, e o prazo passou.
+  //
+  //    Nasce de sinal estruturado — a pessoa marcou — e nunca de adivinhar o texto
+  //    do e-mail. Some sozinha quando chega mensagem DEPOIS do pedido: retorno que
+  //    chegou não é retorno pendente.
+  //
+  //    O sistema não verifica se a pessoa realmente pediu. Não é trabalho dele:
+  //    ele registra o que ela declara e devolve a OS na data. Marcar sem ter pedido
+  //    é problema de quem marcou.
+  const aguardaDesde = toDateOrNull(ticket.followUpRequestedAt);
+  if (aguardaDesde) {
+    if (!lastInboundAt || lastInboundAt.getTime() < aguardaDesde.getTime()) {
       return {
-        kind: ATTENTION_KIND.FOLLOW_UP,
-        dueAt: cobrarEm,
-        sourceId: `cobranca-${pedidoEm.getTime()}`,
+        kind: ATTENTION_KIND.AWAITING_REPLY,
+        dueAt: nextBusinessDay(aguardaDesde, AWAITING_REPLY_BUSINESS_DAYS),
+        sourceId: `aguardando-retorno-${aguardaDesde.getTime()}`,
         ruleVersion: ATTENTION_RULE_VERSION,
       };
     }

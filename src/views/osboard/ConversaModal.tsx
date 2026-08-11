@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, ExternalLink } from 'lucide-react';
+import { Loader2, ExternalLink, Hourglass } from 'lucide-react';
 import { ModalShell } from '../../components/ui/ModalShell';
 import { TicketHistory } from '../inbox/TicketHistory';
 import { useApp } from '../../context/AppContext';
@@ -39,6 +39,44 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
   if (!ticket) return null;
 
   const destinatarios = [ticket.requesterEmail, ...(ticket.requesterCcEmails || [])].filter(Boolean);
+  const aguardaDesde = ticket.followUpRequestedAt ? new Date(ticket.followUpRequestedAt) : null;
+
+  /**
+   * Registra (ou desfaz) "estou esperando retorno".
+   *
+   * Mora aqui porque é aqui que o fato nasce: a pessoa acabou de escrever, ou acabou
+   * de ligar. E é REGISTRO — o sistema não manda nada para ninguém, não verifica se
+   * o pedido existiu, e não cobra quem deve responder. Ele guarda a data e devolve a
+   * OS para a vista dela três dias úteis depois.
+   */
+  const marcarAguardando = async (aguardando: boolean) => {
+    if (enviando) return;
+    setEnviando(true);
+    setErro('');
+    setAviso('');
+    try {
+      const agora = new Date();
+      const entrada: HistoryItem = {
+        id: crypto.randomUUID(),
+        type: 'system',
+        sender: currentUser?.name || 'Sistema',
+        time: agora,
+        text: aguardando
+          ? 'Registrado: aguardando retorno.'
+          : 'Registrado: não aguarda mais retorno.',
+        visibility: 'internal',
+      };
+      const ok = await updateTicket(ticket.id, {
+        followUpRequestedAt: aguardando ? agora : null,
+        history: [...(ticket.history || []), entrada],
+      });
+      if (!ok) setErro('Não foi possível registrar. Tente de novo.');
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível registrar.'));
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const abrirCompleta = () => {
     setActiveTicketId(ticket.id);
@@ -155,6 +193,40 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
             ? <>Vai para: <span className="text-roman-text-main">{destinatarios.join(', ')}</span></>
             : 'Esta OS não tem e-mail de destinatário — a mensagem fica registrada, mas não será enviada.'}
         </p>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-roman-border bg-roman-bg p-3">
+          <Hourglass size={15} className="text-roman-text-sub" />
+          {aguardaDesde ? (
+            <>
+              <span className="flex-1 text-sm text-roman-text-main">
+                Aguardando retorno desde{' '}
+                {aguardaDesde.toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })}.
+              </span>
+              <button
+                type="button"
+                onClick={() => void marcarAguardando(false)}
+                disabled={enviando}
+                className="rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-xs font-medium text-roman-text-sub hover:text-roman-text-main disabled:opacity-60"
+              >
+                Já retornaram
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="flex-1 text-sm text-roman-text-sub">
+                Pediu algo e está esperando resposta? Registre — a OS volta para você em 3 dias úteis.
+              </span>
+              <button
+                type="button"
+                onClick={() => void marcarAguardando(true)}
+                disabled={enviando}
+                className="rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-xs font-medium text-roman-text-sub hover:text-roman-text-main disabled:opacity-60"
+              >
+                Aguardo retorno
+              </button>
+            </>
+          )}
+        </div>
 
         {aviso && <div className="rounded-sm border border-roman-border bg-roman-bg p-3 text-sm text-roman-text-main">{aviso}</div>}
         {erro && <div className="rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{erro}</div>}

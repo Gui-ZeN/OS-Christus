@@ -11,7 +11,7 @@
  */
 export const ATTENTION_KIND = {
   REVIEW_MESSAGE: 'revisar-mensagem',
-  FOLLOW_UP: 'cobrar-retorno',
+  AWAITING_REPLY: 'retorno-pendente',
   CHECK_VISIT: 'verificar-comparecimento',
   REVIEW_SUSPENSION: 'reavaliar-suspensao',
   SET_OWNER: 'definir-responsavel',
@@ -30,7 +30,7 @@ export type AttentionKind = (typeof ATTENTION_KIND)[keyof typeof ATTENTION_KIND]
  */
 export const ATTENTION_KIND_LABEL: Record<string, string> = {
   'revisar-mensagem': 'Mensagem sem resposta',
-  'cobrar-retorno': 'Retorno pendente',
+  'retorno-pendente': 'Retorno pendente',
   'verificar-comparecimento': 'Visita marcada',
   'reavaliar-suspensao': 'Suspensão vencendo',
   'definir-responsavel': 'Sem responsável',
@@ -46,7 +46,7 @@ export const ATTENTION_KIND_LABEL: Record<string, string> = {
  */
 export const ATTENTION_KIND_WHY: Record<string, string> = {
   'revisar-mensagem': 'chegou mensagem e ninguém respondeu depois dela',
-  'cobrar-retorno': 'pedimos retorno e o prazo passou',
+  'retorno-pendente': 'alguém registrou que espera retorno, e o prazo passou',
   'verificar-comparecimento': 'um fornecedor prometeu vir',
   'reavaliar-suspensao': 'a suspensão chega ao fim',
   'definir-responsavel': 'está parada e ninguém responde por ela',

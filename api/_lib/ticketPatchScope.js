@@ -46,6 +46,9 @@ export const ALLOWED_TICKET_PATCH_FIELDS = new Set([
   // `operationalAttention` fica FORA de propósito: é projeção do servidor, e deixar o
   // cliente gravá-la abriria caminho para uma tela dizer que a OS não precisa de nada.
   'nextAction', 'attention', 'attentionOverride',
+  // Registro de quem esta esperando retorno. E declaracao da pessoa, nao projecao
+  // do servidor — por isso o painel grava.
+  'followUpRequestedAt',
   'preliminaryActions', 'closureChecklist', 'executionProgress', 'guarantee',
   ...TERRITORY_PATCH_FIELDS,
 ]);
