@@ -66,6 +66,7 @@ function normalizeAttachmentForStorage(item) {
 export function normalizeTicketForStorage(ticket) {
   const next = { ...ticket };
   next.time = toDate(next.time) || new Date();
+  if (next.stageEnteredAt !== undefined) next.stageEnteredAt = toDate(next.stageEnteredAt) || null;
   if (next.viewingBy?.at) {
     next.viewingBy = { ...next.viewingBy, at: toDate(next.viewingBy.at) };
   }
@@ -190,6 +191,7 @@ export function serializeTicketForApi(ticket) {
     ...ticket,
     time: serializeDate(ticket.time),
     updatedAt: serializeDate(ticket.updatedAt),
+    stageEnteredAt: serializeDate(ticket.stageEnteredAt),
     // Agenda operacional: `dueAt` e a data que ORDENA a tela inteira. Sem serializar
     // aqui, chegaria como Timestamp do Firestore e o front nao conseguiria comparar.
     nextAction: ticket.nextAction

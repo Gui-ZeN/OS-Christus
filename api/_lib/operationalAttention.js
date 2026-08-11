@@ -109,12 +109,31 @@ function depoisDe(a, b) {
 const MORTAS = new Set(['Encerrada', 'Cancelada']);
 
 /**
- * Quando esta OS se mexeu pela última vez.
+ * Escrituração, não trabalho.
+ *
+ * `system` e `field_change` são o que o sistema anota SOBRE a OS — "responsável
+ * definido", "painel atualizado", "prioridade alterada". Contá-las como movimento
+ * abriria a porta que estas regras existem para fechar: definir um responsável
+ * escreve uma entrada `system`, e ela sozinha zeraria o relógio de "sem progresso".
+ * O rótulo não pode ser o próprio álibi.
+ *
+ * Mensagem de gente — `customer`, `tech`, `internal` — conta, inclusive a nota
+ * interna: escrever um parecer É o trabalho.
+ */
+const ESCRITURACAO = new Set(['system', 'field_change']);
+
+/**
+ * Quando esta OS PROGREDIU pela última vez.
  *
  * Olha o histórico junto com os carimbos de e-mail de propósito: `lastInboundAt`
  * existe em 4 das 195 OS vivas e `lastOutboundAt` em 9 — eles só passaram a ser
  * gravados nas mensagens novas. Uma regra que dependesse só deles trataria 190 OS
  * como se nunca tivessem se mexido.
+ *
+ * `stageEnteredAt` entra porque mudar de etapa É progresso — e entra como carimbo
+ * ESTRUTURADO, não lendo o texto da entrada `system` que descreve a transição.
+ * Adivinhar intenção em texto livre é justamente o que este módulo promete não
+ * fazer.
  *
  * `updatedAt` fica FORA: o servidor carimba a cada escrita, inclusive nos
  * recálculos automáticos, então ele diria que a OS se mexeu quando quem mexeu foi o
@@ -125,11 +144,28 @@ const MORTAS = new Set(['Encerrada', 'Cancelada']);
  */
 export function ultimaMovimentacao(ticket) {
   let ultima = maisRecente(ticket?.lastInboundAt, ticket?.lastOutboundAt);
+  ultima = maisRecente(ultima, ticket?.stageEnteredAt);
   const historico = Array.isArray(ticket?.history) ? ticket.history : [];
   for (const entrada of historico) {
+    if (ESCRITURACAO.has(String(entrada?.type || ''))) continue;
     ultima = maisRecente(ultima, entrada?.time);
   }
   return ultima || toDateOrNull(ticket?.time) || toDateOrNull(ticket?.createdAt) || null;
+}
+
+/**
+ * Há quanto tempo a OS está NESTA etapa, em dias corridos. `null` quando o carimbo
+ * não existe — OS anterior ao campo, que nunca trocou de etapa desde então.
+ *
+ * Separado de `ultimaMovimentacao` de propósito: conversar numa OS é progresso, mas
+ * não a tira da etapa. As 158 paradas em "Aguardando Parecer Técnico" têm 280
+ * mensagens internas entre elas — movimento sem avanço é o padrão desta operação,
+ * e um relógio só não distingue os dois.
+ */
+export function diasNaEtapa(ticket, now = new Date()) {
+  const desde = toDateOrNull(ticket?.stageEnteredAt);
+  if (!desde) return null;
+  return Math.floor((now.getTime() - desde.getTime()) / (24 * 3600_000));
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   computeOperationalAttention,
   nextBusinessDay,
   ultimaMovimentacao,
+  diasNaEtapa,
   IDLE_WITHOUT_OWNER_DAYS,
   IDLE_WITH_OWNER_DAYS,
 } from '../../api/_lib/operationalAttention.js';
@@ -254,6 +255,74 @@ describe('com responsável e sem progresso — a regra que impede o rótulo de v
       AGORA
     );
     expect(isLegacyAttention(r, AGORA)).toBe(false);
+  });
+});
+
+describe('progresso × escrituração — o rótulo não pode ser o próprio álibi', () => {
+  const DONO = { email: 'gestor@px.com.br', name: 'Gestor', setAt: emDias(-30) };
+
+  // Definir responsável escreve uma entrada `system`. Se ela contasse como
+  // movimento, atribuir zeraria o relógio de "sem progresso" — e o campo de
+  // responsável viraria exatamente o teatro que ele deveria impedir.
+  it('entrada do sistema NÃO conta como movimento', () => {
+    const t = {
+      history: [
+        { id: 'h1', type: 'customer', time: emDias(-30) },
+        { id: 'h2', type: 'system', time: emDias(-1), text: 'Responsável pela OS: Gestor.' },
+      ],
+    };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-30).getTime());
+  });
+
+  it('nem `field_change`', () => {
+    const t = {
+      history: [
+        { id: 'h1', type: 'internal', time: emDias(-20) },
+        { id: 'h2', type: 'field_change', time: emDias(-2), field: 'priority' },
+      ],
+    };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-20).getTime());
+  });
+
+  it('nota interna CONTA — escrever um parecer é o trabalho', () => {
+    const t = { history: [{ id: 'h1', type: 'internal', time: emDias(-2) }] };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-2).getTime());
+  });
+
+  it('mudar de etapa conta, pelo carimbo — não lendo o texto da entrada', () => {
+    const t = {
+      history: [{ id: 'h1', type: 'customer', time: emDias(-30) }],
+      stageEnteredAt: emDias(-2),
+    };
+    expect(ultimaMovimentacao(t)?.getTime()).toBe(emDias(-2).getTime());
+  });
+
+  it('🎯 atribuir responsável não silencia a cobrança de progresso', () => {
+    const r = computeOperationalAttention(
+      {
+        ticket: {
+          status: 'Em andamento',
+          responsible: DONO,
+          history: [
+            { id: 'h1', type: 'customer', time: emDias(-30) },
+            { id: 'h2', type: 'system', time: emDias(0), text: 'Responsável pela OS: Gestor.' },
+          ],
+        },
+        commitments: [],
+      },
+      AGORA
+    );
+    expect(r?.kind).toBe(ATTENTION_KIND.NO_PROGRESS);
+  });
+});
+
+describe('diasNaEtapa — parada é diferente de parada NESTA etapa', () => {
+  it('conta a partir do carimbo do servidor', () => {
+    expect(diasNaEtapa({ stageEnteredAt: emDias(-9) }, AGORA)).toBe(9);
+  });
+
+  it('sem carimbo devolve null, não zero — não saber não é "entrou hoje"', () => {
+    expect(diasNaEtapa({}, AGORA)).toBeNull();
   });
 });
 

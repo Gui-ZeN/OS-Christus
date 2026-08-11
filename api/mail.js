@@ -1389,6 +1389,7 @@ async function createTicketFromInbound(db, message) {
     requesterCcEmails: ccRecipients,
     time: now,
     status: 'Nova OS',
+    stageEnteredAt: now,
     type: 'Manutenção Predial Estrutural',
     macroServiceId: null,
     macroServiceName: null,

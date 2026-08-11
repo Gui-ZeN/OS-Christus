@@ -492,6 +492,7 @@ async function preparePublicTicketCreate(db, rawTicket) {
     requesterCcEmails: parseEmailList(rawTicket.requesterCcEmails || rawTicket.requesterCcEmail || '', { splitWhitespace: true }),
     time: now,
     status: 'Nova OS',
+    stageEnteredAt: now,
     type: clampText(rawTicket.type, PUBLIC_TEXT_LIMITS.type),
     macroServiceId: clampText(rawTicket.macroServiceId, PUBLIC_TEXT_LIMITS.catalogId),
     macroServiceName: clampText(rawTicket.macroServiceName, PUBLIC_TEXT_LIMITS.serviceName),
@@ -1535,6 +1536,15 @@ export default async function handler(req, res) {
           if (!canTransitionStatus(user.role, data.status, updates.status)) {
             return { invalidTransition: { from: data.status, to: updates.status } };
           }
+          // Quando a OS entrou NESTA etapa. Carimbado pelo SERVIDOR, junto da
+          // transição que ele acabou de validar — se viesse do cliente seria só mais
+          // um campo que uma tela poderia esquecer de mandar, e o relógio de "etapa
+          // parada" mediria a memória da tela em vez do fluxo.
+          //
+          // Existe porque cada regra precisa do SEU relógio: "parada" e "parada nesta
+          // etapa" são perguntas diferentes, e responder as duas com o mesmo carimbo
+          // dá precisão aparente com semântica errada.
+          payload.stageEnteredAt = new Date();
         }
 
         if (Array.isArray(updates.history)) {

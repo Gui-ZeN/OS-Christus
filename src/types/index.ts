@@ -228,6 +228,14 @@ export interface Ticket {
   /** Carimbo do backend a cada escrita; usado p/ detectar mudança barata no poll. */
   updatedAt?: string | Date | null;
   status: TicketStatus;
+  /**
+   * Quando a OS entrou na etapa ATUAL. Carimbado pelo servidor a cada transição.
+   *
+   * Separado da última movimentação de propósito: "parada" e "parada nesta etapa"
+   * são perguntas diferentes, e responder as duas com o mesmo carimbo dá precisão
+   * aparente com semântica errada.
+   */
+  stageEnteredAt?: string | Date | null;
   type: string;
   macroServiceId?: string;
   macroServiceName?: string;
