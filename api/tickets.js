@@ -1640,6 +1640,38 @@ export default async function handler(req, res) {
         return { before: data, payload };
       });
 
+      /**
+       * A RECUSA TAMBÉM VIRA REGISTRO.
+       *
+       * Motivo concreto: chegou um relato de "às vezes ocorrem erros quando
+       * atualizamos" e não havia como responder — `writeAuditLog` só rodava no
+       * caminho de sucesso, então toda recusa morria na tela de quem tentou. Relato
+       * assim vira caça ao fantasma, e a mesma coisa acontece de novo no mês
+       * seguinte.
+       *
+       * Não registra 404 nem 403 de propósito: o primeiro é ruído de link velho, e
+       * o segundo já tem trilha própria no acesso negado.
+       */
+      const recusa =
+        (txResult.retiredStatus && { motivo: 'etapa-aposentada', detalhe: txResult.retiredStatus }) ||
+        (txResult.invalidStatus && { motivo: 'status-invalido', detalhe: txResult.invalidStatus }) ||
+        (txResult.invalidTransition && {
+          motivo: 'transicao-nao-permitida',
+          detalhe: `${txResult.invalidTransition.from} -> ${txResult.invalidTransition.to}`,
+        }) ||
+        null;
+      if (recusa) {
+        // Não derruba a resposta se a auditoria falhar: a recusa é o que importa.
+        await writeAuditLog({
+          actor: buildActorLabel(user, actor),
+          action: 'tickets.update.rejected',
+          entity: 'ticket',
+          entityId: body.id,
+          before: { motivo: recusa.motivo, detalhe: recusa.detalhe, campos: Object.keys(updates) },
+          after: null,
+        }).catch(erro => console.error('[tickets] falha ao registrar recusa', erro));
+      }
+
       if (txResult.notFound) {
         return sendJson(res, 404, { ok: false, error: 'Ticket não encontrado.' });
       }
