@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectRainTransition, readRainSignal } from '../../api/_lib/rainWatch.js';
+import { detectRainTransition, readRainSignal, stateToPersist } from '../../api/_lib/rainWatch.js';
 import { parseWeatherCodes, readObservation, describeRain, fetchMetar } from '../../api/_lib/metar.js';
 
 /** Observações REAIS capturadas em 2026-07-31 da aviationweather.gov e do CEMADEN. */
@@ -62,6 +62,39 @@ describe('readObservation', () => {
     const tarde = new Date(AGORA.getTime() + 3 * 60 * 60000);
     expect(readObservation(SBFZ_SECO, tarde).state).toBe('desconhecido');
     expect(readObservation(null, AGORA).state).toBe('desconhecido');
+  });
+});
+
+describe('stateToPersist — a queda de fonte não pode apagar o que se sabia', () => {
+  // O cenário que motivou: o METAR devolveu 502 hoje. Se a falha sobrescrevesse o
+  // estado, a sequência viraria nao-chovendo → desconhecido → chovendo, e
+  // "desconhecido → chovendo" NÃO é "começou". A chuva seguinte a qualquer queda
+  // passaria em silêncio.
+  it('desconhecido preserva o último estado conhecido', () => {
+    expect(stateToPersist('nao-chovendo', 'desconhecido')).toBe('nao-chovendo');
+    expect(stateToPersist('chovendo', 'desconhecido')).toBe('chovendo');
+  });
+
+  it('leitura boa sempre manda', () => {
+    expect(stateToPersist('desconhecido', 'chovendo')).toBe('chovendo');
+    expect(stateToPersist('chovendo', 'nao-chovendo')).toBe('nao-chovendo');
+  });
+
+  it('sem nada antes e sem leitura, continua sem nada', () => {
+    expect(stateToPersist(null, 'desconhecido')).toBeNull();
+  });
+
+  it('🎯 a chuva depois de uma queda de fonte AVISA', () => {
+    // Sequência real: seco → fonte cai → volta chovendo.
+    let guardado: string | null = 'nao-chovendo';
+    guardado = stateToPersist(guardado, 'desconhecido');
+    expect(detectRainTransition(guardado, 'chovendo')).toBe('comecou');
+  });
+
+  it('e a queda NO MEIO da chuva não gera um segundo aviso', () => {
+    let guardado: string | null = 'chovendo';
+    guardado = stateToPersist(guardado, 'desconhecido');
+    expect(detectRainTransition(guardado, 'chovendo')).toBe('sem-mudanca');
   });
 });
 

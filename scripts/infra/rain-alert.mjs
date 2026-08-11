@@ -2,7 +2,7 @@ import process from 'node:process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fetchCemaden, readCityRain, describeStationRain } from '../../api/_lib/cemaden.js';
 import { fetchMetar, readObservation, describeRain } from '../../api/_lib/metar.js';
-import { readRainSignal, detectRainTransition } from '../../api/_lib/rainWatch.js';
+import { readRainSignal, detectRainTransition, stateToPersist } from '../../api/_lib/rainWatch.js';
 import { gmailSend } from '../../api/_lib/gmail.js';
 
 /**
@@ -171,7 +171,8 @@ async function main() {
   if (!deveEnviar) {
     console.log('Nada a enviar. (Só a virada para "chovendo" dispara e-mail.)');
     if (!DRY_RUN) {
-      estado[chave] = { state: estadoAtual, at: new Date().toISOString() };
+      const paraGuardar = stateToPersist(anterior, estadoAtual);
+      if (paraGuardar) estado[chave] = { state: paraGuardar, at: new Date().toISOString() };
       gravarEstado(estado);
       console.log(`Estado guardado em ${ESTADO_PATH}.`);
     }
@@ -217,7 +218,8 @@ async function main() {
   });
   console.log('\nE-mail enviado.');
 
-  estado[chave] = { state: estadoAtual, at: new Date().toISOString() };
+  const paraGuardar = stateToPersist(anterior, estadoAtual);
+  if (paraGuardar) estado[chave] = { state: paraGuardar, at: new Date().toISOString() };
   gravarEstado(estado);
   console.log(`Estado guardado em ${ESTADO_PATH}.`);
 }

@@ -32,6 +32,25 @@ export function detectRainTransition(previousState, currentState) {
 }
 
 /**
+ * O estado a GUARDAR para a próxima execução.
+ *
+ * `desconhecido` **não apaga** o que se sabia. Parece detalhe e é o que decide se o
+ * aviso é confiável: as fontes caem (o METAR devolveu 502 hoje) e, se a queda
+ * sobrescrevesse o último estado, a sequência viraria
+ * `nao-chovendo → desconhecido → chovendo` — e `desconhecido → chovendo` não é
+ * "começou". A chuva seguinte a qualquer falha de fonte passaria em silêncio,
+ * justamente o tipo de falha que ninguém percebe até alguém perguntar "por que não
+ * me avisou?".
+ *
+ * Preservar também evita o contrário: durante a chuva, uma leitura perdida não
+ * produz um segundo "começou" quando a fonte volta.
+ */
+export function stateToPersist(previousState, currentState) {
+  if (currentState === 'chovendo' || currentState === 'nao-chovendo') return currentState;
+  return previousState || null;
+}
+
+/**
  * Estado de chuva de uma sede, das duas fontes.
  *
  * Regra: **basta uma dizer que está chovendo.** Chuva é evento local — o pluviômetro
