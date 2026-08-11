@@ -21,6 +21,10 @@
       "destination": "/api/mail?route=outbox-worker"
     },
     {
+      "source": "/api/rain/alert",
+      "destination": "/api/mail?route=rain-alert"
+    },
+    {
       "source": "/api/email/gmail-sync",
       "destination": "/api/mail?route=gmail-sync"
     },

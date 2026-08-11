@@ -62,9 +62,17 @@ import {
   markEmailOutboxSent,
 } from './_lib/emailOutbox.js';
 import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
+import { fetchCemaden } from './_lib/cemaden.js';
+import { fetchMetar } from './_lib/metar.js';
+import { detectRainTransition, stateToPersist } from './_lib/rainWatch.js';
+import { avaliarChuva, montarEmail, sinalSimulado } from './_lib/rainAlert.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
+// Estado do aviso de chuva. Mora no Firestore, ao lado do estado do Gmail — antes
+// vivia num arquivo no cache do GitHub Actions, que pode ser despejado e levaria
+// junto a memória de "estava chovendo ou não".
+const RAIN_STATE_DOC = 'rainWatch';
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -2403,6 +2411,94 @@ async function dispatchAutomatedOutboxItem(item) {
   return payload;
 }
 
+/**
+ * AVISO DE CHUVA — decide e envia, do lado do servidor.
+ *
+ * Estava no runner do GitHub Actions, e era o ÚNICO dos quatro workflows que mandava
+ * e-mail sozinho: os outros três chamam uma rota daqui com `CRON_SECRET` e quem envia
+ * é a Vercel, onde as credenciais do Gmail já moram. A exceção custava caro — exigia
+ * as mesmas quatro credenciais num segundo lugar, num repositório público, e com
+ * rotação em dobro.
+ *
+ * `?simular=chovendo` produz o mesmo caminho com leitura sintética, para validar o
+ * envio sem esperar chover. O e-mail sai marcado `[TESTE]` no assunto.
+ */
+async function handleRainAlert(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+
+    const destino = String(process.env.RAIN_ALERT_TO || '').trim();
+    if (!destino) {
+      // 200, não erro: enquanto o destinatário não existir, cada execução viraria uma
+      // falha vermelha a cada 5 minutos — ~288 por dia. Ruído nesse volume ensina todo
+      // mundo a ignorar o vermelho, inclusive quando ele for de verdade.
+      return sendJson(res, 200, { ok: true, enviado: false, motivo: 'RAIN_ALERT_TO não configurado' });
+    }
+
+    const simular = String(req.query?.simular || '').trim();
+    const forcar = String(req.query?.forcar || '') === '1';
+    const sede = String(req.query?.sede || '').trim() || null;
+
+    // Uma fonte fora do ar não pode derrubar a outra: cada uma cai para vazio e o
+    // `avaliarChuva` resolve com o que sobrou.
+    const [lista, metar] = await Promise.all([
+      fetchCemaden({}).catch(() => []),
+      fetchMetar({}).catch(() => null),
+    ]);
+
+    const now = new Date();
+    const real = avaliarChuva({ lista, metar, sede, now });
+    const sinal = simular ? sinalSimulado(real, simular) : real;
+
+    const db = getAdminDb();
+    const ref = db.collection('config').doc(RAIN_STATE_DOC);
+    const snap = await ref.get();
+    const estado = snap.exists ? snap.data() || {} : {};
+    const chave = sede || 'FORTALEZA';
+    const anterior = estado[chave]?.state || null;
+    const transicao = detectRainTransition(anterior, sinal.state);
+
+    let enviado = false;
+    if (transicao === 'comecou' || forcar) {
+      const quando = now.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
+      const email = montarEmail(sinal, quando, sede);
+      await gmailSend({
+        toEmail: destino,
+        subject: email.subject,
+        text: email.text,
+        ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
+        references: [],
+      });
+      enviado = true;
+    }
+
+    // Grava DEPOIS de enviar: se o envio falhar, o estado não avança e a próxima
+    // execução tenta de novo. O contrário perderia o aviso em silêncio.
+    const paraGuardar = stateToPersist(anterior, sinal.state);
+    if (paraGuardar && paraGuardar !== anterior) {
+      await ref.set({ [chave]: { state: paraGuardar, at: now } }, { merge: true });
+    }
+
+    return sendJson(res, 200, {
+      ok: true,
+      enviado,
+      estado: { anterior, agora: sinal.state, transicao },
+      fontes: sinal.fontes,
+      simulado: Boolean(sinal.simulado),
+    });
+  } catch (error) {
+    console.error('[mail] falha no aviso de chuva', error);
+    // `sendError` preserva o status do HttpError: sem isto, credencial errada vira
+    // 500 e o log do Actions diz "erro interno" quando o problema é o segredo. Foi
+    // exatamente o que atrapalhou o diagnóstico da fila de e-mail.
+    return sendError(res, error, 'Falha ao avaliar a chuva.');
+  }
+}
+
 async function handleEmailOutboxWorker(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -2418,10 +2514,9 @@ async function handleEmailOutboxWorker(req, res) {
     return sendJson(res, 200, result);
   } catch (error) {
     console.error('[mail] falha no worker da outbox', error);
-    return sendJson(res, 500, {
-      ok: false,
-      error: 'Falha ao processar a fila de e-mails.',
-    });
+    // Idem: recusa de credencial precisa chegar como 401/403 no log do Actions. Com
+    // o 500 genérico, 10 dias de fila parada não disseram qual era o problema.
+    return sendError(res, error, 'Falha ao processar a fila de e-mails.');
   }
 }
 
@@ -2882,6 +2977,7 @@ export default async function handler(req, res) {
   if (route === 'health') return handleHealth(req, res);
   if (route === 'dropped-inbound') return handleDroppedInbound(req, res);
   if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
+  if (route === 'rain-alert') return handleRainAlert(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
   if (route === 'gmail-watch') return handleGmailWatch(req, res);

@@ -15,7 +15,16 @@ async function resolveAuthenticatedUser(req) {
   }
 
   const db = getAdminDb();
-  const decoded = await getAuth().verifyIdToken(token);
+  // Token ilegível ou vencido é 401, não 500. Sem este embrulho, o erro cru do
+  // Firebase escapa como "falha interna" — e foi assim que 44 sessões expiradas
+  // desde 01/08 viraram "erro inesperado" no log em vez de dizer o que eram.
+  let decoded;
+  try {
+    decoded = await getAuth().verifyIdToken(token);
+  } catch (error) {
+    console.error('[authz] token recusado', error?.code || error?.message || error);
+    throw new HttpError(401, 'Sessão inválida ou expirada. Entre novamente.');
+  }
 
   let userDoc = null;
   let userDocId = null;

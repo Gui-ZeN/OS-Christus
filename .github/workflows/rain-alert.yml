@@ -15,6 +15,13 @@ name: Aviso de chuva
 #
 # ⚠️ Fortaleza chove de fevereiro a maio. De agosto a dezembro este workflow roda e
 # corretamente não faz nada. Silêncio aqui é o comportamento certo.
+#
+# ESTE WORKFLOW SÓ CHAMA UMA ROTA. Quem lê as fontes, decide e envia é o servidor
+# (`?route=rain-alert`), igual aos outros três agendados. Antes ele rodava o script
+# no próprio runner e mandava o e-mail sozinho — e era o ÚNICO que fazia isso, o que
+# exigia as quatro credenciais do Gmail num segundo lugar, num repositório público e
+# com rotação em dobro. O estado ("estava chovendo?") saiu do cache do Actions para o
+# Firestore pelo mesmo motivo: cache pode ser despejado, e levaria a memória junto.
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -36,48 +43,34 @@ jobs:
     environment: Production
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      # Só as dependências de produção, sem scripts de pós-instalação: cada segundo
-      # aqui é latência somada ao aviso. O script precisa apenas de `googleapis`.
-      - run: npm ci --omit=dev --ignore-scripts
-
-      # O estado ("estava chovendo?") precisa sobreviver entre execuções, senão toda
-      # rodada acha que a chuva acabou de começar e manda e-mail de 10 em 10 minutos.
-      # O cache do Actions é chaveado por run_id para SEMPRE gravar uma entrada nova,
-      # e `restore-keys` recupera a mais recente da chave anterior.
-      - name: Recuperar último estado
-        uses: actions/cache/restore@v4
-        with:
-          path: .rain-watch-state.json
-          key: rain-state-${{ github.run_id }}
-          restore-keys: rain-state-
-
       - name: Verificar chuva
         env:
-          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
-          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
-          GMAIL_FROM_EMAIL: ${{ secrets.GMAIL_FROM_EMAIL }}
-          RAIN_ALERT_TO: ${{ secrets.RAIN_ALERT_TO }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # A URL do app não é segredo — está no `.env.example` deste repositório
+          # público. O secret existe só para o caso de o domínio mudar; sem ele, o
+          # padrão vale e nada precisa ser cadastrado.
+          RAIN_ALERT_URL: ${{ secrets.RAIN_ALERT_URL || 'https://serv3.vercel.app/api/rain/alert' }}
+          SIMULAR: ${{ inputs.simular }}
         run: |
-          if [ -n "${{ inputs.simular }}" ]; then
-            node scripts/infra/rain-alert.mjs --simular="${{ inputs.simular }}"
-          else
-            node scripts/infra/rain-alert.mjs
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
+            exit 1
           fi
 
-      - name: Guardar estado
-        # `always()` porque o estado também precisa ser guardado quando NÃO choveu —
-        # é justamente esse "nao-chovendo" que faz a próxima chuva ser reconhecida
-        # como início.
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: .rain-watch-state.json
-          key: rain-state-${{ github.run_id }}
+          URL="$RAIN_ALERT_URL"
+          if [ -n "$SIMULAR" ]; then
+            URL="$URL?simular=$SIMULAR"
+          fi
+
+          HTTP_CODE=$(curl -L -sS -o /tmp/rain-response.txt -w "%{http_code}" -X POST "$URL" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json")
+
+          cat /tmp/rain-response.txt
+          echo ""
+          echo "HTTP $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "A rota do aviso de chuva respondeu erro."
+            exit 1
+          fi
