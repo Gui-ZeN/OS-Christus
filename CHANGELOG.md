@@ -3,6 +3,109 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-10/11 (o que o uso ensinou: a Inbox assustava, e o rótulo virava álibi)
+
+Duas rodadas guiadas por gente usando o sistema — a primeira por reclamação, a
+segunda por uma revisão adversarial que pegou um buraco no que eu tinha acabado
+de entregar.
+
+### Os quatro achados de quem usa
+
+Reportados pelo dono depois de usar. Os três primeiros eram bugs; medi todos.
+
+- **Busca não achava pelo título do e-mail.** Ao criar a OS, o parser remove o
+  `Re:` e o `[SEDE]`: no Gmail está `Re: [SUL 3]-Solicitação de bancos`, na OS
+  ficou `Solicitação de bancos`. A busca comparava a frase inteira com
+  `includes()`, então o texto colado nunca casava. Agora o termo vira palavras,
+  todas precisam aparecer, sem acento — e a sede entra no que é vasculhado.
+- **Respostas em inglês.** Duas fontes: o padrão `error instanceof Error ?
+  error.message : '...'` repetido em **51 lugares** mostrava qualquer erro cru
+  (`Failed to fetch`, `Firebase: Error (auth/…)`) no meio de uma tela em
+  português; e a tela de Saúde de E-mail imprimia o log do backend literalmente —
+  **44 ocorrências** desde 01/08 de `Firebase ID token has expired…`. Agora só
+  chega à tela o que alguém escreveu para uma pessoa ler (`UserFacingError`), e o
+  log técnico ganha explicação em português com o original embaixo.
+- **E-mail com a sede fora do início era descartado.** `Re: SOLICITAÇÃO DE COMPRA
+  [BS]` morreu com "assunto sem [SEDE] reconhecida". O parser passou a devolver
+  candidatos (início, meio, fim) e quem tem o catálogo escolhe.
+- **Relatório com filtro de status** (era pedido, não bug): entraram etapa,
+  urgência e equipe, e o PDF passou a **imprimir o recorte inteiro** — relatório
+  filtrado que não diz que está filtrado passa por retrato da empresa toda.
+
+### A Inbox intimidava — e o log confirmou
+
+Medida que decidiu: **trocar etapa é 85% de tudo que um Gestor faz** (340 de 402
+ações desde 01/05). Para isso ele atravessava uma tela de 3.000 linhas.
+
+Ver conversa, responder, trocar etapa e definir responsável passaram para a
+própria tela de **Gestão**. Nada foi reimplementado: a conversa usa o mesmo
+serviço de envio da Inbox, a etapa usa as mesmas permissões e a mesma escrita.
+Segundo botão não pode virar segunda regra — e por isso a trava de classificação
+saiu de dentro do `handleSend` para `motivoQueImpedeEtapa`, consultada pelos dois.
+
+### Responsável — e a regra que impede o rótulo de virar teatro
+
+180 das 195 OS vivas já tinham **equipe**, e isso não moveu nenhuma das 155
+paradas há 39 dias: 154 delas TÊM equipe. Equipe responde pelo trabalho; pessoa
+responde pelo prazo. Entrou `responsible`, com filtro (inclusive "sem
+responsável") e coluna clicável.
+
+O gpt-5.6-sol revisou e achou o buraco: **preencher os 154 em lote apagaria o
+alerta sem mover nenhuma OS**. Entrou a regra espelho — *tem responsável e mesmo
+assim não andou*. Assumir **reinicia o relógio** (`responsible.setAt`), senão a
+cobrança cairia sobre quem acabou de fazer a coisa certa. Simulado contra
+produção: 138 hoje → 0 ao atribuir → **138 de volta 8 dias depois, com nome**.
+
+### Cada regra com o seu relógio
+
+Também da revisão: *"backfill de um `lastInboundAt` genérico usado para tudo cria
+precisão aparente com semântica errada"*.
+
+- **Escrituração deixou de contar como movimento.** Entradas `system` e
+  `field_change` são o que o sistema anota *sobre* a OS — e definir responsável
+  escreve uma delas, que sozinha zeraria o relógio de "sem andamento". O rótulo
+  não pode ser o próprio álibi. Medido: **124 das 195 (64%)** tiveram o relógio
+  corrigido; a escrituração escondia **10 dias na mediana**, 74 no máximo.
+- **`stageEnteredAt`**, carimbado pelo servidor na transição que ele validou.
+  "Parada" e "parada nesta etapa" são perguntas diferentes: as 158 em Parecer
+  Técnico têm 280 mensagens internas entre elas.
+
+### O bloqueio invisível
+
+**88 das 158** OS em Parecer Técnico não avançam por falta de classificação — e o
+aviso só aparecia para quem tentasse avançar. Agora o bloqueio aparece na lista, e
+o modal **classifica e avança na mesma escrita** (duas escritas deixariam a OS
+classificada e parada se a segunda falhasse).
+
+### O que o sistema é
+
+Decisão do dono, e ela corrigiu o que eu tinha acabado de subir: *"o Serv3 não vai
+ser responsável por cobrar, e sim por registrar"*.
+
+Os rótulos viraram constatação — "Cobrar andamento" → **"Sem andamento"**, "Cobrar
+retorno" → **"Retorno pendente"**. Rótulo que dá ordem promete uma autoridade que o
+sistema não tem. E a regra morta `cobrar-retorno` (0 de 278 OS, sem nenhum gatilho
+no código) voltou como **registro**: a pessoa marca que espera resposta, o sistema
+guarda a data e devolve a OS em 3 dias úteis. Não manda e-mail, não verifica se o
+pedido existiu.
+
+### Backfill aplicado
+
+`responsible.setAt` em **38 OS**. Descoberto no meio do caminho: o campo subiu e a
+operação começou a usar no mesmo dia — 37 OS já tinham responsável, todas
+atribuídas naquele dia, nenhuma com data. Sem o backfill, 23 seriam cobradas por
+"sem andamento" no dia em que alguém as assumiu.
+
+### Avisos
+
+Aviso por tela foi **descartado** — as ações subiram sem aviso nenhum e 37 OS
+ganharam responsável no mesmo dia; descoberta não era o problema, e banner vira
+móvel que ninguém remove. No lugar: o subtítulo da Gestão, que dizia *"clique para
+abrir"* quando o ponto passou a ser não precisar abrir, e o aviso `2026.08.2`
+atualizado com o que existe de verdade.
+
+**Suíte ao fim:** 680 unitários, 9 de integração, 7 E2E (verdes em 46s).
+
 ## 2026-08-01..07 (a reforma: de sistema de ETAPAS para sistema de ACOMPANHAMENTO)
 
 A pergunta que o Serv3 responde deixou de ser *"em que fase está esta OS"* e
