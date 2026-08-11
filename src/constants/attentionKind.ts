@@ -15,6 +15,7 @@ export const ATTENTION_KIND = {
   CHECK_VISIT: 'verificar-comparecimento',
   REVIEW_SUSPENSION: 'reavaliar-suspensao',
   SET_OWNER: 'definir-responsavel',
+  NO_PROGRESS: 'sem-progresso',
 } as const;
 
 export type AttentionKind = (typeof ATTENTION_KIND)[keyof typeof ATTENTION_KIND];
@@ -25,6 +26,7 @@ export const ATTENTION_KIND_LABEL: Record<string, string> = {
   'verificar-comparecimento': 'Verificar comparecimento',
   'reavaliar-suspensao': 'Reavaliar suspensão',
   'definir-responsavel': 'Definir responsável',
+  'sem-progresso': 'Cobrar andamento',
 };
 
 /**
@@ -40,4 +42,5 @@ export const ATTENTION_KIND_WHY: Record<string, string> = {
   'verificar-comparecimento': 'um fornecedor prometeu vir',
   'reavaliar-suspensao': 'a suspensão chega ao fim',
   'definir-responsavel': 'está parada e ninguém responde por ela',
+  'sem-progresso': 'tem responsável e mesmo assim não andou',
 };

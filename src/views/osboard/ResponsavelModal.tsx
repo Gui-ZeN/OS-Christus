@@ -67,7 +67,11 @@ export function ResponsavelModal({ ticketId, onClose }: { ticketId: string; onCl
     setErro('');
     try {
       const pessoa = pessoas.find(item => item.email === escolhido) || null;
-      const responsible = pessoa ? { email: pessoa.email, name: pessoa.name } : null;
+      // `setAt` reinicia o relógio de "sem progresso": quem assume uma OS parada há
+      // 39 dias merece a janela inteira, não uma cobrança no mesmo segundo.
+      const responsible = pessoa
+        ? { email: pessoa.email, name: pessoa.name, setAt: new Date() }
+        : null;
       const entrada: HistoryItem = {
         id: crypto.randomUUID(),
         type: 'system',

@@ -9,6 +9,7 @@ import {
   nextBusinessDay,
   ultimaMovimentacao,
   IDLE_WITHOUT_OWNER_DAYS,
+  IDLE_WITH_OWNER_DAYS,
 } from '../../api/_lib/operationalAttention.js';
 
 /** Quarta, 5 de agosto de 2026, 09h em Fortaleza (12h UTC). */
@@ -152,12 +153,16 @@ describe('parada sem responsável — a regra que faltava', () => {
     expect(r?.kind).toBe(ATTENTION_KIND.SET_OWNER);
   });
 
-  it('com responsável definido, silêncio', () => {
+  // Este teste dizia `toBeNull()` e estava errado — era a brecha do rótulo virar
+  // teatro. Ter responsável cala ESTA regra e acende a outra; ver o bloco de
+  // "com responsável e sem progresso".
+  it('com responsável, para de cobrar responsável — mas não vira silêncio', () => {
     const r = computeOperationalAttention(
       parada(30, { responsible: { email: 'gestor@px.com.br', name: 'Gestor' } }),
       AGORA
     );
-    expect(r).toBeNull();
+    expect(r?.kind).not.toBe(ATTENTION_KIND.SET_OWNER);
+    expect(r?.kind).toBe(ATTENTION_KIND.NO_PROGRESS);
   });
 
   it('responsável em branco não conta como responsável', () => {
@@ -186,6 +191,69 @@ describe('parada sem responsável — a regra que faltava', () => {
     expect(isLegacyAttention(r, AGORA)).toBe(false);
     // Uma atenção comum com o mesmo atraso seria escondida:
     expect(isLegacyAttention({ ...r, kind: ATTENTION_KIND.REVIEW_MESSAGE }, AGORA)).toBe(true);
+  });
+});
+
+describe('com responsável e sem progresso — a regra que impede o rótulo de virar teatro', () => {
+  const DONO = { email: 'gestor@px.com.br', name: 'Gestor' };
+  const parada = (diasAtras: number, over: Record<string, unknown> = {}) =>
+    os({ history: [{ id: 'h1', type: 'customer', time: emDias(-diasAtras) }], ...over });
+
+  // O cenário exato que o Sol apontou: preencher os 154 em lote apagaria o alerta
+  // sem mover nenhuma OS, e o sistema trataria o rótulo como solução.
+  it('assumir e não fazer nada volta a cobrar', () => {
+    const r = computeOperationalAttention(
+      parada(40, { responsible: { ...DONO, setAt: emDias(-(IDLE_WITH_OWNER_DAYS + 1)) } }),
+      AGORA
+    );
+    expect(r?.kind).toBe(ATTENTION_KIND.NO_PROGRESS);
+  });
+
+  it('🎯 assumir REINICIA o relógio — quem acabou de pegar não é cobrado', () => {
+    // OS parada há 40 dias, mas alguém assumiu ontem: silêncio.
+    const r = computeOperationalAttention(
+      parada(40, { responsible: { ...DONO, setAt: emDias(-1) } }),
+      AGORA
+    );
+    expect(r).toBeNull();
+  });
+
+  it('trocar de responsável dá janela nova ao novo responsável', () => {
+    const antigo = computeOperationalAttention(
+      parada(40, { responsible: { ...DONO, setAt: emDias(-30) } }),
+      AGORA
+    );
+    const novo = computeOperationalAttention(
+      parada(40, { responsible: { email: 'outro@px.com.br', name: 'Outro', setAt: emDias(-30) } }),
+      AGORA
+    );
+    expect(antigo?.sourceId).not.toBe(novo?.sourceId);
+  });
+
+  it('sem responsável é a OUTRA regra — as duas nunca disputam a mesma OS', () => {
+    expect(computeOperationalAttention(parada(40), AGORA)?.kind).toBe(ATTENTION_KIND.SET_OWNER);
+    expect(
+      computeOperationalAttention(parada(40, { responsible: { ...DONO, setAt: emDias(-40) } }), AGORA)?.kind
+    ).toBe(ATTENTION_KIND.NO_PROGRESS);
+  });
+
+  it('progresso depois de assumir zera a cobrança', () => {
+    const r = computeOperationalAttention(
+      os({
+        history: [{ id: 'h1', type: 'internal', time: emDias(-1) }],
+        responsible: { ...DONO, setAt: emDias(-30) },
+      }),
+      AGORA
+    );
+    expect(r).toBeNull();
+  });
+
+  it('também não é escondida como passivo antigo', () => {
+    const r = computeOperationalAttention(
+      parada(80, { responsible: { ...DONO, setAt: emDias(-80) } }),
+      AGORA
+    );
+    expect(isLegacyAttention(r, AGORA)).toBe(false);
   });
 });
 

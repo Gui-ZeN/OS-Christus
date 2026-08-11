@@ -112,6 +112,15 @@ export function normalizeTicketForStorage(ticket) {
       setAt: toDate(next.attention.setAt) || null,
     };
   }
+  if (next.responsible) {
+    // `setAt` e a data que a regra "com responsavel e sem progresso" usa como
+    // relogio. Como STRING ISO ela nao compara com Timestamp, e a regra decidiria
+    // pelo texto da data.
+    next.responsible = {
+      ...next.responsible,
+      setAt: toDate(next.responsible.setAt) || null,
+    };
+  }
   if (next.preliminaryActions) {
     next.preliminaryActions = {
       ...next.preliminaryActions,
@@ -198,6 +207,9 @@ export function serializeTicketForApi(ticket) {
           reviewAt: serializeDate(ticket.attention.reviewAt),
           setAt: serializeDate(ticket.attention.setAt),
         }
+      : null,
+    responsible: ticket.responsible
+      ? { ...ticket.responsible, setAt: serializeDate(ticket.responsible.setAt) }
       : null,
     // Projeção do servidor: o front só apresenta. Se cada tela derivasse por conta
     // própria, duas telas discordariam sobre a mesma OS.

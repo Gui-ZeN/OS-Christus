@@ -247,10 +247,12 @@ export interface Ticket {
    * o motivo é que equipe responde pelo trabalho e pessoa responde pelo prazo:
    * "Construtora" não abre o sistema nem é cobrada por uma OS específica.
    *
-   * Sem data de propósito — quando e por quem foi definido está no histórico, que é
-   * onde se procura essa resposta.
+   * `setAt` existe porque uma REGRA depende dele, não para exibir: assumir uma OS é
+   * um evento, e ele reinicia o relógio. Sem isso, "com responsável e sem progresso"
+   * dispararia no instante em que alguém assumisse uma OS parada há 39 dias — punindo
+   * exatamente quem acabou de fazer a coisa certa.
    */
-  responsible?: { email: string; name: string } | null;
+  responsible?: { email: string; name: string; setAt?: Date | null } | null;
   sector: string;
   location?: string;
   priority: string;

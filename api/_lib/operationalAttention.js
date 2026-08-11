@@ -30,6 +30,8 @@ export const ATTENTION_KIND = {
   REVIEW_SUSPENSION: 'reavaliar-suspensao',
   /** Parada, sem ninguém respondendo por ela. */
   SET_OWNER: 'definir-responsavel',
+  /** Tem responsável, e mesmo assim não andou. */
+  NO_PROGRESS: 'sem-progresso',
 };
 
 /**
@@ -50,6 +52,19 @@ export const FOLLOW_UP_BUSINESS_DAYS = 3;
  * com trabalho normal em andamento.
  */
 export const IDLE_WITHOUT_OWNER_DAYS = 7;
+
+/**
+ * Dias corridos SEM PROGRESSO depois de alguém assumir a OS.
+ *
+ * Constante separada, embora hoje valha o mesmo, porque mede outra coisa: a de cima
+ * é "ninguém pegou", esta é "alguém pegou e não andou". A segunda é a que impede o
+ * campo de responsável de virar teatro — atribuir em lote silenciaria o alerta sem
+ * mover nenhuma OS, e o sistema passaria a tratar o rótulo como solução.
+ *
+ * Elas vão divergir quando houver medida: a régua de quem assumiu pode ser mais
+ * curta que a de quem foi ignorado.
+ */
+export const IDLE_WITH_OWNER_DAYS = 7;
 
 const FIM_DE_SEMANA = new Set([0, 6]);
 
@@ -203,7 +218,7 @@ export function computeOperationalAttention(input, now = new Date()) {
     }
   }
 
-  // 6. Parada, e ninguém responde por ela.
+  // 6/7. Parada. As duas metades da mesma pergunta, e o que separa é ter dono.
   //
   //    A regra que faltava, e a que casa com a falha REAL desta operação: 155 OS
   //    (57% do estoque) paradas em Parecer Técnico há 39 dias na mediana, e 154
@@ -214,8 +229,10 @@ export function computeOperationalAttention(input, now = new Date()) {
   //
   //    Vem por ÚLTIMO de propósito: se há mensagem sem resposta ou visita marcada,
   //    isso é mais específico e mais útil do que "defina um responsável".
-  if (!String(ticket.responsible?.email || '').trim()) {
-    const parouEm = ultimaMovimentacao(ticket);
+  const responsavel = String(ticket.responsible?.email || '').trim();
+  const parouEm = ultimaMovimentacao(ticket);
+
+  if (!responsavel) {
     if (parouEm) {
       const cobrarEm = new Date(parouEm.getTime() + IDLE_WITHOUT_OWNER_DAYS * 24 * 3600_000);
       if (cobrarEm.getTime() <= now.getTime()) {
@@ -230,6 +247,31 @@ export function computeOperationalAttention(input, now = new Date()) {
         };
       }
     }
+    return null;
+  }
+
+  // 7. TEM responsável e mesmo assim não andou.
+  //
+  //    Esta é a regra que impede o campo de responsável de virar teatro. Sem ela,
+  //    preencher os 154 de uma vez apagaria o alerta e nenhuma OS se moveria — o
+  //    sistema passaria a tratar o rótulo como solução, que é exatamente o vício
+  //    que a etapa "Aguardando Parecer Técnico" já tinha.
+  //
+  //    Assumir REINICIA o relógio: quem pega uma OS parada há 39 dias merece a
+  //    janela inteira, não uma cobrança no mesmo segundo.
+  const assumiuEm = toDateOrNull(ticket.responsible?.setAt);
+  const desde = maisRecente(parouEm, assumiuEm);
+  if (!desde) return null;
+  const cobrarEm = new Date(desde.getTime() + IDLE_WITH_OWNER_DAYS * 24 * 3600_000);
+  if (cobrarEm.getTime() <= now.getTime()) {
+    return {
+      kind: ATTENTION_KIND.NO_PROGRESS,
+      // O e-mail entra no id: trocar de responsável é evento novo e merece janela
+      // nova — senão a cobrança seguiria contando contra quem acabou de assumir.
+      sourceId: `sem-progresso-${responsavel}-${desde.getTime()}`,
+      dueAt: cobrarEm,
+      ruleVersion: ATTENTION_RULE_VERSION,
+    };
   }
 
   return null;
@@ -282,12 +324,17 @@ export const LEGACY_ATTENTION_DAYS = 7;
 
 /** Esta atenção é trabalho de hoje ou passivo antigo? */
 export function isLegacyAttention(atencao, now = new Date(), dias = LEGACY_ATTENTION_DAYS) {
-  // "Sem responsável" NUNCA é passivo antigo. A janela existe porque mensagem velha
-  // sem resposta é notícia vencida — responder um e-mail de 60 dias atrás raramente
-  // ajuda alguém. Já uma OS parada há 60 dias sem ninguém respondendo por ela não
-  // fica menos urgente com o tempo: fica MAIS. Aplicar o corte aqui esconderia
-  // justamente as piores, e a regra nasceria inútil.
-  if (atencao?.kind === ATTENTION_KIND.SET_OWNER) return false;
+  // As duas regras de PARADA nunca são passivo antigo. A janela existe porque
+  // mensagem velha sem resposta é notícia vencida — responder um e-mail de 60 dias
+  // atrás raramente ajuda alguém. Já uma OS parada há 60 dias não fica menos urgente
+  // com o tempo: fica MAIS. Aplicar o corte aqui esconderia justamente as piores, e
+  // as duas regras nasceriam inúteis.
+  if (
+    atencao?.kind === ATTENTION_KIND.SET_OWNER ||
+    atencao?.kind === ATTENTION_KIND.NO_PROGRESS
+  ) {
+    return false;
+  }
   const dueAt = toDateOrNull(atencao?.dueAt);
   if (!dueAt) return false;
   return now.getTime() - dueAt.getTime() > dias * 24 * 3600_000;
