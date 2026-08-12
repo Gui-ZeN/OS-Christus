@@ -31,6 +31,15 @@ on:
         description: "Forçar um estado para testar o e-mail (chovendo | nao-chovendo)"
         required: false
         default: ""
+      forcar:
+        # Sem isto, testar duas vezes seguidas com `chovendo` devolve `sem-mudanca` e
+        # NÃO manda e-mail — o estado guardado já é `chovendo`. Correto em produção
+        # (aviso é de transição, não de condição), confuso num teste: parece que
+        # quebrou. Aqui o envio ignora a transição.
+        description: "Enviar mesmo sem transição (só para teste)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   # Duas execuções ao mesmo tempo poderiam ler o mesmo estado e mandar dois e-mails.
@@ -51,6 +60,7 @@ jobs:
           # padrão vale e nada precisa ser cadastrado.
           RAIN_ALERT_URL: ${{ secrets.RAIN_ALERT_URL || 'https://serv3.vercel.app/api/rain/alert' }}
           SIMULAR: ${{ inputs.simular }}
+          FORCAR: ${{ inputs.forcar }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "Falta o secret CRON_SECRET."
@@ -58,8 +68,15 @@ jobs:
           fi
 
           URL="$RAIN_ALERT_URL"
+          QUERY=""
           if [ -n "$SIMULAR" ]; then
-            URL="$URL?simular=$SIMULAR"
+            QUERY="simular=$SIMULAR"
+          fi
+          if [ "$FORCAR" = "true" ]; then
+            QUERY="${QUERY:+$QUERY&}forcar=1"
+          fi
+          if [ -n "$QUERY" ]; then
+            URL="$URL?$QUERY"
           fi
 
           HTTP_CODE=$(curl -L -sS -o /tmp/rain-response.txt -w "%{http_code}" -X POST "$URL" \
