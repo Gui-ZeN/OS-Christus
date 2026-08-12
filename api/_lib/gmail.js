@@ -61,7 +61,7 @@ export function buildFromHeader(fromEmail, name = process.env.GMAIL_FROM_NAME) {
   const rotulo = String(name ?? 'Serv3').trim();
   if (!endereco || !rotulo) return endereco;
   const codificado = encodeMimeHeader(rotulo);
-  const precisaAspas = /[",:;<>@()\[\]\\]/.test(codificado);
+  const precisaAspas = /[",:;<>@()[\]\\]/.test(codificado);
   const seguro = precisaAspas ? `"${codificado.replace(/(["\\])/g, '\\$1')}"` : codificado;
   return `${seguro} <${endereco}>`;
 }

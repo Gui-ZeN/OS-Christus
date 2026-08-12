@@ -10,6 +10,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { coerceDate } from '../utils/date';
 import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -384,8 +385,12 @@ export function KpiView() {
         grouped.set(siteLabel, { name: siteLabel, abertas: 0, fechadas: 0 });
       }
       const current = grouped.get(siteLabel)!;
-      if (ticket.status === TICKET_STATUS.CLOSED) current.fechadas += 1;
-      else current.abertas += 1;
+      // `isTicketOpen`, e não `=== Encerrada`: com a comparação direta, TODA OS que
+      // não fosse "Encerrada" caía em "Em aberto" — inclusive as Canceladas, que
+      // saíram da fila. A barra somava certo e a cor mentia, que é o jeito mais
+      // difícil de perceber. Cancelada conta como saída, igual ao gráfico de fluxo.
+      if (isTicketOpen(ticket.status)) current.abertas += 1;
+      else current.fechadas += 1;
     }
     return [...grouped.values()].sort((a, b) => b.abertas + b.fechadas - (a.abertas + a.fechadas));
   }, [filteredTickets, sites]);
@@ -419,7 +424,15 @@ export function KpiView() {
     return groups.map(group => {
       const durations = filteredTickets
         .filter(ticket => group.filter(ticket.status))
-        .map(ticket => daysBetween(ticket.time, new Date()));
+        // Tempo NA ETAPA, não idade da OS. Media `daysBetween(ticket.time, hoje)`, que
+        // é desde a ABERTURA: uma OS aberta há 40 dias e movida para execução hoje
+        // aparecia com 40 dias de execução. O número era sempre plausível e crescia de
+        // forma coerente, que é o que fazia ninguém desconfiar — e o campo certo já
+        // era gravado pelo servidor a cada transição, só não era lido aqui.
+        //
+        // Sem carimbo, cai para a idade: são 9 OS cuja entrada na etapa não existe em
+        // lugar nenhum do histórico, e inventar data seria pior que herdar o defeito.
+        .map(ticket => daysBetween(coerceDate(ticket.stageEnteredAt, ticket.time), new Date()));
 
       return {
         name: group.name,
