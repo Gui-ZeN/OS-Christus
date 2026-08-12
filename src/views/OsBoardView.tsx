@@ -231,14 +231,17 @@ export function OsBoardView() {
                 <th className="px-3 py-2.5 font-medium">OS</th>
                 <th className="px-3 py-2.5 font-medium">Assunto</th>
                 <th className="px-3 py-2.5 font-medium">Sede</th>
-                <th className="px-3 py-2.5 font-medium">Macroserviço</th>
+                {/* Macroserviço e serviço viraram UMA coluna: são hierárquicos, e
+                    duas colunas para "Móveis" + "Reposição" custavam largura que a
+                    tabela não tem. A prioridade saiu para junto do assunto. */}
                 <th className="px-3 py-2.5 font-medium">Serviço</th>
                 <th className="px-3 py-2.5 font-medium">Equipe</th>
                 <th className="px-3 py-2.5 font-medium">Responsável</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
-                <th className="px-3 py-2.5 font-medium">Prioridade</th>
                 <th className="px-3 py-2.5 font-medium">Atualizado</th>
-                <th className="px-3 py-2.5 font-medium">Ações</th>
+                {/* Grudada à direita: se ainda sobrar rolagem em tela estreita, as
+                    ações continuam alcançáveis sem arrastar até o fim. */}
+                <th className="sticky right-0 bg-roman-surface px-3 py-2.5 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -261,11 +264,23 @@ export function OsBoardView() {
                       Corta-lo economizava uma linha e custava a leitura. */}
                   <td className="min-w-[16rem] max-w-[26rem] px-3 py-2.5">
                     <div className="font-medium text-roman-text-main">{repairMojibake(ticket.subject)}</div>
-                    <div className="truncate text-xs text-roman-text-sub">{repairMojibake(ticket.requester || 'Sem solicitante')}</div>
+                    <div className="truncate text-xs text-roman-text-sub">
+                      {repairMojibake(ticket.requester || 'Sem solicitante')}
+                      {ticket.priority && (
+                        <>
+                          {' · '}
+                          <span className={priorityClass(repairMojibake(ticket.priority))}>
+                            {repairMojibake(ticket.priority)}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{siteLabel || '—'}</td>
-                  <td className="px-3 py-2.5 text-roman-text-sub">{macro || '—'}</td>
-                  <td className="px-3 py-2.5 text-roman-text-sub">{svc || '—'}</td>
+                  <td className="px-3 py-2.5 text-roman-text-sub">
+                    <div>{svc || macro || '—'}</div>
+                    {svc && macro && <div className="text-xs text-roman-text-sub/70">{macro}</div>}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{tm || '—'}</td>
                   {/* Clicável na própria célula: definir responsável tem que custar um
                       clique, senão continua não sendo feito. */}
@@ -283,14 +298,14 @@ export function OsBoardView() {
                       <span className="text-roman-text-sub">{ticket.responsible?.name || '—'}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5">
+                  <td className="px-3 py-2.5">
                     <StatusBadge status={ticket.status} />
                     {/* O bloqueio deixa de ser invisível: até agora ele só aparecia
                         para quem TENTAVA avançar, e por isso 88 OS estavam paradas
                         por um motivo que ninguém sabia que existia. */}
                     {bloqueioParaAvancar(ticket) && (
                       <div
-                        className="mt-1 inline-flex items-center gap-1 rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900"
+                        className="mt-1 flex w-fit items-center gap-1 rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-amber-900"
                         title="A OS não avança enquanto isto não for resolvido. Use o botão Etapa."
                       >
                         <TriangleAlert size={11} />
@@ -298,14 +313,14 @@ export function OsBoardView() {
                       </div>
                     )}
                   </td>
-                  <td className={`whitespace-nowrap px-3 py-2.5 font-medium ${priorityClass(repairMojibake(ticket.priority || ''))}`}>
-                    {repairMojibake(ticket.priority || '—')}
-                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
                   {/* `stopPropagation` porque a linha inteira abre a OS: sem isso,
                       clicar em "Etapa" abria o modal E navegava para a Inbox — que é
                       exatamente o que estas ações existem para evitar. */}
-                  <td className="whitespace-nowrap px-3 py-2.5" onClick={event => event.stopPropagation()}>
+                  <td
+                    className="sticky right-0 whitespace-nowrap bg-roman-surface px-3 py-2.5"
+                    onClick={event => event.stopPropagation()}
+                  >
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
