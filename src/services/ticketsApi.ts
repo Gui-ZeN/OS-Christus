@@ -37,6 +37,7 @@ type ApiTicket = Omit<
   lastInboundAt?: string | null;
   lastOutboundAt?: string | null;
   closedAt?: string | null;
+  excludedFromMetrics?: boolean;
   viewingBy?: { name: string; at: string } | null;
   history: Array<Omit<Ticket['history'][number], 'time'> & { time: string }>;
   preliminaryActions?: Omit<PreliminaryActions, 'materialEta' | 'plannedStartAt' | 'actualStartAt' | 'updatedAt'> & {

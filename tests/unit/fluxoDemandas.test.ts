@@ -110,6 +110,26 @@ describe('série de fluxo', () => {
     expect(serie[0].pendencias).toBe(1);
   });
 
+  it('OS marcada como teste não entra na conta — nem na fila, nem na saída', () => {
+    // As 13 canceladas com "Motivo: Teste!" em 21/07 respondiam por 13 das 14 saídas
+    // daquela semana. Quem lesse o gráfico veria uma semana produtiva que não houve.
+    const real = os('R', '2026-08-03T09:00:00', '2026-08-04T09:00:00');
+    const teste = {
+      ...os('T', '2026-08-03T09:00:00', '2026-08-04T09:00:00', 'Cancelada'),
+      excludedFromMetrics: true,
+    } as Ticket;
+
+    const serie = serieDeFluxo([real, teste], {
+      inicio: new Date(2026, 7, 3),
+      fim: new Date(2026, 7, 9, 23, 59),
+      granularidade: 'semana',
+    });
+
+    expect(serie[0].abertas).toBe(1);
+    expect(serie[0].saidas).toBe(1);
+    expect(serie[0].pendencias).toBe(0);
+  });
+
   it('janela absurda não trava a tela', () => {
     const serie = serieDeFluxo([], { inicio: new Date(1990, 0, 1), fim: new Date(2090, 0, 1) });
     expect(serie.length).toBeLessThanOrEqual(400);

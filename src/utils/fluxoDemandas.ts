@@ -94,9 +94,14 @@ export function granularidadeSugerida(inicio: Date, fim: Date): Granularidade {
 }
 
 export function serieDeFluxo(
-  tickets: Ticket[],
+  entrada: Ticket[],
   opcoes: { inicio: Date; fim: Date; granularidade?: Granularidade }
 ): PontoDeFluxo[] {
+  // OS de teste sai INTEIRA da conta — abertura junto com a saída. Ela nunca foi
+  // trabalho; contá-la na fila e depois tirá-la desenharia um pico e uma queda que
+  // não aconteceram. A regra mora aqui, e não em quem chama, para que a tela e o PDF
+  // não possam divergir sobre o que conta.
+  const tickets = entrada.filter(ticket => !ticket.excludedFromMetrics);
   const granularidade = opcoes.granularidade || granularidadeSugerida(opcoes.inicio, opcoes.fim);
   const alinhar = granularidade === 'semana' ? inicioDaSemana : inicioDoMes;
 

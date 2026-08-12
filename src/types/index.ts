@@ -245,6 +245,15 @@ export interface Ticket {
    * mostrava encerradas = 0 desde sempre.
    */
   closedAt?: string | Date | null;
+  /**
+   * OS que existe como registro mas não representa trabalho — teste do sistema.
+   *
+   * Marcada por script sob revisão, nunca pela tela: reconhecê-las exige ler o texto
+   * do cancelamento, e regra de produto que lê texto escrito por gente é defeito
+   * esperando data. As 13 primeiras foram canceladas em 21/07 com "Motivo: Teste!" e
+   * respondiam por 13 das 14 saídas daquela semana no gráfico de fluxo.
+   */
+  excludedFromMetrics?: boolean;
   type: string;
   macroServiceId?: string;
   macroServiceName?: string;
