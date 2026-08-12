@@ -326,6 +326,19 @@ export function InboxView() {
     return ids;
   }, [catalogSites, tickets]);
   const isClosed = !hasTickets || activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED;
+  /**
+   * A TROCA DE ETAPA não segue o `isClosed`.
+   *
+   * Relato do Thiers, 12/08: *"se a mesma foi concluída, não está deixando
+   * alterar"*. Era isto — o seletor vinha `disabled={isClosed}`, então OS encerrada
+   * ou cancelada ficava congelada. E o código LOGO ABAIXO monta as opções de
+   * reabertura (Encerrada → Em andamento, Cancelada → Nova OS): duas partes do
+   * mesmo arquivo discordando, e a que travava ganhava.
+   *
+   * Encerrar por engano é comum; ficar preso no engano não pode ser o preço.
+   */
+  const stageLocked = !hasTickets;
+  const hasStageChangePending = Boolean(statusDraft) && statusDraft !== activeTicket.status;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
   const actorRole = resolveActorRole(currentUser?.role);
   const statusOptions = useMemo(() => {
@@ -588,7 +601,6 @@ export function InboxView() {
     () => activeDirectors.filter(user => involvedDirectorIds.includes(user.id)),
     [activeDirectors, involvedDirectorIds]
   );
-  const hasInvolvedDirectors = selectedDirectors.length > 0;
   const isExternalTeam = selectedTeam?.type === 'external';
   const selectedThirdParties = vendors.filter(vendor => selectedThirdPartyIds.includes(vendor.id));
   const selectedThirdPartyEmails = selectedThirdParties
@@ -1007,7 +1019,13 @@ export function InboxView() {
             setIsSending(false);
             return;
           }
-          newStatus = hasInvolvedDirectors ? TICKET_STATUS.WAITING_SOLUTION_APPROVAL : TICKET_STATUS.WAITING_BUDGET;
+          // A aprovação da diretoria SAIU do fluxo, e o servidor recusa entrada nas
+          // etapas dela (409). Este ramo continuou mandando para
+          // WAITING_SOLUTION_APPROVAL quando havia diretor selecionado — então, para
+          // essas OS, "Enviar para Aprovação" falhava e a etapa não mudava. Era o
+          // relato do Thiers em 12/08. Agora o parecer vai para orçamento, com ou sem
+          // diretor: é a única saída que o fluxo ainda tem.
+          newStatus = TICKET_STATUS.WAITING_BUDGET;
           if (trimmedReply || uploadedReplyAttachments.length > 0) {
             items.push({
               id: crypto.randomUUID(),
@@ -1024,9 +1042,7 @@ export function InboxView() {
             type: 'system',
             sender,
             time: new Date(now.getTime() + 1),
-            text: hasInvolvedDirectors
-              ? 'Parecer consolidado e enviado para aprovação da Diretoria.'
-              : 'Parecer consolidado sem diretores envolvidos. Etapa de aprovação da Diretoria pulada e OS liberada para orçamento.',
+            text: 'Parecer consolidado. OS liberada para orçamento.',
             visibility: 'internal',
           });
         } else if (trimmedReply || uploadedReplyAttachments.length > 0) {
@@ -1047,8 +1063,9 @@ export function InboxView() {
             priority: ticketPriority || activeTicket.priority,
             assignedTeam: techTeam || activeTicket.assignedTeam || '',
             assignedEmail: isExternalTeam ? resolveAssignedEmails() : '',
-            // Persiste a seleção viva de diretores: o roteamento (aprovação vs.
-            // pular) usa hasInvolvedDirectors, então directorIds tem que casar.
+            // Persiste a seleção viva de diretores. O roteamento por diretoria saiu
+            // com a etapa de aprovação; a lista continua porque a Diretoria segue
+            // recebendo mensagem — só não decide mais etapa.
             directorIds: selectedDirectors.map(director => director.id),
             directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
             attachments:
@@ -1451,10 +1468,13 @@ export function InboxView() {
   let internalActionText = 'Ação: Registrar nota no histórico';
 
   if (activeTicket.status === TICKET_STATUS.WAITING_TECH_OPINION) {
-    internalTabLabel = 'Enviar Parecer à Diretoria';
-    internalPlaceholder = 'Consolide o parecer técnico antes de enviar para aprovação...';
-    internalButtonText = 'Enviar para Aprovação';
-    internalActionText = 'Ação: Mover para Aguardando Aprovação da Solução';
+    // Os rótulos prometiam a etapa aposentada ("Mover para Aguardando Aprovação da
+    // Solução") mesmo quando o destino real já era orçamento. Texto que promete o
+    // que o servidor recusa é como se descobre um bug tarde demais.
+    internalTabLabel = 'Consolidar parecer técnico';
+    internalPlaceholder = 'Consolide o parecer técnico antes de liberar para orçamento...';
+    internalButtonText = 'Liberar para orçamento';
+    internalActionText = 'Ação: Mover para Aguardando Orçamento';
   } else if (activeTicket.status.includes('Orçamento') || activeTicket.status.includes('Cotação')) {
     internalTabLabel = 'Anotação de Cotação';
     internalPlaceholder = 'Registre detalhes das negociações com fornecedores...';
@@ -2201,7 +2221,7 @@ export function InboxView() {
                         <button
                           type="button"
                           onClick={() => setShowStageControls(true)}
-                          disabled={isClosed || isSending}
+                          disabled={stageLocked || isSending}
                           className="flex w-full items-center justify-between gap-2 text-left text-xs text-roman-text-sub transition-colors hover:text-roman-text-main disabled:opacity-50"
                         >
                           <span className="truncate">
@@ -2229,7 +2249,7 @@ export function InboxView() {
                             value={statusDraft}
                             onChange={event => setStatusDraft(event.target.value)}
                             className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                            disabled={isClosed || isSending}
+                            disabled={stageLocked || isSending}
                           >
                             {statusOptions.map(status => (
                               <option key={status} value={status}>{status}</option>
@@ -2388,10 +2408,14 @@ export function InboxView() {
                         Cancelar
                       </button>
                       <div className="flex overflow-hidden rounded-sm shadow-sm">
+                        {/* Numa OS encerrada, o botão continua liberado SÓ para a troca
+                            de etapa — é o que permite desfazer um encerramento por
+                            engano. Escrever mensagem nova segue bloqueado: conversa em
+                            OS morta confunde quem lê o histórico depois. */}
                         <button
                           onClick={handleSend}
                           className="flex items-center gap-2 bg-roman-sidebar px-4 py-1.5 font-medium tracking-wide text-white transition-colors hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={isClosed || isSending}
+                          disabled={(isClosed && !hasStageChangePending) || isSending}
                         >
                           {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
                           {isSending
