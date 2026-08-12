@@ -8,6 +8,8 @@ import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { formatDateTimeSafe } from '../utils/date';
 import { getTicketRegionId, getTicketRegionLabel, getTicketSiteId, getTicketSiteLabel } from '../utils/ticketTerritory';
+import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
+import type { OsBoardFilter } from '../types';
 
 function buildGreetingName(name: string | null | undefined, email: string) {
   if (name) return name;
@@ -20,7 +22,7 @@ function buildGreetingName(name: string | null | undefined, email: string) {
 }
 
 export function HomeView() {
-  const { navigateTo, setInboxFilter, tickets, currentUser, currentUserEmail } = useApp();
+  const { navigateTo, setInboxFilter, setOsBoardFilter, tickets, currentUser, currentUserEmail } = useApp();
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
   const [requesterTab, setRequesterTab] = useState<'open' | 'history'>('open');
@@ -36,6 +38,28 @@ export function HomeView() {
   const openInboxWithStatus = (statuses: string[]) => {
     setInboxFilter({ status: statuses, priority: [], region: [], site: [], type: [] });
     navigateTo('inbox');
+  };
+
+  /**
+   * Abre a Gestão já filtrada. Limpa o resto do filtro de propósito: cartão que
+   * herda seleção anterior mostra um número na tela inicial e outro na tabela, e
+   * quem clicou conclui que o sistema perdeu OS.
+   */
+  const abrirGestao = (patch: Partial<OsBoardFilter>) => {
+    setOsBoardFilter({
+      search: '',
+      sede: 'all',
+      macroService: 'all',
+      service: 'all',
+      team: 'all',
+      status: 'all',
+      responsible: 'all',
+      showClosed: false,
+      bloqueadas: false,
+      ordem: 'parada',
+      ...patch,
+    });
+    navigateTo('os-board');
   };
 
   useEffect(() => {
@@ -100,11 +124,21 @@ export function HomeView() {
     });
   }, [regions, selectedRegion, selectedSite, sites, tickets]);
 
+  /**
+   * Os números que o Início mostra passaram a ser os que doem.
+   *
+   * Eram "Novas OS / Aguardando Orçamento / Aguardando Aprovação / Concluídas" — e a
+   * fila dominante não aparecia em nenhum: 97 das 117 OS vivas estão em Parecer
+   * Técnico, com mediana de 23 dias. "Aguardando Aprovação" nem clicável era, e
+   * aponta para etapas aposentadas.
+   *
+   * Todos contam na hora, sobre o escopo territorial de quem está olhando.
+   */
   const stats = useMemo(() => ({
     novas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.NEW).length,
-    aguardandoOrcamento: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
-    aguardandoAprovacao: scopedTickets.filter(ticket => ticket.status.toLowerCase().includes('aprova')).length,
-    encerradas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
+    aguardandoParecer: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_TECH_OPINION).length,
+    travadas: scopedTickets.filter(ticket => isTicketOpen(ticket.status) && bloqueioParaAvancar(ticket)).length,
+    semResponsavel: scopedTickets.filter(ticket => isTicketOpen(ticket.status) && !ticket.responsible?.email).length,
   }), [scopedTickets]);
 
   const executiveNextActions = useMemo(() => {
@@ -112,10 +146,12 @@ export function HomeView() {
     return [
       canOperate ? {
         key: 'budget',
-        title: 'Cobrar orçamento e aditivos',
-        subtitle: 'OS aguardando composição financeira.',
+        // "Cobrar" é verbo de ordem — o oposto da decisão de produto ("o Serv3
+        // registra, não cobra"). O cartão constata; quem cobra é gente.
+        title: 'Aguardando orçamento',
+        subtitle: 'esperando composição financeira.',
         count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
-        action: () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]),
+        action: () => abrirGestao({ status: TICKET_STATUS.WAITING_BUDGET }),
       } : null,
       canOperate ? {
         key: 'payment',
@@ -126,18 +162,14 @@ export function HomeView() {
       } : null,
       canOperate ? {
         key: 'execution',
-        title: 'Acompanhar obras em campo',
-        subtitle: 'Execução ativa ou aguardando fechamento.',
+        title: 'Em execução',
+        subtitle: 'obra ativa ou aguardando fechamento.',
         count: scopedTickets.filter(ticket =>
           ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
           ticket.status === TICKET_STATUS.IN_PROGRESS ||
           ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
         ).length,
-        action: () => openInboxWithStatus([
-          TICKET_STATUS.WAITING_PRELIM_ACTIONS,
-          TICKET_STATUS.IN_PROGRESS,
-          TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-        ]),
+        action: () => abrirGestao({ status: TICKET_STATUS.IN_PROGRESS }),
       } : null,
     ]
       .filter((item): item is NonNullable<typeof item> => Boolean(item) && item.count > 0)
@@ -216,10 +248,35 @@ export function HomeView() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-          <StatCard title="Novas OS" value={String(stats.novas)} subtitle="Fila inicial" highlight onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.NEW]) : undefined} />
-          <StatCard title="Aguardando Orçamento" value={String(stats.aguardandoOrcamento)} subtitle="Em preparação" onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.WAITING_BUDGET]) : undefined} />
-          <StatCard title="Aguardando Aprovação" value={String(stats.aguardandoAprovacao)} subtitle="Decisão pendente"  />
-          <StatCard title="OS Concluídas" value={String(stats.encerradas)} subtitle="Encerradas" onClick={canOperate ? () => openInboxWithStatus([TICKET_STATUS.CLOSED]) : undefined} />
+          {/* Todos abrem a GESTÃO filtrada, não a Inbox. A Inbox é a tela que o dono
+              chamou de ameaçadora, e mandar alguém para lá para responder "quais
+              estão paradas" é pedir que ela atravesse 3.000 linhas de conversa para
+              ver uma lista. */}
+          <StatCard
+            title="Aguardando parecer"
+            value={String(stats.aguardandoParecer)}
+            subtitle="a fila que segura o resto"
+            highlight
+            onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.WAITING_TECH_OPINION }) : undefined}
+          />
+          <StatCard
+            title="Travadas"
+            value={String(stats.travadas)}
+            subtitle="falta classificar para avançar"
+            onClick={canOperate ? () => abrirGestao({ bloqueadas: true }) : undefined}
+          />
+          <StatCard
+            title="Sem responsável"
+            value={String(stats.semResponsavel)}
+            subtitle="ninguém respondendo por elas"
+            onClick={canOperate ? () => abrirGestao({ responsible: 'none' }) : undefined}
+          />
+          <StatCard
+            title="Novas OS"
+            value={String(stats.novas)}
+            subtitle="ainda não triadas"
+            onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.NEW }) : undefined}
+          />
         </div>
 
         {isRequester && (
@@ -437,7 +494,11 @@ export function HomeView() {
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
             <StatCard title="Entrega aguardando aceite" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length)} subtitle="Obras prontas para fechamento" />
             <StatCard title="Obras em campo" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.IN_PROGRESS).length)} subtitle="Execução ativa agora" />
-            <StatCard title="Entregas finalizadas" value={String(stats.encerradas)} subtitle="OS já encerradas" />
+            <StatCard
+              title="Entregas finalizadas"
+              value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length)}
+              subtitle="OS já encerradas"
+            />
           </div>
         )}
 
