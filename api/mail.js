@@ -60,6 +60,7 @@ import {
   EMAIL_OUTBOX_TYPES,
   markEmailOutboxFailed,
   markEmailOutboxSent,
+  resolveOutboxRecipients,
 } from './_lib/emailOutbox.js';
 import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
 import { fetchCemaden } from './_lib/cemaden.js';
@@ -1219,30 +1220,40 @@ async function notifyScopedManagersNewInboundTicket(db, ticket, message) {
   // cada aviso é um item da outbox, com retry/backoff e dead-letter alertado; o
   // worker drena com throttle. A chave é determinística por (OS, gestor) e usamos
   // create(): reprocessar a mesma mensagem inbound não duplica o aviso.
+  // UM item por OS, com todos os gestores juntos — não um por pessoa.
+  //
+  // Era um documento por (OS, gestor), e a chave por destinatário existia para
+  // idempotência no reprocessamento, não porque envios separados fossem desejáveis.
+  // O efeito colateral era volume: 4 e-mails para a mesma OS nova hoje, e a região
+  // Benfica tem 7 gestores no escopo — sete mensagens idênticas sobre a mesma OS.
+  // Volume de e-mail é o risco nº 1 declarado deste projeto.
+  //
+  // A idempotência não se perde: a chave continua determinística, agora por OS.
   const now = new Date();
-  await Promise.all(gestores.map(async gestor => {
-    const toEmail = firstEmail(gestor.email);
-    if (!toEmail) return;
-    const outboxKey = `mgrnotify-${createHash('sha256').update(toEmail.toLowerCase()).digest('hex').slice(0, 16)}`;
-    try {
-      await db.collection('emailOutbox').doc(`${ticketId}__${outboxKey}`).create({
-        id: outboxKey,
-        commandKey: outboxKey,
-        type: EMAIL_OUTBOX_TYPES.MANAGER_NEW_TICKET,
-        ticketId,
-        trigger: 'EMAIL-NOVA-OS-GESTOR',
-        recipients: [toEmail],
-        status: 'pending',
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } catch (error) {
-      // Já enfileirado (reprocessamento da mesma mensagem) — não duplica o aviso.
-      if (isAlreadyExistsError(error)) return;
-      console.error('[mail] falha ao enfileirar aviso de nova OS ao gestor', error);
-    }
-  }));
+  const destinatarios = [...new Set(
+    gestores.map(gestor => firstEmail(gestor.email)).filter(Boolean).map(email => email.toLowerCase())
+  )];
+  if (destinatarios.length === 0) return;
+
+  const outboxKey = 'mgrnotify';
+  try {
+    await db.collection('emailOutbox').doc(`${ticketId}__${outboxKey}`).create({
+      id: outboxKey,
+      commandKey: outboxKey,
+      type: EMAIL_OUTBOX_TYPES.MANAGER_NEW_TICKET,
+      ticketId,
+      trigger: 'EMAIL-NOVA-OS-GESTOR',
+      recipients: destinatarios,
+      status: 'pending',
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    // Já enfileirado (reprocessamento da mesma mensagem) — não duplica o aviso.
+    if (isAlreadyExistsError(error)) return;
+    console.error('[mail] falha ao enfileirar aviso de nova OS ao gestor', error);
+  }
 }
 
 const MAX_ATTACHMENTS = 10;
@@ -1531,9 +1542,11 @@ async function handleSend(req, res) {
       // conversa do solicitante). Passá-los pelo corpo do handleSend faria o aviso
       // herdar a thread e o CC do cliente — vazamento de triagem interna.
       if (claim.data.type === EMAIL_OUTBOX_TYPES.MANAGER_NEW_TICKET) {
-        const recipient = firstEmail(
-          Array.isArray(claim.data.recipients) ? claim.data.recipients[0] : claim.data.recipients
-        );
+        // TODOS os gestores num envio só. Ler `recipients[0]` casava com o
+        // enfileiramento antigo (um documento por pessoa) e agora seria perda
+        // silenciosa: o item traz a lista inteira.
+        const destinatarios = resolveOutboxRecipients(claim.data.recipients);
+        const recipient = destinatarios.join(', ');
         if (!recipient) {
           await markEmailOutboxSent(claim.ref, claim.leaseToken, { messageId: null, provider: 'skipped' });
           return sendJson(res, 200, {

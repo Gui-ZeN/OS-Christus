@@ -250,3 +250,23 @@ export async function markEmailOutboxDispatchFailure(ref, error, now = new Date(
     return true;
   });
 }
+
+/**
+ * Todos os destinatários de um item da outbox, num envio só.
+ *
+ * A entrega lia `recipients[0]` e ignorava o resto — o que casava com o enfileiramento
+ * antigo (um documento por pessoa) e produzia N mensagens idênticas sobre a mesma OS:
+ * 4 no pior caso medido, 7 no escopo com mais gestores. Agora o item carrega todos, e
+ * ler só o primeiro passaria a ser perda silenciosa de destinatário.
+ *
+ * Aceita string ou array, apara, normaliza para minúsculas e remove repetido — a mesma
+ * pessoa em dois escopos (sede e região) não pode virar dois endereços no cabeçalho.
+ */
+export function resolveOutboxRecipients(value) {
+  const bruto = Array.isArray(value) ? value : [value];
+  const limpos = bruto
+    .flatMap(item => String(item || '').split(','))
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set(limpos)];
+}

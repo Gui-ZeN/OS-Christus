@@ -5,6 +5,7 @@ import {
   EMAIL_OUTBOX_TYPES,
   getEmailOutboxRetryDelayMs,
   isEmailOutboxEligible,
+  resolveOutboxRecipients,
   isEmailOutboxLeaseActive,
   isKnownEmailOutboxType,
   MAX_EMAIL_OUTBOX_ATTEMPTS,
@@ -71,5 +72,30 @@ describe('email outbox', () => {
     })).toBe(false);
     expect(getEmailOutboxRetryDelayMs(1)).toBe(60_000);
     expect(getEmailOutboxRetryDelayMs(99)).toBe(4 * 60 * 60 * 1000);
+  });
+});
+
+describe('destinatários do aviso ao gestor', () => {
+  it('devolve TODOS, não só o primeiro', () => {
+    // O defeito real: a entrega lia `recipients[0]`. Com um documento por pessoa
+    // isso funcionava e produzia 4 e-mails idênticos sobre a mesma OS (7 no escopo
+    // com mais gestores). Agora o item traz a lista inteira, e ler só o primeiro
+    // seria perder destinatário em silêncio.
+    expect(resolveOutboxRecipients(['a@x.com', 'b@x.com', 'c@x.com'])).toEqual([
+      'a@x.com',
+      'b@x.com',
+      'c@x.com',
+    ]);
+  });
+
+  it('remove repetido: a mesma pessoa em dois escopos é um endereço só', () => {
+    // Gestor com acesso por SEDE e por REGIÃO aparecia duas vezes na consulta.
+    expect(resolveOutboxRecipients(['Ana@x.com', 'ana@x.com', ' ana@x.com '])).toEqual(['ana@x.com']);
+  });
+
+  it('aceita string com vírgula e ignora vazio', () => {
+    expect(resolveOutboxRecipients('a@x.com, b@x.com')).toEqual(['a@x.com', 'b@x.com']);
+    expect(resolveOutboxRecipients(null)).toEqual([]);
+    expect(resolveOutboxRecipients([''])).toEqual([]);
   });
 });
