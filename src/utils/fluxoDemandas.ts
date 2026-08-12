@@ -35,6 +35,10 @@ export interface PontoDeFluxo {
   saidas: number;
   /** Estoque no FIM do balde. */
   pendencias: number;
+  /** Tudo que já foi aberto até o fim do balde — inclusive antes da janela. */
+  abertasAcumuladas: number;
+  /** Tudo que já saiu da fila até o fim do balde. */
+  saidasAcumuladas: number;
 }
 
 const DIA = 86_400_000;
@@ -123,6 +127,8 @@ export function serieDeFluxo(
       canceladas: 0,
       saidas: 0,
       pendencias: 0,
+      abertasAcumuladas: 0,
+      saidasAcumuladas: 0,
     });
     cursor = proximo;
   }
@@ -151,19 +157,29 @@ export function serieDeFluxo(
     }
   }
 
-  // Estoque: conta sobre a base INTEIRA, contra o fim de cada balde. É a diferença
-  // entre "o que aconteceu nesta semana" e "o que existe no fim dela".
+  // Estoque e acumulados: contam sobre a base INTEIRA, contra o fim de cada balde. É
+  // a diferença entre "o que aconteceu nesta semana" e "o que existe no fim dela".
+  //
+  // Os acumulados incluem de propósito o que veio ANTES da janela. É isso que faz
+  // valer a identidade `abertasAcumuladas - saidasAcumuladas === pendencias`, e é ela
+  // que sustenta o gráfico acumulado: a distância entre as duas curvas É a fila. Se
+  // os acumulados começassem na janela, a distância viraria um número sem nome.
   for (const balde of baldes) {
     const corte = balde.fim.getTime();
     let vivas = 0;
+    let abertasAte = 0;
+    let saidasAte = 0;
     for (const ticket of tickets) {
       const aberta = paraData(ticket.time);
       if (!aberta || aberta.getTime() > corte) continue;
+      abertasAte += 1;
       const fechada = paraData(ticket.closedAt);
-      if (fechada && fechada.getTime() <= corte) continue;
-      vivas += 1;
+      if (fechada && fechada.getTime() <= corte) saidasAte += 1;
+      else vivas += 1;
     }
     balde.pendencias = vivas;
+    balde.abertasAcumuladas = abertasAte;
+    balde.saidasAcumuladas = saidasAte;
   }
 
   return baldes;

@@ -28,10 +28,16 @@ entre abrir e fechar.
   Uma OS fechada sem data aparece como pendência, o que é honesto; data inventada
   vira linha bonita e mentirosa.
 
-O gráfico separa as duas naturezas, porque são duas perguntas diferentes: **fluxo**
-(barras, por semana — o que entrou e saiu *dentro* da semana) e **estoque** (linha,
-em eixo próprio — o que existe *no fim* dela). O estoque anda na casa das centenas e
-o fluxo nas dezenas; num eixo só, as barras viram um risco no chão.
+**O formato é acumulado**, por decisão do diretor depois de ver a primeira versão em
+barras: duas faixas empilhadas — embaixo tudo que já foi resolvido, em cima o que
+continua na fila. A altura total é tudo que já entrou, e a **faixa dourada é a
+fila**: quando ela afina, a equipe está fechando mais do que entra. É a leitura de
+tendência, que barra semanal não dá.
+
+A identidade `abertas − saídas = pendências` vale em todo balde e está travada por
+teste, porque é ela que dá sentido ao desenho — sem ela a distância entre as curvas
+vira um número sem nome, e o gráfico continuaria bonito, que é o perigo. O movimento
+da semana (*"20 e 21"*) não se perdeu: está na frase acima do gráfico e no tooltip.
 
 Duas decisões que parecem detalhe e não são:
 
@@ -44,9 +50,17 @@ Duas decisões que parecem detalhe e não são:
   por estado atual responde pergunta que ninguém fez.
 
 Acima do gráfico ficou a frase que se lê em cinco segundos: *"No período: 29 abertas
-e 33 encerradas — a fila foi de 20 para 16 (4 a menos)."* Encerradas e canceladas
-aparecem empilhadas: as duas saem da fila, mas encerrar e desistir não são a mesma
-notícia.
+e 33 encerradas — a fila foi de 20 para 16 (4 a menos)."*
+
+**13 OS de teste saíram da conta.** Eram canceladas pelo Admin em 21/07 com "Motivo:
+Teste!" e respondiam por **13 das 14 saídas** daquela semana — quem lesse o gráfico
+veria uma semana produtiva que não houve. A marca (`excludedFromMetrics`) vive no
+dado, aplicada por script sob revisão, porque reconhecê-las exige ler o texto do
+cancelamento e regra de produto que lê texto escrito por gente é defeito esperando
+data. Elas somem do **painel inteiro**, não só do gráfico: dois critérios na mesma
+tela é como a tendência ficou meses mostrando zero — cada número parece plausível
+sozinho. Continuam visíveis na Inbox e na Gestão, onde são registro do que houve.
+Nada foi apagado; o script tem `--desfazer`.
 
 **Verificado no emulador** com 8 semanas de histórico semeado: a conta da tela e uma
 contagem independente feita direto no banco deram o mesmo número (29 abertas, 33

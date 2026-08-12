@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList, ComposedChart, Line } from 'recharts';
+import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList, ComposedChart, Area } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
@@ -88,7 +88,22 @@ const MONTH_NAMES = [
 ];
 
 export function KpiView() {
-  const { currentUser, tickets } = useApp();
+  const { currentUser, tickets: todasAsTickets } = useApp();
+
+  /**
+   * A base de TODO número desta tela, sem as OS de teste.
+   *
+   * Aplicado aqui, na raiz, e não em cada cartão: dois critérios convivendo na mesma
+   * tela é como o gráfico de tendência ficou meses mostrando zero — cada número
+   * parecia plausível sozinho, e ninguém confere o painel inteiro de uma vez.
+   *
+   * Só o painel. A Inbox e a Gestão continuam mostrando essas OS, porque lá elas são
+   * registro do que aconteceu; aqui elas seriam trabalho que não houve.
+   */
+  const tickets = useMemo(
+    () => todasAsTickets.filter(ticket => !ticket.excludedFromMetrics),
+    [todasAsTickets]
+  );
   const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor' || currentUser?.role === 'Usuario';
   // `Usuario` é solicitante/representante de unidade: acompanha os indicadores
   // OPERACIONAIS da estrutura, sem contrato, pagamento, fornecedor ou valor.
@@ -1320,52 +1335,58 @@ export function KpiView() {
                       ? ` (${resumoFluxo.saldo} a mais).`
                       : ` (${Math.abs(resumoFluxo.saldo)} a menos).`}
                   <span className="block text-xs text-roman-text-sub/80 mt-1">
-                    Barras por {granularidadeFluxo === 'semana' ? 'semana' : 'mês'}; a linha é a fila acumulada, que
-                    carrega o que vem de antes do período. Não segue o filtro de etapa — etapa é o estado de hoje, e
-                    o gráfico é histórico.
+                    Acumulado desde a primeira OS, por {granularidadeFluxo === 'semana' ? 'semana' : 'mês'}: a altura
+                    total é tudo que já foi aberto e a <strong className="font-medium">faixa dourada é a fila</strong>{' '}
+                    — quando ela afina, a equipe está fechando mais do que entra. Não segue o filtro de etapa, porque
+                    etapa é o estado de hoje e o gráfico é histórico.
                   </span>
                 </p>
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    {/* Áreas EMPILHADAS, e a escolha não é estética: embaixo o que já
+                        saiu, em cima o que continua na fila. O topo da pilha é, por
+                        construção, tudo que já foi aberto — a identidade
+                        `abertas − saídas = pendências` vale em todo balde e está
+                        travada por teste. A faixa dourada É a fila; quando ela afina,
+                        a equipe está ganhando da entrada. */}
                     <ComposedChart data={fluxoDemandas} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                       <XAxis dataKey="rotulo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      {/* Dois eixos porque são duas grandezas: o fluxo anda na casa das
-                          dezenas e a fila na das centenas. Num eixo só, as barras viram
-                          um risco no chão. */}
-                      <YAxis yAxisId="fluxo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
-                      <YAxis yAxisId="fila" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#b08d57' }} allowDecimals={false} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
+                        cursor={{ stroke: '#a3a3a3', strokeWidth: 1 }}
                         contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
                         itemStyle={{ color: '#1a1a1a' }}
                         labelFormatter={(rotulo: string) => {
                           const ponto = fluxoDemandas.find(item => item.rotulo === rotulo);
                           if (!ponto) return rotulo;
                           const dia = (data: Date) => data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                          return granularidadeFluxo === 'semana' ? `${dia(ponto.inicio)} a ${dia(ponto.fim)}` : rotulo;
+                          const intervalo = granularidadeFluxo === 'semana' ? `${dia(ponto.inicio)} a ${dia(ponto.fim)}` : rotulo;
+                          // O movimento da semana continua legível aqui: o acumulado
+                          // mostra a tendência, mas a pergunta do diretor era "20 e 21".
+                          return `${intervalo} · ${ponto.abertas} abertas, ${ponto.saidas} fechadas`;
                         }}
                       />
                       <Legend wrapperStyle={{ paddingTop: '16px' }} />
-                      <Bar yAxisId="fluxo" dataKey="abertas" name="Abertas" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={22}>
-                        <LabelList dataKey="abertas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                      {/* Encerrada e Cancelada empilhadas: as duas saem da fila, e é a
-                          soma que explica a linha. Separadas porque encerrar e desistir
-                          não são a mesma notícia. */}
-                      <Bar yAxisId="fluxo" dataKey="encerradas" name="Encerradas" stackId="saidas" fill="#1a1a1a" barSize={22} />
-                      <Bar yAxisId="fluxo" dataKey="canceladas" name="Canceladas" stackId="saidas" fill="#d4d4d4" radius={[2, 2, 0, 0]} barSize={22}>
-                        <LabelList dataKey="saidas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                      <Line
-                        yAxisId="fila"
+                      <Area
+                        type="monotone"
+                        dataKey="saidasAcumuladas"
+                        name="Já resolvidas (acumulado)"
+                        stackId="acumulado"
+                        stroke="#1a1a1a"
+                        strokeWidth={2}
+                        fill="#1a1a1a"
+                        fillOpacity={0.85}
+                      />
+                      <Area
                         type="monotone"
                         dataKey="pendencias"
-                        name="Pendências (fila)"
+                        name="Ainda na fila"
+                        stackId="acumulado"
                         stroke="#b08d57"
                         strokeWidth={2}
-                        dot={{ r: 3, fill: '#b08d57' }}
-                        activeDot={{ r: 5 }}
+                        fill="#b08d57"
+                        fillOpacity={0.35}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>

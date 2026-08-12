@@ -130,6 +130,32 @@ describe('série de fluxo', () => {
     expect(serie[0].pendencias).toBe(0);
   });
 
+  it('a distância entre as curvas acumuladas É a fila, em todo balde', () => {
+    // Esta identidade é o que o gráfico acumulado desenha: a faixa entre as duas
+    // curvas. Se ela deixar de valer, o gráfico passa a mostrar uma distância que não
+    // significa nada — e continuaria bonito, que é o perigo.
+    const tickets = [
+      os('A', '2026-06-01T09:00:00', '2026-08-04T09:00:00'),
+      os('B', '2026-07-01T09:00:00'),
+      os('C', '2026-08-03T09:00:00', '2026-08-12T09:00:00', 'Cancelada'),
+      os('D', '2026-08-11T09:00:00'),
+    ];
+    const serie = serieDeFluxo(tickets, {
+      inicio: new Date(2026, 6, 20),
+      fim: new Date(2026, 7, 16, 23, 59),
+      granularidade: 'semana',
+    });
+
+    expect(serie.length).toBeGreaterThan(2);
+    for (const ponto of serie) {
+      expect(ponto.abertasAcumuladas - ponto.saidasAcumuladas).toBe(ponto.pendencias);
+    }
+    // Os acumulados carregam o que veio antes da janela: A e B abriram em junho/julho.
+    expect(serie[0].abertasAcumuladas).toBe(2);
+    expect(serie[serie.length - 1].abertasAcumuladas).toBe(4);
+    expect(serie[serie.length - 1].saidasAcumuladas).toBe(2);
+  });
+
   it('janela absurda não trava a tela', () => {
     const serie = serieDeFluxo([], { inicio: new Date(1990, 0, 1), fim: new Date(2090, 0, 1) });
     expect(serie.length).toBeLessThanOrEqual(400);
