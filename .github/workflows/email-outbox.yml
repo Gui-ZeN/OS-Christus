@@ -13,11 +13,18 @@ jobs:
     steps:
       - name: Process pending email deliveries
         env:
-          OUTBOX_URL: ${{ secrets.OUTBOX_URL }}
+          # A URL não é segredo — está no `.env.example` deste repositório PÚBLICO. Ela
+          # ser um secret obrigatório é o que provavelmente deixou 81 avisos de "OS
+          # nova" parados desde 28/07 com `attempts: 0`: sem o secret o job morre na
+          # linha 1, o worker nunca é chamado, e o vermelho de 5 em 5 minutos vira
+          # paisagem. O `gmail-sync`, com a mesma estrutura, roda — então o
+          # `CRON_SECRET` existe e a diferença está aqui.
+          OUTBOX_URL: ${{ secrets.OUTBOX_URL || 'https://serv3.vercel.app/api/email/outbox-worker' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$OUTBOX_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "Missing required secrets: OUTBOX_URL or CRON_SECRET"
+          echo "Chamando: $OUTBOX_URL"
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
             exit 1
           fi
 
