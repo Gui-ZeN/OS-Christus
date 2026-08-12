@@ -43,6 +43,29 @@ function encodeMimeHeader(value) {
   return `=?UTF-8?B?${Buffer.from(input, 'utf8').toString('base64')}?=`;
 }
 
+/**
+ * `From:` com NOME, não só endereço.
+ *
+ * Na caixa de quem recebe aparecia `napa01@christus.com.br` — endereço cru, que não
+ * diz de onde vem nem ajuda a achar depois. Agora sai `Serv3 <napa01@christus.com.br>`.
+ *
+ * O nome sai de `GMAIL_FROM_NAME`, com "Serv3" como padrão: um remetente sem nome é
+ * pior que um nome imperfeito, e ninguém precisa cadastrar nada para melhorar.
+ *
+ * Nome com acento vira `=?UTF-8?B?...?=`; com vírgula ou dois-pontos vai entre aspas,
+ * senão o cabeçalho quebra em dois endereços. O endereço nunca é alterado — só o
+ * rótulo — porque é ele que precisa continuar batendo com o alias "Enviar como".
+ */
+export function buildFromHeader(fromEmail, name = process.env.GMAIL_FROM_NAME) {
+  const endereco = String(fromEmail || '').trim();
+  const rotulo = String(name ?? 'Serv3').trim();
+  if (!endereco || !rotulo) return endereco;
+  const codificado = encodeMimeHeader(rotulo);
+  const precisaAspas = /[",:;<>@()\[\]\\]/.test(codificado);
+  const seguro = precisaAspas ? `"${codificado.replace(/(["\\])/g, '\\$1')}"` : codificado;
+  return `${seguro} <${endereco}>`;
+}
+
 function sanitizeFilename(value) {
   const input = String(value || 'anexo').trim() || 'anexo';
   return input
@@ -245,7 +268,7 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
   const generatedMessageId = `<os-${ticketId || 'msg'}-${Date.now()}-${Math.random().toString(16).slice(2)}@${fromDomain}>`;
 
   const raw = buildRawMessage({
-    from: fromEmail,
+    from: buildFromHeader(fromEmail),
     to: toEmail,
     cc: ccEmail,
     subject,
