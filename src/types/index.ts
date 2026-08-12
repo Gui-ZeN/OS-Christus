@@ -118,6 +118,14 @@ export interface OsBoardFilter {
   /** E-mail do responsável, `all`, ou `none` para "sem responsável". */
   responsible: string;
   showClosed: boolean;
+  /**
+   * Só o bloqueio que impede a OS de avançar. Filtro de primeira classe porque é a
+   * pergunta que a fila faz: 88 das 158 OS paradas não andavam por falta de
+   * classificação, e o selo na linha mostrava o problema sem dar como agrupá-lo.
+   */
+  bloqueadas: boolean;
+  /** `parada` = mais tempo na etapa atual primeiro. `recentes` = mais novas primeiro. */
+  ordem: 'parada' | 'recentes';
 }
 
 export interface InboxFilter {

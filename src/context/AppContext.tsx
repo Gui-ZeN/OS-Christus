@@ -73,6 +73,11 @@ const DEFAULT_OS_BOARD_FILTER: OsBoardFilter = {
   // Encerradas e canceladas ficam FORA por padrão: são 65 das 268 OS, e quem abre
   // a Gestão está olhando o que ainda dá trabalho.
   showClosed: false,
+  bloqueadas: false,
+  // A fila abre pela OS mais parada. A ordem anterior vinha da API e não
+  // significava nada — com 97 OS na mesma etapa, sem ordenação não havia como
+  // perguntar "qual ataco primeiro".
+  ordem: 'parada',
 };
 
 const DEFAULT_FILTER: InboxFilter = {

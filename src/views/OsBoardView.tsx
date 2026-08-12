@@ -7,9 +7,10 @@ import { getTicketSiteLabel } from '../utils/ticketTerritory';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { formatDateTimeSafe } from '../utils/date';
+import { coerceDate, formatDateTimeSafe } from '../utils/date';
 import { matchesSearch } from '../utils/search';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
+import type { Ticket } from '../types';
 import { ConversaModal } from './osboard/ConversaModal';
 import { EtapaModal } from './osboard/EtapaModal';
 import { ResponsavelModal } from './osboard/ResponsavelModal';
@@ -18,6 +19,21 @@ import { repairMojibake } from '../utils/text';
 const ALL = 'all';
 const NONE = 'none';
 const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
+
+/**
+ * Há quanto tempo a OS está NESTA etapa — não a idade dela.
+ *
+ * São perguntas diferentes e a tabela respondia a errada: OS aberta há 40 dias e
+ * movida ontem não está parada há 40 dias. `stageEnteredAt` é carimbado pelo servidor
+ * a cada transição; sem ele (9 OS na produção), cai para a abertura.
+ */
+function diasNaEtapa(ticket: Ticket): string {
+  const desde = coerceDate(ticket.stageEnteredAt, ticket.time);
+  const dias = Math.floor((Date.now() - desde.getTime()) / 86_400_000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return '1 dia';
+  return `${dias} dias`;
+}
 
 /**
  * Quadro de gestão de OS: tabela resumo de TODAS as OS, com filtros por sede,
@@ -37,7 +53,7 @@ export function OsBoardView() {
 
   // O filtro mora no CONTEXTO, não em estado local: esta view desmonta ao abrir
   // uma OS, e com `useState` a seleção se perdia toda vez que a pessoa voltava.
-  const { search, sede, macroService, service, team, status, responsible, showClosed } = osBoardFilter;
+  const { search, sede, macroService, service, team, status, responsible, showClosed, bloqueadas, ordem } = osBoardFilter;
   const setFilter = (patch: Partial<typeof osBoardFilter>) => setOsBoardFilter({ ...osBoardFilter, ...patch });
 
   useEffect(() => {
@@ -107,9 +123,26 @@ export function OsBoardView() {
       // junto o `[SUL 3]`, que foi removido do assunto ao criar a OS. Sem ela na
       // busca, o termo colado nunca casa. Ver src/utils/search.ts.
       const haystack = `${entry.ticket.id} ${repairMojibake(entry.ticket.subject)} ${repairMojibake(entry.ticket.requester || '')} ${entry.siteLabel} ${entry.ticket.sede || ''}`;
+      // "Falta classificar" era visível linha a linha (o selo) e impossível de
+      // agrupar. A fila precisa da pergunta inteira: quais estão travadas AGORA.
+      if (bloqueadas && !bloqueioParaAvancar(entry.ticket)) return false;
       return matchesSearch(haystack, search);
-    });
-  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed]);
+    })
+      .sort((a, b) => {
+        // A ordem anterior vinha da API e não significava nada. Com 97 OS na mesma
+        // etapa, sem ordenação não havia como perguntar "qual ataco primeiro" — e a
+        // resposta operacional é a que está parada há mais tempo NESTA etapa.
+        const quando = (t: Ticket) => coerceDate(t.stageEnteredAt, t.time).getTime();
+        return ordem === 'parada' ? quando(a.ticket) - quando(b.ticket) : quando(b.ticket) - quando(a.ticket);
+      });
+  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed, bloqueadas, ordem]);
+
+  // Conta sobre as OS VIVAS do escopo, não sobre o recorte filtrado: o atalho
+  // precisa dizer quantas existem, e não quantas sobraram do filtro atual.
+  const totalBloqueadas = useMemo(
+    () => decorated.filter(e => isTicketOpen(e.ticket.status) && bloqueioParaAvancar(e.ticket)).length,
+    [decorated]
+  );
 
   const openTicket = (id: string) => {
     setActiveTicketId(id);
@@ -117,9 +150,9 @@ export function OsBoardView() {
   };
 
   const hasActiveFilter =
-    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed;
+    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed || bloqueadas;
   const clearFilters = () =>
-    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false });
+    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false, bloqueadas: false, ordem });
 
   const selectClass =
     'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
@@ -192,6 +225,23 @@ export function OsBoardView() {
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
+        {/* Atalho, não mais um seletor: a pergunta "o que está travado" é a que a
+            fila faz todo dia, e o selo de bloqueio na linha mostrava o problema um a
+            um sem dar como juntá-los. Conta na hora — número fixo mente na semana
+            seguinte. */}
+        <button
+          type="button"
+          onClick={() => setFilter({ bloqueadas: !bloqueadas })}
+          className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm transition-colors ${
+            bloqueadas
+              ? 'border-amber-400 bg-amber-100 text-amber-900'
+              : 'border-roman-border bg-roman-surface text-roman-text-sub hover:border-roman-primary/40 hover:text-roman-text-main'
+          }`}
+          title="OS que não avançam enquanto faltar classificação"
+        >
+          <TriangleAlert size={14} />
+          Travadas ({totalBloqueadas})
+        </button>
         <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-roman-text-sub">
           <input
             type="checkbox"
@@ -238,7 +288,19 @@ export function OsBoardView() {
                 <th className="px-3 py-2.5 font-medium">Equipe</th>
                 <th className="px-3 py-2.5 font-medium">Responsável</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
-                <th className="px-3 py-2.5 font-medium">Atualizado</th>
+                <th className="px-3 py-2.5 font-medium">
+                  {/* Dizia "Atualizado" e mostrava a data de CRIAÇÃO. E data
+                      absoluta não responde a pergunta da fila, que é "há quanto
+                      tempo isto está parado". */}
+                  <button
+                    type="button"
+                    onClick={() => setFilter({ ordem: ordem === 'parada' ? 'recentes' : 'parada' })}
+                    className="inline-flex items-center gap-1 font-medium hover:text-roman-text-main"
+                    title={ordem === 'parada' ? 'Mais paradas primeiro — clique para inverter' : 'Mais recentes primeiro — clique para inverter'}
+                  >
+                    Parada há {ordem === 'parada' ? '↓' : '↑'}
+                  </button>
+                </th>
                 {/* Grudada à direita: se ainda sobrar rolagem em tela estreita, as
                     ações continuam alcançáveis sem arrastar até o fim. */}
                 <th className="sticky right-0 bg-roman-surface px-3 py-2.5 font-medium">Ações</th>
@@ -313,7 +375,12 @@ export function OsBoardView() {
                       </div>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub">{formatDateTimeSafe(ticket.time)}</td>
+                  <td
+                    className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub"
+                    title={`Nesta etapa desde ${formatDateTimeSafe(coerceDate(ticket.stageEnteredAt, ticket.time))} · aberta em ${formatDateTimeSafe(ticket.time)}`}
+                  >
+                    {diasNaEtapa(ticket)}
+                  </td>
                   {/* `stopPropagation` porque a linha inteira abre a OS: sem isso,
                       clicar em "Etapa" abria o modal E navegava para a Inbox — que é
                       exatamente o que estas ações existem para evitar. */}
