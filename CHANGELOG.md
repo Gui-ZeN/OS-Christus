@@ -3,6 +3,115 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-11/12 (o primeiro deploy voltou como captura de tela)
+
+A reforma foi para produção e a produção respondeu. Quase tudo desta rodada é
+conserto do que eu mesmo tinha acabado de subir — e o que não é conserto existe
+para que o próximo relato não vire caça ao fantasma.
+
+### Aviso de chuva — pedido da Thaís, para conferir os pontos de goteira
+
+Chuva **observada**, não previsão. Duas fontes porque nenhuma sozinha resolve:
+**METAR/SPECI do SBFZ** (NOAA, sem chave) responde *quando* — o SPECI sai no
+instante em que a condição muda; **CEMADEN** (12 pluviômetros por bairro)
+responde *onde e quanto*, mas leva 15–60 min. Vale a que chegar primeiro: chuva
+aqui é de bairro, e exigir concordância perderia a pancada isolada — que é
+justamente quando a goteira pinga.
+
+Descartados com motivo medido: **INMET** não tem estação em Fortaleza (a operante
+mais próxima é Guaramiranga, ~100 km — era isso que o HTTP 204 significava);
+**FUNCEME** exige token e a documentação está fora do ar; **Open-Meteo** tem free
+tier **não comercial**.
+
+Três armadilhas dos dados, todas com teste: o painel do CEMADEN **congela** o
+último valor quando a estação cai (um posto marcava 0,39 mm com carimbo de dois
+dias antes — sem corte por idade, reportaria chuva para sempre); os carimbos são
+UTC; e `-` no acumulado é **zero**, não "sem dado". O limiar é 0,4 mm (duas
+básculas) aplicado como *leitura ≥ 0,4 **ou** acumulado da hora ≥ 0,4* — garoa de
+0,2 mm acumula e dispara; báscula solta em hora seca, não.
+
+Dois consertos depois do primeiro corte:
+
+- **Queda de fonte apagava o que se sabia.** `desconhecido` era gravado por cima
+  do último estado bom, e como as fontes caem (o METAR devolveu 502 naquele dia),
+  a sequência virava `não-chovendo → desconhecido → chovendo` — e sair de
+  `desconhecido` **não** conta como "começou". Ou seja: **a primeira chuva depois
+  de qualquer queda passava em silêncio.** Agora leitura boa manda e
+  `desconhecido` preserva; de quebra, queda no MEIO da chuva não produz um
+  segundo "começou" quando a fonte volta.
+- **Quem envia é o servidor**, em `?route=rain-alert`, como os outros três
+  agendados. A primeira versão enviava do script do workflow — seriam dois
+  lugares com credencial do Gmail e duas cópias da mesma regra discordando com o
+  tempo. O script local virou **ensaio**: lê as fontes e mostra o e-mail que
+  sairia, sem enviar nada.
+
+### A recusa também vira registro
+
+Chegou "às vezes ocorrem alguns erros quando atualizamos" e não havia como
+responder: `writeAuditLog` só rodava no caminho de **sucesso**. Toda recusa do
+PATCH morria na tela de quem tentou. Dá para medir 280 OS e provar que só 2 têm
+status divergente do histórico — e não dá para dizer o que falhou para uma pessoa
+numa terça-feira. Agora grava `tickets.update.rejected` com motivo, de → para e
+os campos do patch (404 e 403 ficam fora de propósito). Não conserta o erro do
+relato; torna o próximo diagnosticável.
+
+### O último 500 fixo
+
+`/api/email/health` sem credencial devolvia o texto **certo** ("Token de
+autenticação ausente") com status **500** — quem olhava o código via falha do
+servidor onde havia sessão vencida. Terceira encarnação do mesmo defeito; era o
+último `sendJson(res, 500` do arquivo, agora são zero. Achado por sonda na
+produção depois do deploy, não por teste.
+
+### A tabela da Gestão voltou a caber na tela
+
+Estrago meu: acrescentei duas colunas (Responsável e Ações) numa tabela que já
+tinha nove e não conferi a largura — 11 colunas, rolagem horizontal, e "Ações"
+cortada na borda, justamente a coluna que existe para poupar clique.
+Macrosserviço + Serviço viraram **uma** coluna (são hierárquicos: "Móveis" →
+"Reposição"); Prioridade foi para a linha do solicitante (118 "Trivial" em 278 OS
+não pagam coluna inteira); e o `whitespace-nowrap` do status — também meu, da
+véspera — punha o selo de bloqueio LADO A LADO com o badge da etapa, inflando a
+coluna sozinho. 11 colunas viraram 9 sem perder informação. Medido: 1366px →
+tabela 1310px; 1280px → 1209px. Ações ficou fixa à direita.
+
+### "Não está atualizando o status" — eram três defeitos, todos meus
+
+Dois relatos no mesmo dia (Thiers e o dono), uma captura de tela, e por trás
+**três** causas diferentes — todas herdadas da retirada da aprovação da diretoria,
+por não ter procurado quem mais apontava para as etapas aposentadas.
+
+1. **O parecer técnico apontava para etapa aposentada.** Com diretor selecionado,
+   o envio ia para `WAITING_SOLUTION_APPROVAL`, que saiu do fluxo e o servidor
+   **recusa com 409**. Para essas OS, "Enviar para Aprovação" não movia nada — e
+   os rótulos ainda anunciavam o destino morto. Texto que promete o que o servidor
+   recusa é como se descobre um bug tarde demais.
+2. **OS encerrada ficava congelada.** O seletor vinha `disabled={isClosed}` e o
+   código LOGO ABAIXO montava as opções de reabertura. Duas partes do mesmo
+   arquivo discordando, e a que travava ganhava. Encerrar por engano é comum;
+   ficar preso no engano não pode ser o preço.
+3. **"Cancelar" cancelava a troca inteira, em silêncio.** O diálogo se chama
+   "Avisar o solicitante?" — ali, "Cancelar" se lê como *cancelar o e-mail*, e ele
+   cancelava a **etapa**, sem toast nenhum. A pessoa clica, nada acontece, e
+   conclui que o sistema não deixa alterar. Duas pessoas caíram nisso no mesmo
+   dia. O botão passou a dizer o que faz — **"Não alterar a etapa"** — e desistir
+   deixou de ser mudo: *A etapa continua em "X" — nada foi alterado.*
+
+### O E2E que faltava — e o quarto defeito, achado ao escrevê-lo
+
+Os três tinham em comum não ter teste: o spec de ciclo crítico encerra a OS pelo
+**Financeiro**, e o seletor da Inbox — por onde a operação realmente mexe — nunca
+foi exercitado. Entraram quatro testes, um por defeito mais o caminho normal.
+
+Escrever o teste achou o quarto: o **campo de motivo** continuava preso em
+`isClosed`. Na OS encerrada dava para escolher a nova etapa e não para digitar a
+justificativa obrigatória — o cadeado tinha mudado de lugar, não saído. Sem o
+E2E, isso iria para produção como "consertado". O seletor também ganhou nome
+(`Nova etapa da OS`): sem ele era indistinguível dos filtros da lista, para
+leitor de tela e para teste — o Playwright pegou o filtro em vez dele.
+
+**Suíte: 685 unitários, 9 de integração, 11 E2E (58s), build.**
+
 ## 2026-08-10/11 (o que o uso ensinou: a Inbox assustava, e o rótulo virava álibi)
 
 Duas rodadas guiadas por gente usando o sistema — a primeira por reclamação, a
