@@ -3,6 +3,170 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-12 (as universidades saem da base — e um vazamento de 761 MB aparece)
+
+Pedido: apagar as OS das universidades e do Benfica. **107 OS excluídas** (38% da
+base), a base foi de 284 para 178 e nenhuma sede de universidade ou Benfica restou.
+
+**O critério pedido incluía "tudo que tiver Thais escrito", e medir isso antes
+mudou o escopo.** Das 80 OS com o nome dela, **78 já estavam em universidade ou
+Benfica** — ela coordena a Faculdade, então o nome é sintoma do território, não
+critério. As 2 restantes eram de OUTRAS sedes, onde ela aparece só por estar em
+cópia na thread: uma delas, a OS-0192, é o laudo de uma **trinca em viga estrutural
+do BS**. No sentido inverso, "Thais" cobria só 21 dos 25 do Benfica — usá-la como
+atalho deixaria 4 OS legítimas de pé. O corte final foi por **território**, com
+OS-0192 e OS-0301 preservadas por decisão explícita e gravadas numa lista
+`PRESERVAR`, para que um ajuste futuro no filtro não as ressuscite no alvo.
+
+**A auditoria não serve de backup, e isso precisa estar escrito.** `writeAuditLog`
+trunca `history` nas últimas 8 entradas e, acima de 400 KB, descarta o snapshot
+inteiro gravando `{__audit:'omitido'}` — some justamente nas OS movimentadas. E
+nunca guarda binário. Antes de apagar, backup completo em `_os_backups/`: 107
+pacotes JSON com doc, cinco subcoleções, thread, inbound e eventos, mais 268
+anexos (346 MB). O apagador **se recusa a rodar** sem um backup do mesmo escopo que
+cubra todas as OS-alvo.
+
+**O achado que não estava no pedido.** Durante a exclusão, a trava de escopo
+recusou um path da OS-0126 que apontava para a pasta da OS-0125 — e puxar esse fio
+revelou que a cascata **só apagava do Storage os paths de `attachments[]` e
+`closureChecklist.documents[]`**. Anexo que chega por e-mail vai para
+`attachments/tickets/inbound/<id>/` e é referenciado pelo **histórico**, nunca por
+esses arrays: nenhuma exclusão jamais o apagou. Passivo medido: **459 arquivos,
+761 MB, de 66 OS que já não existiam**, com PII de e-mail de gente real dentro.
+Não era deste lote — toda exclusão pelo botão de Admin vinha deixando esse rastro.
+
+- **A cascata agora varre o bucket pelo prefixo da OS** em vez de confiar na lista
+  do documento, e **descobre** as pastas por tipo em vez de fixá-las numa lista —
+  uma pasta criada amanhã voltaria a vazar. A trava `isPathInTicketScope` continua
+  como rede por arquivo. Coberto por teste, inclusive o caso do `inbound`.
+- **Passivo limpo**: bucket de 1256 para 797 arquivos, zero órfãos.
+
+## 2026-08-12 (a caçada: dez defeitos, e seis deles eram "verde que não faz nada")
+
+Pedido do dono: *"vc consegue se unir ao Sol para caçar bugs, falhas possíveis,
+botões que não fazem nada mas que deveriam fazer?"*. Duas frentes: o gpt-5.6-sol
+lendo o código e eu medindo uso real na produção — botão morto se prova com dado,
+não com leitura. Verifiquei no código tudo o que ele trouxe antes de repassar; um
+dos achados dele não era defeito, e está registrado abaixo.
+
+**O padrão que uniu quase tudo: nenhum desses defeitos gerava erro.** Job
+bem-sucedido sem entregar nada, botão que descarta o resultado, gráfico lendo campo
+vazio, número plausível medindo outra coisa. Foi o que permitiu que durassem semanas.
+
+### A fila de e-mail: eu errei o diagnóstico primeiro
+
+Culpei o `OUTBOX_URL` ausente e commitei com essa hipótese. **Estava errado**: a API
+pública do GitHub mostra o workflow *Email Outbox* com **277 execuções, todas com
+sucesso**. O agendamento e o segredo sempre estiveram certos.
+
+O defeito real é pior. Quando o despacho falhava, `processEmailOutboxBatch` devolvia
+`failed: N` **no corpo da resposta HTTP e não tocava no documento**: `attempts` ficava
+em 0, `status` em `pending`, o item voltava idêntico à fila, e a rota respondia 200 —
+então o Actions ficava verde. Retry, backoff e dead-letter existiam e eram testados,
+mas **nunca engatavam**: tudo neles depende de campos que só a outra ponta escrevia.
+`markEmailOutboxFailed` exige `leaseToken`, que só nasce depois da reivindicação;
+falha antes disso não tinha quem registrasse.
+
+Resultado: **85 avisos de OS nova parados desde 28/07** — 47 OS, 8 gestores —
+crescendo na frente (66 na semana passada, 81 pela manhã, 85 à tarde). Nenhum gestor
+soube de OS nova por e-mail em 15 dias.
+
+Agora a tentativa fica gravada, com backoff e dead-letter alertado. **Isto não conserta
+a causa; torna a causa visível** — que era exatamente o que faltava para 15 dias
+passarem sem ninguém saber. O teste de integração reprova o comportamento antigo: com
+a gravação desligada, 5 das 8 verificações falham.
+
+### Volume de e-mail: um aviso por pessoa virava sete
+
+*"Se tiver 30 em cópia serão 30 e-mails e não 1?"*. Para a conversa com o solicitante,
+não: 30 em cópia = 1 e-mail. Para o **aviso ao gestor**, era um documento por (OS,
+gestor) e a entrega lia `recipients[0]` — 4 e-mails idênticos sobre a mesma OS no pior
+caso medido, e a região Benfica tem **7 gestores** no escopo. A chave por destinatário
+existia para idempotência, não porque envios separados fossem desejáveis. Agora é um
+item por OS com todos juntos; a chave continua determinística, por OS.
+
+### As correções da tela
+
+- **Quatro botões da Hoje descartavam o resultado** (`void onCorrigir(...)`). Como o
+  `updateTicket` é otimista e reverte ao falhar, a sugestão sumia e **reaparecia** sem
+  nenhuma mensagem — só o console sabia.
+- **O checkbox "avisar quem abriu" era aceito e ignorado** em seis etapas internas. A
+  regra de não notificar é deliberada; o defeito era oferecer a escolha e sobrepô-la em
+  silêncio. Agora o checkbox só aparece quando o e-mail sai de fato.
+- **A regra de quem avisa existia em dois lugares** (`CUSTOMER_FACING_STATUSES` na Inbox
+  e `shouldNotifyRequesterForStatus` no serviço). Não se contradiziam ainda, mas listas
+  irmãs não envelhecem juntas. Uma função só. A triagem não mudou — ela tem caminho
+  próprio, e acrescentar um clique na ação mais frequente seria preço alto por
+  consistência.
+- **O remetente ganhou nome**: `Serv3 <napa01@christus.com.br>` em vez do endereço cru.
+  O endereço não muda — é ele que precisa bater com o alias "Enviar como".
+
+### A tela Hoje enxergava 4 de 116
+
+As regras de atenção são de **tempo** ("parada há 7 dias"); o recálculo nascia de
+**evento**. OS que fica parada não gera evento — a população que as regras existem para
+pegar era a única que nunca era recalculada. Medido: as regras apontavam **116 OS** e
+havia **4 gravadas**, todas de e-mail recebido nas 48 h anteriores.
+
+Entrou varredura diária às 06h de Fortaleza, que **pagina até o fim** — sem o laço,
+cobriria só as 50 primeiras por id. Duas guardas contra o modo de falha da casa: a
+resposta é lida com `node` e não `jq` (com `jq` ausente o cursor sairia vazio, o laço
+encerraria na página 1 e o job ficaria **verde** dizendo "0 OS"), e ler zero OS **falha**
+o job.
+
+### Dois números do painel mediam outra coisa
+
+- **"Tempo médio por etapa" media a idade da OS.** Usava `daysBetween(ticket.time,
+  hoje)` — desde a abertura. Uma OS aberta há 40 dias e movida para execução hoje
+  aparecia com 40 dias de execução, e o campo certo (`stageEnteredAt`) já era carimbado
+  pelo servidor desde 11/08. A diferença não é pequena: Orçamento **19 → 10 dias**,
+  Execução **26 → 13**. O meio do fluxo era mostrado com quase o dobro.
+
+  Trocar o campo não bastava: só 6 das 117 OS vivas tinham o carimbo, porque ele nasce
+  quando a OS **se move** e a fila é feita de OS que não se movem. O backfill recuperou
+  101 de 110, de três fontes: transição registrada, **triagem** (para as 89 paradas em
+  Parecer Técnico que nunca saíram) e criação — esta só quando não houve transição
+  nenhuma e a etapa é uma em que a OS pode nascer. Antes de aplicar, conferi que as
+  datas de triagem são reais e não artefato: 107 são do mesmo gestor, espalhadas por 15
+  dias, com intervalos de 1–2 min. Migração teria ator de sistema e carimbo único.
+- **Cancelada contava como "em aberto"** no gráfico por sede: era `status === Encerrada
+  ? fechadas : abertas`. O total somava certo e só a cor mentia.
+- **Encerrada com parcela pendente ia para "Histórico"** (aba chamada "Quitadas"), sem
+  olhar saldo. Zero OS afetadas hoje — o defeito esperava o primeiro caso real.
+
+### O botão que levava sempre a uma tela vazia
+
+A Inbox dizia que cotação, contrato, medição e pagamento "seguem no Financeiro" e
+oferecia **"Abrir em Financeiro"**. Medido: 12 OS em "Aguardando Orçamento", 3 com
+contexto financeiro, **zero visíveis** no Financeiro — a tela exige contexto financeiro
+prévio *e* uma etapa que não inclui orçamento. E não há onde lançar cotação desde 07/08.
+
+Caminho que existe e não chega a lugar nenhum é pior que caminho nenhum: os dois
+cliques "funcionam", então a pessoa conclui que a OS sumiu, não que o botão está
+errado. Decisão do dono: **o botão sai da tela**.
+
+### O que descartei do que o Sol trouxe
+
+- **O editor de cotações órfão** (11 componentes, `saveQuotes` sem chamador) ele
+  classificou como defeito. Não é: o commit `f7493ce` removeu o fluxo financeiro da
+  Inbox **de propósito**, com o motivo medido, e diz textualmente que os componentes
+  ficam como única cópia caso o financeiro volte. Dívida assumida.
+- **Etapas aposentadas na tela pública** — parecia repetição do bug de ontem, mas é
+  reconstrução do histórico: OS antigas passaram por elas.
+- **Visita de fornecedor não dispara pergunta à sede** — não verifiquei o mecanismo, mas
+  medi o alcance: **0 compromissos** existem. A funcionalidade nunca foi usada.
+
+### E uma limpeza que quase virou 22 incidentes
+
+A coordenadora pediu a exclusão das OS da universidade (solicitantes abrindo
+duplicadas) e **105 OS saíram do banco** — de 282 para 177. Depois disso, 22 dos 85
+avisos enfileirados apontavam para OS que não existem mais. Com a correção acima, cada
+um seria retentado seis vezes e viraria um alerta de "falha definitiva" para Admin e
+Gestor. Agora OS ausente (404) encerra o item com `obsolete: true` e o motivo escrito:
+some da fila, continua auditável, não acorda ninguém.
+
+**708 unitários, 12 verificações de integração (novas), 11 E2E, build.**
+
 ## 2026-08-12 (a fila ganha linha do tempo — e um gráfico para de mentir)
 
 Pedido do diretor, na formulação dele: *"na semana passada foram abertas 20 e
