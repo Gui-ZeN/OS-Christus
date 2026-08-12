@@ -48,6 +48,7 @@ import { detectAuthorization } from './_lib/authorization.js';
 import { recomputeOperationalAttention } from './_lib/operationalAttention.js';
 import { detectBounce } from './_lib/bounce.js';
 import { parseTicketId, stripReplyForwardPrefixes, parseNewTicketSubjectCandidates, isLikelyThreadReply } from './_lib/inboundSubject.js';
+import { findDeletedTicketForInbound } from './_lib/deletedTickets.js';
 import {
   filterCopyRecipients as filterCopyRecipientsPure,
   firstEmail,
@@ -875,8 +876,24 @@ async function processGmailInboundMessage(db, msg, source) {
     if (!explicitTicketId && !referencedTicketId && isLikelyThreadReply(msg)) {
       referencedTicketId = await resolveTicketIdByRequesterSubject(db, fromEmail, msg.subject);
     }
+
+    // A OS desta conversa foi APAGADA. Sem esta consulta, a resposta vira OS nova —
+    // sem histórico, ressuscitando o que alguém decidiu excluir. Aconteceu em 12/08:
+    // 105 OS da universidade saíram a pedido da coordenadora e horas depois um
+    // "Ciente. @Fulano, você tem alguém que faça esse serviço?" nasceu como OS-0331.
+    //
+    // Vai para a fila de e-mail solto, não para o lixo: quem apagou pode ter apagado
+    // errado, e abrir OS a partir dali é decisão de gente. O sistema registra.
+    const lapide = explicitTicketId || referencedTicketId
+      ? null
+      : await findDeletedTicketForInbound(db, {
+          threadId: msg.threadId,
+          inReplyTo: msg.inReplyTo,
+          references: msg.references,
+        }).catch(() => null);
+
     const createdTicket =
-      explicitTicketId || referencedTicketId ? null : await createTicketFromInbound(db, msg);
+      explicitTicketId || referencedTicketId || lapide ? null : await createTicketFromInbound(db, msg);
     const ticketId = explicitTicketId || referencedTicketId || createdTicket?.id;
     if (!ticketId) {
       // Antes isto era um descarte MUDO: e-mail com [SEDE] desconhecida (ou sem
@@ -889,7 +906,9 @@ async function processGmailInboundMessage(db, msg, source) {
         fromEmail: fromEmail || null,
         subject: msg.subject || '',
         messageId,
-        error: 'Nenhuma OS: assunto sem [SEDE] reconhecida e sem vínculo com OS existente.',
+        error: lapide
+          ? `A OS desta conversa (${lapide.ticketId}) foi apagada — a resposta não virou OS nova.`
+          : 'Nenhuma OS: assunto sem [SEDE] reconhecida e sem vínculo com OS existente.',
       });
       // ...e também numa coleção PRÓPRIA. Pescar isto de dentro de emailEvents não
       // funciona: são 8,7 mil eventos, dominados por `sync`, e qualquer consulta com
@@ -917,7 +936,10 @@ async function processGmailInboundMessage(db, msg, source) {
             // Quem resolver a fila precisa saber disso.
             attachmentCount: Array.isArray(msg.attachments) ? msg.attachments.length : 0,
             attachments: anexosGuardados,
-            reason: 'sem-sede-e-sem-vinculo',
+            // O motivo importa para quem resolve a fila: "sem sede" pede triagem,
+            // "OS apagada" pede decisão sobre reabrir um assunto encerrado de propósito.
+            reason: lapide ? 'os-apagada' : 'sem-sede-e-sem-vinculo',
+            deletedTicketId: lapide ? lapide.ticketId : null,
             status: 'pendente',
             receivedAt: msg.internalDate || new Date(),
             createdAt: new Date(),

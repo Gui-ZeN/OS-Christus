@@ -12,6 +12,7 @@ import {
   serializeCommitmentForApi,
   validateConfirmation,
 } from './_lib/commitments.js';
+import { collectMessageIds, recordDeletedTicket } from './_lib/deletedTickets.js';
 import { toDateOrNull } from './_lib/dates.js';
 import {
   ATTENTION_RULE_VERSION,
@@ -571,24 +572,46 @@ function isPathInTicketScope(path, ticketId) {
   return parts.length > 4 && parts[0] === 'attachments' && parts[1] === 'tickets' && parts[3] === ticketId;
 }
 
-async function deleteStoragePaths(paths, ticketId) {
-  if (!Array.isArray(paths) || paths.length === 0) return 0;
+/**
+ * Apaga os arquivos da OS VARRENDO o bucket pelo prefixo dela — não a lista de
+ * paths do documento.
+ *
+ * A versão anterior lia só `attachments[]` e `closureChecklist.documents[]`. Mas
+ * anexo que chega por e-mail é gravado em `attachments/tickets/inbound/<id>/` e fica
+ * referenciado pelo HISTÓRICO, nunca por aqueles arrays — então nenhuma exclusão
+ * jamais o apagava. O passivo limpo em 12/08/2026 era de 459 arquivos e 761 MB de
+ * OS que já não existiam, com PII de e-mail de gente real dentro.
+ *
+ * A varredura mantém a mesma trava (`isPathInTicketScope`): o prefixo já limita à
+ * pasta da OS, e a checagem por arquivo é a rede embaixo dela.
+ */
+export async function deleteTicketStorageFolder(ticketId) {
+  if (!ticketId) return 0;
   const bucket = getStorage().bucket();
-  let deleted = 0;
 
-  for (const rawPath of paths) {
-    const path = String(rawPath || '').trim();
-    if (!path) continue;
-    if (!isPathInTicketScope(path, ticketId)) {
-      console.error('[tickets] path de anexo fora do escopo da OS recusado na exclusão', { ticketId, path });
-      continue;
-    }
-    try {
-      await bucket.file(path).delete({ ignoreNotFound: true });
-      deleted += 1;
-    } catch (error) {
-      // Não interrompe a exclusão da OS, mas registra: o arquivo pode ficar órfão.
-      console.error('[tickets] falha ao apagar anexo do Storage', path, error);
+  // As pastas por tipo (inbound, messages, quotes, contracts…) são DESCOBERTAS, e não
+  // fixadas numa lista: uma pasta nova criada amanhã voltaria a vazar arquivo órfão.
+  const [, , resposta] = await bucket.getFiles({
+    prefix: 'attachments/tickets/',
+    delimiter: '/',
+    autoPaginate: false,
+  });
+
+  let deleted = 0;
+  for (const pasta of resposta?.prefixes || []) {
+    const [files] = await bucket.getFiles({ prefix: `${pasta}${ticketId}/` });
+    for (const file of files) {
+      if (!isPathInTicketScope(file.name, ticketId)) {
+        console.error('[tickets] path de anexo fora do escopo da OS recusado na exclusão', { ticketId, path: file.name });
+        continue;
+      }
+      try {
+        await file.delete({ ignoreNotFound: true });
+        deleted += 1;
+      } catch (error) {
+        // Não interrompe a exclusão da OS, mas registra: o arquivo pode ficar órfão.
+        console.error('[tickets] falha ao apagar anexo do Storage', file.name, error);
+      }
     }
   }
 
@@ -673,12 +696,6 @@ export async function deleteTicketCascade(db, ticketId) {
   }
 
   const ticketData = ticketSnap.data() || {};
-  const rootAttachments = Array.isArray(ticketData?.attachments)
-    ? ticketData.attachments.map(item => item?.path).filter(Boolean)
-    : [];
-  const closureDocuments = Array.isArray(ticketData?.closureChecklist?.documents)
-    ? ticketData.closureChecklist.documents.map(item => item?.path).filter(Boolean)
-    : [];
 
   const [quotesDeleted, contractsDeleted, paymentsDeleted, measurementsDeleted, historyEntriesDeleted] = await Promise.all([
     deleteSubcollection(ticketRef, 'quotes'),
@@ -689,12 +706,40 @@ export async function deleteTicketCascade(db, ticketId) {
   ]);
 
   const threadRef = db.collection('emailThreads').doc(ticketId);
+
+  // LÁPIDE, antes de apagar: a conversa continua viva na caixa de quem participou
+  // dela, e a primeira resposta faria o inbound criar uma OS NOVA — sem histórico,
+  // ressuscitando o trabalho que alguém decidiu apagar. Só identificadores técnicos;
+  // conteúdo aqui derrotaria o propósito de excluir.
+  try {
+    const [threadSnap, mensagensSnap, inboundSnap] = await Promise.all([
+      threadRef.get(),
+      threadRef.collection('messages').limit(200).get(),
+      db.collection('ticketInbound').where('ticketId', '==', ticketId).limit(200).get(),
+    ]);
+    const thread = threadSnap.exists ? threadSnap.data() || {} : {};
+    await recordDeletedTicket(db, {
+      ticketId,
+      gmailThreadId: thread.gmailThreadId,
+      messageIds: collectMessageIds([
+        thread.lastMessageId,
+        thread.rootMessageId,
+        thread.references,
+        mensagensSnap.docs.map(doc => doc.data()?.messageId),
+        inboundSnap.docs.map(doc => doc.data()?.messageId),
+      ]),
+    });
+  } catch (error) {
+    // Best-effort: a lápide não pode impedir a exclusão que alguém pediu.
+    console.error('[tickets] falha ao registrar lápide da OS apagada', ticketId, error);
+  }
+
   const [threadMessagesDeleted, inboundDeleted, emailEventsDeleted, preferenceEventsDeleted, filesDeleted] = await Promise.all([
     deleteSubcollection(threadRef, 'messages'),
     deleteCollectionDocs(db.collection('ticketInbound').where('ticketId', '==', ticketId)),
     deleteCollectionDocs(db.collection('emailEvents').where('ticketId', '==', ticketId)),
     deleteCollectionDocs(db.collection('vendorPreferenceEvents').where('ticketId', '==', ticketId)),
-    deleteStoragePaths([...rootAttachments, ...closureDocuments], ticketId),
+    deleteTicketStorageFolder(ticketId),
   ]);
 
   await Promise.all([
