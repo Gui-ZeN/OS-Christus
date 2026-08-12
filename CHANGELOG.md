@@ -3,6 +3,58 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-12 (a fila ganha linha do tempo — e um gráfico para de mentir)
+
+Pedido do diretor, na formulação dele: *"na semana passada foram abertas 20 e
+fechadas 21; tínhamos 200 e agora 199"*.
+
+**O gráfico que já existia respondia metade disso, e respondia errado.** Ele lia a
+data de fechamento de `closureChecklist.closedAt` — campo vazio em **92 de 92** OS
+fechadas na produção, porque o checklist de encerramento tem **0 usos em 61
+encerramentos**. A barra "Encerradas" mostrava **zero desde sempre** e ninguém
+notou: zero parece um mês fraco, não um campo vazio.
+
+Medi antes de desenhar. O histórico tem a data em **92 de 92** (`"Transição manual
+via chat: … -> Encerrada"`), nenhuma sem, nenhuma impossível, mediana de **21 dias**
+entre abrir e fechar.
+
+- **`closedAt` carimbado pelo servidor** na transição, junto do `stageEnteredAt` e
+  pela mesma razão: sair da fila é um evento, e evento que depende de a tela lembrar
+  de mandar não acontece. **Reabrir limpa o campo** — desde ontem dá para tirar uma
+  OS de "Encerrada", e sem isso ela ficaria viva na tela e morta no gráfico.
+- **Backfill** das 92 a partir do histórico. Lê texto, o que as regras não fazem de
+  propósito; aqui é aceitável porque é script de uma vez só sobre frases que o
+  próprio sistema escreveu. Se não achar, **não inventa**: deixa sem data e reporta.
+  Uma OS fechada sem data aparece como pendência, o que é honesto; data inventada
+  vira linha bonita e mentirosa.
+
+O gráfico separa as duas naturezas, porque são duas perguntas diferentes: **fluxo**
+(barras, por semana — o que entrou e saiu *dentro* da semana) e **estoque** (linha,
+em eixo próprio — o que existe *no fim* dela). O estoque anda na casa das centenas e
+o fluxo nas dezenas; num eixo só, as barras viram um risco no chão.
+
+Duas decisões que parecem detalhe e não são:
+
+- **O estoque é calculado sobre a base inteira** e só depois recortado para a janela.
+  Calcular sobre as OS da janela faria a linha começar em zero toda vez que alguém
+  filtrasse "último mês" — e uma linha de pendências que começa em zero não mostra
+  pendência, mostra o filtro. Tem teste.
+- **O gráfico ignora o filtro de etapa.** Etapa é o estado de hoje; a OS que hoje
+  está "Encerrada" estava "Em andamento" na semana passada. Filtrar série temporal
+  por estado atual responde pergunta que ninguém fez.
+
+Acima do gráfico ficou a frase que se lê em cinco segundos: *"No período: 29 abertas
+e 33 encerradas — a fila foi de 20 para 16 (4 a menos)."* Encerradas e canceladas
+aparecem empilhadas: as duas saem da fila, mas encerrar e desistir não são a mesma
+notícia.
+
+**Verificado no emulador** com 8 semanas de histórico semeado: a conta da tela e uma
+contagem independente feita direto no banco deram o mesmo número (29 abertas, 33
+saídas, fila 20 → 16). O PDF gerencial passou a sair da **mesma** conta — duas contas
+para a mesma pergunta acabariam discordando, e o PDF é o que sai da empresa.
+
+**693 unitários (8 novos), 9 de integração, 11 E2E, build.**
+
 ## 2026-08-11/12 (o primeiro deploy voltou como captura de tela)
 
 A reforma foi para produção e a produção respondeu. Quase tudo desta rodada é
