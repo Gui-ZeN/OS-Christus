@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList } from 'recharts';
+import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList, ComposedChart, Line } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
@@ -10,6 +10,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { parseCurrency } from '../utils/currency';
@@ -412,28 +413,53 @@ export function KpiView() {
     });
   }, [filteredTickets]);
 
-  const tendenciaMensal = useMemo(() => {
-    const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' });
-    const monthBuckets = buildMonthBuckets(periodRange.start, periodRange.end, formatter);
-    const months = new Map<string, { name: string; abertas: number; encerradas: number }>(
-      monthBuckets.map(bucket => [bucket.key, { name: bucket.label, abertas: 0, encerradas: 0 }])
-    );
-
-    const ensureBucket = (date: Date) => months.get(buildMonthKey(date));
-
-    for (const ticket of filteredTickets) {
-      const openBucket = ensureBucket(ticket.time);
-      if (openBucket) openBucket.abertas += 1;
-
-      const closedAt = ticket.closureChecklist?.closedAt || ticket.guarantee?.startAt;
-      if (closedAt instanceof Date) {
-        const closedBucket = ensureBucket(closedAt);
-        if (closedBucket) closedBucket.encerradas += 1;
+  /**
+   * A base do gráfico de fluxo: os mesmos filtros da tela, MENOS data e MENOS etapa.
+   *
+   * Data sai porque `periodTickets` recorta por data de ABERTURA — usá-lo perderia
+   * todo fechamento de OS aberta antes da janela, que é a maioria (mediana de 21 dias
+   * entre abrir e fechar), e a linha de pendências começaria em zero.
+   *
+   * Etapa sai porque etapa é atributo de AGORA, não de então: a OS que hoje está
+   * "Encerrada" estava "Em andamento" na semana passada. Filtrar uma série temporal
+   * pelo estado atual responde uma pergunta que ninguém fez.
+   */
+  const ticketsDoEscopo = useMemo(() => {
+    return tickets.filter(ticket => {
+      if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
+      if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
+      if (selectedPriority !== 'all' && ticket.priority !== selectedPriority) return false;
+      if (selectedTeam !== 'all' && repairMojibake(ticket.assignedTeam || '') !== selectedTeam) return false;
+      if (selectedVendor !== 'all') {
+        const vendor = contractsByTicket[ticket.id]?.vendor || '';
+        if (vendor !== selectedVendor) return false;
       }
-    }
+      return true;
+    });
+  }, [contractsByTicket, regions, selectedRegion, selectedSite, selectedPriority, selectedTeam, selectedVendor, sites, tickets]);
 
-    return monthBuckets.map(bucket => months.get(bucket.key) || { name: bucket.label, abertas: 0, encerradas: 0 });
-  }, [filteredTickets, periodRange.end, periodRange.start]);
+  const fluxoDemandas = useMemo(
+    () => serieDeFluxo(ticketsDoEscopo, { inicio: periodRange.start, fim: periodRange.end }),
+    [periodRange.end, periodRange.start, ticketsDoEscopo]
+  );
+
+  const resumoFluxo = useMemo(() => resumoDoFluxo(fluxoDemandas), [fluxoDemandas]);
+
+  const granularidadeFluxo = useMemo(
+    () => granularidadeSugerida(periodRange.start, periodRange.end),
+    [periodRange.end, periodRange.start]
+  );
+
+  // O PDF gerencial continua mensal e com o formato que o servidor espera. Vem da
+  // MESMA conta do gráfico da tela — duas contas para a mesma pergunta acabariam
+  // discordando, e o relatório impresso é o que sai da empresa.
+  const tendenciaMensal = useMemo(() => {
+    return serieDeFluxo(ticketsDoEscopo, {
+      inicio: periodRange.start,
+      fim: periodRange.end,
+      granularidade: 'mes',
+    }).map(ponto => ({ name: ponto.rotulo, abertas: ponto.abertas, encerradas: ponto.encerradas }));
+  }, [periodRange.end, periodRange.start, ticketsDoEscopo]);
 
   const agingBuckets = useMemo(() => {
     const buckets = [
@@ -1278,27 +1304,70 @@ export function KpiView() {
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Tendência mensal: abertura x encerramento</h2>
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">
+                  Fluxo de demandas: o que entrou, o que saiu, o que sobrou
+                </h2>
+                {/* A frase que o gráfico existe para dizer. Quem só tem trinta segundos
+                    lê esta linha e já sabe se a fila cresceu ou encolheu. */}
+                <p className="text-sm text-roman-text-sub mt-1 mb-5">
+                  No período: <strong className="text-roman-text-main">{resumoFluxo.abertas}</strong> abertas e{' '}
+                  <strong className="text-roman-text-main">{resumoFluxo.saidas}</strong> encerradas — a fila foi de{' '}
+                  <strong className="text-roman-text-main">{resumoFluxo.pendenciasInicio}</strong> para{' '}
+                  <strong className="text-roman-text-main">{resumoFluxo.pendenciasFim}</strong>
+                  {resumoFluxo.saldo === 0
+                    ? ' (empate).'
+                    : resumoFluxo.saldo > 0
+                      ? ` (${resumoFluxo.saldo} a mais).`
+                      : ` (${Math.abs(resumoFluxo.saldo)} a menos).`}
+                  <span className="block text-xs text-roman-text-sub/80 mt-1">
+                    Barras por {granularidadeFluxo === 'semana' ? 'semana' : 'mês'}; a linha é a fila acumulada, que
+                    carrega o que vem de antes do período. Não segue o filtro de etapa — etapa é o estado de hoje, e
+                    o gráfico é histórico.
+                  </span>
+                </p>
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <BarChart data={tendenciaMensal} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <ComposedChart data={fluxoDemandas} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} allowDecimals={false} />
+                      <XAxis dataKey="rotulo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                      {/* Dois eixos porque são duas grandezas: o fluxo anda na casa das
+                          dezenas e a fila na das centenas. Num eixo só, as barras viram
+                          um risco no chão. */}
+                      <YAxis yAxisId="fluxo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <YAxis yAxisId="fila" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#b08d57' }} allowDecimals={false} />
                       <Tooltip
                         cursor={{ fill: '#f5f5f5' }}
                         contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
                         itemStyle={{ color: '#1a1a1a' }}
-                        formatter={(value: number, name: string) => [`${value}`, name === 'abertas' ? 'Abertas' : 'Encerradas']}
+                        labelFormatter={(rotulo: string) => {
+                          const ponto = fluxoDemandas.find(item => item.rotulo === rotulo);
+                          if (!ponto) return rotulo;
+                          const dia = (data: Date) => data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                          return granularidadeFluxo === 'semana' ? `${dia(ponto.inicio)} a ${dia(ponto.fim)}` : rotulo;
+                        }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="abertas" name="Abertas" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24}>
+                      <Legend wrapperStyle={{ paddingTop: '16px' }} />
+                      <Bar yAxisId="fluxo" dataKey="abertas" name="Abertas" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={22}>
                         <LabelList dataKey="abertas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
-                      <Bar dataKey="encerradas" name="Encerradas" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24}>
-                        <LabelList dataKey="encerradas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
+                      {/* Encerrada e Cancelada empilhadas: as duas saem da fila, e é a
+                          soma que explica a linha. Separadas porque encerrar e desistir
+                          não são a mesma notícia. */}
+                      <Bar yAxisId="fluxo" dataKey="encerradas" name="Encerradas" stackId="saidas" fill="#1a1a1a" barSize={22} />
+                      <Bar yAxisId="fluxo" dataKey="canceladas" name="Canceladas" stackId="saidas" fill="#d4d4d4" radius={[2, 2, 0, 0]} barSize={22}>
+                        <LabelList dataKey="saidas" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
-                    </BarChart>
+                      <Line
+                        yAxisId="fila"
+                        type="monotone"
+                        dataKey="pendencias"
+                        name="Pendências (fila)"
+                        stroke="#b08d57"
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: '#b08d57' }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </div>

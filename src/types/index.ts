@@ -236,6 +236,15 @@ export interface Ticket {
    * aparente com semântica errada.
    */
   stageEnteredAt?: string | Date | null;
+  /**
+   * Quando a OS saiu da fila (Encerrada ou Cancelada). `null` enquanto está viva.
+   *
+   * É o que torna possível responder "quantas abriram e quantas fecharam na semana
+   * passada". Antes disso a única data de fechamento era `closureChecklist.closedAt`,
+   * preenchida em ZERO das 92 OS fechadas — o gráfico de tendência lia dela e
+   * mostrava encerradas = 0 desde sempre.
+   */
+  closedAt?: string | Date | null;
   type: string;
   macroServiceId?: string;
   macroServiceName?: string;

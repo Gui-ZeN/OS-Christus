@@ -38,7 +38,10 @@ import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
-import { canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
+import { TICKET_STATUS, canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
+
+/** As duas saídas da fila. Cancelada conta: a OS deixa de ser pendência do mesmo jeito. */
+const CLOSED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
@@ -1545,6 +1548,24 @@ export default async function handler(req, res) {
           // etapa" são perguntas diferentes, e responder as duas com o mesmo carimbo
           // dá precisão aparente com semântica errada.
           payload.stageEnteredAt = new Date();
+
+          // Quando a OS SAIU da fila. Carimbado aqui pela mesma razão do
+          // `stageEnteredAt`: sair da fila é um evento, e evento que depende de a
+          // tela lembrar de mandar não acontece.
+          //
+          // Existia um candidato — `closureChecklist.closedAt` — e ele estava vazio
+          // em 92 de 92 OS fechadas na produção, porque o checklist de encerramento
+          // tem 0 usos em 61 encerramentos. O gráfico de tendência lia desse campo e
+          // por isso mostrava ZERO encerradas desde sempre, sem ninguém notar.
+          //
+          // Limpa ao REABRIR: desde hoje dá para tirar uma OS de "Encerrada", e sem
+          // isto ela ficaria fora da contagem de pendências para sempre — viva na
+          // tela e morta no gráfico.
+          if (CLOSED_STATUSES.has(updates.status)) {
+            payload.closedAt = payload.stageEnteredAt;
+          } else if (CLOSED_STATUSES.has(data.status)) {
+            payload.closedAt = null;
+          }
         }
 
         if (Array.isArray(updates.history)) {

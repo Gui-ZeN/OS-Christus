@@ -36,6 +36,7 @@ type ApiTicket = Omit<
   }) | null;
   lastInboundAt?: string | null;
   lastOutboundAt?: string | null;
+  closedAt?: string | null;
   viewingBy?: { name: string; at: string } | null;
   history: Array<Omit<Ticket['history'][number], 'time'> & { time: string }>;
   preliminaryActions?: Omit<PreliminaryActions, 'materialEta' | 'plannedStartAt' | 'actualStartAt' | 'updatedAt'> & {
@@ -179,6 +180,7 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
       : null,
     lastInboundAt: ticket.lastInboundAt ? coerceDate(ticket.lastInboundAt) : null,
     lastOutboundAt: ticket.lastOutboundAt ? coerceDate(ticket.lastOutboundAt) : null,
+    closedAt: ticket.closedAt ? coerceDate(ticket.closedAt) : null,
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
     history: ticket.history.map(item => ({
       ...item,
