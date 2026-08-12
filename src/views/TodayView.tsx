@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CalendarClock, CircleAlert, Clock, Hourglass, PauseCircle, Search, UserRound } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
+import { FloatingToast } from '../components/ui/FloatingToast';
 import { useApp } from '../context/AppContext';
 import {
   AGENDA_GROUP,
@@ -116,6 +118,7 @@ function emDias(base: Date, dias: number, hora: number): Date {
 
 export function TodayView() {
   const { tickets, navigateTo, setActiveTicketId, updateTicket, currentUser, osBoardFilter, setOsBoardFilter } = useApp();
+  const { toast, showToast } = useToast();
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<string | null>(null);
   // Compromissos vivem fora do `tickets` (uma visita atende várias OS) e por isso não
@@ -203,8 +206,11 @@ export function TodayView() {
     dueAt?: Date
   ) => {
     const sourceId = ticket.operationalAttention?.sourceId;
-    if (!sourceId) return false;
-    return updateTicket(ticket.id, {
+    if (!sourceId) {
+      showToast('Esta sugestão não tem origem registrada — recarregue a página.', 4000);
+      return false;
+    }
+    const ok = await updateTicket(ticket.id, {
       attentionOverride: {
         sourceId,
         dismissed: resolution !== 'adiado',
@@ -214,6 +220,14 @@ export function TodayView() {
         changedAt: new Date(),
       },
     });
+    // O aviso mora AQUI, e não em cada botão, porque a falha é invisível de um jeito
+    // particularmente cruel: `updateTicket` é otimista, então o cartão some na hora e
+    // volta quando o PATCH falha e o estado é revertido. Sem esta linha, a pessoa vê a
+    // sugestão piscar e voltar, clica de novo, e nada explica nada.
+    if (!ok) {
+      showToast(`Não foi possível registrar em ${ticket.id} — a sugestão continua na pauta.`, 5000);
+    }
+    return ok;
   };
 
   /**
@@ -389,6 +403,7 @@ export function TodayView() {
           <p className="p-10 text-center text-roman-text-sub">Nenhuma OS carregada.</p>
         )}
       </div>
+      <FloatingToast message={toast} />
     </div>
   );
 }
