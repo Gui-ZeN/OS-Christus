@@ -109,6 +109,26 @@ const alerta = await db.collection('notifications').doc(`outbox-${idUltima}`).ge
 check('esgotado vira dead-letter', morto.status === 'dead-letter', `status=${morto.status}`);
 check('e alguém é avisado', alerta.exists, alerta.exists ? alerta.data().title : 'sem notificação');
 
+// --- 4. OS apagada encerra o item, SEM alarme ------------------------------------
+// A coordenadora pediu a exclusao das OS da universidade e 105 sairam do banco; 22
+// avisos enfileirados passaram a apontar para o vazio. Retentar seis vezes e alarmar
+// seria transformar uma exclusao deliberada em 22 incidentes.
+const idSemOs = `${PREFIX}semos`;
+await semear(idSemOs);
+
+await processEmailOutboxBatch({
+  db,
+  dispatch: async () => ({ ok: true, skipped: 'ticket-inexistente' }),
+  batchSize: 5,
+});
+
+const obsoleto = (await db.collection('emailOutbox').doc(idSemOs).get()).data();
+const alertaObsoleto = await db.collection('notifications').doc(`outbox-${idSemOs}`).get();
+check('sai da fila', obsoleto.status === 'dead-letter', `status=${obsoleto.status}`);
+check('fica marcado como obsoleto', obsoleto.obsolete === true, `obsolete=${obsoleto.obsolete}`);
+check('o motivo fica legivel', /nao existe|não existe/i.test(String(obsoleto.lastError || '')), obsoleto.lastError);
+check('NAO acorda ninguem', !alertaObsoleto.exists, alertaObsoleto.exists ? 'criou alerta' : 'sem alerta');
+
 await limpar();
 
 const falhas = results.filter(r => !r.pass).length;

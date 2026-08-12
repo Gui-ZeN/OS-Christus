@@ -2415,6 +2415,12 @@ async function dispatchAutomatedOutboxItem(item) {
   if (response.status === 409 && /sendo enviado|aguarde/i.test(String(payload?.error || ''))) {
     return { ok: true, skipped: 'lease-active' };
   }
+  // OS apagada depois do enfileiramento: a mensagem perdeu o assunto. Tratar como
+  // falha faria o item ser retentado seis vezes e virar alerta de intervenção
+  // administrativa — sobre uma exclusão que alguém fez de propósito.
+  if (response.status === 404) {
+    return { ok: true, skipped: 'ticket-inexistente' };
+  }
   if (!response.ok) {
     throw new Error(payload?.error || `Falha HTTP ${response.status} ao entregar e-mail.`);
   }

@@ -1,4 +1,5 @@
 import {
+  closeEmailOutboxObsolete,
   describeEmailOutboxType,
   EMAIL_OUTBOX_TYPES,
   isEmailOutboxEligible,
@@ -129,6 +130,12 @@ export async function processEmailOutboxBatch({
   const results = await Promise.all(selection.eligible.map(async item => {
     try {
       const result = await dispatch(item);
+      // OS apagada depois do enfileiramento: encerra o item em vez de devolvê-lo à
+      // fila. Sem isto ele seria "pulado" a cada execução, para sempre — a fila
+      // nunca esvaziaria e o número de pendentes deixaria de significar algo.
+      if (result?.skipped === 'ticket-inexistente') {
+        await closeEmailOutboxObsolete(item.ref).catch(() => {});
+      }
       return {
         ...item,
         status: result?.alreadySent ? 'already-sent' : result?.skipped ? 'skipped' : 'sent',

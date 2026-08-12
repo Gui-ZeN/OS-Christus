@@ -270,3 +270,38 @@ export function resolveOutboxRecipients(value) {
     .filter(Boolean);
   return [...new Set(limpos)];
 }
+
+/**
+ * Encerra um item cuja OS não existe mais — sem alarme.
+ *
+ * Não é falha de entrega: é mensagem que perdeu o assunto. Em 12/08 a coordenadora
+ * pediu a exclusão das OS da universidade (solicitantes abrindo duplicadas) e 105 OS
+ * sairam do banco; 22 avisos enfileirados passaram a apontar para o vazio. Sem este
+ * caminho eles seriam retentados seis vezes e cada um viraria um alerta de "falha
+ * definitiva" para Admin e Gestor — 22 alarmes sobre exclusões deliberadas.
+ *
+ * Fica em `dead-letter` (estado terminal que já existe, e o painel de Saúde de E-mail
+ * lista) com o motivo escrito, mas NÃO gera notificação: some da fila, continua
+ * auditável, não acorda ninguém.
+ */
+export async function closeEmailOutboxObsolete(ref, motivo = 'A OS desta mensagem não existe mais.') {
+  if (!ref) return false;
+  return ref.firestore.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const data = snap.data() || {};
+    if (data.status === 'sent' || data.status === 'dead-letter') return false;
+    if (data.leaseToken) return false;
+    tx.set(ref, {
+      status: 'dead-letter',
+      leaseToken: null,
+      leaseAt: null,
+      nextAttemptAt: null,
+      deadLetterAt: new Date(),
+      obsolete: true,
+      lastError: String(motivo).slice(0, 1000),
+      updatedAt: new Date(),
+    }, { merge: true });
+    return true;
+  });
+}
