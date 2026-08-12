@@ -3,6 +3,7 @@ import {
   EMAIL_OUTBOX_TYPES,
   isEmailOutboxEligible,
   isEmailOutboxLeaseActive,
+  markEmailOutboxDispatchFailure,
   MAX_EMAIL_OUTBOX_ATTEMPTS,
 } from './emailOutbox.js';
 import { notificationTtlAt } from './notificationState.js';
@@ -66,6 +67,9 @@ export async function selectEligibleEmailOutbox(db, options = {}) {
       if (!isEmailOutboxEligible(data, now)) continue;
       eligible.push({
         id: doc.id,
+        // A referência viaja junto para que a falha do DESPACHO tenha onde ser
+        // registrada. Sem ela, o worker só sabia reclamar no corpo da resposta HTTP.
+        ref: doc.ref,
         ticketId: String(data.ticketId || '').trim(),
         outboxKey: String(data.commandKey || data.id || '').trim(),
       });
@@ -130,6 +134,11 @@ export async function processEmailOutboxBatch({
         status: result?.alreadySent ? 'already-sent' : result?.skipped ? 'skipped' : 'sent',
       };
     } catch (error) {
+      // GRAVA a falha, não só devolve. Devolver apenas no corpo da resposta HTTP
+      // deixou 85 avisos parados por 15 dias com `attempts: 0` — retentados a cada
+      // execução e idênticos depois de cada uma — enquanto o Actions somava 277
+      // execuções VERDES. Erro que não fica no dado é erro que ninguém encontra.
+      await markEmailOutboxDispatchFailure(item.ref, error).catch(() => {});
       return {
         ...item,
         status: 'failed',

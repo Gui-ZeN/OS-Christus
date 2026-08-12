@@ -188,3 +188,65 @@ export async function markEmailOutboxFailed(ref, leaseToken, error) {
     }
   });
 }
+
+/**
+ * Registra falha do DESPACHO — a chamada interna que nem chegou a reivindicar o item.
+ *
+ * `markEmailOutboxFailed` exige `leaseToken`, que só existe depois que `?route=send`
+ * reivindica. Quando a falha é ANTES disso (URL interna irresolvível, 401 na chamada
+ * interna, timeout de rede), não havia função nenhuma que registrasse: o worker
+ * devolvia `failed: N` no corpo da resposta HTTP e o documento ficava intacto.
+ *
+ * O efeito medido em 12/08: 85 avisos de "OS nova" parados desde 28/07, todos com
+ * `attempts: 0` e `status: pending`, enquanto o workflow do Actions acumulava 277
+ * execuções BEM-SUCEDIDAS. Nada estava quebrado do ponto de vista de quem olhava o
+ * check verde. A fila era imortal e invisível ao mesmo tempo, e o retry/backoff/
+ * dead-letter — que existe e é testado — nunca engatava, porque tudo nele depende de
+ * campos que só a outra ponta escrevia.
+ *
+ * Não sobrescreve quem já tem dono: item com `leaseToken` está EM VOO (a outra camada
+ * registra o desfecho) e `sent`/`dead-letter` já terminaram.
+ */
+export async function markEmailOutboxDispatchFailure(ref, error, now = new Date()) {
+  if (!ref) return false;
+  return ref.firestore.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const data = snap.data() || {};
+    if (data.status === 'sent' || data.status === 'dead-letter') return false;
+    if (data.leaseToken) return false;
+
+    const attempts = Number(data.attempts || 0) + 1;
+    const isDeadLetter = attempts >= MAX_EMAIL_OUTBOX_ATTEMPTS;
+    tx.set(ref, {
+      status: isDeadLetter ? 'dead-letter' : 'failed',
+      attempts,
+      leaseToken: null,
+      leaseAt: null,
+      lastError: String(error?.message || error || 'Falha ao despachar e-mail.').slice(0, 1000),
+      lastFailedAt: now,
+      nextAttemptAt: isDeadLetter ? null : new Date(now.getTime() + getEmailOutboxRetryDelayMs(attempts)),
+      deadLetterAt: isDeadLetter ? now : null,
+      updatedAt: now,
+    }, { merge: true });
+
+    if (isDeadLetter) {
+      tx.set(ref.firestore.collection('notifications').doc(`outbox-${ref.id}`), {
+        type: 'alert',
+        ticketId: data.ticketId || null,
+        title: `Falha definitiva no envio - ${data.ticketId || 'Serv3'}`,
+        body: `${describeEmailOutboxType(data.type)} atingiu o limite de tentativas e precisa de intervenção administrativa.`,
+        audienceRoles: ['Admin', 'Gestor'],
+        action: data.ticketId
+          ? data.type === EMAIL_OUTBOX_TYPES.FINANCE_PAYMENT
+            ? { label: 'Abrir financeiro', view: 'finance', ticketId: data.ticketId }
+            : { label: 'Abrir OS', view: 'inbox', ticketId: data.ticketId }
+          : null,
+        createdAt: now,
+        updatedAt: now,
+        ttlAt: notificationTtlAt(now),
+      }, { merge: true });
+    }
+    return true;
+  });
+}
