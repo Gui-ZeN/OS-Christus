@@ -997,6 +997,9 @@ export function InboxView() {
           // e-mail (dois botões + preview). Interna → resolve 'silent' na hora.
           const emailDecision = await requestStatusEmailDecision(activeTicket.status, newStatus);
           if (emailDecision === 'cancel') {
+            // Sair em silêncio é o que faz parecer defeito: a pessoa clica, nada
+            // acontece, e ela conclui que o sistema não deixa alterar.
+            showToast(`A etapa continua em "${activeTicket.status}" — nada foi alterado.`, 3500);
             setIsSending(false);
             return;
           }
@@ -3074,11 +3077,16 @@ export function InboxView() {
           maxWidthClass="max-w-md"
           footer={(
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* "Cancelar" num diálogo chamado "Avisar o solicitante?" se lê como
+                  "não enviar o e-mail" — e cancelava a TROCA DE ETAPA inteira. Foi
+                  exatamente o que aconteceu em 12/08: a pessoa quis não avisar,
+                  clicou aqui, e a etapa não mudou. O rótulo agora diz o que o botão
+                  faz, não o que ele parece fazer. */}
               <button
                 onClick={() => { statusEmailPrompt.resolve('cancel'); setStatusEmailPrompt(null); }}
                 className="rounded-sm border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg"
               >
-                Cancelar
+                Não alterar a etapa
               </button>
               <button
                 onClick={() => { statusEmailPrompt.resolve('silent'); setStatusEmailPrompt(null); }}
