@@ -643,15 +643,6 @@ export function InboxView() {
   }, [isExternalTeam, showThirdPartyModal]);
   const panelStatus = (statusDraft || activeTicket.status || '').trim();
   const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(panelStatus as (typeof TRIAGE_VISIBLE_STATUSES)[number]);
-  const canManageBudgetRounds =
-    panelStatus.includes('Orçamento') ||
-    panelStatus.includes('Cotação') ||
-    panelStatus === TICKET_STATUS.WAITING_CONTRACT_UPLOAD ||
-    (panelStatus.includes('Anexo') && panelStatus.includes('Contrato')) ||
-    panelStatus === TICKET_STATUS.IN_PROGRESS ||
-    panelStatus === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ||
-    panelStatus === TICKET_STATUS.WAITING_PAYMENT ||
-    panelStatus === TICKET_STATUS.CLOSED;
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
     return serviceCatalog.filter(item => item.macroServiceId === ticketDetailsForm.macroServiceId);
@@ -2495,35 +2486,28 @@ export function InboxView() {
               </div>
 
 
-              {/* O FLUXO FINANCEIRO SAIU DAQUI.
-                  Cotação, contrato, medição e pagamento já tinham telas próprias
-                  (Aprovações e Financeiro) E uma segunda cópia aqui dentro — ~330
-                  linhas de modal e uma dúzia de handlers.
-                  O fluxo FOI usado: 235 ações registradas na auditoria entre março e
-                  maio de 2026. Mas parou em 19/05, e do que foi lançado sobraram 3
-                  cotações, 1 contrato e 2 pagamentos em 3 OS — o resto foi apagado.
-                  Enquanto ninguém decide se ele volta, a Inbox fica com o que ela
-                  comprovadamente é: a conversa e a triagem. */}
-              {canManageBudgetRounds && (
-                <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-bold">
-                    Orçamento e execução
-                  </div>
-                  <p className="mt-1 text-[11px] text-roman-text-sub">
-                    Cotações, contrato, medições e pagamento seguem no Financeiro. A
-                    aprovação da diretoria saiu da esteira: agora ela é capturada do
-                    e-mail de quem está em cópia.
-                  </p>
-                  <div className="mt-3 space-y-2">
-                    <button
-                      onClick={() => navigateTo('finance')}
-                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                    >
-                      Abrir em Financeiro
-                    </button>
-                  </div>
-                </section>
-              )}
+              {/* O FLUXO FINANCEIRO SAIU DAQUI — e o ATALHO para ele saiu depois.
+                  Cotação, contrato, medição e pagamento já tinham telas próprias E uma
+                  segunda cópia aqui dentro (~330 linhas de modal). O fluxo FOI usado:
+                  235 ações auditadas entre março e maio de 2026, e parou em 19/05.
+
+                  Ficou no lugar um bloco "Orçamento e execução" dizendo que aquilo
+                  "segue no Financeiro", com um botão Abrir em Financeiro. Só que a
+                  tela de Financeiro exige contexto financeiro prévio (contrato,
+                  pagamento, medição ou execução) E uma etapa que NÃO inclui
+                  "Aguardando Orçamento" — e não há mais onde lançar cotação, porque
+                  o editor não é montado por tela nenhuma desde 07/08.
+
+                  Medido em 12/08: 12 OS em "Aguardando Orçamento", 3 com contexto
+                  financeiro, ZERO visíveis no Financeiro. O botão levava sempre a uma
+                  tela vazia — e um caminho que existe e não chega a lugar nenhum é
+                  pior que caminho nenhum: ele parece funcionar, então a pessoa
+                  conclui que a OS sumiu, não que o botão está errado.
+
+                  Decisão do dono (12/08): "o botão sai da tela". Enquanto não se
+                  decide se o financeiro volta a ter entrada de cotação, a Inbox fica
+                  com o que ela comprovadamente é: a conversa e a triagem. O Financeiro
+                  continua no menu para quem precisa dele. */}
 
               {showTriagePanel && (
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
