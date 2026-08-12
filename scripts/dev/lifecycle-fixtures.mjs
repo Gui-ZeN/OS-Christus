@@ -8,6 +8,12 @@
  */
 const LIFECYCLE_TICKET_IDS = {
   payment: 'OS-E2E-PAYMENT',
+  // As tres OS da troca de etapa pela Inbox. Nasceram de tres defeitos que chegaram
+  // a producao juntos, em 12/08, e que NENHUM teste pegou — o de ciclo critico passa
+  // pelo Financeiro, e o seletor da Inbox nao tinha cobertura nenhuma.
+  parecer: 'OS-E2E-PARECER',
+  encerrada: 'OS-E2E-ENCERRADA',
+  desistir: 'OS-E2E-DESISTIR',
 };
 
 const TICKET_SUBCOLLECTIONS = [
@@ -108,8 +114,46 @@ export async function seedLifecycleFixtures(
   );
 
   const paymentRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.payment);
+  const parecerRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.parecer);
+  const encerradaRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.encerrada);
+  const desistirRef = db.collection('tickets').doc(LIFECYCLE_TICKET_IDS.desistir);
+
+  // Classificada de proposito: a trava de classificacao e outra regra, com teste
+  // proprio. Aqui o alvo e a TROCA DE ETAPA.
+  const classificada = {
+    macroServiceId: 'macro-e2e',
+    macroServiceName: 'Estrutura Civil',
+    serviceCatalogId: 'serv-e2e',
+    serviceCatalogName: 'Reforma',
+  };
 
   await Promise.all([
+    parecerRef.set(createTicket({
+      id: LIFECYCLE_TICKET_IDS.parecer,
+      status: 'Aguardando Parecer Técnico',
+      subject: 'Fixture E2E - parecer tecnico com diretor',
+      directorEmail,
+      now,
+      // COM diretor: era exatamente este caso que apontava para a etapa aposentada
+      // da diretoria e falhava com 409, sem mover nada.
+      extra: { ...classificada, directorIds: ['dir-e2e'], directorEmails: [directorEmail] },
+    })),
+    encerradaRef.set(createTicket({
+      id: LIFECYCLE_TICKET_IDS.encerrada,
+      status: 'Encerrada',
+      subject: 'Fixture E2E - encerrada por engano',
+      directorEmail,
+      now,
+      extra: classificada,
+    })),
+    desistirRef.set(createTicket({
+      id: LIFECYCLE_TICKET_IDS.desistir,
+      status: 'Aguardando Parecer Técnico',
+      subject: 'Fixture E2E - desistir da troca de etapa',
+      directorEmail,
+      now,
+      extra: classificada,
+    })),
     paymentRef.set(createTicket({
       id: LIFECYCLE_TICKET_IDS.payment,
       status: 'Aguardando pagamento',

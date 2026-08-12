@@ -2249,6 +2249,9 @@ export function InboxView() {
                             )}
                           </div>
                           <select
+                            /* Sem nome, este seletor era indistinguível dos filtros da
+                               lista — para leitor de tela e para teste. */
+                            aria-label="Nova etapa da OS"
                             value={statusDraft}
                             onChange={event => setStatusDraft(event.target.value)}
                             className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
@@ -2265,7 +2268,10 @@ export function InboxView() {
                               onChange={event => setStatusTransitionReason(event.target.value)}
                               placeholder="Motivo da transição (obrigatório)"
                               className="w-full rounded-sm border border-amber-300 bg-amber-50/40 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
-                              disabled={isClosed || isSending}
+                              /* O motivo acompanha o SELETOR, não a resposta ao
+                                 solicitante: reabrir exige justificar, e com `isClosed`
+                                 aqui a etapa podia ser escolhida mas nunca salva. */
+                              disabled={stageLocked || isSending}
                               autoFocus
                             />
                           )}
