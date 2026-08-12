@@ -368,7 +368,19 @@ function normalizeEmailAttachments(attachments: TicketAttachment[] = []) {
     }));
 }
 
-function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previousStatus: string) {
+/**
+ * Esta troca de etapa gera aviso ao solicitante?
+ *
+ * Exportada para que a TELA possa perguntar antes de oferecer a opção. As etapas
+ * bloqueadas abaixo são internas — o solicitante não tem o que fazer com "entrou em
+ * orçamento", e avisar a cada passo transforma a OS em spam. A regra é deliberada.
+ *
+ * O defeito era outro: a tela oferecia o checkbox "avisar quem abriu" para QUALQUER
+ * destino, e aqui a escolha era descartada em silêncio. A pessoa marcava, salvava, e
+ * nenhum e-mail saía — sem nada dizer por quê. Uma regra que sobrepõe a decisão de
+ * alguém precisa aparecer ANTES do clique, não depois.
+ */
+export function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, previousStatus: string) {
   if (status === TICKET_STATUS.WAITING_TECH_OPINION) {
     return previousStatus === TICKET_STATUS.NEW;
   }

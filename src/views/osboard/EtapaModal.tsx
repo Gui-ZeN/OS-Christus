@@ -6,6 +6,7 @@ import { useApp } from '../../context/AppContext';
 import { getAllowedNextStatuses, type AppActorRole } from '../../constants/statusFlow';
 import { TICKET_STATUS, type TicketStatus } from '../../constants/ticketStatus';
 import { bloqueioParaAvancar, motivoQueImpedeEtapa } from '../../utils/statusChangeGuard';
+import { shouldNotifyRequesterForStatus } from '../../services/ticketEmail';
 import {
   fetchCatalog,
   type CatalogMacroService,
@@ -55,6 +56,16 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
 
   const bloqueio = ticket ? bloqueioParaAvancar(ticket) : null;
   const precisaClassificar = bloqueio?.campo === 'classificacao';
+
+  /**
+   * Este destino gera aviso ao solicitante? Seis etapas internas não geram, por regra
+   * deliberada — e a tela oferecia o checkbox mesmo assim, descartando a escolha em
+   * silêncio. Perguntar aqui, ANTES do clique, é a diferença entre uma regra e uma
+   * promessa quebrada.
+   */
+  const avisoChegaAoSolicitante = Boolean(
+    ticket && destino && shouldNotifyRequesterForStatus(ticket, destino, ticket.status)
+  );
 
   useEffect(() => {
     if (!precisaClassificar) return;
@@ -111,7 +122,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
       const ok = await updateTicket(
         ticket.id,
         { ...classificacao, status: destino, history: [...(ticket.history || []), entrada] },
-        { sendEmailUpdate: avisarSolicitante }
+        { sendEmailUpdate: avisarSolicitante && avisoChegaAoSolicitante }
       );
       // `updateTicket` reverte o otimista sozinho e não lança — o modal fica aberto
       // com o texto digitado em vez de fechar fingindo que salvou.
@@ -232,18 +243,29 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
 
         {/* Desmarcado por padrão: avisar o solicitante é decisão, não rotina. Cada
             troca de etapa vira e-mail para a sede se ninguém pensar a respeito. */}
-        <label className="flex cursor-pointer items-start gap-2 text-sm text-roman-text-sub">
-          <input
-            type="checkbox"
-            checked={avisarSolicitante}
-            onChange={event => setAvisarSolicitante(event.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-roman-primary"
-          />
-          <span>
-            Avisar quem abriu a OS por e-mail
-            {ticket.requesterEmail ? ` (${ticket.requesterEmail})` : ' — esta OS não tem e-mail do solicitante'}
-          </span>
-        </label>
+        {avisoChegaAoSolicitante ? (
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-roman-text-sub">
+            <input
+              type="checkbox"
+              checked={avisarSolicitante}
+              onChange={event => setAvisarSolicitante(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-roman-primary"
+            />
+            <span>
+              Avisar quem abriu a OS por e-mail
+              {ticket.requesterEmail ? ` (${ticket.requesterEmail})` : ' — esta OS não tem e-mail do solicitante'}
+            </span>
+          </label>
+        ) : (
+          destino && (
+            <p className="rounded-sm border border-roman-border bg-roman-bg/60 px-3 py-2 text-xs text-roman-text-sub">
+              <strong className="font-medium text-roman-text-main">Esta etapa não avisa o solicitante.</strong>{' '}
+              É um passo interno — quem abriu a OS não tem o que fazer com ele, e avisar a
+              cada passo transforma a OS em spam. Para falar com o solicitante, use{' '}
+              <span className="text-roman-text-main">Conversa</span>.
+            </p>
+          )
+        )}
 
         {erro && <div className="rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{erro}</div>}
 
