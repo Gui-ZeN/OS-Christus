@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { CircleAlert, PauseCircle } from 'lucide-react';
 import { SUSPENSION_REASON_LABEL } from '../../constants/agenda';
-import { activeSuspension } from '../../utils/agenda';
+import { activeSuspension, resolvedAttentionOf } from '../../utils/agenda';
+import { ATTENTION_KIND_LABEL, ATTENTION_KIND_WHY } from '../../constants/attentionKind';
 import { isTicketOpen } from '../../constants/ticketLifecycle';
 import type { Ticket } from '../../types';
 
@@ -47,19 +48,41 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
     );
   }
 
-  const acao = ticket.nextAction;
-  if (!acao?.dueAt) {
+  /**
+   * A faixa lia SÓ `ticket.nextAction` — campo preenchido em 0 de 177 OS na produção.
+   * Resultado: ela repreendia em 100% das telas, inclusive numa OS criada há um
+   * minuto ("Ninguém sabe o que acontece com esta OS"), e ignorava a constatação que
+   * o servidor já tinha calculado para aquela mesma OS.
+   *
+   * Aviso que aparece sempre não avisa nada: vira moldura. Agora usa a mesma
+   * precedência da agenda — manual ganha da proposta do sistema — e some quando não
+   * há fato nenhum a relatar. Silêncio aqui significa "nada pendente", e passa a ser
+   * informação.
+   */
+  const resolvida = resolvedAttentionOf(ticket);
+  if (!resolvida) return null;
+
+  const atrasada = resolvida.dueAt.getTime() < agora.getTime();
+
+  // Proposta do sistema: mostra a constatação e POR QUE ela apareceu. É o critério
+  // que abriu a tela Hoje — toda atenção precisa saber se explicar, senão a pessoa
+  // não julga se faz sentido e aprende a ignorar.
+  if (resolvida.proposta && resolvida.kind) {
     return (
-      <div className="flex items-start gap-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
+      <div
+        className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
+          atrasada ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-roman-border bg-roman-bg text-roman-text-sub'
+        }`}
+      >
         <CircleAlert size={14} className="mt-0.5 shrink-0" />
         <span className="min-w-0">
-          <strong>Sem próxima ação definida.</strong> Ninguém sabe o que acontece com esta OS.
+          <strong>{ATTENTION_KIND_LABEL[resolvida.kind] || 'Requer atenção'}</strong>
+          {ATTENTION_KIND_WHY[resolvida.kind] ? ` — ${ATTENTION_KIND_WHY[resolvida.kind]}` : ''}
         </span>
       </div>
     );
   }
 
-  const atrasada = acao.dueAt.getTime() < agora.getTime();
   return (
     <div
       className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
@@ -76,8 +99,8 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
         {atrasada ? 'Atrasada' : 'Próxima ação'}
       </span>
       <span className="min-w-0">
-        {acao.what} · {formatarData(acao.dueAt)}
-        {acao.ownerName ? ` · ${acao.ownerName}` : ''}
+        {resolvida.what} · {formatarData(resolvida.dueAt)}
+        {ticket.nextAction?.ownerName ? ` · ${ticket.nextAction.ownerName}` : ''}
       </span>
     </div>
   );
