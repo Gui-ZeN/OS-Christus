@@ -359,11 +359,18 @@ export function FinanceView() {
   }, [financeTickets]);
 
   const isFinanceEntryHistorical = useCallback((entry: (typeof financeTickets)[number]) => {
-    if (!isTicketOpen(entry.ticket.status)) {
-      return true;
-    }
-    const fullyPaid = entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
-    return fullyPaid && entry.remainingValue <= 0;
+    // Etapa final NÃO basta. `!isTicketOpen(status)` mandava a OS para o Histórico na
+    // hora em que ela era encerrada ou cancelada, com parcela em aberto e tudo — e o
+    // contador da aba se chama "Quitadas". O saldo continuava nos totais gerais
+    // enquanto a OS sumia justamente de onde alguém iria procurá-la.
+    //
+    // Hoje isto não pega ninguém (0 OS finalizadas com parcela pendente na produção),
+    // e é por isso que passou despercebido: o defeito espera o primeiro caso real.
+    const pendentes = entry.payments.filter(payment => payment.status !== 'paid').length;
+    if (pendentes > 0 || entry.remainingValue > 0) return false;
+
+    if (!isTicketOpen(entry.ticket.status)) return true;
+    return entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
   }, []);
 
   const openFinanceTickets = useMemo(
