@@ -17,7 +17,7 @@ import { TICKET_STATUS } from '../constants/ticketStatus';
 import { mergeEmails, normalizeForMatching, parseEmailTokens } from './inbox/recipients';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
-import { notifyTicketDirectorReply, notifyTicketPublicReply } from '../services/ticketEmail';
+import { notifyTicketDirectorReply, notifyTicketPublicReply, shouldNotifyRequesterForStatus } from '../services/ticketEmail';
 import { CatalogMacroService, CatalogRegion, CatalogServiceItem, CatalogSite, fetchCatalog, saveCatalogEntry } from '../services/catalogApi';
 import { DirectoryTeam, DirectoryUser, DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { fetchSettings, saveSettings } from '../services/settingsApi';
@@ -51,11 +51,17 @@ const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
 // Transições "voltadas pra fora" — as que o solicitante realmente acompanha.
 // Só ao mudar o status manualmente para uma destas o modal pergunta se avisa por
 // e-mail; os passos internos de back-office não perguntam nem enviam.
-const CUSTOMER_FACING_STATUSES = new Set<string>([
-  TICKET_STATUS.IN_PROGRESS,
-  TICKET_STATUS.CLOSED,
-  TICKET_STATUS.CANCELED,
-]);
+/*
+ * A lista de "etapas que o solicitante acompanha" ficava AQUI, com três valores, e a
+ * regra de verdade — a que decide se o e-mail sai — vive em
+ * `shouldNotifyRequesterForStatus`, que bloqueia seis e libera o resto. Duas listas
+ * para a mesma pergunta: esta tela deixava de perguntar em casos onde o e-mail sairia,
+ * e a tela de Gestão perguntava. Mesma ação, dois comportamentos.
+ *
+ * Hoje elas não se contradiziam de forma visível — a lista daqui era um subconjunto —,
+ * mas listas irmãs não envelhecem juntas. Agora as duas telas perguntam exatamente
+ * quando o e-mail sai, porque perguntam à mesma função.
+ */
 
 const TRIAGE_VISIBLE_STATUSES = [
   TICKET_STATUS.NEW,
@@ -940,7 +946,7 @@ export function InboxView() {
   // Só abre o modal em transições voltadas pra fora; nas internas resolve
   // 'silent' na hora, sem interromper o fluxo.
   const requestStatusEmailDecision = (from: string, to: string): Promise<'notify' | 'silent' | 'cancel'> => {
-    if (!CUSTOMER_FACING_STATUSES.has(to)) return Promise.resolve('silent');
+    if (!shouldNotifyRequesterForStatus(activeTicket, to, from)) return Promise.resolve('silent');
     const recipients = [
       activeTicket.requesterEmail,
       ...(Array.isArray(activeTicket.requesterCcEmails) ? activeTicket.requesterCcEmails : []),
