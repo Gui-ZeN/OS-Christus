@@ -1,0 +1,122 @@
+name: Varredura da atenção
+
+# UMA VEZ POR DIA, às 06h de Fortaleza (09:00 UTC — o Brasil não tem horário de
+# verão desde 2019, então o deslocamento é fixo). Antes do expediente: a tela Hoje é
+# uma pauta do dia, e pauta que se monta às 14h chegou tarde.
+#
+# POR QUE ISTO EXISTE. As regras de atenção são de TEMPO ("parada há 7 dias", "sem
+# resposta há 3 dias úteis"), mas o recálculo nascia de EVENTO — e-mail que chega,
+# PATCH que grava. OS que fica parada não gera evento nenhum. Ou seja: a população
+# que as regras existem para pegar era exatamente a única que nunca era recalculada.
+#
+# Medido em 12/08, antes deste workflow: as regras apontavam 116 OS e havia 4
+# gravadas no banco, todas de e-mail recebido nas 48 h anteriores. A tela Hoje
+# enxergava 4 de 116 e parecia calma.
+#
+# NÃO é uma quinta função na Vercel (o plano está em 12/12): chama
+# `?route=rebuild-attention`, que já vive dentro de `api/tickets.js`.
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      ensaio:
+        description: "Só contar, sem gravar"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  # Duas varreduras ao mesmo tempo recalculariam as mesmas OS e brigariam pela
+  # escrita. Não corrompe (cada OS é um `set` idempotente), mas gasta leitura à toa.
+  group: varredura-atencao
+  cancel-in-progress: false
+
+jobs:
+  varrer:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 15
+    steps:
+      - name: Recalcular a atenção de todas as OS
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Padrão em vez de secret obrigatório, pela mesma razão do outbox: a URL
+          # está no `.env.example` deste repositório público, e transformá-la em
+          # segredo já desligou uma funcionalidade inteira em silêncio.
+          ATTENTION_URL: ${{ secrets.ATTENTION_URL || 'https://serv3.vercel.app/api/tickets?route=rebuild-attention' }}
+          ENSAIO: ${{ inputs.ensaio }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
+            exit 1
+          fi
+
+          APLICAR="&apply=1"
+          if [ "$ENSAIO" = "true" ]; then
+            APLICAR=""
+            echo "ENSAIO — nada será gravado."
+          fi
+
+          CURSOR=""
+          PAGINA=0
+          LIDAS=0
+          GRAVADAS=0
+
+          # Pagina até o fim. Sem o laço, a varredura cobriria só as primeiras 50 OS
+          # (ordenadas por id) e as OS de id alto nunca seriam recalculadas — um cron
+          # que roda todo dia e deixa metade do banco para trás é pior que nenhum,
+          # porque parece que está cuidando.
+          while : ; do
+            PAGINA=$((PAGINA + 1))
+            if [ "$PAGINA" -gt 60 ]; then
+              echo "Parando por segurança: 60 páginas (3.000 OS). Algo está errado."
+              exit 1
+            fi
+
+            URL="${ATTENTION_URL}&limit=50${APLICAR}"
+            if [ -n "$CURSOR" ]; then
+              URL="${URL}&cursor=${CURSOR}"
+            fi
+
+            HTTP_CODE=$(curl -L -sS -o /tmp/resposta.json -w "%{http_code}" -X POST "$URL" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "Content-Type: application/json")
+
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "HTTP $HTTP_CODE na página $PAGINA:"
+              cat /tmp/resposta.json
+              exit 1
+            fi
+
+            # `node` e não `jq`: os dois existem no runner, mas só um eu consigo
+            # exercitar antes de subir. E a falha do jq ausente seria a pior possível
+            # — o cursor sairia vazio, o laço encerraria na página 1 e o job ficaria
+            # VERDE anunciando "0 OS lidas". Cron que não faz nada e diz que fez é o
+            # defeito que este workflow existe para corrigir.
+            LEITURA=$(R=/tmp/resposta.json node -e '
+              const r = JSON.parse(require("fs").readFileSync(process.env.R, "utf8"));
+              if (typeof r.lidas !== "number") throw new Error("resposta sem o campo lidas");
+              process.stdout.write([r.lidas, r.gravadas || 0, r.proximoCursor || ""].join(" "));
+            ') || { echo "Resposta ilegível na página $PAGINA:"; cat /tmp/resposta.json; exit 1; }
+
+            set -- $LEITURA
+            LIDAS=$((LIDAS + $1))
+            GRAVADAS=$((GRAVADAS + $2))
+            CURSOR="${3:-}"
+            echo "página $PAGINA: $1 lidas, $2 gravadas"
+
+            if [ -z "$CURSOR" ]; then
+              break
+            fi
+          done
+
+          echo ""
+          echo "Varredura completa: $LIDAS OS lidas, $GRAVADAS com atenção atualizada."
+
+          # Zero OS lidas significa que a varredura não aconteceu — banco vazio não é
+          # cenário real aqui. Falhar é melhor que um check verde mentindo.
+          if [ "$LIDAS" -eq 0 ]; then
+            echo "Nenhuma OS foi lida. A varredura não aconteceu."
+            exit 1
+          fi

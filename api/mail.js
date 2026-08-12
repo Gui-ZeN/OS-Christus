@@ -1,7 +1,7 @@
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { requireAuthenticatedUser, requireUserWithRoles } from './_lib/authz.js';
+import { requireAuthenticatedUser, requireUserWithRoles, secretsMatch } from './_lib/authz.js';
 import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
@@ -679,13 +679,6 @@ function decodePubSubPayload(input) {
 }
 
 // Comparação em tempo constante para evitar timing oracle na verificação de segredos.
-function secretsMatch(provided, expected) {
-  if (!provided || !expected) return false;
-  const providedHash = createHash('sha256').update(String(provided)).digest();
-  const expectedHash = createHash('sha256').update(String(expected)).digest();
-  return timingSafeEqual(providedHash, expectedHash);
-}
-
 function matchesAnySecret(provided, secrets) {
   return secrets.some(secret => secretsMatch(provided, secret));
 }

@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { getAuth } from 'firebase-admin/auth';
 import { getAdminDb } from './firebaseAdmin.js';
 import { HttpError } from './http.js';
@@ -96,4 +97,30 @@ export function resolveActor(user, fallback = 'painel') {
 /** True se o papel do usuário está na lista informada. */
 export function hasRole(user, roles) {
   return Array.isArray(roles) && roles.includes(user?.role);
+}
+
+/**
+ * Compara segredo em tempo constante.
+ *
+ * Mora aqui, e não solto em cada arquivo que precisa: era uma cópia local no
+ * `mail.js`, e primitiva de segurança duplicada é a que se conserta num lado e
+ * fica velha no outro.
+ */
+export function secretsMatch(provided, expected) {
+  if (!provided || !expected) return false;
+  const providedHash = createHash('sha256').update(String(provided)).digest();
+  const expectedHash = createHash('sha256').update(String(expected)).digest();
+  return timingSafeEqual(providedHash, expectedHash);
+}
+
+/**
+ * Aceita o `CRON_SECRET` OU um Admin logado — mesmo par de portas dos outros
+ * agendados. A porta humana continua aberta de propósito: uma rotina que só o cron
+ * consegue disparar é uma rotina que ninguém consegue conferir na hora.
+ */
+export async function authorizeCronOrAdmin(req) {
+  const header = String(req.headers.authorization || '');
+  const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (process.env.CRON_SECRET && secretsMatch(bearer, process.env.CRON_SECRET)) return;
+  await requireAdminUser(req);
 }

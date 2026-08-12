@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getStorage } from 'firebase-admin/storage';
 import { writeAuditLog } from './_lib/auditLogs.js';
-import { requireAdminUser, requireAuthenticatedUser, requireUserWithRoles, resolveActor } from './_lib/authz.js';
+import { authorizeCronOrAdmin, requireAdminUser, requireAuthenticatedUser, requireUserWithRoles, resolveActor } from './_lib/authz.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import { HttpError, parseInboundBody, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import {
@@ -665,7 +665,7 @@ async function uploadTicketAttachments(ticketId, attachments) {
   return results;
 }
 
-async function deleteTicketCascade(db, ticketId) {
+export async function deleteTicketCascade(db, ticketId) {
   const ticketRef = db.collection('tickets').doc(ticketId);
   const ticketSnap = await ticketRef.get();
   if (!ticketSnap.exists) {
@@ -962,7 +962,13 @@ async function handleCommitments(req, res) {
  */
 async function handleRebuildAttention(req, res) {
   try {
-    await requireAdminUser(req);
+    // Cron OU Admin. Deixou de ser só-Admin porque a atenção precisa de varredura
+    // PERIÓDICA, não de um backfill de uma vez: as regras são de TEMPO ("parada há 7
+    // dias") e o recálculo nascia de EVENTO. OS que fica parada não gera evento — ou
+    // seja, a população que as regras existem para pegar era exatamente a que nunca
+    // era recalculada. Medido em 12/08: as regras apontavam 116 OS e havia 4 gravadas,
+    // todas de e-mail recebido nas 48 h anteriores.
+    await authorizeCronOrAdmin(req);
     const db = getAdminDb();
     const agora = new Date();
 
