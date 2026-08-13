@@ -161,7 +161,20 @@ const tickets = [
   { id: 'OS-0005', status: 'Aguardando pagamento', subject: 'Manutenção do ar-condicionado central', site: 'dl', region: 'universidade', sede: 'DL', priority: 'Urgente' },
   { id: 'OS-0006', status: 'Em andamento', subject: 'Pintura do corredor principal', site: 'sul3', region: 'regiao-sul', sede: 'SUL3', priority: 'Trivial' },
   { id: 'OS-0007', status: 'Nova OS', subject: 'Teste territorial da sede PE', site: 'pe', region: 'universidade', sede: 'PE', priority: 'Trivial' },
+
+  // ── Os dois grupos da agenda que o seed nunca teve ──────────────────────────
+  //
+  // "Vencidas" e "Suspensas" ficavam VAZIOS, e por isso nenhuma verificação de tema
+  // escuro exercitava as cores deles. Custou caro: `bg-red-50/60` e `bg-slate-50/60`
+  // não estão na lista do `.theme-bridge`, e os cartões desses grupos renderizavam
+  // com luminância 152 e 156 sobre um fundo de luminância 15 — invisível aqui porque
+  // não havia cartão nenhum. Grupo vazio no seed é ponto cego na verificação.
+  //
+  // "Vencidas" é, ainda por cima, o motivo de a tela Hoje existir.
+  { id: 'OS-0008', status: 'Aguardando Parecer Técnico', subject: 'Goteira no refeitório — visita atrasada', site: 'dl', region: 'universidade', sede: 'DL', priority: 'Alta', agenda: 'vencida' },
+  { id: 'OS-0009', status: 'Aguardando Orçamento', subject: 'Troca de esquadrias — parada aguardando verba', site: 'sul3', region: 'regiao-sul', sede: 'SUL3', priority: 'Moderado', agenda: 'suspensa' },
 ];
+const DIA = 24 * 60 * 60 * 1000;
 for (const t of tickets) {
   await db.collection('tickets').doc(t.id).set({
     id: t.id, trackingToken: `trk_${t.id.toLowerCase().replace(/-/g, '')}`,
@@ -172,6 +185,15 @@ for (const t of tickets) {
     macroServiceId: null, macroServiceName: null, serviceCatalogId: null, serviceCatalogName: null,
     directorIds: [], directorEmails: [], time: now, createdAt: now, updatedAt: now,
     history: baseHistory(t.subject),
+    // Próxima ação com data no PASSADO → cai em "Vencidas".
+    ...(t.agenda === 'vencida'
+      ? { nextAction: { what: 'Confirmar a visita técnica com a sede', dueAt: new Date(now.getTime() - 6 * DIA), ownerName: 'Gestor E2E', createdAt: new Date(now.getTime() - 9 * DIA) } }
+      : {}),
+    // Suspensão vigente (revisão no FUTURO) → cai em "Suspensas". Com a revisão
+    // vencida ela voltaria sozinha para o grupo que cobra decisão.
+    ...(t.agenda === 'suspensa'
+      ? { attention: { state: 'suspensa', note: 'Aguardando liberação de verba', reviewAt: new Date(now.getTime() + 12 * DIA), setAt: now } }
+      : {}),
   });
 }
 
