@@ -505,16 +505,42 @@ export function HomeView() {
           </div>
         )}
 
+        {/* Estes três também abrem a Gestão filtrada — eram os últimos números do
+            Início que não levavam a lugar nenhum.
+            A guarda é `canOperate` (Admin/Gestor) e não `isExecutive`: o bloco aparece
+            para o Diretor, que NÃO acessa a Gestão (`canAccessOsBoard` em App.tsx).
+            Sem isso, o clique dele navegaria para uma tela que não renderiza — que é
+            exatamente o defeito do botão "Abrir em Financeiro", removido em 12/08 por
+            levar sempre ao vazio. Para o Diretor os cartões seguem só leitura. */}
         {isExecutive && entregas.total > 0 && (
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
             {entregas.aguardandoAceite > 0 && (
-              <StatCard title="Entrega aguardando aceite" value={String(entregas.aguardandoAceite)} subtitle="Obras prontas para fechamento" />
+              <StatCard
+                title="Entrega aguardando aceite"
+                value={String(entregas.aguardandoAceite)}
+                subtitle="Obras prontas para fechamento"
+                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL }) : undefined}
+              />
             )}
             {entregas.emCampo > 0 && (
-              <StatCard title="Obras em campo" value={String(entregas.emCampo)} subtitle="Execução ativa agora" />
+              <StatCard
+                title="Obras em campo"
+                value={String(entregas.emCampo)}
+                subtitle="Execução ativa agora"
+                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.IN_PROGRESS }) : undefined}
+              />
             )}
             {entregas.finalizadas > 0 && (
-              <StatCard title="Entregas finalizadas" value={String(entregas.finalizadas)} subtitle="OS já encerradas" />
+              <StatCard
+                title="Entregas finalizadas"
+                value={String(entregas.finalizadas)}
+                subtitle="OS já encerradas"
+                // `showClosed` só esconde encerradas quando o status é "todos"
+                // (OsBoardView:136) — filtrar por Encerrada já as revela. Ligado
+                // mesmo assim para que limpar o status na tabela não faça a lista
+                // sumir na cara de quem acabou de chegar por este cartão.
+                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.CLOSED, showClosed: true }) : undefined}
+              />
             )}
           </div>
         )}

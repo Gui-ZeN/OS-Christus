@@ -34,8 +34,24 @@ sobre a qual alguém consegue agir"* — e tinha sido aplicado só na primeira f
   intactos.** Verificado no navegador, inclusive o estado vazio (forçado no emulador,
   já que nenhuma sede real zera tudo).
 
-Sobraram **2 números mortos** — "Obras em campo" e "Entregas finalizadas". Ficaram
-porque não estavam no pedido; pela mesma régua, ou viram porta ou saem.
+**Os últimos números mortos viraram porta.** O trio de entrega (aguardando aceite ·
+obras em campo · entregas finalizadas) passou a abrir a Gestão filtrada, e com isso o
+Início ficou em **7 números, 7 deles abrindo uma lista — zero mortos, zero zeros**.
+
+Duas armadilhas evitadas, ambas com precedente no projeto:
+
+- A guarda é `canOperate` (Admin/Gestor) e **não** `isExecutive`: o bloco aparece para
+  o **Diretor**, que não acessa a Gestão (`canAccessOsBoard`). Sem isso o clique dele
+  navegaria para uma tela que não renderiza — o mesmo defeito do botão "Abrir em
+  Financeiro", removido em 12/08 por levar sempre ao vazio. Para o Diretor os cartões
+  seguem como leitura.
+- "Entregas finalizadas" leva `showClosed: true` junto. O filtro só esconde encerradas
+  quando o status é "todos" (`OsBoardView:136`), então o clique já funcionaria — mas
+  sem a flag, limpar o status na tabela faria a lista sumir na cara de quem acabou de
+  chegar por ali.
+
+Verificado clicando os três no navegador: **7 → 7 linhas** (Encerrada), **1 → 1**
+(Em andamento), **1 → 1** (Aguardando aprovação da manutenção). Nenhuma tela vazia.
 
 ## 2026-08-13 (a Gestão mostra o que já aconteceu na OS)
 
