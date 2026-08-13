@@ -3,6 +3,34 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (o ferramental da exclusão entra no repo, e a bateria roda inteira)
+
+Os quatro scripts que executaram a exclusão de 12/08 e o teste que protege a
+cascata estavam **só no disco**, fora do versionamento. Um teste não commitado não
+protege ninguém: o `ticketStorageCascade` cobre exatamente o defeito que vazou 761 MB
+em anexos de `inbound/`, e até agora qualquer regressão passaria sem ninguém ouvir.
+O critério de quem entrou na exclusão (`escopo-os-a-apagar.mjs`, com a lista
+`PRESERVAR`) também vira registro auditável em vez de lembrança.
+
+**Bateria de ponta a ponta, no emulador**: `tsc` limpo, **708 testes unitários**,
+**124 verificações de integração** (11 arquivos) e **10 E2E**. Tudo verde.
+
+**Um flaky que o CI não contaria.** O E2E "OS encerrada por engano pode ser
+reaberta" falhou na primeira tentativa e passou no retry — e o `npm run test:e2e:ci`
+saiu com **código 0**, então no Actions isso aparece como verde puro. Não é a corrida
+do `updateTicket` sem `await`: esse caminho é aguardado (`InboxView.tsx:1061`). É
+tempo — o teste estourou os 30s antes do `poll` ter chance, comidos pela primeira
+compilação do InboxView pelo Vite. Repetido 3× com o servidor quente: **12/12**, com
+o primeiro teste de cada rodada em ~17s e os seguintes em ~4s. A margem para o
+timeout é estreita, e o CI é mais lento que a máquina local.
+
+**Achado ainda aberto: o backup cobre menos do que a exclusão apaga.** Quando a
+cascata foi corrigida para varrer o bucket pelo prefixo da OS, o `backup-os.mjs`
+ficou para trás — ele baixa só os paths de `attachments[]` e
+`closureChecklist.documents[]`, que era a lista antiga. Anexo chegado por e-mail é
+apagado e **não** é salvo. A trava que exige backup antes do `--apply` continua de
+pé, mas hoje ela garante menos do que promete.
+
 ## 2026-08-12 (as universidades saem da base — e um vazamento de 761 MB aparece)
 
 Pedido: apagar as OS das universidades e do Benfica. **107 OS excluídas** (38% da
