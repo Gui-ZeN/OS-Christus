@@ -3,6 +3,49 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (a linha do tempo que o sistema jogava fora)
+
+Primeiro passo do rework da agenda operacional, e ele começou por uma medição que
+mudou o alvo: **quanto da agenda o Serv3 consegue preencher sozinho, sem pedir
+digitação a ninguém?**
+
+**Quase nada — e a razão é estrutural.** `stageEnteredAt` é **um** carimbo,
+sobrescrito a cada transição: o sistema sabe há quanto tempo a OS está na etapa
+ATUAL e **descarta a data de todas as anteriores**. O valor inteiro da planilha que a
+coordenação mantém é ver as seis datas lado a lado. Não era falta de digitação; era
+descarte.
+
+O retrato antes da mudança, na produção: a linha do tempo derivável do histórico
+cobria visita técnica em 97% das OS e conclusão em 36%, mas **as quatro etapas do
+meio em 1-3%** — contra 226 aprovações de solução, 177 orçamentos e 141 ações
+preliminares datadas na planilha. **60% das OS tinham exatamente 1 marco.** E o
+planejado era pior: de 181 OS, **1 tinha data futura**; das 58 com atenção
+operacional, **57 estavam vencidas** (atraso mediano de 24 dias, máximo 78), todas do
+mesmo tipo — `revisar-mensagem`. Metade das OS abertas não tinha nenhuma próxima ação.
+
+- **Cada transição passa a gravar um marco permanente**, na MESMA transação que valida
+  a mudança de etapa — numa segunda escrita ele poderia falhar sozinho e deixar buraco
+  justamente na OS que se moveu.
+- **Mapa no documento, não subcoleção.** No máximo uma chave por etapa (12), longe do
+  risco do `history[]` que quase estourou 1 MiB, e sai na mesma leitura da listagem —
+  que é o que uma tela de carteira precisa, uma linha por OS.
+- **A primeira entrada vence.** Encerrar e reabrir é comum aqui; sobrescrever faria a
+  OS reaberta perder a própria história e o "início da execução" viraria o do
+  retrabalho. O `closedAt` continua sendo limpo na reabertura, porque ele responde
+  outra pergunta: "está fechada agora".
+- **`marcos` é campo só-servidor por construção** — fica fora da allow-list do PATCH,
+  e há teste provando que o cliente não forja a data.
+- **Backfill (`npm run infra:marcos:backfill`, ensaio por padrão) não inventa data.**
+  Recupera só o que o próprio Serv3 já sabe: triagem, transições registradas,
+  `createdAt` e `closedAt`. Ensaio na produção: **438 marcos em 181 OS**. Etapa sem
+  rastro fica sem marco — coluna vazia é honesta, e preencher por aproximação
+  produziria a carteira que parece completa e mente, que foi exatamente o defeito do
+  gráfico que lia `closureChecklist.closedAt`.
+
+⚠️ Sem importar a planilha (decisão do dono), a linha do tempo só engorda com o que se
+mover **daqui para frente**. Nas primeiras semanas a carteira do Serv3 será mais pobre
+que a planilha, e as duas vão conviver.
+
 ## 2026-08-13 (o sistema recusava a etapa que a operação usa — e uma planilha provou)
 
 **Em 07/08 eu aposentei três etapas de aprovação de uma vez.** A medição que usei

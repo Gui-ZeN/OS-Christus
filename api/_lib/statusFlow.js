@@ -60,6 +60,38 @@ export function isRetiredStatus(status) {
   return APOSENTADAS.has(String(status || ''));
 }
 
+/**
+ * O carimbo PERMANENTE de quando a OS entrou em cada etapa.
+ *
+ * `stageEnteredAt` responde "há quanto tempo está NESTA etapa" e é sobrescrito a cada
+ * transição — a data da etapa anterior era descartada. Medido em 13/08/2026: o Serv3
+ * conseguia reconstruir do histórico a visita técnica em 97% das OS e a conclusão em
+ * 36%, e as quatro etapas do meio em 1-3%. A carteira que a coordenação mantém numa
+ * planilha existe justamente para ver as datas LADO A LADO — 226 aprovações de
+ * solução, 177 orçamentos, 141 ações preliminares registrados lá. Sem este mapa, "o
+ * que já aconteceu nesta OS" só se responde varrendo o histórico inteiro.
+ *
+ * MAPA no próprio documento, não subcoleção: no máximo uma chave por etapa (12), então
+ * não corre o risco do `history[]`, que quase estourou 1 MiB. E sai na MESMA leitura da
+ * listagem — que é o ponto, porque a tela de carteira mostra uma linha por OS.
+ *
+ * A PRIMEIRA entrada vence. Encerrar e reabrir é comum aqui (o fluxo permite, e o
+ * `closedAt` é limpo na reabertura de propósito); sobrescrever faria a OS reaberta
+ * perder a própria linha do tempo. As reentradas continuam no histórico, que é onde
+ * "quantas vezes" se responde.
+ *
+ * @returns o mapa novo, ou `null` quando não há o que acrescentar — assim a transição
+ *          repetida não reescreve o mapa inteiro à toa.
+ */
+export function addStageMarco(marcosAtuais, status, quando) {
+  const etapa = String(status || '');
+  if (!etapa || !quando) return null;
+  const atuais =
+    marcosAtuais && typeof marcosAtuais === 'object' && !Array.isArray(marcosAtuais) ? marcosAtuais : {};
+  if (atuais[etapa]) return null;
+  return { ...atuais, [etapa]: quando };
+}
+
 const FINISHED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 
 /**

@@ -39,7 +39,7 @@ import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
-import { TICKET_STATUS, canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
+import { TICKET_STATUS, addStageMarco, canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
 
 /** As duas saídas da fila. Cancelada conta: a OS deixa de ser pendência do mesmo jeito. */
 const CLOSED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
@@ -497,6 +497,9 @@ async function preparePublicTicketCreate(db, rawTicket) {
     time: now,
     status: 'Nova OS',
     stageEnteredAt: now,
+    // Primeiro marco da linha do tempo: a OS existir já é um evento datado. Sem ele,
+    // a carteira mostraria a coluna vazia para toda OS que ainda não se moveu.
+    marcos: { 'Nova OS': now },
     type: clampText(rawTicket.type, PUBLIC_TEXT_LIMITS.type),
     macroServiceId: clampText(rawTicket.macroServiceId, PUBLIC_TEXT_LIMITS.catalogId),
     macroServiceName: clampText(rawTicket.macroServiceName, PUBLIC_TEXT_LIMITS.serviceName),
@@ -1633,6 +1636,14 @@ export default async function handler(req, res) {
           } else if (CLOSED_STATUSES.has(data.status)) {
             payload.closedAt = null;
           }
+
+          // O marco PERMANENTE da etapa, ao lado do relógio que é sobrescrito.
+          // Nasce aqui, dentro da MESMA transação que acabou de validar a transição:
+          // numa segunda escrita ele poderia falhar sozinho e a linha do tempo ficaria
+          // com buraco justamente na OS que se moveu. `marcos` não está na allow-list
+          // do PATCH (`ticketPatchScope.js`), então é campo só-servidor por construção.
+          const marcos = addStageMarco(data.marcos, updates.status, payload.stageEnteredAt);
+          if (marcos) payload.marcos = marcos;
         }
 
         if (Array.isArray(updates.history)) {
