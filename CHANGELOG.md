@@ -24,12 +24,20 @@ compilação do InboxView pelo Vite. Repetido 3× com o servidor quente: **12/12
 o primeiro teste de cada rodada em ~17s e os seguintes em ~4s. A margem para o
 timeout é estreita, e o CI é mais lento que a máquina local.
 
-**Achado ainda aberto: o backup cobre menos do que a exclusão apaga.** Quando a
-cascata foi corrigida para varrer o bucket pelo prefixo da OS, o `backup-os.mjs`
-ficou para trás — ele baixa só os paths de `attachments[]` e
-`closureChecklist.documents[]`, que era a lista antiga. Anexo chegado por e-mail é
-apagado e **não** é salvo. A trava que exige backup antes do `--apply` continua de
-pé, mas hoje ela garante menos do que promete.
+**O backup cobria menos do que a exclusão apaga — e agora os dois leem o mesmo
+critério.** Quando a cascata foi corrigida para varrer o bucket pelo prefixo da OS, o
+`backup-os.mjs` ficou para trás: continuava baixando só os paths de `attachments[]` e
+`closureChecklist.documents[]`, a lista antiga. Ou seja, anexo chegado por e-mail era
+apagado e **não** era salvo — o oposto do motivo de o backup existir. A trava que
+exige backup antes do `--apply` seguia de pé, garantindo menos do que prometia.
+
+A varredura virou `listTicketStorageFiles` (exportada de `api/tickets.js`), e a
+exclusão passou a ser o laço de `delete` em cima dela. O backup **chama a mesma
+função** em vez de reimplementar o prefixo — que é exatamente o motivo de
+`escopo-os-a-apagar.mjs` existir: dois lados com cópias do critério divergem em
+silêncio, e o erro só aparece na hora de restaurar. O destino do arquivo salvo agora
+inclui a pasta de tipo (`anexos/<OS>/inbound/foto.jpeg`), senão nomes repetidos entre
+pastas se sobrescreveriam e o backup teria menos arquivos do que diz ter.
 
 ## 2026-08-12 (as universidades saem da base — e um vazamento de 761 MB aparece)
 

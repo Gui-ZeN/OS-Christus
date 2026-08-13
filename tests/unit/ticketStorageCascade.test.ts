@@ -30,7 +30,54 @@ vi.mock('firebase-admin/storage', () => ({
   getStorage: () => ({ bucket: () => ({ getFiles }) }),
 }));
 
-const { deleteTicketStorageFolder } = await import('../../api/tickets.js');
+const { deleteTicketStorageFolder, listTicketStorageFiles } = await import('../../api/tickets.js');
+
+/**
+ * O backup (`scripts/infra/backup-os.mjs`) salva exatamente o que esta função lista.
+ * Enquanto ele lia `attachments[]` e `closureChecklist.documents[]` e a cascata varria
+ * o prefixo, ele salvava MENOS do que a exclusão apagava — anexo de e-mail ia embora
+ * sem cópia. Estes casos travam o contrato dos dois lados.
+ */
+describe('listTicketStorageFiles', () => {
+  beforeEach(() => {
+    getFiles.mockClear();
+    pastas = ['attachments/tickets/inbound/', 'attachments/tickets/quotes/'];
+    arquivosPorPrefixo = {};
+  });
+
+  it('lista o anexo de e-mail, que nenhum array do documento referencia', async () => {
+    arquivosPorPrefixo['attachments/tickets/inbound/OS-0200/'] = [
+      'attachments/tickets/inbound/OS-0200/foto.jpeg',
+    ];
+    arquivosPorPrefixo['attachments/tickets/quotes/OS-0200/'] = [
+      'attachments/tickets/quotes/OS-0200/cotacao.pdf',
+    ];
+
+    const nomes = (await listTicketStorageFiles('OS-0200')).map(f => f.name);
+
+    expect(nomes).toEqual([
+      'attachments/tickets/inbound/OS-0200/foto.jpeg',
+      'attachments/tickets/quotes/OS-0200/cotacao.pdf',
+    ]);
+  });
+
+  it('aplica a mesma trava de escopo da exclusão', async () => {
+    arquivosPorPrefixo['attachments/tickets/inbound/OS-0201/'] = [
+      'attachments/tickets/inbound/OS-0201/meu.pdf',
+      'attachments/tickets/inbound/OS-0999/alheio.pdf',
+    ];
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const nomes = (await listTicketStorageFiles('OS-0201')).map(f => f.name);
+
+    expect(nomes).toEqual(['attachments/tickets/inbound/OS-0201/meu.pdf']);
+  });
+
+  it('não chama o bucket quando não há ticketId', async () => {
+    expect(await listTicketStorageFiles('')).toEqual([]);
+    expect(getFiles).not.toHaveBeenCalled();
+  });
+});
 
 describe('deleteTicketStorageFolder', () => {
   beforeEach(() => {

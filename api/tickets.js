@@ -573,7 +573,7 @@ function isPathInTicketScope(path, ticketId) {
 }
 
 /**
- * Apaga os arquivos da OS VARRENDO o bucket pelo prefixo dela — não a lista de
+ * Lista os arquivos da OS VARRENDO o bucket pelo prefixo dela — não a lista de
  * paths do documento.
  *
  * A versão anterior lia só `attachments[]` e `closureChecklist.documents[]`. Mas
@@ -584,9 +584,14 @@ function isPathInTicketScope(path, ticketId) {
  *
  * A varredura mantém a mesma trava (`isPathInTicketScope`): o prefixo já limita à
  * pasta da OS, e a checagem por arquivo é a rede embaixo dela.
+ *
+ * Separada da exclusão porque o BACKUP precisa da MESMA resposta. Enquanto ele lia
+ * os arrays do documento e a cascata varria o prefixo, o backup salvava menos do que
+ * a exclusão destruía — o anexo de e-mail ia embora sem cópia, que é o oposto do
+ * motivo de o backup existir. Um critério só, lido pelos dois lados.
  */
-export async function deleteTicketStorageFolder(ticketId) {
-  if (!ticketId) return 0;
+export async function listTicketStorageFiles(ticketId) {
+  if (!ticketId) return [];
   const bucket = getStorage().bucket();
 
   // As pastas por tipo (inbound, messages, quotes, contracts…) são DESCOBERTAS, e não
@@ -597,21 +602,32 @@ export async function deleteTicketStorageFolder(ticketId) {
     autoPaginate: false,
   });
 
-  let deleted = 0;
+  const arquivos = [];
   for (const pasta of resposta?.prefixes || []) {
     const [files] = await bucket.getFiles({ prefix: `${pasta}${ticketId}/` });
     for (const file of files) {
       if (!isPathInTicketScope(file.name, ticketId)) {
-        console.error('[tickets] path de anexo fora do escopo da OS recusado na exclusão', { ticketId, path: file.name });
+        console.error('[tickets] path de anexo fora do escopo da OS recusado', { ticketId, path: file.name });
         continue;
       }
-      try {
-        await file.delete({ ignoreNotFound: true });
-        deleted += 1;
-      } catch (error) {
-        // Não interrompe a exclusão da OS, mas registra: o arquivo pode ficar órfão.
-        console.error('[tickets] falha ao apagar anexo do Storage', file.name, error);
-      }
+      arquivos.push(file);
+    }
+  }
+
+  return arquivos;
+}
+
+export async function deleteTicketStorageFolder(ticketId) {
+  if (!ticketId) return 0;
+
+  let deleted = 0;
+  for (const file of await listTicketStorageFiles(ticketId)) {
+    try {
+      await file.delete({ ignoreNotFound: true });
+      deleted += 1;
+    } catch (error) {
+      // Não interrompe a exclusão da OS, mas registra: o arquivo pode ficar órfão.
+      console.error('[tickets] falha ao apagar anexo do Storage', file.name, error);
     }
   }
 

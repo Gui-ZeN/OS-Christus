@@ -18,7 +18,6 @@ import path from 'node:path';
 import process from 'node:process';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { resolveCredentialsPath, readServiceAccount } from './shared-auth.mjs';
 import { ESCOPOS, selecionarOs } from './escopo-os-a-apagar.mjs';
 
@@ -32,7 +31,10 @@ const conta = readServiceAccount(resolveCredentialsPath());
 const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.trim() || `${conta.project_id}-attachments`;
 initializeApp({ credential: cert(conta), projectId: conta.project_id, storageBucket: bucketName });
 const db = getFirestore();
-const bucket = getStorage().bucket();
+
+// Importado DEPOIS do initializeApp, como em apagar-os.mjs: api/tickets.js chama
+// getStorage() e precisa do app default já de pé.
+const { listTicketStorageFiles } = await import('../../api/tickets.js');
 
 // Timestamp do Firestore vira string ISO com marca, para a restauração saber
 // distinguir uma data de um texto que por acaso parece data.
@@ -79,20 +81,23 @@ for (const [i, os] of alvo.entries()) {
       threadRef.get(),
     ]);
 
-  // Os mesmos paths que a cascata apaga do bucket.
-  const caminhos = [
-    ...(Array.isArray(os.dados.attachments) ? os.dados.attachments : []),
-    ...(Array.isArray(os.dados.closureChecklist?.documents) ? os.dados.closureChecklist.documents : []),
-  ]
-    .map(a => a?.path)
-    .filter(Boolean);
+  // A MESMA varredura da cascata, e não a lista de paths do documento: anexo que
+  // chega por e-mail mora em `inbound/` e é referenciado só pelo histórico. Enquanto
+  // isto aqui lia `attachments[]` e `closureChecklist.documents[]`, o backup salvava
+  // MENOS do que a exclusão apagava — o oposto do motivo de ele existir.
+  const arquivos = await listTicketStorageFiles(os.id);
 
   const anexosSalvos = [];
-  for (const caminho of caminhos) {
-    const destino = path.join(raiz, 'anexos', os.id, path.basename(caminho));
+  for (const arquivo of arquivos) {
+    const caminho = arquivo.name;
+    // O tipo entra no destino porque o mesmo nome se repete entre pastas
+    // (inbound/foto.jpeg e messages/foto.jpeg): sem ele, um sobrescreve o outro e o
+    // backup fica com menos arquivos do que diz ter.
+    const tipo = caminho.split('/')[2] || 'outros';
+    const destino = path.join(raiz, 'anexos', os.id, tipo, path.basename(caminho));
     try {
       fs.mkdirSync(path.dirname(destino), { recursive: true });
-      await bucket.file(caminho).download({ destination: destino });
+      await arquivo.download({ destination: destino });
       bytes += fs.statSync(destino).size;
       anexosSalvos.push({ caminho, arquivo: path.relative(raiz, destino), ok: true });
       arquivosOk += 1;
