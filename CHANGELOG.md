@@ -3,6 +3,40 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (o Início tinha 19 números e 4 portas)
+
+Pedido do dono: *"acho tudo muito poluído"*. Antes de mexer em cor ou espaçamento,
+contei — em cada tela, quantos números aparecem e quantos abrem alguma coisa:
+
+| Tela | Números | Abrem algo | Zeros |
+|---|---|---|---|
+| Início | **19** | **4** | 8 |
+| Indicadores | 11 | 0 | 4 |
+| Hoje (prévia) | 5 | 0 | 3 |
+| Financeiro | 2 | 0 | 1 |
+| Caixa de Entrada | 1 | 0 | 0 |
+| Gestão de OS | 0 | — | 0 |
+
+**De 38 números no sistema, 4 abrem alguma coisa.** Não é estilo: é densidade sem
+consequência. Uma tela onde o número não responde ao clique ensina a pessoa a não
+clicar, e a partir daí ela lê tudo como parede. O princípio já estava escrito na
+Consulta 7 do gpt-5.6-sol — *"todo número da página inicial deveria abrir uma lista
+sobre a qual alguém consegue agir"* — e tinha sido aplicado só na primeira fileira.
+
+- **O "Painel por Região" saiu.** Sozinho, respondia por 12 dos 34 números mortos (3
+  regiões × 4 contadores, nenhum clicável). O recorte territorial continua onde dá
+  para agir sobre ele: os filtros do topo e a Gestão.
+- **Cartão zerado não aparece.** Mesma regra que a faixa de próxima ação já usava:
+  aviso que aparece sempre vira moldura; sumindo, o silêncio passa a significar "nada
+  pendente" — e isso é informação. Quando todos os gargalos estão zerados, a fileira
+  inteira dá lugar a uma linha ("Nenhum gargalo agora").
+- Resultado no Início: **19 → 6 números, 8 → 0 zeros, e os 4 que abrem lista
+  intactos.** Verificado no navegador, inclusive o estado vazio (forçado no emulador,
+  já que nenhuma sede real zera tudo).
+
+Sobraram **2 números mortos** — "Obras em campo" e "Entregas finalizadas". Ficaram
+porque não estavam no pedido; pela mesma régua, ou viram porta ou saem.
+
 ## 2026-08-13 (a Gestão mostra o que já aconteceu na OS)
 
 A coluna **Marcos** entra na tabela de Gestão: uma barra de seis segmentos com a régua

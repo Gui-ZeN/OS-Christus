@@ -1,13 +1,13 @@
 ﻿
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart2, MapPinned, Plus, Users } from 'lucide-react';
+import { AlertTriangle, BarChart2, Plus, Users } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { formatDateTimeSafe } from '../utils/date';
-import { getTicketRegionId, getTicketRegionLabel, getTicketSiteId, getTicketSiteLabel } from '../utils/ticketTerritory';
+import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import type { OsBoardFilter } from '../types';
 
@@ -141,6 +141,22 @@ export function HomeView() {
     semResponsavel: scopedTickets.filter(ticket => isTicketOpen(ticket.status) && !ticket.responsible?.email).length,
   }), [scopedTickets]);
 
+  /** O trio de entrega, pela mesma regra: cartão zerado não aparece, e trio vazio some. */
+  const entregas = useMemo(() => {
+    const aguardandoAceite = scopedTickets.filter(t => t.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length;
+    const emCampo = scopedTickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length;
+    const finalizadas = scopedTickets.filter(t => t.status === TICKET_STATUS.CLOSED).length;
+    return { aguardandoAceite, emCampo, finalizadas, total: aguardandoAceite + emCampo + finalizadas };
+  }, [scopedTickets]);
+
+  /** Quantos gargalos têm o que mostrar. Zero em todos = a fileira inteira some. */
+  const gargalosVisiveis = [
+    stats.aguardandoParecer,
+    stats.travadas,
+    stats.semResponsavel,
+    stats.novas,
+  ].filter(quantidade => quantidade > 0).length;
+
   const executiveNextActions = useMemo(() => {
     if (!hasOperationalActions) return [];
     return [
@@ -187,29 +203,6 @@ export function HomeView() {
     [isRequester, scopedTickets]
   );
 
-  const regionalExecutiveBoard = useMemo(() => {
-    const grouped = new Map<string, { label: string; region: string; open: number; approvals: number; waitingValidation: number; closed: number }>();
-    for (const ticket of scopedTickets) {
-      const regionLabel = getTicketRegionLabel(ticket, regions, sites);
-      const siteLabel = getTicketSiteLabel(ticket, sites);
-      const label = selectedRegion === 'all' ? regionLabel : siteLabel;
-      const key = selectedRegion === 'all'
-        ? getTicketRegionId(ticket, regions, sites) || regionLabel
-        : `${getTicketRegionId(ticket, regions, sites) || regionLabel}|${getTicketSiteId(ticket, sites) || siteLabel}`;
-      if (!grouped.has(key)) {
-        grouped.set(key, { label, region: regionLabel, open: 0, approvals: 0, waitingValidation: 0, closed: 0 });
-      }
-      const current = grouped.get(key)!;
-      if (isTicketOpen(ticket.status)) current.open += 1;
-      if (ticket.status.toLowerCase().includes('aprova')) current.approvals += 1;
-      if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) current.waitingValidation += 1;
-      if (ticket.status === TICKET_STATUS.CLOSED) current.closed += 1;
-    }
-    return [...grouped.values()]
-      .sort((a, b) => b.open + b.approvals + b.waitingValidation - (a.open + a.approvals + a.waitingValidation))
-      .slice(0, 8);
-  }, [regions, scopedTickets, selectedRegion, sites]);
-
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="max-w-7xl mx-auto">
@@ -247,37 +240,59 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-          {/* Todos abrem a GESTÃO filtrada, não a Inbox. A Inbox é a tela que o dono
-              chamou de ameaçadora, e mandar alguém para lá para responder "quais
-              estão paradas" é pedir que ela atravesse 3.000 linhas de conversa para
-              ver uma lista. */}
-          <StatCard
-            title="Aguardando parecer"
-            value={String(stats.aguardandoParecer)}
-            subtitle="a fila que segura o resto"
-            highlight
-            onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.WAITING_TECH_OPINION }) : undefined}
-          />
-          <StatCard
-            title="Travadas"
-            value={String(stats.travadas)}
-            subtitle="falta classificar para avançar"
-            onClick={canOperate ? () => abrirGestao({ bloqueadas: true }) : undefined}
-          />
-          <StatCard
-            title="Sem responsável"
-            value={String(stats.semResponsavel)}
-            subtitle="ninguém respondendo por elas"
-            onClick={canOperate ? () => abrirGestao({ responsible: 'none' }) : undefined}
-          />
-          <StatCard
-            title="Novas OS"
-            value={String(stats.novas)}
-            subtitle="ainda não triadas"
-            onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.NEW }) : undefined}
-          />
-        </div>
+        {/* CARTÃO ZERADO NÃO APARECE.
+            Medido em 13/08: o Início mostrava 19 números, 15 sem abrir nada e 8
+            zerados. Zero ocupa o mesmo espaço de um problema real e não é nem
+            informação nem convite — e uma tela cheia de números que não respondem ao
+            clique ensina a pessoa a não clicar.
+            É a mesma regra que a faixa de próxima ação já aplica (`NextActionStrip`):
+            aviso que aparece sempre vira moldura; sumindo, o silêncio passa a
+            significar "nada pendente", e isso é informação. */}
+        {gargalosVisiveis === 0 ? (
+          <p className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 font-serif italic text-roman-text-sub shadow-sm">
+            Nenhum gargalo agora: nada aguardando parecer, travado, sem responsável ou por triar.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+            {/* Todos abrem a GESTÃO filtrada, não a Inbox. A Inbox é a tela que o dono
+                chamou de ameaçadora, e mandar alguém para lá para responder "quais
+                estão paradas" é pedir que ela atravesse 3.000 linhas de conversa para
+                ver uma lista. */}
+            {stats.aguardandoParecer > 0 && (
+              <StatCard
+                title="Aguardando parecer"
+                value={String(stats.aguardandoParecer)}
+                subtitle="a fila que segura o resto"
+                highlight
+                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.WAITING_TECH_OPINION }) : undefined}
+              />
+            )}
+            {stats.travadas > 0 && (
+              <StatCard
+                title="Travadas"
+                value={String(stats.travadas)}
+                subtitle="falta classificar para avançar"
+                onClick={canOperate ? () => abrirGestao({ bloqueadas: true }) : undefined}
+              />
+            )}
+            {stats.semResponsavel > 0 && (
+              <StatCard
+                title="Sem responsável"
+                value={String(stats.semResponsavel)}
+                subtitle="ninguém respondendo por elas"
+                onClick={canOperate ? () => abrirGestao({ responsible: 'none' }) : undefined}
+              />
+            )}
+            {stats.novas > 0 && (
+              <StatCard
+                title="Novas OS"
+                value={String(stats.novas)}
+                subtitle="ainda não triadas"
+                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.NEW }) : undefined}
+              />
+            )}
+          </div>
+        )}
 
         {isRequester && (
           <div className="mb-6 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
@@ -490,46 +505,29 @@ export function HomeView() {
           </div>
         )}
 
-        {isExecutive && (
+        {isExecutive && entregas.total > 0 && (
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
-            <StatCard title="Entrega aguardando aceite" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length)} subtitle="Obras prontas para fechamento" />
-            <StatCard title="Obras em campo" value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.IN_PROGRESS).length)} subtitle="Execução ativa agora" />
-            <StatCard
-              title="Entregas finalizadas"
-              value={String(scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length)}
-              subtitle="OS já encerradas"
-            />
+            {entregas.aguardandoAceite > 0 && (
+              <StatCard title="Entrega aguardando aceite" value={String(entregas.aguardandoAceite)} subtitle="Obras prontas para fechamento" />
+            )}
+            {entregas.emCampo > 0 && (
+              <StatCard title="Obras em campo" value={String(entregas.emCampo)} subtitle="Execução ativa agora" />
+            )}
+            {entregas.finalizadas > 0 && (
+              <StatCard title="Entregas finalizadas" value={String(entregas.finalizadas)} subtitle="OS já encerradas" />
+            )}
           </div>
         )}
 
+        {/* O "Painel por Região" saiu daqui em 13/08.
+            Ele era 12 dos 34 números mortos do sistema — 3 regiões × 4 contadores,
+            nenhum clicável — e o maior bloco isolado de leitura sem saída. O recorte
+            por região/sede continua existindo onde dá para AGIR sobre ele: os filtros
+            no topo desta tela e a Gestão. Se voltar, que volte com cada número
+            abrindo a lista correspondente. */}
         {isExecutive && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-5">
-          <div className="xl:col-span-2 bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4 border-b border-roman-border pb-2">
-              <h2 className="font-serif text-lg font-medium text-roman-text-main">{selectedRegion === 'all' ? 'Painel por Região' : 'Painel por Sede'}</h2>
-              <MapPinned size={16} className="text-roman-text-sub" />
-            </div>
-            {regionalExecutiveBoard.length === 0 ? (
-              <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma OS disponível para consolidar.</p>
-            ) : (
-              <div className="space-y-3">
-                {regionalExecutiveBoard.map(item => (
-                  <div key={`${item.region}-${item.label}`} className="grid grid-cols-1 md:grid-cols-[1.6fr_repeat(4,0.75fr)] gap-3 items-center border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                    <div>
-                      <div className="font-medium text-roman-text-main">{item.label}</div>
-                      <div className="text-xs text-roman-text-sub">{selectedRegion === 'all' ? 'Visão regional' : item.region}</div>
-                    </div>
-                    <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Abertas</div><div className="font-medium text-roman-text-main">{item.open}</div></div>
-                    <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Aprovação</div><div className="font-medium text-roman-text-main">{item.approvals}</div></div>
-                    <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Validação</div><div className="font-medium text-roman-text-main">{item.waitingValidation}</div></div>
-                    <div className="text-sm"><div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Concluídas</div><div className="font-medium text-roman-text-main">{item.closed}</div></div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm">
+        <div className="mb-5">
+          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm xl:max-w-sm">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Ações Rápidas</h2>
             <div className="space-y-3">
               <button onClick={() => navigateTo('public-form')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
