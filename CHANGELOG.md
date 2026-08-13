@@ -65,10 +65,21 @@ mesmo tipo — `revisar-mensagem`. Metade das OS abertas não tinha nenhuma pró
   e há teste provando que o cliente não forja a data.
 - **Backfill (`npm run infra:marcos:backfill`, ensaio por padrão) não inventa data.**
   Recupera só o que o próprio Serv3 já sabe: triagem, transições registradas,
-  `createdAt` e `closedAt`. Ensaio na produção: **438 marcos em 181 OS**. Etapa sem
-  rastro fica sem marco — coluna vazia é honesta, e preencher por aproximação
-  produziria a carteira que parece completa e mente, que foi exatamente o defeito do
-  gráfico que lia `closureChecklist.closedAt`.
+  `createdAt` e `closedAt`. Etapa sem rastro fica sem marco — coluna vazia é honesta, e
+  preencher por aproximação produziria a carteira que parece completa e mente, que foi
+  exatamente o defeito do gráfico que lia `closureChecklist.closedAt`.
+
+**BACKFILL APLICADO EM PRODUÇÃO** (13/08): **438 marcos em 181 OS**, 100% da base com o
+mapa, zero datas inválidas ou no futuro. Conferido por leitura independente do banco:
+`97/97` das OS em Parecer Técnico têm o marco da própria etapa, `62/62` das encerradas,
+`2/2` das preliminares — mas só **`3/10`** das que estão em Orçamento e `4/5` das em
+andamento. Essas sete chegaram à etapa por um caminho que não deixou transição
+registrada, e o script **deixou vazio em vez de inventar**.
+
+O retrato que a coluna mostra hoje: **1 OS com 0/6, 109 com 1/6, 69 com 2/6, 2 com
+3/6**. Nenhuma com 4, 5 ou 6 — contra 226 aprovações de solução datadas na planilha.
+É pobre e é honesto; é essa distância que deve encolher a cada OS que se mover agora
+que o fluxo aceita as etapas.
 
 ⚠️ Sem importar a planilha (decisão do dono), a linha do tempo só engorda com o que se
 mover **daqui para frente**. Nas primeiras semanas a carteira do Serv3 será mais pobre
