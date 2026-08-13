@@ -80,7 +80,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                   Painel centralizado de triagem, abertura e acompanhamento de ordens de serviço.
                 </p>
               </div>
-              <div className="max-w-md rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-base leading-relaxed text-white/70">
+              <div className="max-w-md rounded-xl border border-white/10 bg-white/5 px-6 py-5 text-base leading-relaxed text-white/70">
                 Ambiente interno para gestão de chamados, aprovações e comunicação operacional.
               </div>
             </div>
@@ -105,13 +105,13 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
 
             <div className="mt-6 space-y-4 lg:mt-7">
               {error && (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
                   <div className="font-semibold text-red-900">Não foi possível entrar</div>
                   <div className="mt-1">{error}</div>
                 </div>
               )}
               {passwordResetFeedback && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
                   <div className="font-semibold">Recuperação enviada</div>
                   <div className="mt-1">{passwordResetFeedback}</div>
                 </div>
@@ -134,7 +134,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                       onChange={event => setLoginEmail(event.target.value)}
                       placeholder="seu@email.com"
                       autoComplete="email"
-                      className="w-full rounded-2xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
+                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
                     />
                   </div>
 
@@ -147,7 +147,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                       onChange={event => setLoginPassword(event.target.value)}
                       placeholder="••••••••"
                       autoComplete="current-password"
-                      className="w-full rounded-2xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
+                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
                     />
                     <div className="mt-2 flex justify-end">
                       <button
@@ -164,7 +164,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                   <button
                     type="submit"
                     disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !loginEmail.trim() || !loginPassword.trim()}
-                    className="mt-2 inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-roman-border bg-roman-sidebar px-5 py-3 text-base font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-2 inline-flex w-full items-center justify-center gap-3 rounded-xl border border-roman-border bg-roman-sidebar px-5 py-3 text-base font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Acessar o sistema <ArrowRight size={20} /></>}
                   </button>
@@ -182,7 +182,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                   <button
                     onClick={() => void handleGoogleLogin()}
                     disabled={isLoading || isGoogleLoading}
-                    className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-roman-border bg-roman-bg px-5 py-3 text-base font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-roman-border bg-roman-bg px-5 py-3 text-base font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isGoogleLoading ? (
                       <Loader2 size={20} className="animate-spin" />

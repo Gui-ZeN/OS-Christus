@@ -582,7 +582,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   if (loading) {
     return (
       <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center justify-center px-4">
-        <div className="bg-roman-surface border border-roman-border p-6 rounded-2xl shadow-sm text-center max-w-md w-full">
+        <div className="bg-roman-surface border border-roman-border p-6 rounded-xl shadow-sm text-center max-w-md w-full">
           <Loader2 size={28} className="animate-spin mx-auto text-roman-primary mb-4" />
           <h1 className="text-xl font-serif text-roman-text-main font-medium mb-2">Carregando acompanhamento</h1>
           <p className="text-roman-text-sub">Estamos buscando sua OS no sistema.</p>
@@ -598,7 +598,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           <ArrowRight size={16} className="rotate-180" /> Voltar
         </button>
         <div className="max-w-3xl w-full">
-          <div className="bg-roman-surface border border-roman-border p-6 rounded-2xl shadow-sm mb-6 text-center">
+          <div className="bg-roman-surface border border-roman-border p-6 rounded-xl shadow-sm mb-6 text-center">
             <h1 className="text-2xl font-serif text-roman-text-main font-medium mb-2">OS não encontrada</h1>
             <p className="text-roman-text-sub">O link de acompanhamento é inválido ou expirou.</p>
           </div>
@@ -616,7 +616,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
       </button>
 
       <div className="max-w-4xl w-full">
-        <div className="bg-roman-surface border border-roman-border p-5 md:p-6 rounded-2xl shadow-sm mb-6">
+        <div className="bg-roman-surface border border-roman-border p-5 md:p-6 rounded-xl shadow-sm mb-6">
           <div className="flex justify-between items-start mb-6 border-b border-roman-border pb-5 gap-4">
             <div>
               <span className="mb-4 inline-flex rounded-xl bg-roman-sidebar p-2.5">
@@ -642,7 +642,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           </div>
 
           {executionProgressCard && (
-            <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
+            <div className="mb-6 rounded-xl border border-roman-border bg-roman-bg/70 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-medium text-roman-text-main">Andamento da execução</div>
                 <div className="text-sm font-semibold text-roman-primary">{executionProgressCard.currentPercentLabel}</div>
@@ -664,7 +664,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           )}
 
           {(canRequesterApprove || ticket.closureChecklist?.requesterApproved || feedback) && (
-            <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
+            <div className="mb-6 rounded-xl border border-roman-border bg-roman-bg/70 p-4">
               <div className="text-sm font-medium text-roman-text-main">Validação da entrega</div>
               {ticket.closureChecklist?.requesterApproved ? (
                 <p className="mt-1 text-sm text-emerald-700">
@@ -693,7 +693,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
           )}
 
           {isTicketOpen(ticket.status) && (
-            <div className="mb-6 rounded-2xl border border-roman-border bg-roman-bg/70 p-4">
+            <div className="mb-6 rounded-xl border border-roman-border bg-roman-bg/70 p-4">
               <div className="text-sm font-medium text-roman-text-main">Mensagem para a equipe</div>
               <p className="mt-1 text-sm text-roman-text-sub">
                 Envie uma atualização ou dúvida diretamente pelo acompanhamento.
@@ -748,7 +748,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     </div>
 
                     <div
-                      className={`w-full md:w-[calc(50%-2.5rem)] border px-4 py-3.5 rounded-2xl shadow-sm ${
+                      className={`w-full md:w-[calc(50%-2.5rem)] border px-4 py-3.5 rounded-xl shadow-sm ${
                         isStatusEntry
                           ? 'bg-roman-primary/5 border-roman-primary/25 text-left'
                           : isCustomerMessage
@@ -781,7 +781,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
               })}
 
               {timelineEntries.length === 0 && (
-                <div className="rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
+                <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub">
                   Ainda não há atualizações públicas disponíveis na linha do tempo.
                 </div>
               )}

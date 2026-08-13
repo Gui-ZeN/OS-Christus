@@ -338,7 +338,7 @@ function FeedbackBanner({
   const Icon = tone === 'success' ? CheckCircle : tone === 'error' ? AlertCircle : Database;
 
   return (
-    <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${palette}`}>
+    <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${palette}`}>
       <Icon size={16} className="mt-0.5 shrink-0" />
       <div>{children}</div>
     </div>
@@ -898,7 +898,7 @@ export function SettingsView() {
     <>
       <div className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="mx-auto max-w-[1500px] space-y-5">
-        <section className="rounded-[1.5rem] border border-stone-200 bg-white px-6 py-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:px-8">
+        <section className="rounded-xl border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-8">
           <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>
           <h1 className="mt-2 text-[2rem] font-serif tracking-tight text-roman-text-main">Estrutura e governança</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-roman-text-sub">
@@ -929,12 +929,12 @@ export function SettingsView() {
           </div>
         </section>
 
-        <div className="min-w-0 rounded-[1.75rem] border border-stone-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)] md:p-8">
+        <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-6 flex flex-col gap-4 border-b border-stone-200 pb-6 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">{sectionMeta.eyebrow}</div>
               <div className="mt-3 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 text-roman-primary">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-roman-primary">
                   <sectionMeta.icon size={20} />
                 </div>
                 <div>
@@ -944,7 +944,7 @@ export function SettingsView() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-roman-text-sub md:max-w-[320px]">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-roman-text-sub md:max-w-[320px]">
               <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Módulo ativo</div>
               <div className="mt-2 font-medium text-roman-text-main">{sectionMeta.navLabel}</div>
               <div className="mt-1 leading-6">Troque de aba no topo para acessar outro bloco sem percorrer a página inteira.</div>
@@ -960,24 +960,24 @@ export function SettingsView() {
                 {section === 'access' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="rounded-[1.5rem] border border-amber-200/70 bg-amber-50/70 p-5">
+                      <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
                         <div className="text-lg font-serif text-roman-text-main">Usuários e papéis</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cadastre acessos, ajuste perfis e mantenha a estrutura territorial vinculada.</p>
                       </div>
-                      <div className="rounded-[1.5rem] border border-sky-200/70 bg-sky-50/70 p-5">
+                      <div className="rounded-xl border border-sky-200/70 bg-sky-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
                         <div className="text-lg font-serif text-roman-text-main">Firebase Auth</div>
                         <p className="mt-2 text-sm text-roman-text-sub">O cadastro acompanha autenticação, status e ciclo de acesso ao sistema.</p>
                       </div>
-                      <div className="rounded-[1.5rem] border border-emerald-200/70 bg-emerald-50/70 p-5">
+                      <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 p-5">
                         <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
                         <div className="text-lg font-serif text-roman-text-main">Regiões e sedes</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cada perfil enxerga apenas a malha operacional vinculada ao seu cadastro.</p>
                       </div>
                     </div>
 
-                    <div className="rounded-[1.75rem] border border-stone-200/80 bg-white/90 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]">
+                    <div className="rounded-xl border border-stone-200/80 bg-white/90 p-6 shadow-sm">
                       <UsersView embedded />
                     </div>
                   </div>
@@ -1013,7 +1013,7 @@ export function SettingsView() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5 space-y-4">
+                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-5 space-y-4">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
@@ -1043,7 +1043,7 @@ export function SettingsView() {
                           </div>
                         </section>
 
-                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5 space-y-4">
+                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-5 space-y-4">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
@@ -1106,7 +1106,7 @@ export function SettingsView() {
                       <p className="mt-1 text-sm text-roman-text-sub">Edite o texto usado nas notificações de cada etapa e valide o tom antes do disparo.</p>
                     </div>
                     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-                      <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                      <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                         <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Gatilhos</div>
                         <div className="mt-4 overflow-hidden rounded-xl border border-stone-200 bg-white">
                           {emailTemplatesCatalog.map(item => (
@@ -1134,7 +1134,7 @@ export function SettingsView() {
                         </div>
                       </section>
 
-                      <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-5">
+                      <section className="rounded-xl border border-stone-200 bg-stone-50 p-5">
                         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                           <div className="space-y-4">
                             <div>
@@ -1247,7 +1247,7 @@ export function SettingsView() {
                     </div>
                     <div className="space-y-5">
                       {PRIORITY_MARKERS.map(priority => (
-                        <div key={priority} className="flex items-center justify-between rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
+                        <div key={priority} className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4">
                           <span className="font-medium text-sm text-roman-text-main">{priority}</span>
                           <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-sm text-roman-text-main">Marcação</span>
                         </div>
@@ -1314,7 +1314,7 @@ export function SettingsView() {
                       <div className="space-y-5">
                         {catalogSubSection === 'catalog' && (
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-                          <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
+                          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Macroserviços</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Classificação macro da manutenção.</p>
@@ -1388,7 +1388,7 @@ export function SettingsView() {
                             </div>
                           </section>
 
-                          <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
+                          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Serviços</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Detalham o tipo real de intervenção.</p>
@@ -1504,7 +1504,7 @@ export function SettingsView() {
                             </div>
                           </section>
 
-                          <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 space-y-4">
+                          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Materiais</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Materiais sugeridos para padronização de orçamento.</p>
@@ -1595,7 +1595,7 @@ export function SettingsView() {
                         )}
 
                         {catalogSubSection === 'third-parties' && (
-                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                           <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Terceiros e especialidades</h3>
@@ -1618,7 +1618,7 @@ export function SettingsView() {
                               ) : (
                                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                                   {directoryVendors.map(vendor => (
-                                    <div key={vendor.id} className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                                    <div key={vendor.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
                                           <div className="text-sm font-medium text-roman-text-main truncate">{vendor.name}</div>
@@ -1744,7 +1744,7 @@ export function SettingsView() {
                         )}
 
                         {catalogSubSection === 'tags' && (
-                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                           <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Tags compartilhadas de terceiros</h3>
@@ -1795,7 +1795,7 @@ export function SettingsView() {
                         </section>
                         )}
                         {catalogSubSection === 'authorizers' && (
-                        <section className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                           <div className="mb-4 flex items-center justify-between gap-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Quem pode autorizar por e-mail</h3>
@@ -2117,14 +2117,14 @@ export function SettingsView() {
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {legacyCards.map(card => (
-                                <div key={card.label} className="rounded-[1.1rem] border border-stone-200 bg-stone-50 p-4">
+                                <div key={card.label} className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                                   <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
                                   <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
                                 </div>
                               ))}
                             </div>
 
-                            <div className="rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4">
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                               <div className="flex items-center gap-2 text-roman-text-main font-medium mb-3">
                                 <Database size={16} />
                                 Amostras de legado
@@ -2209,7 +2209,7 @@ export function SettingsView() {
             </div>
           )}
         >
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
             <strong>Item:</strong> {pendingCatalogDelete.label}
           </div>
         </ModalShell>

@@ -260,7 +260,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
 
-        <div className={`bg-roman-surface border border-roman-border overflow-hidden ${embedded ? 'rounded-[1.5rem] shadow-[0_24px_80px_rgba(15,23,42,0.08)]' : 'rounded-sm shadow-sm'}`}>
+        <div className={`bg-roman-surface border border-roman-border overflow-hidden ${embedded ? 'rounded-xl shadow-sm' : 'rounded-sm shadow-sm'}`}>
           {loading ? (
             <div className="p-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
               <Loader2 size={18} className="animate-spin" />
@@ -270,25 +270,25 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             embedded ? (
               <div className="space-y-5 bg-stone-50/70 p-6">
                 <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
                     <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.total}</div>
                   </div>
-                  <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-emerald-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
                     <div className="mt-2 text-2xl font-serif text-emerald-900">{userStats.active}</div>
                   </div>
-                  <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-stone-600">Inativos</div>
                     <div className="mt-2 text-2xl font-serif text-stone-800">{userStats.inactive}</div>
                   </div>
-                  <div className="rounded-2xl border border-sky-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-sky-200 bg-white px-4 py-4">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
                     <div className="mt-2 text-2xl font-serif text-sky-900">{userStats.multiSite}</div>
                   </div>
                 </div>
 
-                <div className="overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white">
+                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                   <div className="flex items-center justify-between gap-4 border-b border-stone-200 px-5 py-4">
                     <div>
                       <div className="text-sm font-medium text-roman-text-main">Base de acessos</div>
@@ -524,7 +524,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             </div>
           )}
         >
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
             <div><strong>Nome:</strong> {pendingDeleteUser.name}</div>
             <div><strong>E-mail:</strong> {pendingDeleteUser.email}</div>
           </div>

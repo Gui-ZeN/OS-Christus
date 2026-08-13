@@ -20,7 +20,7 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-roman-primary px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover"
+            className="rounded-sm bg-roman-primary px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover"
           >
             Entendi
           </button>

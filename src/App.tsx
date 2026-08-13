@@ -139,7 +139,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="px-4 py-2 rounded-lg bg-roman-primary hover:bg-roman-primary-hover text-white text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-sm bg-roman-primary hover:bg-roman-primary-hover text-white text-sm font-medium transition-colors"
           >
             Recarregar
           </button>
@@ -517,7 +517,7 @@ export default function App() {
                           setTheme(option.id);
                           setShowThemeMenu(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${selected ? 'bg-roman-primary/15 text-roman-primary' : 'text-roman-text-main hover:bg-roman-bg'}`}
+                        className={`flex w-full items-center justify-between rounded-sm px-2.5 py-2 text-left text-xs transition-colors ${selected ? 'bg-roman-primary/15 text-roman-primary' : 'text-roman-text-main hover:bg-roman-bg'}`}
                       >
                         <span>{option.label}</span>
                         {selected && <span className="text-[10px] font-semibold uppercase tracking-wide">Ativo</span>}

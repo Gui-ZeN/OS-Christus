@@ -11,7 +11,7 @@ export function LandingView({ onOpenForm, onLogin }: LandingViewProps) {
     <div className="relative h-screen w-full overflow-auto bg-roman-bg">
       <div className="mx-auto w-full max-w-[1320px] px-4 py-8 sm:px-6 sm:py-10 md:py-12">
         <header className="text-center">
-          <span className="inline-flex rounded-2xl bg-roman-sidebar px-6 py-4">
+          <span className="inline-flex rounded-xl bg-roman-sidebar px-6 py-4">
             <img src="/logo-serv3.svg" alt="Serv3 — Grupo Christus" className="h-12 w-auto sm:h-14" />
           </span>
           <h1 className="mt-7 text-4xl font-serif text-roman-text-main sm:text-5xl md:text-6xl">
@@ -25,9 +25,9 @@ export function LandingView({ onOpenForm, onLogin }: LandingViewProps) {
         <section className="mt-10 grid gap-5 lg:grid-cols-2">
           <button
             onClick={onOpenForm}
-            className="group rounded-[22px] border border-roman-border bg-roman-surface p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/50 hover:shadow-lg hover:shadow-black/5 sm:p-8"
+            className="group rounded-xl border border-roman-border bg-roman-surface p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/50 hover:shadow-lg hover:shadow-black/5 sm:p-8"
           >
-            <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-roman-border bg-roman-bg text-roman-primary">
+            <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-xl border border-roman-border bg-roman-bg text-roman-primary">
               <ClipboardList size={28} strokeWidth={1.8} />
             </div>
             <h2 className="text-3xl font-serif text-roman-text-main">Abrir Chamado</h2>
@@ -41,9 +41,9 @@ export function LandingView({ onOpenForm, onLogin }: LandingViewProps) {
 
           <button
             onClick={onLogin}
-            className="group rounded-[22px] border border-roman-border/60 bg-roman-sidebar p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/60 hover:shadow-lg hover:shadow-black/20 sm:p-8"
+            className="group rounded-xl border border-roman-border/60 bg-roman-sidebar p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/60 hover:shadow-lg hover:shadow-black/20 sm:p-8"
           >
-            <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white/85">
+            <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/85">
               <Lock size={28} strokeWidth={1.8} />
             </div>
             <h2 className="text-3xl font-serif text-white">Acesso à Gestão</h2>

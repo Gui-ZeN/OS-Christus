@@ -78,7 +78,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
   return (
     <div className="min-h-screen w-full bg-roman-bg px-5 py-8 text-roman-text-main">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-3xl border border-roman-border bg-roman-surface shadow-[0_28px_80px_rgba(15,23,42,0.12)] lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid w-full overflow-hidden rounded-xl border border-roman-border bg-roman-surface shadow-[0_28px_80px_rgba(15,23,42,0.12)] lg:grid-cols-[0.95fr_1.05fr]">
           <section className="hidden bg-roman-sidebar p-10 text-white lg:flex lg:flex-col lg:justify-between">
             <div>
               <div className="flex items-center gap-3 text-roman-primary">
@@ -90,7 +90,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 Use uma senha pessoal para acessar o painel interno de ordens de serviço.
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm leading-relaxed text-white/65">
+            <div className="rounded-xl border border-white/10 bg-white/5 px-5 py-4 text-sm leading-relaxed text-white/65">
               Este link é individual e pode expirar. Se não funcionar, solicite um novo e-mail de redefinição na tela de login.
             </div>
           </section>
@@ -113,11 +113,11 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
             </div>
 
             {loading ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-roman-border bg-roman-bg px-4 py-5 text-roman-text-sub">
+              <div className="flex items-center gap-3 rounded-xl border border-roman-border bg-roman-bg px-4 py-5 text-roman-text-sub">
                 <Loader2 size={18} className="animate-spin" /> Validando link de acesso...
               </div>
             ) : success ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-5 text-emerald-900">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-5 text-emerald-900">
                 <div className="flex items-center gap-2 font-semibold">
                   <CheckCircle size={18} /> Senha definida com sucesso
                 </div>
@@ -139,7 +139,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 }}
               >
                 {error && (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
                     {error}
                   </div>
                 )}
@@ -150,7 +150,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                     type="email"
                     value={email}
                     readOnly
-                    className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-lg text-roman-text-main outline-none"
+                    className="w-full rounded-xl border border-roman-border bg-roman-bg px-5 py-4 text-lg text-roman-text-main outline-none"
                   />
                 </div>
                 <div>
@@ -160,7 +160,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                     value={password}
                     onChange={event => setPassword(event.target.value)}
                     autoComplete="new-password"
-                    className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-lg text-roman-text-main outline-none transition-colors focus:border-roman-primary"
+                    className="w-full rounded-xl border border-roman-border bg-roman-bg px-5 py-4 text-lg text-roman-text-main outline-none transition-colors focus:border-roman-primary"
                   />
                 </div>
                 <div>
@@ -170,13 +170,13 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                     value={confirmPassword}
                     onChange={event => setConfirmPassword(event.target.value)}
                     autoComplete="new-password"
-                    className="w-full rounded-2xl border border-roman-border bg-roman-bg px-5 py-4 text-lg text-roman-text-main outline-none transition-colors focus:border-roman-primary"
+                    className="w-full rounded-xl border border-roman-border bg-roman-bg px-5 py-4 text-lg text-roman-text-main outline-none transition-colors focus:border-roman-primary"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={saving || !password || !confirmPassword}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-roman-sidebar px-5 py-4 text-lg font-medium text-white transition-colors hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-5 py-4 text-lg font-medium text-white transition-colors hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? <Loader2 size={18} className="animate-spin" /> : null}
                   {saving ? 'Salvando...' : 'Definir senha'}

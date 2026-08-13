@@ -78,7 +78,7 @@ export function PeriodPicker({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center gap-2 rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary/50"
+        className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary/50"
       >
         <Calendar size={15} className="text-roman-primary" />
         <span className="whitespace-nowrap">{label}</span>
@@ -97,7 +97,7 @@ export function PeriodPicker({
                   onQuick(q.key);
                   setOpen(false);
                 }}
-                className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex-1 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors ${
                   period === q.key
                     ? 'bg-roman-primary text-white shadow-sm'
                     : 'text-roman-text-sub hover:bg-roman-bg hover:text-roman-text-main'
@@ -143,7 +143,7 @@ export function PeriodPicker({
                     onMonth(i, navYear);
                     setOpen(false);
                   }}
-                  className={`rounded-lg py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-sm py-1.5 text-xs font-medium transition-colors ${
                     active ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-main hover:bg-roman-bg'
                   }`}
                 >
@@ -165,7 +165,7 @@ export function PeriodPicker({
               value={rangeStart}
               max={rangeEnd || undefined}
               onChange={e => setRangeStart(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-roman-border bg-roman-bg px-2 py-1.5 text-xs text-roman-text-main outline-none focus:border-roman-primary"
+              className="min-w-0 flex-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1.5 text-xs text-roman-text-main outline-none focus:border-roman-primary"
             />
             <span className="text-xs text-roman-text-sub">até</span>
             <input
@@ -173,7 +173,7 @@ export function PeriodPicker({
               value={rangeEnd}
               min={rangeStart || undefined}
               onChange={e => setRangeEnd(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-roman-border bg-roman-bg px-2 py-1.5 text-xs text-roman-text-main outline-none focus:border-roman-primary"
+              className="min-w-0 flex-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1.5 text-xs text-roman-text-main outline-none focus:border-roman-primary"
             />
           </div>
           <button
@@ -183,7 +183,7 @@ export function PeriodPicker({
               onRange(rangeStart, rangeEnd);
               setOpen(false);
             }}
-            className="mt-2 w-full rounded-lg bg-roman-sidebar px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-40"
+            className="mt-2 w-full rounded-sm bg-roman-sidebar px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-40"
           >
             Aplicar intervalo
           </button>

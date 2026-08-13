@@ -929,17 +929,17 @@ export function KpiView() {
 
           {/* Barra de filtros unificada */}
           <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-roman-border bg-roman-surface p-2 shadow-sm">
-            <div className="flex shrink-0 rounded-lg border border-roman-border bg-roman-bg p-0.5">
+            <div className="flex shrink-0 rounded-sm border border-roman-border bg-roman-bg p-0.5">
               <button
                 onClick={() => setPerspective('managerial')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+                className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
               >
                 Gerencial
               </button>
               {canViewFinancials && (
                 <button
                   onClick={() => setPerspective('financial')}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+                  className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
                 >
                   Financeira
                 </button>
@@ -968,7 +968,7 @@ export function KpiView() {
                 setSelectedRegion(event.target.value);
                 setSelectedSite('all');
               }}
-              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
               aria-label="Filtrar por região"
             >
               <option value="all">Todas as regiões</option>
@@ -980,7 +980,7 @@ export function KpiView() {
             <select
               value={selectedSite}
               onChange={event => setSelectedSite(event.target.value)}
-              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
               aria-label="Filtrar por sede"
             >
               <option value="all">Todas as sedes</option>
@@ -992,7 +992,7 @@ export function KpiView() {
             <select
               value={selectedStatus}
               onChange={event => setSelectedStatus(event.target.value)}
-              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
               aria-label="Filtrar por etapa"
             >
               <option value="all">Todas as etapas</option>
@@ -1004,7 +1004,7 @@ export function KpiView() {
             <select
               value={selectedPriority}
               onChange={event => setSelectedPriority(event.target.value)}
-              className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
               aria-label="Filtrar por urgência"
             >
               <option value="all">Todas as urgências</option>
@@ -1017,7 +1017,7 @@ export function KpiView() {
               <select
                 value={selectedTeam}
                 onChange={event => setSelectedTeam(event.target.value)}
-                className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                 aria-label="Filtrar por equipe"
               >
                 <option value="all">Todas as equipes</option>
@@ -1031,7 +1031,7 @@ export function KpiView() {
               <select
                 value={selectedVendor}
                 onChange={event => setSelectedVendor(event.target.value)}
-                className="rounded-lg border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                 aria-label="Filtrar por fornecedor"
               >
                 <option value="all">Todos os fornecedores</option>
@@ -1052,7 +1052,7 @@ export function KpiView() {
                   setSelectedPriority('all');
                   setSelectedTeam('all');
                 }}
-                className="ml-auto rounded-lg px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg hover:text-roman-text-main"
+                className="ml-auto rounded-sm px-3 py-2 text-sm font-medium text-roman-text-sub transition-colors hover:bg-roman-bg hover:text-roman-text-main"
               >
                 Limpar filtros
               </button>

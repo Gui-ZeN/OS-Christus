@@ -25,7 +25,7 @@ export function QuoteComparisonPanel() {
       ) : (
         <div className="mt-4 space-y-4 overflow-x-auto">
           {quoteComparisonSections.map(section => (
-            <div key={section.key} className="min-w-[980px] rounded-2xl border border-roman-border bg-roman-bg overflow-hidden">
+            <div key={section.key} className="min-w-[980px] rounded-xl border border-roman-border bg-roman-bg overflow-hidden">
               <div className="border-b border-roman-border px-4 py-2">
                 <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{section.label}</div>
               </div>
@@ -66,7 +66,7 @@ export function QuoteComparisonPanel() {
                         <React.Fragment key={`${row.key}-${index}`}>
                           {!value.costUnitPrice && !value.chargedTotalPrice ? (
                             <td colSpan={2} className="border-l border-roman-border px-3 py-2">
-                              <div className="rounded-lg border border-dashed border-roman-border/80 bg-roman-surface px-3 py-2 text-center text-[11px] text-roman-text-sub">
+                              <div className="rounded-sm border border-dashed border-roman-border/80 bg-roman-surface px-3 py-2 text-center text-[11px] text-roman-text-sub">
                                 Não cotado nesta proposta
                               </div>
                             </td>
@@ -95,7 +95,7 @@ export function QuoteComparisonPanel() {
               </table>
             </div>
           ))}
-          <div className="min-w-[980px] rounded-2xl border border-roman-primary/20 bg-roman-primary/5 overflow-hidden">
+          <div className="min-w-[980px] rounded-xl border border-roman-primary/20 bg-roman-primary/5 overflow-hidden">
             <table className="w-full border-collapse text-sm">
               <tbody>
                 <tr>

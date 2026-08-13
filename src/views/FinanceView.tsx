@@ -131,7 +131,7 @@ function FinanceSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-roman-border bg-roman-bg/60 p-4">
+    <section className="rounded-xl border border-roman-border bg-roman-bg/60 p-4">
       <div className="mb-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-roman-text-main">
           {icon}
@@ -1085,13 +1085,13 @@ export function FinanceView() {
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8 relative">
       <FloatingToast message={toast} />
       <div className="max-w-6xl mx-auto">
-        <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
+        <header className="mb-5 rounded-xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
           <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
           <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de lançamentos e confirmação de pagamentos das ordens de serviço em execução e fechamento.</p>
         </header>
 
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
-          <div className="rounded-2xl border border-roman-border bg-roman-surface p-4 shadow-sm">
+          <div className="rounded-xl border border-roman-border bg-roman-surface p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Status financeiro</div>
             <div className="mt-2 text-lg font-semibold text-roman-text-main">{financeSummary.tickets} OS em acompanhamento</div>
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
@@ -1100,7 +1100,7 @@ export function FinanceView() {
               <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Pendências: {financeSummary.remaining > 0 ? 'Sim' : 'Não'}</div>
             </div>
           </div>
-          <div className="rounded-2xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
+          <div className="rounded-xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
             <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-primary">Saldo a liberar</div>
             <div className="mt-2 text-lg font-semibold text-roman-text-main">{formatCurrency(financeSummary.remaining)}</div>
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
@@ -1112,7 +1112,7 @@ export function FinanceView() {
         </div>
 
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => {
@@ -1199,14 +1199,14 @@ export function FinanceView() {
               <div
                 key={ticket.id}
                 id={`finance-ticket-${ticket.id}`}
-                className={`bg-roman-surface border rounded-2xl p-4 shadow-sm relative overflow-hidden ${
+                className={`bg-roman-surface border rounded-xl p-4 shadow-sm relative overflow-hidden ${
                   ticket.id === activeTicketId
                     ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
                     : 'border-roman-border'
                 }`}
               >
                 {ticketProcessing && (
-                  <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-2xl">
+                  <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl">
                     <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
                     <span className="font-serif text-roman-text-main font-medium">Atualizando fluxo financeiro...</span>
                   </div>
@@ -1263,7 +1263,7 @@ export function FinanceView() {
 
                 {!isCollapsed && (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
+                  <div className="rounded-xl border border-roman-border bg-roman-bg/60 p-3">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-xs text-roman-text-sub">
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                         <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Classificação</div>
@@ -1286,7 +1286,7 @@ export function FinanceView() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-roman-border bg-roman-bg/60 p-3">
+                  <div className="rounded-xl border border-roman-border bg-roman-bg/60 p-3">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex flex-wrap gap-2">
                           {([
@@ -2115,7 +2115,7 @@ export function FinanceView() {
           })}
 
           {visibleFinanceTickets.length === 0 && (
-            <div className="text-center py-12 border border-dashed border-roman-border rounded-2xl bg-roman-surface/70">
+            <div className="text-center py-12 border border-dashed border-roman-border rounded-xl bg-roman-surface/70">
               <CheckCircle size={32} className="mx-auto text-roman-border mb-4" />
               <p className="text-roman-text-sub font-serif italic">
                 {financeSection === 'open'

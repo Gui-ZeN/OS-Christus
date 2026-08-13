@@ -395,7 +395,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   type="button"
                   onClick={() => setCatalogReloadKey(key => key + 1)}
                   disabled={catalogLoading}
-                  className="mt-2 inline-flex min-h-11 items-center rounded-lg border border-amber-400 px-4 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                  className="mt-2 inline-flex min-h-11 items-center rounded-sm border border-amber-400 px-4 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
                 >
                   {catalogLoading ? 'Carregando…' : 'Tentar novamente'}
                 </button>

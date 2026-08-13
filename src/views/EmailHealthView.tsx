@@ -222,14 +222,14 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <div>{error}</div>
         </div>
       )}
 
       {syncMessage && (
-        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
           <div>{syncMessage}</div>
         </div>
@@ -244,7 +244,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           { label: 'Inbound', value: data?.summary.inbound ?? 0 },
           { label: 'Sync', value: data?.summary.sync ?? 0 },
         ].map(card => (
-          <div key={card.label} className={`rounded-2xl border p-4 ${embedded ? 'border-stone-200 bg-white' : 'border-roman-border bg-roman-surface'}`}>
+          <div key={card.label} className={`rounded-xl border p-4 ${embedded ? 'border-stone-200 bg-white' : 'border-roman-border bg-roman-surface'}`}>
             <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
             <div className="mt-2 text-2xl font-serif text-roman-text-main">{loading ? '...' : card.value}</div>
           </div>
@@ -269,7 +269,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           falha de envio o sistema tenta de novo; isto aqui ninguém tenta, e a pessoa
           do outro lado acha que avisou. */}
       {(data?.droppedInbound?.length || 0) > 0 && (
-        <section className={`mb-6 p-5 ${embedded ? 'rounded-[1.4rem] border border-amber-300 bg-amber-50/60' : 'rounded-sm border border-amber-300 bg-amber-50/60'}`}>
+        <section className={`mb-6 p-5 ${embedded ? 'rounded-xl border border-amber-300 bg-amber-50/60' : 'rounded-sm border border-amber-300 bg-amber-50/60'}`}>
           <h2 className="mb-1 flex items-center gap-2 text-lg font-serif text-roman-text-main">
             <MailQuestion size={18} className="text-amber-700" />
             Entraram e não viraram OS
@@ -292,7 +292,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
         </section>
       )}
 
-      <section className={`p-5 ${embedded ? 'rounded-[1.4rem] border border-roman-border bg-roman-surface' : 'rounded-sm border border-roman-border bg-roman-surface'}`}>
+      <section className={`p-5 ${embedded ? 'rounded-xl border border-roman-border bg-roman-surface' : 'rounded-sm border border-roman-border bg-roman-surface'}`}>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-serif text-roman-text-main">
           <Mail size={18} />
           Últimas falhas
@@ -329,7 +329,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
   );
 
   if (embedded) {
-    return <div className="rounded-2xl border border-roman-border bg-roman-bg/70 p-6">{content}</div>;
+    return <div className="rounded-xl border border-roman-border bg-roman-bg/70 p-6">{content}</div>;
   }
 
   return (

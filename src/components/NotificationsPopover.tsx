@@ -188,7 +188,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
 
       {isOpen && (
         <section
-          className="fixed bottom-3 left-[4.25rem] z-[220] flex max-h-[min(36rem,calc(100vh-1.5rem))] w-[min(24rem,calc(100vw-5.25rem))] flex-col overflow-hidden rounded-md border border-roman-border bg-roman-surface shadow-2xl"
+          className="fixed bottom-3 left-[4.25rem] z-[220] flex max-h-[min(36rem,calc(100vh-1.5rem))] w-[min(24rem,calc(100vw-5.25rem))] flex-col overflow-hidden rounded-sm border border-roman-border bg-roman-surface shadow-2xl"
           aria-label="Central de notificações"
         >
           <header className="flex min-h-12 items-center justify-between gap-3 border-b border-roman-border px-3">

@@ -972,7 +972,7 @@ function ConfirmacaoDaVisita({
   };
 
   return (
-    <div className="mt-2.5 rounded-lg border border-amber-300 bg-amber-50/70 p-3">
+    <div className="mt-2.5 rounded-sm border border-amber-300 bg-amber-50/70 p-3">
       <p className="text-sm text-roman-text-main">
         {compromisso.vendorName || 'O fornecedor'} tinha visita às {horaCurta(compromisso.startAt)}.
         A sede confirmou alguma coisa?

@@ -3,6 +3,49 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (13 raios viram 3, e duas suspeitas minhas caem)
+
+Segunda fatia do rework visual — e a medição derrubou duas coisas que eu tinha
+afirmado como prováveis.
+
+**As telas públicas seguem o tema.** Eu tinha escrito que login, formulário público e
+tracking "provavelmente não seguem tema nenhum" por ficarem fora do `.theme-bridge`.
+Medido: 1–2 supostas superfícies claras no tema escuro, e ao investigar eram **falso
+positivo do método** — os elementos têm `transition-all duration-200`, então
+`getComputedStyle` logo após trocar o tema devolve a cor no MEIO da transição. Medindo
+com transição desligada, estão corretos. Elas usam token, e token funciona fora do
+bridge.
+
+**O bridge cobre o `SettingsView`.** Com transições desligadas, **zero** superfícies
+claras no tema escuro em 282 elementos: as 186 classes cruas estão todas sendo
+remapeadas. As "duas linguagens" não são risco de tema — são dívida de manutenção (o
+bridge só cobre o que alguém enumerou, então classe crua nova escapa em silêncio) e,
+sobretudo, **geometria**.
+
+Geometria era o que se via de fato. Raios renderizados, antes:
+
+| Tela | Raios |
+|---|---|
+| Gestão de OS | 4px · 12px · pill |
+| **Configurações** | 12px · **16px** · **24px** · **28px** · pill |
+
+Cantos de 24 e 28px não existiam em nenhuma outra tela — o dobro dos 12px do resto. É
+o que fazia Configurações parecer outro produto.
+
+- **13 raios → 3** no app inteiro: `rounded-sm` (controles, 434), `rounded-xl`
+  (painéis, 193), `rounded-full` (selos, 66). Zero valores avulsos.
+- **7 sombras improvisadas → 0** (`shadow-[0_16px_36px_rgba(15,23,42,0.05)]` e
+  parentes viraram `shadow-sm`).
+- Configurações saiu de 5 raios para 2; Financeiro, Indicadores e Inbox passaram a
+  usar o mesmo vocabulário.
+
+Não inventei linguagem nova: **a Gestão de OS já era o padrão** (0 cor crua, 1 raio) e
+o resto convergiu para ela.
+
+⚠️ Continua aberto: os 402 usos de paleta legada (186 no Configurações, 47 no Users)
+— hoje funcionam pelo bridge, mas são a porta por onde a inconsistência volta. E a
+escala de TEXTO (17 tamanhos, sete entre 9 e 15px) só convergiu no Início.
+
 ## 2026-08-13 (borda passa a significar "isto se clica")
 
 Primeira fatia do rework visual. Antes de escolher cor ou fonte, contei o que estava
