@@ -1556,7 +1556,7 @@ export function FinanceView() {
                             <button
                               onClick={() => handleAddMeasurement(ticket.id)}
                               disabled={processingId === ticket.id}
-                              className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                               {processingId === ticket.id ? 'Salvando...' : 'Salvar andamento'}
                             </button>
@@ -1821,7 +1821,7 @@ export function FinanceView() {
                                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                                   <div className="text-xs text-roman-text-sub">Anexos do lançamento (Excel, CSV, PDF, Word e imagens).</div>
-                                  <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
+                                  <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
                                     {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
                                     <input
                                       type="file"
@@ -1839,7 +1839,7 @@ export function FinanceView() {
                                 {(payment.attachments || []).length > 0 && (
                                   <div className="mt-2 space-y-2">
                                     {(payment.attachments || []).map(attachment => (
-                                      <div key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs">
+                                      <div key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
                                         <div className="min-w-0">
                                           <div className="truncate font-medium text-roman-text-main">{attachment.name}</div>
                                           <div className="text-roman-text-sub">{attachment.uploadedAt ? formatDateLabel(attachment.uploadedAt) : 'Sem data'}</div>
@@ -1898,7 +1898,7 @@ export function FinanceView() {
                                       paymentOutbox.status === 'processing' ||
                                       processingId === outboxProcessingKey
                                     }
-                                    className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-sm border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-sm border border-amber-300 bg-roman-surface px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {processingId === outboxProcessingKey ? (
                                       <><Loader2 size={14} className="animate-spin" /> Reenviando...</>
@@ -1922,7 +1922,7 @@ export function FinanceView() {
                                 <button
                                   onClick={() => void handlePayInstallment(ticket.id, payment)}
                                   disabled={!canConfirmPayment || processingId === `${ticket.id}:${payment.id}`}
-                                  className="px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {processingId === `${ticket.id}:${payment.id}` ? (
                                     <><Loader2 size={15} className="animate-spin" /> Processando...</>
@@ -2152,7 +2152,7 @@ export function FinanceView() {
                 type="button"
                 onClick={() => void handleConfirmPaymentEmail()}
                 disabled={paymentEmailModal.isSending || paymentEmailModal.recipients.length === 0 || paymentEmailModal.sendFeedbackType === 'success'}
-                className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {paymentEmailModal.isSending ? (
                   <><Loader2 size={15} className="animate-spin" /> Enviando...</>

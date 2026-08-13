@@ -199,7 +199,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
                   setMacroEscolhido(event.target.value);
                   setServicoEscolhido('');
                 }}
-                className="w-full rounded-sm border border-amber-300 bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                className="w-full rounded-sm border border-amber-300 bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
               >
                 <option value="">Escolha…</option>
                 {macros.map(m => (
@@ -213,7 +213,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
                 value={servicoEscolhido}
                 onChange={event => setServicoEscolhido(event.target.value)}
                 disabled={!macroEscolhido}
-                className="w-full rounded-sm border border-amber-300 bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                className="w-full rounded-sm border border-amber-300 bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
               >
                 <option value="">{macroEscolhido ? 'Escolha…' : 'Escolha o macroserviço antes'}</option>
                 {servicosDoMacro.map(s => (

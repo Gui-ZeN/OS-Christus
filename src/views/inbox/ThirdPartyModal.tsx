@@ -162,21 +162,21 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
               value={newThirdPartyName}
               onChange={event => onNewNameChange(event.target.value)}
               placeholder="Nome do terceiro"
-              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             />
             <input
               type="email"
               value={newThirdPartyEmail}
               onChange={event => onNewEmailChange(event.target.value)}
               placeholder="Email (opcional)"
-              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             />
             <input
               type="text"
               value={newThirdPartyContact}
               onChange={event => onNewContactChange(event.target.value)}
               placeholder="Contato (opcional)"
-              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             />
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
@@ -185,7 +185,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                   type="button"
                   onClick={() => void onCreateSharedTag()}
                   disabled={newSharedTagSaving || !newSharedTagDraft.trim()}
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-roman-border bg-white text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-sm border border-roman-border bg-roman-surface text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label="Cadastrar tag compartilhada"
                   title="Cadastrar tag compartilhada"
                 >
@@ -197,10 +197,10 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                 value={newSharedTagDraft}
                 onChange={event => onNewSharedTagDraftChange(event.target.value)}
                 placeholder="Nova tag (ex.: Gesso)"
-                className="mb-2 w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                className="mb-2 w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
               />
               {thirdPartyTagOptions.length === 0 ? (
-                <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-sub">
+                <div className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-sub">
                   Cadastre tags em Configurações para selecionar aqui.
                 </div>
               ) : (
@@ -215,7 +215,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                         className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                           selected
                             ? 'border-roman-primary bg-roman-primary text-white'
-                            : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                            : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                         }`}
                       >
                         {tag}

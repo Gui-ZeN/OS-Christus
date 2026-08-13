@@ -59,7 +59,7 @@ export function DateTimePicker({
       </button>
 
       {open && (
-        <div className={`absolute ${compact ? 'right-0' : 'left-0'} top-full z-30 mt-2 w-72 rounded-sm border border-roman-border bg-white p-3 text-left shadow-xl`}>
+        <div className={`absolute ${compact ? 'right-0' : 'left-0'} top-full z-30 mt-2 w-72 rounded-sm border border-roman-border bg-roman-surface p-3 text-left shadow-xl`}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <button
               type="button"

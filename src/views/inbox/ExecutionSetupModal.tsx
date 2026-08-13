@@ -39,7 +39,7 @@ export function ExecutionSetupModal(props: ExecutionSetupModalProps) {
           <button
             disabled={isSending}
             onClick={() => void onConfirm()}
-            className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             Iniciar execução

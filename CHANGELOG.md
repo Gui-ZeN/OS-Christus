@@ -3,6 +3,47 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (a paleta legada sai, e ela escondia um defeito no tema escuro)
+
+Quarta fatia do rework visual: converter as **402 classes de cor cruas**
+(`bg-white`, `bg-stone-50`, `border-stone-200`…) para os tokens do tema. Elas
+funcionavam por causa do `.theme-bridge`, que as remapeia em runtime — mas o bridge
+só cobre o que alguém enumerou à mão, e é por ali que a inconsistência volta.
+
+O mapeamento saiu **do próprio bridge**, para o resultado ser idêntico. E foi
+verificado como tal: comparei a assinatura de cor computada de **132 elementos** do
+Configurações antes e depois — **131 idênticos**, e a única diferença é notação
+(`color(srgb 1 1 1 / 0.9)` virou `oklab(0.999994… / 0.9)`, o mesmo branco a 90%
+escrito noutro espaço de cor).
+
+**402 → 118**, e as 118 que ficaram são legítimas: 108 `text-white` (texto branco
+sobre botão colorido, que o bridge também não toca), 5 `border-white` e 4 `bg-black`
+de overlay.
+
+### O defeito que a limpeza revelou
+
+O `TodayView` tem um mapa de cor por grupo, com o comentário "semântica, separada do
+dourado da marca" — é sistema, não dívida, e por isso **não** foi convertido. Mas ao
+verificar descobri que `bg-red-50/60` (Vencidas) e `bg-slate-50/60` (Suspensas)
+**não estão na lista do bridge** — que cobre amber, sky, blue, emerald, green e
+companhia, mas não vermelho nem slate.
+
+Testado injetando os elementos e trocando o tema: as duas classes rendem **exatamente
+a mesma cor** nos temas claro e escuro. Compondo o alfa sobre o fundo do tema escuro
+(luminância 15):
+
+| No tema escuro | Antes | Depois |
+|---|---|---|
+| Vencidas | rgb(157,151,153) — luminância **152** | rgb(34,20,25) — **23** |
+| Suspensas | rgb(153,156,159) — luminância **156** | rgb(20,25,32) — **24** |
+
+Eram dois blocos cinza-claros num fundo quase preto. O conserto troca pastel fixo por
+**tinta sobre a superfície do tema** (`bg-red-500/10`, `bg-slate-500/10`): sutil nos
+dois temas, e a semântica preservada.
+
+⚠️ Não tinha aparecido em nenhuma verificação porque no emulador **os grupos
+"Vencidas" e "Suspensas" estavam vazios** — e "Vencidas" é o motivo de a tela existir.
+
 ## 2026-08-13 (17 tamanhos de texto viram 9, e a mesma escala em todas as telas)
 
 Terceira fatia do rework visual. O ruído que restava era a zona entre 9 e 15px, onde

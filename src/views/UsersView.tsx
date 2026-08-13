@@ -242,7 +242,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             <h1 className={`${embedded ? 'text-2xl' : 'text-3xl'} font-serif font-medium text-roman-text-main mb-2`}>Usuários</h1>
             <p className="text-roman-text-sub font-serif italic">Controle de acesso por perfil, região e sede vinculada.</p>
           </div>
-          <button onClick={openNew} disabled={!canManageUsers} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
+          <button onClick={openNew} disabled={!canManageUsers} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
             <Plus size={16} /> Novo Usuário
           </button>
         </header>
@@ -268,37 +268,37 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             </div>
           ) : (
             embedded ? (
-              <div className="space-y-5 bg-stone-50/70 p-6">
+              <div className="space-y-5 bg-roman-bg p-6">
                 <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
                     <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
                     <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.total}</div>
                   </div>
-                  <div className="rounded-xl border border-emerald-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-emerald-200 bg-roman-surface px-4 py-4">
                     <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
                     <div className="mt-2 text-2xl font-serif text-emerald-900">{userStats.active}</div>
                   </div>
-                  <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-stone-600">Inativos</div>
-                    <div className="mt-2 text-2xl font-serif text-stone-800">{userStats.inactive}</div>
+                  <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Inativos</div>
+                    <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.inactive}</div>
                   </div>
-                  <div className="rounded-xl border border-sky-200 bg-white px-4 py-4">
+                  <div className="rounded-xl border border-sky-200 bg-roman-surface px-4 py-4">
                     <div className="text-[11px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
                     <div className="mt-2 text-2xl font-serif text-sky-900">{userStats.multiSite}</div>
                   </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                  <div className="flex items-center justify-between gap-4 border-b border-stone-200 px-5 py-4">
+                <div className="overflow-hidden rounded-xl border border-roman-border bg-roman-surface">
+                  <div className="flex items-center justify-between gap-4 border-b border-roman-border px-5 py-4">
                     <div>
                       <div className="text-sm font-medium text-roman-text-main">Base de acessos</div>
                       <div className="mt-1 text-xs text-roman-text-sub">Lista administrativa com vínculo territorial e status operacional.</div>
                     </div>
-                    <div className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-roman-text-sub">
+                    <div className="rounded-full border border-roman-border bg-roman-bg px-3 py-1 text-xs font-medium text-roman-text-sub">
                       {users.length} registro(s)
                     </div>
                   </div>
-                  <div className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-roman-text-sub">
+                  <div className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 border-b border-roman-border bg-roman-bg px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-roman-text-sub">
                     <div>Usuário</div>
                     <div>Papel</div>
                     <div>Região / Sedes</div>
@@ -315,20 +315,20 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                     const userRegions = (user.regionIds || []).map(regionId => regionMap.get(regionId)?.code || regionId).filter(Boolean);
                     const userSites = (user.siteIds || []).map(siteId => siteMap.get(siteId)?.code || siteId).filter(Boolean);
                     return (
-                      <div key={user.id} className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 px-5 py-4 text-sm hover:bg-stone-50/70">
+                      <div key={user.id} className="grid grid-cols-[minmax(0,1.5fr)_140px_minmax(0,1.2fr)_150px_160px] gap-4 px-5 py-4 text-sm hover:bg-roman-bg/70">
                         <div className="min-w-0">
                           <div className="font-semibold text-roman-text-main">{user.name}</div>
                           <p className="mt-1 break-all text-roman-text-sub">{user.email}</p>
                         </div>
                         <div className="flex items-start">
-                          <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-roman-text-main">{user.role || '-'}</span>
+                          <span className="rounded-full border border-roman-border bg-roman-bg px-3 py-1 text-xs font-medium text-roman-text-main">{user.role || '-'}</span>
                         </div>
                         <div className="text-roman-text-sub">
                           <div>{userRegions.length > 0 ? userRegions.join(', ') : 'Sem região vinculada'}</div>
                           <div className="mt-1 text-xs">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
                         </div>
                         <div className="flex items-start">
-                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'}`}>
+                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-roman-bg text-roman-text-sub'}`}>
                             {user.status}
                           </span>
                         </div>
@@ -376,7 +376,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                             </div>
                           </td>
                           <td className="p-4">
-                            <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-stone-100 text-stone-600 border border-stone-200'}`}>
+                            <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-roman-bg text-roman-text-sub border border-roman-border'}`}>
                               {user.status}
                             </span>
                           </td>
@@ -411,10 +411,10 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
           maxWidthClass="max-w-3xl"
           footer={(
             <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-              <button onClick={() => setModalOpen(false)} className="rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-white">
+              <button onClick={() => setModalOpen(false)} className="rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-roman-bg">
                 Cancelar
               </button>
-              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim()} className="flex items-center gap-2 rounded-xl bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50">
+              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim()} className="flex items-center gap-2 rounded-xl bg-roman-sidebar px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
                 {editingId ? 'Salvar alterações' : 'Criar usuário'}
               </button>
@@ -425,24 +425,24 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Nome</label>
-                  <input type="text" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                  <input type="text" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail</label>
-                  <input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                  <input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha manual (opcional)'}</label>
-                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Se vazio, usuário define por e-mail'} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
+                <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Se vazio, usuário define por e-mail'} className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Se não preencher, o sistema envia e-mail para o usuário criar a senha.'}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Papel</label>
-                  <select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
+                  <select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))} className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     {ROLE_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -451,7 +451,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <div>
                   <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Status</label>
-                  <select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
+                  <select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))} className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     <option value="Ativo">Ativo</option>
                     <option value="Inativo">Inativo</option>
                   </select>
@@ -514,7 +514,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
           maxWidthClass="max-w-lg"
           footer={(
             <div className="flex flex-col-reverse justify-end gap-3 sm:flex-row">
-              <button onClick={() => setPendingDeleteUser(null)} className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50">
+              <button onClick={() => setPendingDeleteUser(null)} className="rounded-full border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg">
                 Cancelar
               </button>
               <button onClick={() => void handleDelete(pendingDeleteUser)} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60">
@@ -524,7 +524,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             </div>
           )}
         >
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
+          <div className="rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
             <div><strong>Nome:</strong> {pendingDeleteUser.name}</div>
             <div><strong>E-mail:</strong> {pendingDeleteUser.email}</div>
           </div>

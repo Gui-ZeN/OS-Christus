@@ -1782,7 +1782,7 @@ export function InboxView() {
                     status: value ? [value] : [],
                   });
                 }}
-                className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
+                className="w-full appearance-none rounded-sm border border-roman-border bg-roman-surface px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todos</option>
                 {ALL_INBOX_STATUS_OPTIONS.map(status => (
@@ -1808,7 +1808,7 @@ export function InboxView() {
                     site: value ? [value] : [],
                   });
                 }}
-                className="w-full appearance-none rounded-sm border border-roman-border bg-white px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
+                className="w-full appearance-none rounded-sm border border-roman-border bg-roman-surface px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todas</option>
                 {siteFilterOptions.map(site => (
@@ -2157,7 +2157,7 @@ export function InboxView() {
 
                 <div className={composerView === 'min' ? 'hidden' : ''}>
                 {replyMode === 'public' && (
-                  <div className="border-b border-roman-border/50 bg-white px-3 py-3">
+                  <div className="border-b border-roman-border/50 bg-roman-surface px-3 py-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Cópias da mensagem</div>
@@ -2185,7 +2185,7 @@ export function InboxView() {
                       <button
                         type="button"
                         onClick={() => addPublicInterestedEmails(publicInterestedDraft)}
-                        className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-50"
+                        className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-50"
                         disabled={isClosed || !publicInterestedDraft.trim()}
                       >
                         Adicionar
@@ -2218,7 +2218,7 @@ export function InboxView() {
                   const hasStageChange = Boolean(statusDraft) && statusDraft !== activeTicket.status;
                   const stageControlsVisible = showStageControls || hasStageChange;
                   return (
-                    <div className="border-b border-roman-border/50 bg-white px-3 py-2">
+                    <div className="border-b border-roman-border/50 bg-roman-surface px-3 py-2">
                       {!stageControlsVisible ? (
                         <button
                           type="button"
@@ -2348,7 +2348,7 @@ export function InboxView() {
                 />
 
                 {mention && mentionResults.length > 0 && (
-                  <div className="mx-3 mb-2 max-h-44 overflow-y-auto rounded-sm border border-roman-border bg-white shadow-lg">
+                  <div className="mx-3 mb-2 max-h-44 overflow-y-auto rounded-sm border border-roman-border bg-roman-surface shadow-lg">
                     <div className="border-b border-roman-border/60 px-3 py-1 text-[11px] uppercase tracking-widest text-roman-text-sub">Marcar pessoa (recebe a resposta)</div>
                     {mentionResults.map((person, i) => (
                       <button
@@ -2422,7 +2422,7 @@ export function InboxView() {
                             OS morta confunde quem lê o histórico depois. */}
                         <button
                           onClick={handleSend}
-                          className="flex items-center gap-2 bg-roman-sidebar px-4 py-1.5 font-medium tracking-wide text-white transition-colors hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex items-center gap-2 bg-roman-sidebar px-4 py-1.5 font-medium tracking-wide text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={(isClosed && !hasStageChangePending) || isSending}
                         >
                           {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
@@ -2523,7 +2523,7 @@ export function InboxView() {
                 )}
                 {quickPanelCollapsed && (
                   <div className="mt-3 space-y-2">
-                    <div className="rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-sub">
+                    <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-sub">
                       Responsável: <span className="font-medium text-roman-text-main">{techTeam || 'Não definido'}</span> ·
                       Urgência: <span className="font-medium text-roman-text-main"> {ticketPriority || 'Não definida'}</span>
                     </div>
@@ -2534,7 +2534,7 @@ export function InboxView() {
                             type="button"
                             onClick={handleAcceptFromCollapsed}
                             disabled={isSending}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                           >
                             {isSending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                             Aceitar OS
@@ -2543,7 +2543,7 @@ export function InboxView() {
                             type="button"
                             onClick={handleCancelTicket}
                             disabled={isSending}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-roman-surface px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
                           >
                             <X size={14} />
                             Recusar OS
@@ -2597,7 +2597,7 @@ export function InboxView() {
                     </div>
                     <div>
                       <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Goteira / infiltração</label>
-                      <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-main">
+                      <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-main">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
@@ -2673,7 +2673,7 @@ export function InboxView() {
                             value={newMacroServiceName}
                             onChange={event => setNewMacroServiceName(event.target.value)}
                             placeholder="Novo macroserviço"
-                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-main outline-none focus:border-roman-primary"
+                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-main outline-none focus:border-roman-primary"
                             disabled={isSending || savingQuickCatalog}
                           />
                           <button
@@ -2708,7 +2708,7 @@ export function InboxView() {
                             value={newServiceName}
                             onChange={event => setNewServiceName(event.target.value)}
                             placeholder="Novo serviço"
-                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-main outline-none focus:border-roman-primary"
+                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs text-roman-text-main outline-none focus:border-roman-primary"
                             disabled={isSending || savingQuickCatalog || !ticketDetailsForm.macroServiceId}
                           />
                           <button
@@ -2752,7 +2752,7 @@ export function InboxView() {
                         <button
                           type="button"
                           onClick={() => setShowThirdPartyModal(true)}
-                          className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={isSending || !canEditQuickPanel}
                         >
                           {selectedThirdParties.length > 0 ? 'Gerenciar terceiros' : 'Selecionar terceiros'}
@@ -2783,7 +2783,7 @@ export function InboxView() {
                   <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Diretores envolvidos</label>
-                      <span className="rounded-sm border border-roman-border bg-white px-2 py-0.5 text-[11px] text-roman-text-sub">
+                      <span className="rounded-sm border border-roman-border bg-roman-surface px-2 py-0.5 text-[11px] text-roman-text-sub">
                         {selectedDirectors.length} selecionado(s)
                       </span>
                     </div>
@@ -2803,7 +2803,7 @@ export function InboxView() {
                               className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                                 selected
                                   ? 'border-roman-primary bg-roman-primary text-white'
-                                  : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                                  : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                               }`}
                               disabled={isSending || !canEditQuickPanel}
                             >
@@ -2827,7 +2827,7 @@ export function InboxView() {
                       <button
                         onClick={handleAcceptTicket}
                         disabled={isSending}
-                        className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                       >
                         {isSending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                         Aceitar OS
@@ -2835,7 +2835,7 @@ export function InboxView() {
                       <button
                         onClick={handleCancelTicket}
                         disabled={isSending}
-                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-roman-surface px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
                       >
                         <X size={14} />
                         Recusar OS
@@ -2845,7 +2845,7 @@ export function InboxView() {
                         <button
                           onClick={handleSaveQuickPanel}
                           disabled={isSending}
-                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
+                          className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
                         >
                           {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                           Salvar painel
@@ -2858,7 +2858,7 @@ export function InboxView() {
                         <button
                           onClick={handleSaveQuickPanel}
                           disabled={isSending}
-                          className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-60"
+                          className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                         >
                           {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                           Salvar painel
@@ -2878,7 +2878,7 @@ export function InboxView() {
                         type="button"
                         onClick={() => setQuickPanelExpanded(false)}
                         disabled={isSending}
-                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary disabled:opacity-60"
                       >
                         Fechar painel
                       </button>
@@ -2889,7 +2889,7 @@ export function InboxView() {
               </section>
               )}
 
-              <section className="rounded-xl border border-roman-border bg-white px-3 py-3">
+              <section className="rounded-xl border border-roman-border bg-roman-surface px-3 py-3">
                 <button
                   type="button"
                   onClick={() => setSidebarSections(prev => ({ ...prev, summary: !prev.summary }))}
@@ -2945,7 +2945,7 @@ export function InboxView() {
                               key={`related-location-${ticket.id}`}
                               type="button"
                               onClick={() => setActiveTicketId(ticket.id)}
-                              className="rounded-sm border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-950 transition-colors hover:border-amber-600"
+                              className="rounded-sm border border-amber-300 bg-roman-surface px-2 py-1 text-[11px] font-medium text-amber-950 transition-colors hover:border-amber-600"
                             >
                               {ticket.id}
                             </button>

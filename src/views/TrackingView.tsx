@@ -648,7 +648,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                 <div className="text-sm font-semibold text-roman-primary">{executionProgressCard.currentPercentLabel}</div>
               </div>
 
-              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/80 border border-roman-border/70">
+              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-roman-surface/78 border border-roman-border/70">
                 <div
                   className="h-full rounded-full bg-roman-primary transition-all duration-500"
                   style={{ width: `${executionProgressCard.currentPercentVisual}%` }}
@@ -682,7 +682,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     type="button"
                     onClick={() => void handleRequesterApproval()}
                     disabled={isSubmittingValidation}
-                    className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-70"
+                    className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-70"
                   >
                     {isSubmittingValidation ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                     Confirmar entrega da obra
@@ -702,7 +702,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                 value={publicMessage}
                 onChange={event => setPublicMessage(event.target.value)}
                 maxLength={3000}
-                className="mt-3 min-h-28 w-full resize-y rounded-xl border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                className="mt-3 min-h-28 w-full resize-y rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
                 placeholder="Digite sua mensagem..."
                 disabled={isSubmittingMessage}
               />
@@ -712,7 +712,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                   type="button"
                   onClick={() => void handleRequesterMessage()}
                   disabled={isSubmittingMessage || !publicMessage.trim()}
-                  className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-70"
+                  className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-70"
                 >
                   {isSubmittingMessage ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                   Enviar mensagem

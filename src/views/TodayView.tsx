@@ -77,13 +77,24 @@ const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
   'sem-proxima-acao': <CircleAlert size={15} />,
 };
 
-/** Cor por grupo — semântica, separada do dourado da marca. */
+/**
+ * Cor por grupo — semântica, separada do dourado da marca.
+ *
+ * O preenchimento é TINTA sobre a superfície do tema (`/10`), não pastel fixo.
+ * Medido em 13/08: `bg-red-50/60` e `bg-slate-50/60` ficavam idênticos nos temas
+ * claro e escuro — o `.theme-bridge` remapeia amber/sky/emerald/green e companhia,
+ * mas não vermelho nem slate. No tema escuro os cartões de "Vencidas" e "Suspensas"
+ * apareceriam quase brancos sobre um fundo #0b0f14.
+ *
+ * Não tinha aparecido porque no emulador esses dois grupos estavam vazios — e
+ * "Vencidas" é justamente o motivo de a tela existir.
+ */
 const GROUP_TONE: Record<AgendaGroup, string> = {
-  vencidas: 'border-l-red-600 bg-red-50/60',
+  vencidas: 'border-l-red-600 bg-red-500/10',
   hoje: 'border-l-roman-primary',
   'aguardando-sede': 'border-l-amber-500',
   'proximos-7-dias': 'border-l-roman-border',
-  suspensas: 'border-l-slate-400 bg-slate-50/60',
+  suspensas: 'border-l-slate-400 bg-slate-500/10',
   'sem-proxima-acao': 'border-l-roman-border',
 };
 

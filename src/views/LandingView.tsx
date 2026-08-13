@@ -43,7 +43,7 @@ export function LandingView({ onOpenForm, onLogin }: LandingViewProps) {
             onClick={onLogin}
             className="group rounded-xl border border-roman-border/60 bg-roman-sidebar p-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-roman-primary/60 hover:shadow-lg hover:shadow-black/20 sm:p-8"
           >
-            <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/85">
+            <div className="mb-7 inline-flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-roman-surface/10 text-white/85">
               <Lock size={28} strokeWidth={1.8} />
             </div>
             <h2 className="text-3xl font-serif text-white">Acesso à Gestão</h2>

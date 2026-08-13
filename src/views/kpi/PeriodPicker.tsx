@@ -183,7 +183,7 @@ export function PeriodPicker({
               onRange(rangeStart, rangeEnd);
               setOpen(false);
             }}
-            className="mt-2 w-full rounded-sm bg-roman-sidebar px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-stone-900 disabled:opacity-40"
+            className="mt-2 w-full rounded-sm bg-roman-sidebar px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-40"
           >
             Aplicar intervalo
           </button>

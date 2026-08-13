@@ -31,14 +31,14 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
               }
             }}
             placeholder="email@dominio.com, outro@dominio.com"
-            className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
           />
           <div className="mt-1 text-xs text-roman-text-sub">Separe por vírgula ou pressione Enter para adicionar.</div>
         </div>
         <button
           type="button"
           onClick={onAdd}
-          className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-900"
+          className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover"
         >
           Adicionar
         </button>
@@ -53,7 +53,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
                 key={`director-suggestion-${email}`}
                 type="button"
                 onClick={() => onAddSuggestion(email)}
-                className="rounded-sm border border-roman-primary/30 bg-white px-2 py-1 text-xs text-roman-primary transition-colors hover:bg-roman-primary/10"
+                className="rounded-sm border border-roman-primary/30 bg-roman-surface px-2 py-1 text-xs text-roman-primary transition-colors hover:bg-roman-primary/10"
               >
                 {email}
               </button>
@@ -65,7 +65,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
       <div className="mt-4 flex flex-wrap gap-2">
         {emails.length > 0 ? (
           emails.map(email => (
-            <span key={`director-interested-${email}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white px-2 py-1 text-xs text-roman-text-main">
+            <span key={`director-interested-${email}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs text-roman-text-main">
               {email}
               <button
                 type="button"

@@ -39,7 +39,7 @@ export function ContractDispatchModal(props: ContractDispatchModalProps) {
           <button
             onClick={() => void onSend()}
             disabled={isSending || !file}
-            className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSending ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
             {isSending ? 'Enviando...' : 'Enviar para Aprovação'}

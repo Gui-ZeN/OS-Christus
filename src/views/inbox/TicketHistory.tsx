@@ -188,7 +188,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                               driveFileId: attachment.driveFileId,
                               items: messageAttachmentItems,
                             })}
-                            className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-white/70 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
+                            className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface/78 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
                           >
                             <FileText size={12} />
                             <span className="max-w-[180px] truncate">{attachment.title}</span>

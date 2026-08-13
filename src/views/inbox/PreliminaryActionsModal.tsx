@@ -40,7 +40,7 @@ export function PreliminaryActionsModal(props: PreliminaryActionsModalProps) {
           <button
             disabled={!canComplete}
             onClick={onCompleteAndStart}
-            className="px-6 py-2 bg-roman-sidebar hover:bg-stone-900 text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Concluir e Iniciar Execução
           </button>

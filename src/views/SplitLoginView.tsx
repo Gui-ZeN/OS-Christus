@@ -80,7 +80,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                   Painel centralizado de triagem, abertura e acompanhamento de ordens de serviço.
                 </p>
               </div>
-              <div className="max-w-md rounded-xl border border-white/10 bg-white/5 px-6 py-5 text-base leading-relaxed text-white/70">
+              <div className="max-w-md rounded-xl border border-white/10 bg-roman-surface/5 px-6 py-5 text-base leading-relaxed text-white/70">
                 Ambiente interno para gestão de chamados, aprovações e comunicação operacional.
               </div>
             </div>
@@ -188,7 +188,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                       <Loader2 size={20} className="animate-spin" />
                     ) : (
                       <>
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-lg font-semibold text-[#4285F4]">G</span>
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-roman-surface text-lg font-semibold text-[#4285F4]">G</span>
                         Entrar com Google
                       </>
                     )}

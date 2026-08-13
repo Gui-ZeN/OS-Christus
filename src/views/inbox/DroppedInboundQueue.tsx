@@ -120,7 +120,7 @@ export function DroppedInboundQueue({
         <div className="space-y-2 px-2 pb-2">
           {erro && <p className="px-1 text-[11px] text-red-700">{erro}</p>}
           {itens.map(item => (
-            <div key={item.id} className="rounded-sm border border-amber-200 bg-white p-2">
+            <div key={item.id} className="rounded-sm border border-amber-200 bg-roman-surface p-2">
               <div className="text-[11px] text-roman-text-sub">{item.fromEmail || 'remetente desconhecido'}</div>
               <div className="mt-0.5 text-xs font-medium text-roman-text-main">
                 {repairMojibake(item.subject) || '(sem assunto)'}

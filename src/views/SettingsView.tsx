@@ -333,7 +333,7 @@ function FeedbackBanner({
       ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
       : tone === 'error'
         ? 'border-red-200 bg-red-50 text-red-700'
-        : 'border-stone-200 bg-stone-50 text-roman-text-sub';
+        : 'border-roman-border bg-roman-bg text-roman-text-sub';
 
   const Icon = tone === 'success' ? CheckCircle : tone === 'error' ? AlertCircle : Database;
 
@@ -896,9 +896,9 @@ export function SettingsView() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-5 xl:p-6 2xl:p-8">
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="mx-auto max-w-[1500px] space-y-5">
-        <section className="rounded-xl border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-8">
+        <section className="rounded-xl border border-roman-border bg-roman-surface px-6 py-6 shadow-sm md:px-8">
           <div className="text-[11px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>
           <h1 className="mt-2 text-[2rem] font-serif tracking-tight text-roman-text-main">Estrutura e governança</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-roman-text-sub">
@@ -916,8 +916,8 @@ export function SettingsView() {
                     onClick={() => setSection(key)}
                     className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'border-stone-900 bg-stone-900 text-white'
-                        : 'border-stone-200 bg-stone-50 text-roman-text-sub hover:border-stone-300 hover:bg-white hover:text-roman-text-main'
+                        ? 'border-roman-border bg-roman-sidebar text-white'
+                        : 'border-roman-border bg-roman-bg text-roman-text-sub hover:border-roman-primary hover:bg-roman-bg hover:text-roman-text-main'
                     }`}
                   >
                     <Icon size={15} />
@@ -929,12 +929,12 @@ export function SettingsView() {
           </div>
         </section>
 
-        <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="mb-6 flex flex-col gap-4 border-b border-stone-200 pb-6 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 rounded-xl border border-roman-border bg-roman-surface p-6 shadow-sm md:p-8">
+          <div className="mb-6 flex flex-col gap-4 border-b border-roman-border pb-6 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.3em] text-roman-primary">{sectionMeta.eyebrow}</div>
               <div className="mt-3 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-roman-primary">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-roman-border bg-roman-bg text-roman-primary">
                   <sectionMeta.icon size={20} />
                 </div>
                 <div>
@@ -944,7 +944,7 @@ export function SettingsView() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-roman-text-sub md:max-w-[320px]">
+            <div className="rounded-xl border border-roman-border bg-roman-bg px-4 py-4 text-sm text-roman-text-sub md:max-w-[320px]">
               <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Módulo ativo</div>
               <div className="mt-2 font-medium text-roman-text-main">{sectionMeta.navLabel}</div>
               <div className="mt-1 leading-6">Troque de aba no topo para acessar outro bloco sem percorrer a página inteira.</div>
@@ -977,7 +977,7 @@ export function SettingsView() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-stone-200/80 bg-white/90 p-6 shadow-sm">
+                    <div className="rounded-xl border border-roman-border bg-roman-surface/90 p-6 shadow-sm">
                       <UsersView embedded />
                     </div>
                   </div>
@@ -1013,14 +1013,14 @@ export function SettingsView() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-5 space-y-4">
+                        <section className="rounded-xl border border-roman-border bg-roman-bg p-5 space-y-4">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Regiões</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Base de agrupamento operacional do sistema.</p>
                           </div>
-                          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                          <div className="overflow-hidden rounded-xl border border-roman-border bg-roman-surface">
                             {regions.map(item => (
-                              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-stone-200 px-4 py-3 last:border-b-0">
+                              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-roman-border px-4 py-3 last:border-b-0">
                                 <div>
                                   <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
                                   <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
@@ -1033,24 +1033,24 @@ export function SettingsView() {
                             ))}
                             {regions.length === 0 && <div className="px-4 py-6 text-sm text-roman-text-sub">Nenhuma região cadastrada.</div>}
                           </div>
-                          <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_auto]">
-                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <button onClick={() => void handleSaveRegion()} disabled={catalogSavingEntity === 'regions'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60">
+                          <div className="grid gap-3 border-t border-roman-border pt-4 md:grid-cols-[minmax(0,1fr)_120px_auto]">
+                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <button onClick={() => void handleSaveRegion()} disabled={catalogSavingEntity === 'regions'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
                               {catalogSavingEntity === 'regions' ? <Loader2 size={14} className="animate-spin" /> : null}
                               {catalogSavingEntity === 'regions' ? 'Salvando...' : regionDraft.id ? 'Salvar' : 'Criar'}
                             </button>
                           </div>
                         </section>
 
-                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-5 space-y-4">
+                        <section className="rounded-xl border border-roman-border bg-roman-bg p-5 space-y-4">
                           <div>
                             <h3 className="font-serif text-lg text-roman-text-main">Sedes</h3>
                             <p className="text-xs text-roman-text-sub mt-1">Unidades vinculadas a cada região.</p>
                           </div>
-                          <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                          <div className="overflow-hidden rounded-xl border border-roman-border bg-roman-surface">
                             {sites.map(item => (
-                              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-stone-200 px-4 py-3 last:border-b-0">
+                              <div key={item.id} className="flex items-start justify-between gap-3 border-b border-roman-border px-4 py-3 last:border-b-0">
                                 <div>
                                   <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
                                   <div className="text-[11px] text-roman-text-sub">{item.code || item.id} · {regions.find(region => region.id === item.regionId)?.code || item.regionId}</div>
@@ -1070,14 +1070,14 @@ export function SettingsView() {
                             ))}
                             {sites.length === 0 && <div className="px-4 py-6 text-sm text-roman-text-sub">Nenhuma sede cadastrada.</div>}
                           </div>
-                          <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)_auto]">
-                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary">
+                          <div className="grid gap-3 border-t border-roman-border pt-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)_auto]">
+                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary">
                               <option value="">Selecione a região</option>
                               {regions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
-                            <button onClick={() => void handleSaveSite()} disabled={catalogSavingEntity === 'sites'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60">
+                            <button onClick={() => void handleSaveSite()} disabled={catalogSavingEntity === 'sites'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
                               {catalogSavingEntity === 'sites' ? <Loader2 size={14} className="animate-spin" /> : null}
                               {catalogSavingEntity === 'sites' ? 'Salvando...' : siteDraft.id ? 'Salvar' : 'Criar'}
                             </button>
@@ -1089,7 +1089,7 @@ export function SettingsView() {
                               value={siteDraft.aliases}
                               onChange={event => setSiteDraft(current => ({ ...current, aliases: event.target.value }))}
                               placeholder="ex.: CESIU, CVU"
-                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <p className="mt-1 text-[11px] text-roman-text-sub">Quando um e-mail chega com <span className="font-mono">[APELIDO]</span> no assunto, a OS entra nesta sede — sem precisar de deploy.</p>
                           </div>
@@ -1106,15 +1106,15 @@ export function SettingsView() {
                       <p className="mt-1 text-sm text-roman-text-sub">Edite o texto usado nas notificações de cada etapa e valide o tom antes do disparo.</p>
                     </div>
                     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-                      <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                      <section className="rounded-xl border border-roman-border bg-roman-bg p-4">
                         <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Gatilhos</div>
-                        <div className="mt-4 overflow-hidden rounded-xl border border-stone-200 bg-white">
+                        <div className="mt-4 overflow-hidden rounded-xl border border-roman-border bg-roman-surface">
                           {emailTemplatesCatalog.map(item => (
                             <button
                               key={item.trigger}
                               onClick={() => setTemplate(item)}
-                              className={`flex w-full items-start justify-between gap-3 border-b border-stone-200 px-4 py-3 text-left last:border-b-0 ${
-                                template.trigger === item.trigger ? 'bg-stone-900 text-white' : 'bg-white text-roman-text-main hover:bg-stone-50'
+                              className={`flex w-full items-start justify-between gap-3 border-b border-roman-border px-4 py-3 text-left last:border-b-0 ${
+                                template.trigger === item.trigger ? 'bg-roman-sidebar text-white' : 'bg-roman-surface text-roman-text-main hover:bg-roman-bg'
                               }`}
                             >
                               <div className="min-w-0">
@@ -1134,7 +1134,7 @@ export function SettingsView() {
                         </div>
                       </section>
 
-                      <section className="rounded-xl border border-stone-200 bg-stone-50 p-5">
+                      <section className="rounded-xl border border-roman-border bg-roman-bg p-5">
                         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                           <div className="space-y-4">
                             <div>
@@ -1143,7 +1143,7 @@ export function SettingsView() {
                                 type="text"
                                 value={template.subject}
                                 disabled
-                                className="w-full rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-sm font-medium text-roman-text-main outline-none"
+                                className="w-full rounded-xl border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none"
                               />
                               <div className="mt-2 text-xs text-roman-text-sub">
                                 O assunto fica fixo por OS para manter toda a conversa no mesmo thread do e-mail.
@@ -1156,7 +1156,7 @@ export function SettingsView() {
                                 value={template.recipients}
                                 onChange={event => setTemplate(current => ({ ...current, recipients: event.target.value }))}
                                 placeholder="email1@dominio.com, email2@dominio.com"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <div className="mt-2 text-xs text-roman-text-sub">
                                 Opcional. Quando preenchido, o sistema usa estes e-mails no gatilho sem depender do destinatário do ticket.
@@ -1165,14 +1165,14 @@ export function SettingsView() {
                             <div>
                               <label className="mb-1.5 block text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Corpo do e-mail</label>
                               <textarea
-                                className="h-72 w-full rounded-xl border border-stone-200 bg-white p-3 font-mono text-sm text-roman-text-sub outline-none focus:border-roman-primary"
+                                className="h-72 w-full rounded-xl border border-roman-border bg-roman-surface p-3 font-mono text-sm text-roman-text-sub outline-none focus:border-roman-primary"
                                 value={template.body}
                                 onChange={event => setTemplate(current => ({ ...current, body: event.target.value }))}
                               />
                             </div>
                           </div>
 
-                          <div className="rounded-xl border border-stone-200 bg-white p-4">
+                          <div className="rounded-xl border border-roman-border bg-roman-surface p-4">
                             <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Preview</div>
                             <div className="mt-4 space-y-3">
                               <div>
@@ -1183,7 +1183,7 @@ export function SettingsView() {
                                 <div className="text-[11px] text-roman-text-sub">Variáveis úteis</div>
                                 <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                                   {['{{ticket.id}}', '{{ticket.subject}}', '{{ticket.status}}', '{{ticket.region}}', '{{ticket.sede}}', '{{tracking.url}}', '{{requester.name}}', '{{message.body}}', '{{guarantee.summary}}'].map(token => (
-                                    <span key={token} className="rounded-full border border-stone-200 bg-stone-50 px-2 py-1 text-roman-text-sub">
+                                    <span key={token} className="rounded-full border border-roman-border bg-roman-bg px-2 py-1 text-roman-text-sub">
                                       {token}
                                     </span>
                                   ))}
@@ -1191,7 +1191,7 @@ export function SettingsView() {
                               </div>
                               <div>
                                 <div className="text-[11px] text-roman-text-sub">Prévia visual renderizada</div>
-                                <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-[#efe8de]">
+                                <div className="mt-2 overflow-hidden rounded-xl border border-roman-border bg-[#efe8de]">
                                   <iframe
                                     title="Prévia do e-mail"
                                     srcDoc={renderedTemplatePreview}
@@ -1218,7 +1218,7 @@ export function SettingsView() {
                             onClick={() => void handleSaveTemplate()}
                             disabled={templateSaving}
                             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
-                              templateSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-stone-900 hover:bg-stone-800'
+                              templateSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-roman-sidebar hover:bg-roman-primary-hover'
                             }`}
                           >
                             {templateSaving ? (
@@ -1247,9 +1247,9 @@ export function SettingsView() {
                     </div>
                     <div className="space-y-5">
                       {PRIORITY_MARKERS.map(priority => (
-                        <div key={priority} className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4">
+                        <div key={priority} className="flex items-center justify-between rounded-xl border border-roman-border bg-roman-bg p-4">
                           <span className="font-medium text-sm text-roman-text-main">{priority}</span>
-                          <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-sm text-roman-text-main">Marcação</span>
+                          <span className="rounded-full border border-roman-border bg-roman-surface px-3 py-1 text-sm text-roman-text-main">Marcação</span>
                         </div>
                       ))}
 
@@ -1314,14 +1314,14 @@ export function SettingsView() {
                       <div className="space-y-5">
                         {catalogSubSection === 'catalog' && (
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-                          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-4">
+                          <section className="rounded-xl border border-roman-border bg-roman-bg p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Macroserviços</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Classificação macro da manutenção.</p>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {macroServices.map(item => (
-                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
+                                <div key={item.id} className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
@@ -1353,25 +1353,25 @@ export function SettingsView() {
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-stone-200 pt-4">
+                            <div className="space-y-3 border-t border-roman-border pt-4">
                               <input
                                 type="text"
                                 value={macroDraft.name}
                                 onChange={event => setMacroDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do macroserviço"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={macroDraft.code}
                                 onChange={event => setMacroDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <button
                                 onClick={() => void handleSaveMacroService()}
                                 disabled={catalogSavingEntity === 'macroServices'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'macroServices' ? <Loader2 size={14} className="animate-spin" /> : null}
                                 {catalogSavingEntity === 'macroServices' ? 'Salvando...' : macroDraft.id ? 'Salvar macroserviço' : 'Criar macroserviço'}
@@ -1380,7 +1380,7 @@ export function SettingsView() {
                                 <button
                                   type="button"
                                   onClick={() => setMacroDraft({ id: '', code: '', name: '' })}
-                                  className="inline-flex w-full items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-100"
+                                  className="inline-flex w-full items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
                                 >
                                   Cancelar edição
                                 </button>
@@ -1388,14 +1388,14 @@ export function SettingsView() {
                             </div>
                           </section>
 
-                          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-4">
+                          <section className="rounded-xl border border-roman-border bg-roman-bg p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Serviços</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Detalham o tipo real de intervenção.</p>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {serviceCatalog.map(item => (
-                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
+                                <div key={item.id} className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
@@ -1437,32 +1437,32 @@ export function SettingsView() {
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-stone-200 pt-4">
+                            <div className="space-y-3 border-t border-roman-border pt-4">
                               <input
                                 type="text"
                                 value={serviceDraft.name}
                                 onChange={event => setServiceDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do serviço"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={serviceDraft.code}
                                 onChange={event => setServiceDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <select
                                 value={serviceDraft.macroServiceId}
                                 onChange={event => setServiceDraft(current => ({ ...current, macroServiceId: event.target.value }))}
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               >
                                 <option value="">Selecione o macroserviço</option>
                                 {macroServices.map(item => (
                                   <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                               </select>
-                              <div className="max-h-28 space-y-2 overflow-y-auto rounded-xl border border-stone-200 bg-white px-3 py-2">
+                              <div className="max-h-28 space-y-2 overflow-y-auto rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                 {materials.map(item => {
                                   const checked = serviceDraft.suggestedMaterialIds.includes(item.id);
                                   return (
@@ -1487,7 +1487,7 @@ export function SettingsView() {
                               <button
                                 onClick={() => void handleSaveService()}
                                 disabled={catalogSavingEntity === 'serviceCatalog'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'serviceCatalog' ? <Loader2 size={14} className="animate-spin" /> : null}
                                 {catalogSavingEntity === 'serviceCatalog' ? 'Salvando...' : serviceDraft.id ? 'Salvar serviço' : 'Criar serviço'}
@@ -1496,7 +1496,7 @@ export function SettingsView() {
                                 <button
                                   type="button"
                                   onClick={() => setServiceDraft({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] })}
-                                  className="inline-flex w-full items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-100"
+                                  className="inline-flex w-full items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
                                 >
                                   Cancelar edição
                                 </button>
@@ -1504,14 +1504,14 @@ export function SettingsView() {
                             </div>
                           </section>
 
-                          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-4">
+                          <section className="rounded-xl border border-roman-border bg-roman-bg p-4 space-y-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Materiais</h3>
                               <p className="text-xs text-roman-text-sub mt-1">Materiais sugeridos para padronização de orçamento.</p>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {materials.map(item => (
-                                <div key={item.id} className="rounded-xl border border-stone-200 bg-white px-3 py-2">
+                                <div key={item.id} className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
@@ -1550,32 +1550,32 @@ export function SettingsView() {
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-stone-200 pt-4">
+                            <div className="space-y-3 border-t border-roman-border pt-4">
                               <input
                                 type="text"
                                 value={materialDraft.name}
                                 onChange={event => setMaterialDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do material"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={materialDraft.code}
                                 onChange={event => setMaterialDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={materialDraft.unit}
                                 onChange={event => setMaterialDraft(current => ({ ...current, unit: event.target.value }))}
                                 placeholder="Unidade (ex: m², un, lata)"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <button
                                 onClick={() => void handleSaveMaterial()}
                                 disabled={catalogSavingEntity === 'materials'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'materials' ? <Loader2 size={14} className="animate-spin" /> : null}
                                 {catalogSavingEntity === 'materials' ? 'Salvando...' : materialDraft.id ? 'Salvar material' : 'Criar material'}
@@ -1584,7 +1584,7 @@ export function SettingsView() {
                                 <button
                                   type="button"
                                   onClick={() => setMaterialDraft({ id: '', code: '', name: '', unit: '' })}
-                                  className="inline-flex w-full items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-100"
+                                  className="inline-flex w-full items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
                                 >
                                   Cancelar edição
                                 </button>
@@ -1595,7 +1595,7 @@ export function SettingsView() {
                         )}
 
                         {catalogSubSection === 'third-parties' && (
-                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                        <section className="rounded-xl border border-roman-border bg-roman-bg p-4">
                           <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Terceiros e especialidades</h3>
@@ -1607,7 +1607,7 @@ export function SettingsView() {
                           </div>
 
                           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-4">
-                            <div className="rounded-xl border border-stone-200 bg-white p-3">
+                            <div className="rounded-xl border border-roman-border bg-roman-surface p-3">
                               {vendorsLoading ? (
                                 <div className="py-8 text-center text-sm text-roman-text-sub flex items-center justify-center gap-2">
                                   <Loader2 size={14} className="animate-spin" />
@@ -1618,7 +1618,7 @@ export function SettingsView() {
                               ) : (
                                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                                   {directoryVendors.map(vendor => (
-                                    <div key={vendor.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                    <div key={vendor.id} className="rounded-xl border border-roman-border bg-roman-bg p-3">
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
                                           <div className="text-sm font-medium text-roman-text-main truncate">{vendor.name}</div>
@@ -1658,7 +1658,7 @@ export function SettingsView() {
                               )}
                             </div>
 
-                            <div className="rounded-xl border border-stone-200 bg-white p-3 space-y-3">
+                            <div className="rounded-xl border border-roman-border bg-roman-surface p-3 space-y-3">
                               <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">
                                 {vendorDraft.id ? 'Editar terceiro' : 'Novo terceiro'}
                               </div>
@@ -1667,26 +1667,26 @@ export function SettingsView() {
                                 value={vendorDraft.name}
                                 onChange={event => setVendorDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do terceiro"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="email"
                                 value={vendorDraft.email}
                                 onChange={event => setVendorDraft(current => ({ ...current, email: event.target.value }))}
                                 placeholder="terceiro@email.com"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={vendorDraft.contact}
                                 onChange={event => setVendorDraft(current => ({ ...current, contact: event.target.value }))}
                                 placeholder="Contato (telefone/WhatsApp)"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <div>
                                 <div className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</div>
                                 {thirdPartyTags.length === 0 ? (
-                                  <div className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-roman-text-sub">
+                                  <div className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-sub">
                                     Cadastre tags na aba "Tags compartilhadas" para selecionar aqui.
                                   </div>
                                 ) : (
@@ -1708,7 +1708,7 @@ export function SettingsView() {
                                           className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                                             selected
                                               ? 'border-roman-primary bg-roman-primary text-white'
-                                              : 'border-roman-border bg-white text-roman-text-main hover:border-roman-primary'
+                                              : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                                           }`}
                                         >
                                           {tag}
@@ -1723,7 +1723,7 @@ export function SettingsView() {
                                   type="button"
                                   onClick={() => void handleSaveVendor()}
                                   disabled={vendorSaving}
-                                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {vendorSaving ? <Loader2 size={14} className="animate-spin" /> : null}
                                   {vendorSaving ? 'Salvando...' : vendorDraft.id ? 'Salvar terceiro' : 'Cadastrar terceiro'}
@@ -1732,7 +1732,7 @@ export function SettingsView() {
                                   <button
                                     type="button"
                                     onClick={() => setVendorDraft({ id: '', name: '', email: '', contact: '', tags: [] })}
-                                    className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-white"
+                                    className="inline-flex items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
                                   >
                                     Limpar
                                   </button>
@@ -1744,7 +1744,7 @@ export function SettingsView() {
                         )}
 
                         {catalogSubSection === 'tags' && (
-                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                        <section className="rounded-xl border border-roman-border bg-roman-bg p-4">
                           <div className="flex items-center justify-between gap-4 mb-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Tags compartilhadas de terceiros</h3>
@@ -1755,7 +1755,7 @@ export function SettingsView() {
                             <div className="text-xs text-roman-text-sub">{thirdPartyTags.length} tag(s)</div>
                           </div>
 
-                          <div className="rounded-xl border border-stone-200 bg-white p-3">
+                          <div className="rounded-xl border border-roman-border bg-roman-surface p-3">
                             <div className="flex flex-wrap gap-2">
                               {thirdPartyTags.length === 0 && (
                                 <span className="text-sm text-roman-text-sub">Nenhuma tag cadastrada.</span>
@@ -1782,12 +1782,12 @@ export function SettingsView() {
                               value={tagDraft}
                               onChange={event => setTagDraft(event.target.value)}
                               placeholder="Nova tag de especialidade"
-                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <button
                               type="button"
                               onClick={() => void handleAddSharedTag()}
-                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover"
                             >
                               Salvar tag
                             </button>
@@ -1795,7 +1795,7 @@ export function SettingsView() {
                         </section>
                         )}
                         {catalogSubSection === 'authorizers' && (
-                        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                        <section className="rounded-xl border border-roman-border bg-roman-bg p-4">
                           <div className="mb-4 flex items-center justify-between gap-4">
                             <div>
                               <h3 className="font-serif text-lg text-roman-text-main">Quem pode autorizar por e-mail</h3>
@@ -1815,7 +1815,7 @@ export function SettingsView() {
                             </div>
                           )}
 
-                          <div className="rounded-xl border border-stone-200 bg-white p-3">
+                          <div className="rounded-xl border border-roman-border bg-roman-surface p-3">
                             <div className="flex flex-wrap gap-2">
                               {authorizerEmails.map(email => (
                                 <span
@@ -1848,12 +1848,12 @@ export function SettingsView() {
                                 }
                               }}
                               placeholder="email@dominio.com"
-                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <button
                               type="button"
                               onClick={() => void handleAddAuthorizer()}
-                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover"
                             >
                               Adicionar
                             </button>
@@ -1883,7 +1883,7 @@ export function SettingsView() {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => void handleRunBackfill()}
-                          className="px-4 py-2 bg-roman-sidebar text-white rounded-xl text-sm font-medium hover:bg-stone-900 flex items-center gap-2 disabled:opacity-60"
+                          className="px-4 py-2 bg-roman-sidebar text-white rounded-xl text-sm font-medium hover:bg-roman-primary-hover flex items-center gap-2 disabled:opacity-60"
                           disabled={backfillLoading || integrationsLoading}
                         >
                           {backfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
@@ -2003,7 +2003,7 @@ export function SettingsView() {
                                 Boolean(attachmentDryRunResult.nextCursor) ||
                                 Boolean(attachmentApplyResult && !attachmentApplyResult.nextCursor)
                               }
-                              className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:bg-stone-900 disabled:opacity-50"
+                              className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:bg-roman-primary-hover disabled:opacity-50"
                               title="Disponível somente depois de concluir o ensaio de todos os lotes"
                             >
                               {attachmentMigrationLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
@@ -2117,14 +2117,14 @@ export function SettingsView() {
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {legacyCards.map(card => (
-                                <div key={card.label} className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                                <div key={card.label} className="rounded-xl border border-roman-border bg-roman-bg p-4">
                                   <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
                                   <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
                                 </div>
                               ))}
                             </div>
 
-                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                            <div className="rounded-xl border border-roman-border bg-roman-bg p-4">
                               <div className="flex items-center gap-2 text-roman-text-main font-medium mb-3">
                                 <Database size={16} />
                                 Amostras de legado
@@ -2194,7 +2194,7 @@ export function SettingsView() {
               <button
                 onClick={() => setPendingCatalogDelete(null)}
                 disabled={catalogDeleting}
-                className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -2209,7 +2209,7 @@ export function SettingsView() {
             </div>
           )}
         >
-          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-roman-text-sub">
+          <div className="rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-sm text-roman-text-sub">
             <strong>Item:</strong> {pendingCatalogDelete.label}
           </div>
         </ModalShell>
