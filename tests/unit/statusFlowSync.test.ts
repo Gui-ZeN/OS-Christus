@@ -34,28 +34,60 @@ describe('statusFlow — front e back em sincronia', () => {
     }
     expect([...desconhecidos]).toEqual([]);
   });
-  it('🚪 as etapas de aprovação da diretoria não podem mais ser ESCOLHIDAS', () => {
-    // Não havia diretor: zero cadastrados. A aprovação passou a ser capturada do
-    // e-mail de quem está em cópia.
-    for (const aposentada of [
-      FRONT.WAITING_SOLUTION_APPROVAL,
-      FRONT.WAITING_BUDGET_APPROVAL,
-      FRONT.WAITING_CONTRACT_APPROVAL,
-    ]) {
-      expect(isRetiredStatus(aposentada)).toBe(true);
-      expect(SELECTABLE_TICKET_STATUSES).not.toContain(aposentada);
-      expect(getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_TECH_OPINION)).not.toContain(
-        aposentada
-      );
-    }
+  it('🚪 a aprovação de CONTRATO continua sem entrada', () => {
+    // Único marco dos três que a coordenação não acompanha na planilha — sem
+    // evidência de que o passo exista fora do sistema.
+    expect(isRetiredStatus(FRONT.WAITING_CONTRACT_APPROVAL)).toBe(true);
+    expect(SELECTABLE_TICKET_STATUSES).not.toContain(FRONT.WAITING_CONTRACT_APPROVAL);
   });
 
-  it('mas as OS presas nelas continuam podendo SAIR', () => {
-    // Duas OS estão paradas em "Aguardando Aprovação da Solução". Fechar a saída
-    // junto com a entrada deixaria as duas sem para onde ir.
-    const saidas = getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_SOLUTION_APPROVAL);
+  it('mas as OS presas nela continuam podendo SAIR', () => {
+    // Fechar a saída junto com a entrada deixaria sem para onde ir quem já está lá.
+    const saidas = getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_CONTRACT_APPROVAL);
     expect(saidas.length).toBeGreaterThan(0);
     expect(saidas).toContain(FRONT.IN_PROGRESS);
+  });
+
+  /**
+   * O TESTE QUE TERIA PEGO O PROBLEMA DE 07/08.
+   *
+   * Aposentei as três etapas de aprovação de uma vez medindo que ninguém aprovava no
+   * sistema — verdade sobre o mecanismo, falso sobre o passo. Resultado: o servidor
+   * recusava com 409 a casa seguinte à visita técnica, e das 85 saídas medidas de
+   * "Aguardando Parecer Técnico" 64 foram direto para Encerrada e só 4 para
+   * Orçamento. A planilha da coordenação tem 226 datas de aprovação da solução e 49
+   * solicitações paradas nela hoje.
+   *
+   * Se alguém reaposentar as duas sem trazer evidência nova de que o passo sumiu da
+   * operação, cai aqui.
+   */
+  it('✅ o caminho da operação real está aberto: visita → aprovação → orçamento → aprovação', () => {
+    const reabertas = [FRONT.WAITING_SOLUTION_APPROVAL, FRONT.WAITING_BUDGET_APPROVAL];
+    for (const etapa of reabertas) {
+      expect(isRetiredStatus(etapa)).toBe(false);
+      expect(isRetiredBack(etapa)).toBe(false);
+      expect(SELECTABLE_TICKET_STATUSES).toContain(etapa);
+    }
+
+    // As duas pontes que estavam quebradas, cada uma a partir de quem a antecede.
+    expect(getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_TECH_OPINION)).toContain(
+      FRONT.WAITING_SOLUTION_APPROVAL
+    );
+    expect(getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_BUDGET)).toContain(
+      FRONT.WAITING_BUDGET_APPROVAL
+    );
+  });
+
+  it('a esteira continua PERMISSIVA — pular etapa é o caso comum, não o desvio', () => {
+    // 45% das linhas da planilha pulam etapa e 45% das concluídas nunca registraram
+    // início de execução. Exigir sequência completa modelaria um processo que a
+    // operação não executa.
+    const daVisita = getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_TECH_OPINION);
+    expect(daVisita).toContain(FRONT.WAITING_BUDGET); // pula a aprovação
+    expect(daVisita).toContain(FRONT.CLOSED); // encerra direto
+    expect(getAllowedNextStatuses('Admin', 'inbox', FRONT.WAITING_SOLUTION_APPROVAL)).toContain(
+      FRONT.IN_PROGRESS // pula orçamento e ações preliminares
+    );
   });
 
   it('🔒 front e back concordam sobre o que está aposentado', () => {
@@ -67,12 +99,12 @@ describe('statusFlow — front e back em sincronia', () => {
     }
   });
 
-  it('as três aposentadas continuam VÁLIDAS como valor', () => {
-    // Duas OS estão paradas nelas. Recusar o valor inteiro deixaria as duas
-    // impossíveis de ler.
+  it('as etapas de aprovação continuam VÁLIDAS como valor', () => {
+    // OS antigas estão paradas nelas. Recusar o valor inteiro as deixaria
+    // impossíveis de ler — vale tanto para a reaberta quanto para a aposentada.
     for (const s of [FRONT.WAITING_SOLUTION_APPROVAL, FRONT.WAITING_BUDGET_APPROVAL, FRONT.WAITING_CONTRACT_APPROVAL]) {
       expect(isValidStatus(s)).toBe(true);
-      expect(isRetiredBack(s)).toBe(true);
     }
+    expect(isRetiredBack(FRONT.WAITING_CONTRACT_APPROVAL)).toBe(true);
   });
 });

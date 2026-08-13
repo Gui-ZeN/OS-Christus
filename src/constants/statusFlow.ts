@@ -7,20 +7,31 @@ type TransitionMap = Partial<Record<TicketStatus, TicketStatus[]>>;
 const ALL_TICKET_STATUSES = Object.values(TICKET_STATUS) as TicketStatus[];
 
 /**
- * A ETAPA DE APROVAÇÃO DA DIRETORIA SAIU.
+ * O MECANISMO DA DIRETORIA SAIU; OS MARCOS DE APROVAÇÃO VOLTARAM (13/08/2026).
  *
- * Não havia diretor: zero cadastrados, e `directorEmails` preenchido em 1 das 270 OS
- * — com um endereço de teste. A aprovação real acontece por e-mail, de quem está em
- * cópia, e agora é capturada de lá (ver `api/_lib/authorization.js`).
+ * Em 07/08 tirei as três etapas de aprovação porque não havia diretor: zero
+ * cadastrados, `directorEmails` em 1 das 270 OS, com endereço de teste. Isso provou
+ * que o MECANISMO (diretor cadastrado clicando "aprovar") não era usado — e eu
+ * concluí demais, tirando junto os ESTADOS. A aprovação continua sendo capturada do
+ * e-mail de quem está em cópia (`api/_lib/authorization.js`); o que voltou é a OS
+ * poder DIZER que está esperando por ela.
  *
- * As três etapas continuam EXISTINDO como valor, e continuam tendo SAÍDA: duas OS
- * estão paradas em "Aguardando Aprovação da Solução" e precisam poder sair. O que
- * sumiu foi a ENTRADA — ninguém mais cai nelas.
+ * A evidência: a planilha da coordenação registra 226 datas de aprovação da solução
+ * e tem 49 solicitações paradas nesse marco hoje. Enquanto o Serv3 recusava a etapa,
+ * das 85 saídas de "Aguardando Parecer Técnico" 64 foram direto para Encerrada.
+ *
+ * Aprovação de CONTRATO segue sem entrada: a planilha não acompanha esse marco.
+ *
+ * A esteira é permissiva de propósito — 45% das linhas da planilha PULAM etapa, e
+ * 45% das concluídas nunca registraram início de execução. Quem exigir sequência
+ * completa aqui vai estar modelando um processo que a operação não executa.
  */
 const ADMIN_INBOX_TRANSITIONS: TransitionMap = {
   [TICKET_STATUS.NEW]: [TICKET_STATUS.WAITING_TECH_OPINION, TICKET_STATUS.CANCELED],
-  [TICKET_STATUS.WAITING_TECH_OPINION]: [TICKET_STATUS.WAITING_BUDGET, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
-  [TICKET_STATUS.WAITING_BUDGET]: [TICKET_STATUS.WAITING_PRELIM_ACTIONS, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CANCELED],
+  [TICKET_STATUS.WAITING_TECH_OPINION]: [TICKET_STATUS.WAITING_SOLUTION_APPROVAL, TICKET_STATUS.WAITING_BUDGET, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
+  [TICKET_STATUS.WAITING_SOLUTION_APPROVAL]: [TICKET_STATUS.WAITING_BUDGET, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
+  [TICKET_STATUS.WAITING_BUDGET]: [TICKET_STATUS.WAITING_BUDGET_APPROVAL, TICKET_STATUS.WAITING_PRELIM_ACTIONS, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CANCELED],
+  [TICKET_STATUS.WAITING_BUDGET_APPROVAL]: [TICKET_STATUS.WAITING_PRELIM_ACTIONS, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
   [TICKET_STATUS.WAITING_PRELIM_ACTIONS]: [TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CANCELED],
   [TICKET_STATUS.IN_PROGRESS]: [TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
   [TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL]: [TICKET_STATUS.WAITING_PAYMENT, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
@@ -28,9 +39,8 @@ const ADMIN_INBOX_TRANSITIONS: TransitionMap = {
   [TICKET_STATUS.CLOSED]: [TICKET_STATUS.IN_PROGRESS],
   [TICKET_STATUS.CANCELED]: [TICKET_STATUS.NEW],
 
-  // Saídas de legado: sem entrada, mas quem já está preso sai.
-  [TICKET_STATUS.WAITING_SOLUTION_APPROVAL]: [TICKET_STATUS.WAITING_BUDGET, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED],
-  [TICKET_STATUS.WAITING_BUDGET_APPROVAL]: [TICKET_STATUS.WAITING_PRELIM_ACTIONS, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CANCELED],
+  // Saídas de legado: sem entrada, mas quem já está preso sai. (As duas etapas de
+  // aprovação saíram deste bloco em 13/08 — voltaram a ter entrada e estão acima.)
   [TICKET_STATUS.WAITING_CONTRACT_UPLOAD]: [TICKET_STATUS.WAITING_PRELIM_ACTIONS, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CANCELED],
   [TICKET_STATUS.WAITING_CONTRACT_APPROVAL]: [TICKET_STATUS.WAITING_PRELIM_ACTIONS, TICKET_STATUS.IN_PROGRESS, TICKET_STATUS.CANCELED],
 };
@@ -61,17 +71,14 @@ const FLOW_TRANSITIONS: Record<AppActorRole, Partial<Record<FlowScreen, Transiti
 };
 
 /**
- * Etapas que ninguém mais escolhe.
+ * Etapas que ninguém mais escolhe. Espelho de `api/_lib/statusFlow.js` — a razão
+ * completa da volta das duas aprovações está lá.
  *
- * Continuam existindo como valor — duas OS estão paradas em "Aguardando Aprovação da
- * Solução" e precisam ser exibidas e poder sair. O que acabou foi a entrada: com a
- * diretoria fora da esteira, não há mais para onde aprovar.
+ * Sobrou a aprovação de CONTRATO: a coordenação não acompanha esse marco na planilha,
+ * então não há evidência de que o passo exista fora do sistema. Continua válida como
+ * valor, e continua tendo saída, para as OS que ficaram presas nela.
  */
-const APOSENTADAS = new Set<TicketStatus>([
-  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
-]);
+const APOSENTADAS = new Set<TicketStatus>([TICKET_STATUS.WAITING_CONTRACT_APPROVAL]);
 
 export const SELECTABLE_TICKET_STATUSES = ALL_TICKET_STATUSES.filter(
   status => !APOSENTADAS.has(status)

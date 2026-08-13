@@ -1019,12 +1019,14 @@ export function InboxView() {
             setIsSending(false);
             return;
           }
-          // A aprovação da diretoria SAIU do fluxo, e o servidor recusa entrada nas
-          // etapas dela (409). Este ramo continuou mandando para
-          // WAITING_SOLUTION_APPROVAL quando havia diretor selecionado — então, para
-          // essas OS, "Enviar para Aprovação" falhava e a etapa não mudava. Era o
-          // relato do Thiers em 12/08. Agora o parecer vai para orçamento, com ou sem
-          // diretor: é a única saída que o fluxo ainda tem.
+          // Este ramo mandava para WAITING_SOLUTION_APPROVAL quando havia diretor
+          // selecionado, e o servidor recusava com 409: "Enviar para Aprovação"
+          // falhava e a etapa não mudava. Era o relato do Thiers em 12/08.
+          //
+          // A etapa VOLTOU a aceitar entrada em 13/08 (ver `statusFlow.js`), mas este
+          // botão continua indo para orçamento de propósito: ele se chama "Liberar
+          // para orçamento" e é isso que a pessoa espera dele. Quem precisa registrar
+          // a espera por aprovação escolhe a etapa no seletor, que agora a oferece.
           newStatus = TICKET_STATUS.WAITING_BUDGET;
           if (trimmedReply || uploadedReplyAttachments.length > 0) {
             items.push({

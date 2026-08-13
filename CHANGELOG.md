@@ -3,6 +3,44 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (o sistema recusava a etapa que a operação usa — e uma planilha provou)
+
+**Em 07/08 eu aposentei três etapas de aprovação de uma vez.** A medição que usei
+estava certa: zero diretores cadastrados, `directorEmails` preenchido em 1 de 270 OS,
+com endereço de teste. A conclusão é que estava larga demais — aquilo provava que o
+**mecanismo** (diretor cadastrado clicando "aprovar") não era usado. Não provava que
+o **passo** não existisse.
+
+**A planilha que a coordenação mantém em paralelo prova que existe.** 708 linhas, de
+mai/2024 até hoje, com data por marco: 308 visitas técnicas, **226 aprovações de
+solução**, 177 orçamentos, 141 ações preliminares, 144 inícios de execução, 235
+conclusões. Hoje há **49 solicitações paradas em "aguardando aprovação de solução"**
+e 20 em "aguardando aprovação do orçamento" — as duas etapas que o servidor recusava
+com 409.
+
+**O preço disso era mensurável.** De 248 OS que já entraram em "Aguardando Parecer
+Técnico", só 34% saíram; das 85 saídas, **64 foram direto para Encerrada e apenas 4
+para Orçamento**. 52% não tiveram nenhuma atividade humana durante a espera, com
+mediana de 31 dias parada. A OS não ficava parada por desleixo: a casa seguinte tinha
+sido removida do tabuleiro.
+
+- **As duas etapas voltam a aceitar entrada.** Aprovação de **contrato** continua
+  aposentada — é o único dos três marcos que a planilha não acompanha, então não há
+  evidência de que o passo exista fora do sistema.
+- **Entrar na etapa não afirma que alguém aprovou no sistema.** Afirma que a OS
+  espera uma aprovação que acontece por e-mail. Quem aprova continua fora daqui, e o
+  histórico registra apenas quem moveu e quando.
+- **A esteira segue permissiva de propósito.** 45% das linhas da planilha pulam
+  etapa e 45% das concluídas nunca registraram início de execução — exigir sequência
+  completa modelaria um processo que a operação não executa.
+- O botão "Liberar para orçamento" **continua indo para orçamento**: é o que o rótulo
+  promete. Quem precisa registrar a espera por aprovação escolhe no seletor.
+
+**Dois testes de regressão, e os dois reprovam o comportamento antigo** — verificado
+reintroduzindo a aposentadoria: o unitário quebra em 2 asserções (incluindo a guarda
+de drift front/back) e o E2E novo falha, porque a recusa era do **servidor** e o mapa
+do front podia estar coerente consigo mesmo enquanto a gravação falhava.
+
 ## 2026-08-13 (o ferramental da exclusão entra no repo, e a bateria roda inteira)
 
 Os quatro scripts que executaram a exclusão de 12/08 e o teste que protege a

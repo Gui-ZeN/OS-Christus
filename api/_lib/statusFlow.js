@@ -34,14 +34,27 @@ export function isValidStatus(status) {
  * libera Admin/Gestor para qualquer destino, então um cliente desatualizado (ou um
  * bundle em cache) recolocaria a OS numa etapa que não existe mais no fluxo.
  *
- * Continuam VÁLIDAS como valor: duas OS ainda estão paradas nelas e precisam poder
+ * Continuam VÁLIDAS como valor: OS antigas ainda estão paradas nelas e precisam poder
  * sair. O que se recusa é a entrada.
+ *
+ * ⚠️ APROVAÇÃO DA SOLUÇÃO E DO ORÇAMENTO VOLTARAM (13/08/2026).
+ *
+ * Em 07/08 aposentei as três de uma vez, medindo que ninguém aprovava no sistema:
+ * zero diretores cadastrados e `directorEmails` preenchido em 1 de 270 OS. A medição
+ * estava certa sobre o MECANISMO (diretor cadastrado clicando "aprovar") e errada
+ * sobre o PASSO. A planilha que a coordenação mantém em paralelo registra os dois
+ * marcos — 226 datas de aprovação da solução, e 49 solicitações paradas nela hoje.
+ *
+ * O preço de ter fechado: o Serv3 recusava justamente a casa seguinte à visita
+ * técnica. Das 85 saídas medidas de "Aguardando Parecer Técnico", 64 foram direto
+ * para Encerrada e só 4 para Orçamento — a OS não tinha para onde ir.
+ *
+ * Entrar na etapa NÃO afirma que alguém aprovou dentro do sistema: afirma que a OS
+ * espera uma aprovação que acontece por e-mail. Quem aprova continua fora daqui.
+ *
+ * Contrato segue aposentado: a planilha não acompanha esse marco.
  */
-const APOSENTADAS = new Set([
-  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
-]);
+const APOSENTADAS = new Set([TICKET_STATUS.WAITING_CONTRACT_APPROVAL]);
 
 export function isRetiredStatus(status) {
   return APOSENTADAS.has(String(status || ''));

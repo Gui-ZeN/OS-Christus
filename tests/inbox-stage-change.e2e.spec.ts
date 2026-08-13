@@ -54,9 +54,14 @@ test.describe('troca de etapa pela Inbox', () => {
   }
 
   // DEFEITO 1: com diretor selecionado, o parecer ia para "Aguardando Aprovação da
-  // Solução" — etapa aposentada, que o servidor recusa com 409. A OS não saía do
-  // lugar e a tela não dizia por quê.
-  test('parecer técnico com diretor vai para orçamento, não para a etapa aposentada', async ({ page }) => {
+  // Solução" — na época uma etapa aposentada, que o servidor recusava com 409. A OS
+  // não saía do lugar e a tela não dizia por quê.
+  //
+  // A etapa VOLTOU em 13/08 (a operação usa esse marco; ver `statusFlow.js`), mas
+  // este botão continua indo para orçamento de propósito: ele se chama "Liberar para
+  // orçamento". Quem quer registrar a espera por aprovação usa o seletor — coberto
+  // pelo teste logo abaixo.
+  test('o botão "liberar para orçamento" vai para orçamento, mesmo com diretor', async ({ page }) => {
     await loginWithPassword(page, managerEmail, password);
     await page.goto('/?view=inbox');
     await page.getByRole('button', { name: new RegExp(LIFECYCLE_TICKET_IDS.parecer, 'i') }).first().click();
@@ -66,6 +71,34 @@ test.describe('troca de etapa pela Inbox', () => {
     await expect
       .poll(async () => (await readTicketState(LIFECYCLE_TICKET_IDS.parecer))?.status, { timeout: 15000 })
       .toBe('Aguardando Orçamento');
+  });
+
+  /**
+   * O TESTE QUE TERIA PEGO O 409 DE 07/08.
+   *
+   * Ao aposentar a aprovação da diretoria, tirei junto o ESTADO: o servidor passou a
+   * recusar a entrada em "Aguardando Aprovação da Solução", e a OS ficou sem a casa
+   * seguinte à visita técnica. Medido depois: das 85 saídas de "Aguardando Parecer
+   * Técnico", 64 foram direto para Encerrada e só 4 para Orçamento — não havia para
+   * onde ir. A planilha que a coordenação mantém em paralelo tem 226 datas desse
+   * marco e 49 solicitações paradas nele.
+   *
+   * Nenhum teste pegou porque a recusa é do SERVIDOR: o mapa de transições do front
+   * podia estar coerente consigo mesmo e a gravação falhar mesmo assim.
+   */
+  test('a OS pode registrar que está esperando aprovação da solução', async ({ page }) => {
+    await loginWithPassword(page, managerEmail, password);
+    await abrirSeletorDeEtapa(page, LIFECYCLE_TICKET_IDS.parecer);
+
+    await escolherEtapa(page, 'Aguardando Aprovação da Solução', 'Solução enviada para aprovação.');
+    // A transição pode ou não ser voltada para fora; se o diálogo aparecer, seguimos
+    // sem e-mail — o que este teste afirma é a ETAPA, não o aviso.
+    const semAvisar = page.getByRole('button', { name: /alterar sem avisar/i });
+    if (await semAvisar.isVisible().catch(() => false)) await semAvisar.click();
+
+    await expect
+      .poll(async () => (await readTicketState(LIFECYCLE_TICKET_IDS.parecer))?.status, { timeout: 15000 })
+      .toBe('Aguardando Aprovação da Solução');
   });
 
   // DEFEITO 2: o seletor vinha `disabled` em OS encerrada, embora o código montasse
