@@ -7,7 +7,8 @@ import { getTicketSiteLabel } from '../utils/ticketTerritory';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { coerceDate, formatDateTimeSafe } from '../utils/date';
+import { coerceDate, formatDateTimeSafe, formatShortDate } from '../utils/date';
+import { contarMarcos, lerMarcos } from '../utils/marcos';
 import { matchesSearch } from '../utils/search';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import type { Ticket } from '../types';
@@ -33,6 +34,20 @@ function diasNaEtapa(ticket: Ticket): string {
   if (dias <= 0) return 'hoje';
   if (dias === 1) return '1 dia';
   return `${dias} dias`;
+}
+
+/**
+ * A linha do tempo em texto — é ela que o leitor de tela anuncia e o mouse revela.
+ *
+ * Seis quadrados coloridos são inúteis para quem não os vê, e quase inúteis para quem
+ * vê: "3 de 6" não diz QUAIS três. Aqui cada marco sai com a data, e o que falta sai
+ * como "—" em vez de sumir, senão a ausência vira invisível.
+ */
+function resumoDaLinhaDoTempo(ticket: Ticket): string {
+  const partes = lerMarcos(ticket).map(
+    marco => `${marco.rotulo}: ${marco.data ? formatShortDate(marco.data) : '—'}`
+  );
+  return `${contarMarcos(ticket)} de 6 marcos · ${partes.join(' · ')}`;
 }
 
 /**
@@ -288,6 +303,16 @@ export function OsBoardView() {
                 <th className="px-3 py-2.5 font-medium">Equipe</th>
                 <th className="px-3 py-2.5 font-medium">Responsável</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
+                {/* UMA coluna, não seis. A régua da planilha tem seis datas, mas a
+                    tabela já perdeu essa briga uma vez (11 colunas → 9, medido em
+                    1366/1280px). A faixa dá a mesma leitura de relance e as datas
+                    saem no title da linha.
+                    "Marcos" e não "Linha do tempo": medido no navegador, o TEXTO do
+                    cabeçalho — não a faixa — era o que definia a largura da coluna
+                    (95px) e devolvia a rolagem horizontal em 1280px. */}
+                <th className="px-2 py-2.5 font-medium" title="Visita técnica · Aprovação da solução · Orçamento · Ações preliminares · Início da execução · Conclusão">
+                  Marcos
+                </th>
                 <th className="px-3 py-2.5 font-medium">
                   {/* Dizia "Atualizado" e mostrava a data de CRIAÇÃO. E data
                       absoluta não responde a pergunta da fila, que é "há quanto
@@ -374,6 +399,32 @@ export function OsBoardView() {
                         {bloqueioParaAvancar(ticket)?.motivo}
                       </div>
                     )}
+                  </td>
+                  {/* Apertada de propósito: medida no navegador, a faixa custava 49px
+                      e era exatamente o que jogava a tabela de volta na rolagem
+                      horizontal em 1280px — a briga que o corte de 11 para 9 colunas
+                      tinha acabado de ganhar. */}
+                  <td className="whitespace-nowrap px-2 py-2.5">
+                    <div
+                      className="flex items-center gap-px"
+                      aria-label={resumoDaLinhaDoTempo(ticket)}
+                      title={resumoDaLinhaDoTempo(ticket)}
+                    >
+                      {lerMarcos(ticket).map(marco => (
+                        <span
+                          key={marco.chave}
+                          aria-hidden="true"
+                          className={`h-2.5 w-1.5 ${
+                            marco.data ? 'bg-roman-primary' : 'bg-roman-border/50'
+                          }`}
+                        />
+                      ))}
+                      {/* O número resolve o que a faixa sozinha não resolve: seis
+                          quadrados quase iguais não se contam de relance. */}
+                      <span className="ml-1 text-[11px] tabular-nums text-roman-text-sub">
+                        {contarMarcos(ticket)}/6
+                      </span>
+                    </div>
                   </td>
                   <td
                     className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub"

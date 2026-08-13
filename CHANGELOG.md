@@ -3,6 +3,34 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (a Gestão mostra o que já aconteceu na OS)
+
+A coluna **Marcos** entra na tabela de Gestão: uma barra de seis segmentos com a régua
+que a coordenação usa na planilha — visita técnica, aprovação da solução, orçamento,
+ações preliminares, início da execução, conclusão — mais o contador `n/6`. As datas
+saem no title e no `aria-label` da linha, com `—` no que falta.
+
+**Uma coluna, não seis.** A régua da planilha tem seis datas, mas a tabela já perdeu
+essa briga uma vez (11 colunas → 9, medido em 1366/1280px). Medido de novo agora, no
+navegador: a primeira versão custava **49px** e devolvia a rolagem horizontal — a
+tabela cabia exata em 1209px. Apertar a faixa levou o custo a 16px, e a descoberta
+seguinte foi que o gargalo **não era a faixa**: era o TEXTO do cabeçalho ("Linha do
+tempo", 95px de largura). Com "Marcos", a coluna passou a custar **0px** — a tabela
+absorveu na folga das outras.
+
+- **Marco vazio é `null`, nunca "hoje".** `coerceDate` cai num fallback quando o valor
+  falta, o que desenharia a linha do tempo cheia e mentiria. É o mesmo defeito do
+  gráfico que lia `closureChecklist.closedAt` (vazio em 92 de 92) e mostrou zero por
+  meses — zero parece um mês fraco, não um campo vazio.
+- **Percurso esparso é normal, não erro.** 45% das linhas da planilha pulam etapa; das
+  235 concluídas, 45% nunca registraram início de execução. A barra mostra buraco no
+  meio sem tratar como pendência.
+- **Os rótulos são os DELES**: "visita técnica", não "parecer técnico". Quem lê a tela
+  precisa reconhecer a própria planilha nela.
+- O serializer da API passou a converter as datas do mapa — sem isso chegariam como
+  Timestamp do Firestore e a tela compararia objeto com data, a mesma armadilha já
+  documentada ali para `nextAction.dueAt`.
+
 ## 2026-08-13 (a linha do tempo que o sistema jogava fora)
 
 Primeiro passo do rework da agenda operacional, e ele começou por uma medição que

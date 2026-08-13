@@ -245,6 +245,18 @@ export interface Ticket {
    */
   stageEnteredAt?: string | Date | null;
   /**
+   * A linha do tempo: quando a OS entrou em CADA etapa, por nome de etapa.
+   *
+   * Existe porque `stageEnteredAt` é um carimbo só, sobrescrito a cada transição — o
+   * sistema sabia há quanto tempo a OS estava na etapa atual e descartava a data de
+   * todas as anteriores. A carteira que a coordenação mantém numa planilha existe
+   * justamente para ver as datas lado a lado.
+   *
+   * Só o SERVIDOR escreve (fica fora da allow-list do PATCH), e a primeira entrada
+   * vence: reabrir não reescreve o início da execução.
+   */
+  marcos?: Record<string, string | Date | null>;
+  /**
    * Quando a OS saiu da fila (Encerrada ou Cancelada). `null` enquanto está viva.
    *
    * É o que torna possível responder "quantas abriram e quantas fecharam na semana

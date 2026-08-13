@@ -193,6 +193,15 @@ export function serializeTicketForApi(ticket) {
     time: serializeDate(ticket.time),
     updatedAt: serializeDate(ticket.updatedAt),
     stageEnteredAt: serializeDate(ticket.stageEnteredAt),
+    // A linha do tempo (uma data por etapa). O spread acima já traria o campo, mas
+    // com Timestamp do Firestore dentro — e a tela compararia objeto com data, que é
+    // a mesma armadilha descrita logo abaixo para `nextAction.dueAt`.
+    marcos:
+      ticket.marcos && typeof ticket.marcos === 'object' && !Array.isArray(ticket.marcos)
+        ? Object.fromEntries(
+            Object.entries(ticket.marcos).map(([etapa, quando]) => [etapa, serializeDate(quando)])
+          )
+        : null,
     followUpRequestedAt: serializeDate(ticket.followUpRequestedAt),
     // Agenda operacional: `dueAt` e a data que ORDENA a tela inteira. Sem serializar
     // aqui, chegaria como Timestamp do Firestore e o front nao conseguiria comparar.
