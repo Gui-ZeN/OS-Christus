@@ -145,7 +145,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 )}
 
                 <div>
-                  <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">E-mail</label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-roman-text-sub">E-mail</label>
                   <input
                     type="email"
                     value={email}
@@ -154,7 +154,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">Nova senha</label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-roman-text-sub">Nova senha</label>
                   <input
                     type="password"
                     value={password}
@@ -164,7 +164,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.16em] text-roman-text-sub">Confirmar senha</label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-roman-text-sub">Confirmar senha</label>
                   <input
                     type="password"
                     value={confirmPassword}

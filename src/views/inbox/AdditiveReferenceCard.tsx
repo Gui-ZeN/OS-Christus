@@ -17,7 +17,7 @@ export function AdditiveReferenceCard({ expanded, onToggle, approvedQuote }: Add
     <div className="rounded-sm border border-roman-border bg-roman-bg p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Orçamento base escolhido</div>
+          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Orçamento base escolhido</div>
           <div className="mt-1 text-sm text-roman-text-main">Referência para montar o aditivo</div>
         </div>
         <button
@@ -34,19 +34,19 @@ export function AdditiveReferenceCard({ expanded, onToggle, approvedQuote }: Add
           {approvedQuote ? (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               <div>
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Fornecedor aprovado</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Fornecedor aprovado</div>
                 <div className="mt-1 font-medium">{approvedQuote.vendor || 'Não informado'}</div>
               </div>
               <div>
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Valor aprovado</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Valor aprovado</div>
                 <div className="mt-1 font-medium">{approvedQuote.totalValue || approvedQuote.value || '-'}</div>
               </div>
               <div>
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Material</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Material</div>
                 <div className="mt-1">{approvedQuote.materialValue || '-'}</div>
               </div>
               <div>
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
                 <div className="mt-1">{approvedQuote.laborValue || '-'}</div>
               </div>
             </div>

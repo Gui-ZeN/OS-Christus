@@ -229,11 +229,11 @@ export function HomeView() {
               Recorte atual: <span className="font-medium text-roman-text-main">{selectedRegion === 'all' ? 'todas as regiões visíveis' : selectedRegion}</span>
               {selectedSite !== 'all' && <span className="font-medium text-roman-text-main"> • {selectedSite}</span>}
             </div>
-            <select value={selectedRegion} onChange={event => { setSelectedRegion(event.target.value); setSelectedSite('all'); }} className="border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+            <select value={selectedRegion} onChange={event => { setSelectedRegion(event.target.value); setSelectedSite('all'); }} className="border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary">
               <option value="all">Todas as regiões</option>
               {availableRegions.map(region => <option key={region} value={region}>{region}</option>)}
             </select>
-            <select value={selectedSite} onChange={event => setSelectedSite(event.target.value)} className="border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+            <select value={selectedSite} onChange={event => setSelectedSite(event.target.value)} className="border border-roman-border rounded-xl px-3 py-2.5 bg-roman-surface text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary">
               <option value="all">Todas as sedes</option>
               {availableSites.map(site => <option key={site} value={site}>{site}</option>)}
             </select>
@@ -365,7 +365,7 @@ export function HomeView() {
                   <div className="mt-4 hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[880px] border-collapse text-left">
                       <thead>
-                        <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
+                        <tr className="border-b border-roman-border bg-roman-bg/60 text-[11px] uppercase tracking-[0.2em] text-roman-text-sub">
                           <th className="px-3 py-2">Ticket</th>
                           <th className="px-3 py-2">Assunto</th>
                           <th className="px-3 py-2">Sede</th>
@@ -437,7 +437,7 @@ export function HomeView() {
                 <div className="mt-4 hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[880px] border-collapse text-left">
                     <thead>
-                      <tr className="border-b border-roman-border bg-roman-bg/60 text-[10px] uppercase tracking-[0.2em] text-roman-text-sub">
+                      <tr className="border-b border-roman-border bg-roman-bg/60 text-[11px] uppercase tracking-[0.2em] text-roman-text-sub">
                         <th className="px-3 py-2">Ticket</th>
                         <th className="px-3 py-2">Assunto</th>
                         <th className="px-3 py-2">Sede</th>

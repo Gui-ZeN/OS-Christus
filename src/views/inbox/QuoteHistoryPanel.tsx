@@ -53,7 +53,7 @@ export function QuoteHistoryPanel({ history, servicePreference, ticketId }: Quot
         <div className="mt-4 rounded-sm border border-emerald-200 bg-emerald-50/70 p-3">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-emerald-700">
+              <div className="text-[11px] uppercase tracking-widest text-emerald-700">
                 {servicePreference ? 'Fornecedor preferencial persistido' : 'Fornecedor preferencial sugerido'}
               </div>
               <div className="mt-1 text-sm font-medium text-emerald-950">
@@ -108,7 +108,7 @@ export function QuoteHistoryPanel({ history, servicePreference, ticketId }: Quot
         <div className="mt-4 rounded-sm border border-roman-border bg-roman-surface p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h5 className="text-[10px] uppercase tracking-widest text-roman-text-sub">Referência por item/material</h5>
+              <h5 className="text-[11px] uppercase tracking-widest text-roman-text-sub">Referência por item/material</h5>
               <p className="mt-1 text-[11px] text-roman-text-sub">Faixas unitárias observadas nas OS comparáveis.</p>
             </div>
           </div>

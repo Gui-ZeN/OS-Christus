@@ -68,7 +68,7 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
           <input
             type="text"
             inputMode="decimal"
@@ -76,14 +76,14 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
             onChange={event => onGrossChange(sanitizeCurrencyTypingInput(event.target.value))}
             onBlur={onGrossBlur}
             placeholder="Ex: 12500,00"
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
           />
           <div className="mt-2">
-            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Origem do valor</label>
+            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Origem do valor</label>
             <select
               value={budgetSource}
               onChange={event => onBudgetSourceChange(event.target.value === 'additive' ? 'additive' : 'initial')}
-              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             >
               <option value="initial">Orçamento inicial</option>
               <option value="additive">Aditivo</option>
@@ -100,7 +100,7 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
 
       {activeMilestones.length > 0 && activeExpectedBaselineValue > 0 && (
         <div className="space-y-2">
-          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atalhos por marco</div>
+          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Atalhos por marco</div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {activeMilestones.map(milestone => {
               const milestoneGross = (activeExpectedBaselineValue * milestone) / 100;
@@ -118,9 +118,9 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
                       : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
                   ].join(' ')}
                 >
-                  <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
+                  <div className="text-[11px] font-serif uppercase tracking-widest opacity-75">Marco</div>
                   <div className="mt-1 text-base font-semibold">{milestone}%</div>
-                  <div className="mt-1 text-[10px]">{formatCurrencyInput(projectedGross)}</div>
+                  <div className="mt-1 text-[11px]">{formatCurrencyInput(projectedGross)}</div>
                 </button>
               );
             })}
@@ -150,17 +150,17 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
       </div>
 
       <div>
-        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
+        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
         <textarea
           value={notes}
           onChange={e => onNotesChange(e.target.value)}
           placeholder="Ex: 40% concluído, com estrutura metálica finalizada e aguardando acabamento."
-          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
         />
       </div>
 
       <div>
-        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
+        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <input

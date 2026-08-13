@@ -472,7 +472,7 @@ export default function App() {
   }
 
   return (
-    <div className="theme-bridge relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-[14px]">
+    <div className="theme-bridge relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-sm">
       <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-[90] border-r border-stone-900">
         <div className="flex items-center justify-center px-2 mb-6">
           <img src="/serv3-selo.svg" alt="Serv3" className="h-8 w-8" />
@@ -520,7 +520,7 @@ export default function App() {
                         className={`flex w-full items-center justify-between rounded-sm px-2.5 py-2 text-left text-xs transition-colors ${selected ? 'bg-roman-primary/15 text-roman-primary' : 'text-roman-text-main hover:bg-roman-bg'}`}
                       >
                         <span>{option.label}</span>
-                        {selected && <span className="text-[10px] font-semibold uppercase tracking-wide">Ativo</span>}
+                        {selected && <span className="text-[11px] font-semibold uppercase tracking-wide">Ativo</span>}
                       </button>
                     );
                   })}

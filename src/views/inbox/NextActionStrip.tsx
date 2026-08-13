@@ -92,7 +92,7 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
       }`}
     >
       <span
-        className={`mt-0.5 shrink-0 font-serif text-[10px] font-semibold uppercase tracking-widest ${
+        className={`mt-0.5 shrink-0 font-serif text-[11px] font-semibold uppercase tracking-widest ${
           atrasada ? 'text-red-700' : 'text-roman-primary'
         }`}
       >

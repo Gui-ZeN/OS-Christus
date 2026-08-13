@@ -245,7 +245,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           { label: 'Sync', value: data?.summary.sync ?? 0 },
         ].map(card => (
           <div key={card.label} className={`rounded-xl border p-4 ${embedded ? 'border-stone-200 bg-white' : 'border-roman-border bg-roman-surface'}`}>
-            <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
+            <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
             <div className="mt-2 text-2xl font-serif text-roman-text-main">{loading ? '...' : card.value}</div>
           </div>
         ))}
@@ -259,7 +259,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           { label: 'Intervenção necessária', value: data?.outbox['dead-letter'] ?? 0 },
         ].map(card => (
           <div key={card.label} className={`border p-3 ${embedded ? 'rounded-xl border-stone-200 bg-white' : 'rounded-sm border-roman-border bg-roman-surface'}`}>
-            <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
+            <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">{card.label}</div>
             <div className="mt-1 text-xl font-serif text-roman-text-main">{loading ? '...' : card.value}</div>
           </div>
         ))}

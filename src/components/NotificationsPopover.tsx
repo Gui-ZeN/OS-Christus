@@ -259,7 +259,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-semibold text-roman-text-main">{notification.title}</span>
                         <span className="mt-1 block line-clamp-2 text-xs leading-5 text-roman-text-sub">{notification.body}</span>
-                        <span className="mt-1.5 block text-[10px] text-roman-text-sub">
+                        <span className="mt-1.5 block text-[11px] text-roman-text-sub">
                           {formatDistanceToNowSafe(notification.time)}
                         </span>
                       </span>

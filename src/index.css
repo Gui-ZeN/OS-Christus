@@ -111,10 +111,11 @@ body {
    demais / desperdiçar espaço. Este bloco era global e aplicava a inflação em
    todas as telas — daí a sensação de "tudo grande" nos laptops. */
 @media (min-width: 1536px) {
-  .text-\[10px\] {
-    font-size: 0.76rem !important;
-  }
-
+  /* `text-[10px]` saiu da base em 13/08: a sobrancelha existia em 10px (170 usos) e
+     11px (108) fazendo o MESMO papel, e dois tamanhos para um papel é o que impede
+     a tela de ler como grupo. Tudo convergiu para 11px — as regras de 10px foram
+     removidas daqui junto, senão ficariam como CSS morto esperando alguém reintroduzir
+     a classe e achar que a escala tem quatro degraus. */
   .text-\[11px\] {
     font-size: 0.82rem !important;
   }
@@ -125,10 +126,6 @@ body {
 
   .text-sm {
     font-size: 0.95rem !important;
-  }
-
-  .font-serif.text-\[10px\] {
-    font-size: 0.82rem !important;
   }
 
   .font-serif.text-\[11px\] {

@@ -28,7 +28,7 @@ export function QuoteItemsSection({ quote, i, suggestedQuoteMaterials, itemRefer
   return (
     <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">
                   Itens do orçamento ({quote.items.length})
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -71,7 +71,7 @@ export function QuoteItemsSection({ quote, i, suggestedQuoteMaterials, itemRefer
                 </div>
               )}
 
-              <div className="hidden lg:grid grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_100px_130px_150px_150px_88px] gap-2 px-2 pb-2 text-[10px] uppercase tracking-widest text-roman-text-sub">
+              <div className="hidden lg:grid grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)_100px_130px_150px_150px_88px] gap-2 px-2 pb-2 text-[11px] uppercase tracking-widest text-roman-text-sub">
                 <span>Tipo</span>
                 <span>Material</span>
                 <span>Descrição</span>

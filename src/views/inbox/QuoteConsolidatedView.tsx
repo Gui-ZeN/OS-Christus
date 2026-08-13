@@ -43,26 +43,26 @@ export function QuoteConsolidatedView() {
 
               <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
                 <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Valor total</div>
+                  <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Valor total</div>
                   <div className="mt-1 text-sm font-semibold text-roman-text-main">{quote.value || '-'}</div>
                 </div>
                 <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Material</div>
+                  <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Material</div>
                   <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.materialValue || '-'}</div>
                 </div>
                 <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
+                  <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
                   <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.laborValue || '-'}</div>
                 </div>
                 <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Itens</div>
+                  <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Itens</div>
                   <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.items.length}</div>
                 </div>
               </div>
 
               <div className="mt-3 rounded-sm border border-roman-border bg-roman-surface p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Prévia dos itens</div>
+                  <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Prévia dos itens</div>
                   <div className="text-[11px] text-roman-text-sub">
                     {quote.items.filter(item => item.description || item.materialName).length} preenchido(s)
                   </div>

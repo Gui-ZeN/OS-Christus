@@ -24,7 +24,7 @@ export function ProposalHeaderForm({ value, onChange, onCurrencyBlur }: Proposal
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Unidade</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Unidade</label>
           <input
             type="text"
             value={value.unitName}
@@ -33,7 +33,7 @@ export function ProposalHeaderForm({ value, onChange, onCurrencyBlur }: Proposal
           />
         </div>
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Local</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Local</label>
           <input
             type="text"
             placeholder="Ex.: 9º andar"
@@ -43,7 +43,7 @@ export function ProposalHeaderForm({ value, onChange, onCurrencyBlur }: Proposal
           />
         </div>
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pasta / Link</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Pasta / Link</label>
           <input
             type="text"
             placeholder="Cole o link da pasta"
@@ -53,7 +53,7 @@ export function ProposalHeaderForm({ value, onChange, onCurrencyBlur }: Proposal
           />
         </div>
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Contratado / referência</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Contratado / referência</label>
           <input
             type="text"
             placeholder="Fornecedor já contratado, se houver"
@@ -63,7 +63,7 @@ export function ProposalHeaderForm({ value, onChange, onCurrencyBlur }: Proposal
           />
         </div>
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Quantidade total</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Quantidade total</label>
           <input
             type="text"
             placeholder="Ex.: 212 m²"
@@ -73,7 +73,7 @@ export function ProposalHeaderForm({ value, onChange, onCurrencyBlur }: Proposal
           />
         </div>
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total previsto</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total previsto</label>
           <input
             type="text"
             inputMode="decimal"

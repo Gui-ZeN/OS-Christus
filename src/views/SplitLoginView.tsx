@@ -99,7 +99,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
               <ArrowLeft size={18} /> Voltar
             </button>
 
-            <p className="text-[12px] uppercase tracking-[0.2em] text-roman-text-sub">Acesso restrito</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-roman-text-sub">Acesso restrito</p>
             <h2 className="mt-3 text-3xl font-serif text-roman-text-main lg:text-4xl">Entrar no sistema</h2>
             <p className="mt-2 text-base text-roman-text-sub lg:text-lg">Apenas colaboradores autorizados.</p>
 
@@ -188,7 +188,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                       <Loader2 size={20} className="animate-spin" />
                     ) : (
                       <>
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-[18px] font-semibold text-[#4285F4]">G</span>
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-lg font-semibold text-[#4285F4]">G</span>
                         Entrar com Google
                       </>
                     )}

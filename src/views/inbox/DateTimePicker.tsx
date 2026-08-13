@@ -50,7 +50,7 @@ export function DateTimePicker({
         type="button"
         onClick={() => !disabled && setOpen(current => !current)}
         disabled={disabled}
-        className={`flex items-center justify-center rounded-sm border border-roman-border bg-roman-surface font-medium text-roman-text-main outline-none transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-60 ${iconOnly ? (compact ? 'h-7 w-7' : 'h-9 w-9') : `w-full gap-2 text-left ${compact ? 'px-2 py-1 text-[11px]' : 'px-3 py-2 text-[13px]'}`}`}
+        className={`flex items-center justify-center rounded-sm border border-roman-border bg-roman-surface font-medium text-roman-text-main outline-none transition-colors hover:border-roman-primary disabled:cursor-not-allowed disabled:opacity-60 ${iconOnly ? (compact ? 'h-7 w-7' : 'h-9 w-9') : `w-full gap-2 text-left ${compact ? 'px-2 py-1 text-[11px]' : 'px-3 py-2 text-sm'}`}`}
         title={`Selecionar data e hora: ${formatDateTimeDisplay(value)}`}
         aria-label={`Selecionar data e hora: ${formatDateTimeDisplay(value)}`}
       >
@@ -80,7 +80,7 @@ export function DateTimePicker({
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-roman-text-sub">
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-roman-text-sub">
             {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((label, index) => (
               <div key={`${label}-${index}`}>{label}</div>
             ))}
@@ -111,7 +111,7 @@ export function DateTimePicker({
           </div>
 
           <div className="mt-3 border-t border-roman-border pt-3">
-            <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Horário</label>
+            <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Horário</label>
             <input
               type="time"
               value={selectedTime}

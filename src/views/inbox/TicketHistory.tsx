@@ -70,11 +70,11 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
               <div key={`${item.id || 'system'}-${originalIndex}`} className="flex justify-center">
                 <div className="max-w-[92%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub xl:max-w-[86%]">
                   <div className="flex items-center justify-center gap-2 text-center">
-                    <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[10px] md:text-[11px]">
+                    <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[11px] md:text-[11px]">
                       <Clock size={11} />
                       <span className="truncate">{displayText}</span>
                     </div>
-                    <div className="shrink-0 text-[10px] font-sans text-roman-text-sub/80">
+                    <div className="shrink-0 text-[11px] font-sans text-roman-text-sub/80">
                       {formatDateTimeSafe(item.time)}
                     </div>
                     {canManageStatus && (
@@ -97,12 +97,12 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
           if (item.type === 'field_change') {
             return (
               <div key={`${item.id || 'field'}-${originalIndex}`} className="flex justify-center">
-                <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1.5 text-[10px] text-roman-text-sub font-mono flex flex-wrap items-center justify-center gap-1.5">
+                <div className="bg-roman-bg border border-roman-border rounded-sm px-3 py-1.5 text-[11px] text-roman-text-sub font-mono flex flex-wrap items-center justify-center gap-1.5">
                   <span className="font-semibold">{item.sender}</span> alterou
                   <span className="font-medium bg-roman-surface px-1 rounded border border-roman-border">{item.field}</span>
                   de <span className="line-through opacity-70">{item.from}</span>
                   para <span className="font-medium text-roman-text-main">{item.to}</span>
-                  <span className="text-[10px] opacity-50">{formatDateTimeSafe(item.time)}</span>
+                  <span className="text-[11px] opacity-50">{formatDateTimeSafe(item.time)}</span>
                   {canManageStatus && (
                     <div className="shrink-0">
                       <DateTimePicker
@@ -147,7 +147,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                 </div>
                 <div className={`flex-1 ${isExternalMessage ? 'text-right' : 'text-left'}`}>
                   <div className={`flex items-baseline gap-2 mb-1 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
-                    <span className="font-semibold text-[12px]">{item.sender}</span>
+                    <span className="font-semibold text-xs">{item.sender}</span>
                     <span className="text-roman-text-sub text-[11px] font-serif italic">
                       {formatDateTimeSafe(item.time)}
                     </span>
@@ -166,7 +166,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                     </div>
                   )}
                   <div
-                    className={`rounded-sm p-2.5 text-[12px] leading-normal shadow-sm border ${
+                    className={`rounded-sm p-2.5 text-xs leading-normal shadow-sm border ${
                       isExternalMessage
                         ? 'bg-roman-primary/5 border-roman-primary/20'
                         : isInternalNote

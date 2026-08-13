@@ -405,7 +405,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Sua Identificação</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="pf-name" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu Nome</label>
+                  <label htmlFor="pf-name" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu Nome</label>
                   <input
                     id="pf-name"
                     type="text"
@@ -415,12 +415,12 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="Ex: João Silva"
                     aria-invalid={Boolean(errors.name)}
                     aria-describedby={errors.name ? 'pf-name-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.name ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.name ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.name && <span id="pf-name-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.name}</span>}
                 </div>
                 <div>
-                  <label htmlFor="pf-email" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu E-mail (Para receber o link)</label>
+                  <label htmlFor="pf-email" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu E-mail (Para receber o link)</label>
                   <input
                     id="pf-email"
                     type="email"
@@ -430,12 +430,12 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="nome@dominio.com"
                     aria-invalid={Boolean(errors.email)}
                     aria-describedby={errors.email ? 'pf-email-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.email && <span id="pf-email-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.email}</span>}
                 </div>
                 <div className="md:col-span-2">
-                  <label htmlFor="pf-interested-emails" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Pessoas interessadas na OS (opcional)</label>
+                  <label htmlFor="pf-interested-emails" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Pessoas interessadas na OS (opcional)</label>
                   <textarea
                     id="pf-interested-emails"
                     name="interestedEmails"
@@ -444,7 +444,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder={`email1@dominio.com, email2@dominio.com\nou um e-mail por linha`}
                     aria-invalid={Boolean(errors.interestedEmails)}
                     aria-describedby="pf-interested-emails-help"
-                    className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.interestedEmails ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.interestedEmails ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.interestedEmails ? (
                     <span id="pf-interested-emails-help" role="alert" className="text-xs text-red-500 mt-1 block">{errors.interestedEmails}</span>
@@ -459,7 +459,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               <h3 className="font-serif text-lg text-roman-text-main mb-4">Dados do Problema</h3>
 
               <div>
-                <label htmlFor="pf-subject" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto (Apenas 1 problema por formulário)</label>
+                <label htmlFor="pf-subject" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Assunto (Apenas 1 problema por formulário)</label>
                 <input
                   id="pf-subject"
                   type="text"
@@ -469,13 +469,13 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   placeholder="Ex: Lâmpada queimada na recepção"
                   aria-invalid={Boolean(errors.subject)}
                   aria-describedby={errors.subject ? 'pf-subject-error' : undefined}
-                  className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.subject ? 'border-red-500' : 'border-roman-border'}`}
+                  className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.subject ? 'border-red-500' : 'border-roman-border'}`}
                 />
                 {errors.subject && <span id="pf-subject-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.subject}</span>}
               </div>
 
               <div>
-                <label htmlFor="pf-description" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição Curta</label>
+                <label htmlFor="pf-description" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição Curta</label>
                 <textarea
                   id="pf-description"
                   name="description"
@@ -484,14 +484,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   placeholder="Resuma o problema brevemente..."
                   aria-invalid={Boolean(errors.description)}
                   aria-describedby={errors.description ? 'pf-description-error' : undefined}
-                  className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.description ? 'border-red-500' : 'border-roman-border'}`}
+                  className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.description ? 'border-red-500' : 'border-roman-border'}`}
                 />
                 {errors.description && <span id="pf-description-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.description}</span>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="pf-sector" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Local</label>
+                  <label htmlFor="pf-sector" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Local</label>
                   <input
                     id="pf-sector"
                     type="text"
@@ -501,12 +501,12 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="Ex: Recepção, Infantil, Coordenação"
                     aria-invalid={Boolean(errors.sector)}
                     aria-describedby={errors.sector ? 'pf-sector-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.sector && <span id="pf-sector-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
                 </div>
                 <div>
-                  <label htmlFor="pf-location" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Detalhe do local</label>
+                  <label htmlFor="pf-location" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Detalhe do local</label>
                   <input
                     id="pf-location"
                     type="text"
@@ -516,12 +516,12 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="Ex: Bloco A, sala 12, corredor"
                     aria-invalid={Boolean(errors.location)}
                     aria-describedby={errors.location ? 'pf-location-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.location ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.location ? 'border-red-500' : 'border-roman-border'}`}
                   />
                   {errors.location && <span id="pf-location-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.location}</span>}
                 </div>
                 <div>
-                  <label htmlFor="pf-region" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>
+                  <label htmlFor="pf-region" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>
                   <select
                     id="pf-region"
                     name="region"
@@ -529,7 +529,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     onChange={handleInputChange}
                     aria-invalid={Boolean(errors.region)}
                     aria-describedby={errors.region ? 'pf-region-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.region ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.region ? 'border-red-500' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
                     {catalogRegions.map(region => (
@@ -539,7 +539,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   {errors.region && <span id="pf-region-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.region}</span>}
                 </div>
                 <div>
-                  <label htmlFor="pf-sede" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Sede</label>
+                  <label htmlFor="pf-sede" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Sede</label>
                   <select
                     id="pf-sede"
                     name="sede"
@@ -548,7 +548,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     disabled={!formData.region}
                     aria-invalid={Boolean(errors.sede)}
                     aria-describedby={errors.sede ? 'pf-sede-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.sede ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.sede ? 'border-red-500' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
                     {availableSites.map(site => (
@@ -566,13 +566,13 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                 </summary>
                 <div className="grid grid-cols-1 gap-4 border-t border-roman-border px-4 py-4 md:grid-cols-2">
                   <div>
-                    <label htmlFor="pf-type" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de manutenção</label>
+                    <label htmlFor="pf-type" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Tipo de manutenção</label>
                     <select
                       id="pf-type"
                       name="type"
                       value={formData.type}
                       onChange={handleInputChange}
-                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                     >
                       <option value="">Não sei informar</option>
                       <option value="Corretiva">Corretiva (Conserto)</option>
@@ -581,13 +581,13 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="pf-macroservice" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço</label>
+                    <label htmlFor="pf-macroservice" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Macroserviço</label>
                     <select
                       id="pf-macroservice"
                       name="macroServiceId"
                       value={formData.macroServiceId}
                       onChange={handleInputChange}
-                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                     >
                       <option value="">Não sei informar</option>
                       {catalogMacroServices.map(item => (
@@ -596,14 +596,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label htmlFor="pf-service" className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço</label>
+                    <label htmlFor="pf-service" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Serviço</label>
                     <select
                       id="pf-service"
                       name="serviceCatalogId"
                       value={formData.serviceCatalogId}
                       onChange={handleInputChange}
                       disabled={!formData.macroServiceId}
-                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                      className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
                     >
                       <option value="">Não sei informar</option>
                       {availableServiceItems.map(item => (

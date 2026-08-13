@@ -74,32 +74,32 @@ export function PreliminaryActionsModal(props: PreliminaryActionsModalProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Previsão de chegada do material</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Previsão de chegada do material</label>
           <input
             type="date"
             value={form.materialEta}
             onChange={e => onFieldChange('materialEta', e.target.value)}
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
           />
         </div>
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Data prevista para início</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Data prevista para início</label>
           <input
             type="date"
             value={form.plannedStartAt}
             onChange={e => onFieldChange('plannedStartAt', e.target.value)}
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impedimentos / observações</label>
+        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impedimentos / observações</label>
         <textarea
           value={form.blockerNotes}
           onChange={e => onFieldChange('blockerNotes', e.target.value)}
           placeholder="Ex: aguardando liberação da unidade, janela sem aula, entrega do fornecedor."
-          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
         />
       </div>
 

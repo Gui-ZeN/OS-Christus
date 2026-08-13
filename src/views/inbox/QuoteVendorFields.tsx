@@ -22,7 +22,7 @@ export function QuoteVendorFields({ quote, i, persistedServicePreference, prefer
   return (
     <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.9fr)]">
               <div className="min-w-0">
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Fornecedor</label>
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Fornecedor</label>
                 <input
                   type="text"
                   placeholder="Nome da Empresa"
@@ -41,7 +41,7 @@ export function QuoteVendorFields({ quote, i, persistedServicePreference, prefer
                 )}
               </div>
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total</label>
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor total</label>
                 <input
                   type="text"
                   placeholder="R$ 0,00"
@@ -52,15 +52,15 @@ export function QuoteVendorFields({ quote, i, persistedServicePreference, prefer
                 />
               </div>
               <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
-                <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Material</div>
+                <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Material</div>
                 <div className="mt-1 text-sm font-medium text-roman-text-main truncate">{quote.materialValue || '-'}</div>
               </div>
               <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
-                <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
+                <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Mão de obra</div>
                 <div className="mt-1 text-sm font-medium text-roman-text-main truncate">{quote.laborValue || '-'}</div>
               </div>
               <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
-                <div className="text-[10px] uppercase tracking-widest text-roman-text-sub">Total da obra</div>
+                <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Total da obra</div>
                 <div className="mt-1 text-sm font-semibold text-roman-text-main truncate">{quote.totalValue || quote.value || '-'}</div>
               </div>
             </div>

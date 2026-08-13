@@ -49,11 +49,11 @@ export function ExecutionSetupModal(props: ExecutionSetupModalProps) {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Fluxo de pagamento</label>
+          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Fluxo de pagamento</label>
           <select
             value={paymentFlowParts}
             onChange={e => onFieldChange('paymentFlowParts', e.target.value)}
-            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
           >
             {[1, 2, 3, 4, 5].map(parts => (
               <option key={parts} value={parts}>{parts === 1 ? 'À vista' : `${parts}x conforme andamento`}</option>
@@ -69,13 +69,13 @@ export function ExecutionSetupModal(props: ExecutionSetupModalProps) {
       </div>
 
       <div>
-        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Link da planilha de medição (opcional)</label>
+        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Link da planilha de medição (opcional)</label>
         <input
           type="url"
           value={measurementSheetUrl}
           onChange={e => onFieldChange('measurementSheetUrl', e.target.value)}
           placeholder="https://docs.google.com/spreadsheets/..."
-          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+          className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
         />
       </div>
 
@@ -86,12 +86,12 @@ export function ExecutionSetupModal(props: ExecutionSetupModalProps) {
       </div>
 
       <div>
-        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de início</label>
+        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de início</label>
         <textarea
           value={notes}
           onChange={e => onFieldChange('notes', e.target.value)}
           placeholder="Ex: equipe mobilizada, cronograma validado e material entregue na unidade."
-          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
         />
       </div>
     </ModalShell>

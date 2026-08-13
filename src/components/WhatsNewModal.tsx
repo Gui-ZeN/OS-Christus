@@ -33,7 +33,7 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
             <AlertTriangle size={16} className="shrink-0 text-roman-primary" />
             {CURRENT_RELEASE.highlight.title}
           </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-roman-text-main">
+          <p className="mt-1.5 text-sm leading-relaxed text-roman-text-main">
             {CURRENT_RELEASE.highlight.body}
           </p>
         </div>
@@ -47,7 +47,7 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
             </span>
             <div className="min-w-0">
               <p className="text-sm font-medium text-roman-text-main">{item.title}</p>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-roman-text-sub">{item.body}</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-roman-text-sub">{item.body}</p>
             </div>
           </li>
         ))}

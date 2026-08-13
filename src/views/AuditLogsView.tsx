@@ -361,10 +361,10 @@ export function AuditLogsView() {
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${CATEGORY_STYLES[category]}`}>
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${CATEGORY_STYLES[category]}`}>
                         {CATEGORY_LABELS[category]}
                       </span>
-                      <span className="text-[10px] uppercase tracking-widest text-roman-text-sub font-serif">
+                      <span className="text-[11px] uppercase tracking-widest text-roman-text-sub font-serif">
                         {ticketRef || 'Ação geral do sistema'}
                       </span>
                     </div>

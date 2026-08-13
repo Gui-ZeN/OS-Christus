@@ -3,6 +3,36 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (17 tamanhos de texto viram 9, e a mesma escala em todas as telas)
+
+Terceira fatia do rework visual. O ruído que restava era a zona entre 9 e 15px, onde
+**sete** tamanhos faziam o mesmo trabalho — `text-[9px]`, `[10px]` (170 usos), `[11px]`
+(108), `[12px]`, `[13px]` (78), `[14px]`, `[15px]`. Nada era exatamente igual a nada,
+então nada lia como grupo.
+
+A convergência foi em três passos, do mais barato ao mais arriscado:
+
+1. **Tamanhos idênticos escritos de dois jeitos**: `text-[12px]` → `text-xs`,
+   `text-[14px]` → `text-sm`. Mesmo pixel — mas com uma diferença que importava: o
+   bloco de ampliação para monitores ≥1536px cobre `.text-xs`/`.text-sm` e **não**
+   cobria as versões entre colchetes. O mesmo tamanho crescia numa tela e não na
+   outra.
+2. **A sobrancelha**, que existia em 10px (170) e 11px (108) para o mesmo papel:
+   tudo para **11px**. As regras de 10px saíram do CSS junto — CSS morto de escala é
+   convite para alguém reintroduzir a classe achando que há quatro degraus.
+3. **Os últimos avulsos**: `[13px]` → `text-sm` (são campos de formulário, e 13px
+   também ficava de fora da ampliação), `[15px]` → `text-sm`, `[17px]`/`[18px]` →
+   `text-lg`.
+
+**17 tamanhos → 9.** Ficaram `text-[11px]` (sobrancelha) · `xs` · `sm` · `base` · `lg`
+· `xl` · `2xl` · `3xl`, mais dois usos de `text-[9px]` **mantidos de propósito**: o
+selo de notificação e o rótulo do ícone da barra lateral, onde 11px não cabe.
+
+Verificado nas oito telas, com a janela em 1280px: nenhuma quebrada, **nenhuma com
+rolagem horizontal**, e a zona micro em **11 / 12 / 14** em todas. A tabela da Gestão
+— que cabia em 1209px exatos e é o teste mais sensível a texto maior — continua em
+**1209 = 1209**. A Caixa de Entrada saiu de 9 tamanhos na tela para 7.
+
 ## 2026-08-13 (13 raios viram 3, e duas suspeitas minhas caem)
 
 Segunda fatia do rework visual — e a medição derrubou duas coisas que eu tinha

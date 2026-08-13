@@ -19,7 +19,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
     <div className="mb-6 rounded-sm border border-roman-border bg-roman-bg p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <div className="flex-1">
-          <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Interessados adicionais</label>
+          <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Interessados adicionais</label>
           <input
             type="text"
             value={draft}
@@ -46,7 +46,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
 
       {suggestions.length > 0 && (
         <div className="mt-4">
-          <div className="mb-2 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Sugestões desta sede</div>
+          <div className="mb-2 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Sugestões desta sede</div>
           <div className="flex flex-wrap gap-2">
             {suggestions.slice(0, 8).map(email => (
               <button

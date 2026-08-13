@@ -156,7 +156,7 @@ export function PeriodPicker({
           <div className="my-3 border-t border-roman-border/60" />
 
           {/* Intervalo personalizado */}
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-roman-text-sub">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-roman-text-sub">
             Período personalizado
           </div>
           <div className="flex items-center gap-2">

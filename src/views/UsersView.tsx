@@ -271,19 +271,19 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               <div className="space-y-5 bg-stone-50/70 p-6">
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
                     <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.total}</div>
                   </div>
                   <div className="rounded-xl border border-emerald-200 bg-white px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
                     <div className="mt-2 text-2xl font-serif text-emerald-900">{userStats.active}</div>
                   </div>
                   <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-stone-600">Inativos</div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-stone-600">Inativos</div>
                     <div className="mt-2 text-2xl font-serif text-stone-800">{userStats.inactive}</div>
                   </div>
                   <div className="rounded-xl border border-sky-200 bg-white px-4 py-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
                     <div className="mt-2 text-2xl font-serif text-sky-900">{userStats.multiSite}</div>
                   </div>
                 </div>
@@ -352,12 +352,12 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                 <table className="w-full min-w-[980px] border-collapse text-left">
                   <thead>
                     <tr className="bg-roman-bg/50 border-b border-roman-border">
-                      <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Nome</th>
-                      <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Papel</th>
-                      <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">E-mail</th>
-                      <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Região / Sedes</th>
-                      <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Status</th>
-                      <th className="p-4 text-[10px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold text-right">Ações</th>
+                      <th className="p-4 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Nome</th>
+                      <th className="p-4 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Papel</th>
+                      <th className="p-4 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">E-mail</th>
+                      <th className="p-4 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Região / Sedes</th>
+                      <th className="p-4 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold">Status</th>
+                      <th className="p-4 text-[11px] font-serif uppercase tracking-widest text-roman-text-sub font-semibold text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -424,24 +424,24 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Nome</label>
+                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Nome</label>
                   <input type="text" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail</label>
+                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">E-mail</label>
                   <input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha manual (opcional)'}</label>
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">{editingId ? 'Nova senha (opcional)' : 'Senha manual (opcional)'}</label>
                 <input type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} placeholder={editingId ? 'Preencha apenas para redefinir' : 'Se vazio, usuário define por e-mail'} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary" />
                 <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{editingId ? 'Se preenchida, atualiza a senha no Firebase Auth.' : 'Se não preencher, o sistema envia e-mail para o usuário criar a senha.'}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Papel</label>
+                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Papel</label>
                   <select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value as UserRole }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     {ROLE_OPTIONS.map(option => (
                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -450,7 +450,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                   <p className="mt-2 text-xs text-roman-text-sub font-serif italic">{ROLE_OPTIONS.find(option => option.value === form.role)?.description}</p>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Status</label>
+                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Status</label>
                   <select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as UserStatus }))} className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary">
                     <option value="Ativo">Ativo</option>
                     <option value="Inativo">Inativo</option>
@@ -459,7 +459,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Regiões</label>
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Regiões</label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {regions.map(region => {
                     const checked = form.regionIds.includes(region.id);
@@ -479,7 +479,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Sedes</label>
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Sedes</label>
                 {form.regionIds.length === 0 ? (
                   <div className="border border-dashed border-roman-border rounded-sm p-4 text-sm text-roman-text-sub font-serif italic">Selecione ao menos uma região para vincular as sedes.</div>
                 ) : (

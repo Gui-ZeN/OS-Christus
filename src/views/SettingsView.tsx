@@ -299,7 +299,7 @@ function IntegrationStatusCard({
     <div className="border border-roman-border rounded-sm p-4 bg-roman-bg">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{title}</div>
+          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">{title}</div>
           <div className="text-base font-serif text-roman-text-main mt-1">{check.ok ? 'Operacional' : 'Atenção'}</div>
         </div>
         <div className={`shrink-0 ${check.ok ? 'text-green-700' : 'text-amber-700'}`}>
@@ -899,7 +899,7 @@ export function SettingsView() {
       <div className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="mx-auto max-w-[1500px] space-y-5">
         <section className="rounded-xl border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-8">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>
+          <div className="text-[11px] uppercase tracking-[0.3em] text-roman-primary">Configurações</div>
           <h1 className="mt-2 text-[2rem] font-serif tracking-tight text-roman-text-main">Estrutura e governança</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-roman-text-sub">
             Centralize acessos, território, catálogo, comunicação e integrações sem precisar percorrer uma página longa para encontrar cada ajuste.
@@ -932,7 +932,7 @@ export function SettingsView() {
         <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-6 flex flex-col gap-4 border-b border-stone-200 pb-6 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-roman-primary">{sectionMeta.eyebrow}</div>
+              <div className="text-[11px] uppercase tracking-[0.3em] text-roman-primary">{sectionMeta.eyebrow}</div>
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-roman-primary">
                   <sectionMeta.icon size={20} />
@@ -945,7 +945,7 @@ export function SettingsView() {
             </div>
 
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-roman-text-sub md:max-w-[320px]">
-              <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Módulo ativo</div>
+              <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Módulo ativo</div>
               <div className="mt-2 font-medium text-roman-text-main">{sectionMeta.navLabel}</div>
               <div className="mt-1 leading-6">Troque de aba no topo para acessar outro bloco sem percorrer a página inteira.</div>
             </div>
@@ -961,17 +961,17 @@ export function SettingsView() {
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 p-5">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
                         <div className="text-lg font-serif text-roman-text-main">Usuários e papéis</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cadastre acessos, ajuste perfis e mantenha a estrutura territorial vinculada.</p>
                       </div>
                       <div className="rounded-xl border border-sky-200/70 bg-sky-50/70 p-5">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
                         <div className="text-lg font-serif text-roman-text-main">Firebase Auth</div>
                         <p className="mt-2 text-sm text-roman-text-sub">O cadastro acompanha autenticação, status e ciclo de acesso ao sistema.</p>
                       </div>
                       <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 p-5">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
                         <div className="text-lg font-serif text-roman-text-main">Regiões e sedes</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cada perfil enxerga apenas a malha operacional vinculada ao seu cadastro.</p>
                       </div>
@@ -1034,8 +1034,8 @@ export function SettingsView() {
                             {regions.length === 0 && <div className="px-4 py-6 text-sm text-roman-text-sub">Nenhuma região cadastrada.</div>}
                           </div>
                           <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_auto]">
-                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
                             <button onClick={() => void handleSaveRegion()} disabled={catalogSavingEntity === 'regions'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60">
                               {catalogSavingEntity === 'regions' ? <Loader2 size={14} className="animate-spin" /> : null}
                               {catalogSavingEntity === 'regions' ? 'Salvando...' : regionDraft.id ? 'Salvar' : 'Criar'}
@@ -1057,7 +1057,7 @@ export function SettingsView() {
                                   {Array.isArray(item.aliases) && item.aliases.length > 0 && (
                                     <div className="mt-1 flex flex-wrap gap-1">
                                       {item.aliases.map(alias => (
-                                        <span key={alias} className="inline-flex items-center rounded-full bg-roman-primary/10 px-2 py-0.5 text-[10px] font-medium text-roman-primary">{alias}</span>
+                                        <span key={alias} className="inline-flex items-center rounded-full bg-roman-primary/10 px-2 py-0.5 text-[11px] font-medium text-roman-primary">{alias}</span>
                                       ))}
                                     </div>
                                   )}
@@ -1071,9 +1071,9 @@ export function SettingsView() {
                             {sites.length === 0 && <div className="px-4 py-6 text-sm text-roman-text-sub">Nenhuma sede cadastrada.</div>}
                           </div>
                           <div className="grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)_auto]">
-                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary">
+                            <input type="text" value={siteDraft.name} onChange={event => setSiteDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da sede" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <input type="text" value={siteDraft.code} onChange={event => setSiteDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
+                            <select value={siteDraft.regionId} onChange={event => setSiteDraft(current => ({ ...current, regionId: event.target.value }))} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary">
                               <option value="">Selecione a região</option>
                               {regions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
@@ -1089,7 +1089,7 @@ export function SettingsView() {
                               value={siteDraft.aliases}
                               onChange={event => setSiteDraft(current => ({ ...current, aliases: event.target.value }))}
                               placeholder="ex.: CESIU, CVU"
-                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <p className="mt-1 text-[11px] text-roman-text-sub">Quando um e-mail chega com <span className="font-mono">[APELIDO]</span> no assunto, a OS entra nesta sede — sem precisar de deploy.</p>
                           </div>
@@ -1107,7 +1107,7 @@ export function SettingsView() {
                     </div>
                     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
                       <section className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-                        <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Gatilhos</div>
+                        <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Gatilhos</div>
                         <div className="mt-4 overflow-hidden rounded-xl border border-stone-200 bg-white">
                           {emailTemplatesCatalog.map(item => (
                             <button
@@ -1122,10 +1122,10 @@ export function SettingsView() {
                                 <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/70' : 'text-roman-text-sub'}`}>
                                   {item.subject || 'Sem assunto definido'}
                                 </div>
-                                <div className={`mt-1 text-[10px] uppercase tracking-[0.2em] ${template.trigger === item.trigger ? 'text-white/50' : 'text-roman-text-sub/80'}`}>
+                                <div className={`mt-1 text-[11px] uppercase tracking-[0.2em] ${template.trigger === item.trigger ? 'text-white/50' : 'text-roman-text-sub/80'}`}>
                                   {item.trigger}
                                 </div>
-                                <div className={`mt-1 text-[10px] ${template.trigger === item.trigger ? 'text-white/60' : 'text-roman-text-sub/80'}`}>
+                                <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/60' : 'text-roman-text-sub/80'}`}>
                                   {item.recipients?.trim() ? `Destinatários: ${item.recipients}` : 'Destinatário definido pelo fluxo'}
                                 </div>
                               </div>
@@ -1138,34 +1138,34 @@ export function SettingsView() {
                         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                           <div className="space-y-4">
                             <div>
-                              <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Assunto</label>
+                              <label className="mb-1.5 block text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Assunto</label>
                               <input
                                 type="text"
                                 value={template.subject}
                                 disabled
-                                className="w-full rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none"
+                                className="w-full rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-sm font-medium text-roman-text-main outline-none"
                               />
                               <div className="mt-2 text-xs text-roman-text-sub">
                                 O assunto fica fixo por OS para manter toda a conversa no mesmo thread do e-mail.
                               </div>
                             </div>
                             <div>
-                              <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Destinatários padrão</label>
+                              <label className="mb-1.5 block text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Destinatários padrão</label>
                               <input
                                 type="text"
                                 value={template.recipients}
                                 onChange={event => setTemplate(current => ({ ...current, recipients: event.target.value }))}
                                 placeholder="email1@dominio.com, email2@dominio.com"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <div className="mt-2 text-xs text-roman-text-sub">
                                 Opcional. Quando preenchido, o sistema usa estes e-mails no gatilho sem depender do destinatário do ticket.
                               </div>
                             </div>
                             <div>
-                              <label className="mb-1.5 block text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Corpo do e-mail</label>
+                              <label className="mb-1.5 block text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Corpo do e-mail</label>
                               <textarea
-                                className="h-72 w-full rounded-xl border border-stone-200 bg-white p-3 font-mono text-[13px] text-roman-text-sub outline-none focus:border-roman-primary"
+                                className="h-72 w-full rounded-xl border border-stone-200 bg-white p-3 font-mono text-sm text-roman-text-sub outline-none focus:border-roman-primary"
                                 value={template.body}
                                 onChange={event => setTemplate(current => ({ ...current, body: event.target.value }))}
                               />
@@ -1173,7 +1173,7 @@ export function SettingsView() {
                           </div>
 
                           <div className="rounded-xl border border-stone-200 bg-white p-4">
-                            <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Preview</div>
+                            <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Preview</div>
                             <div className="mt-4 space-y-3">
                               <div>
                                 <div className="text-[11px] text-roman-text-sub">Assunto</div>
@@ -1359,14 +1359,14 @@ export function SettingsView() {
                                 value={macroDraft.name}
                                 onChange={event => setMacroDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do macroserviço"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={macroDraft.code}
                                 onChange={event => setMacroDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <button
                                 onClick={() => void handleSaveMacroService()}
@@ -1443,19 +1443,19 @@ export function SettingsView() {
                                 value={serviceDraft.name}
                                 onChange={event => setServiceDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do serviço"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={serviceDraft.code}
                                 onChange={event => setServiceDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <select
                                 value={serviceDraft.macroServiceId}
                                 onChange={event => setServiceDraft(current => ({ ...current, macroServiceId: event.target.value }))}
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               >
                                 <option value="">Selecione o macroserviço</option>
                                 {macroServices.map(item => (
@@ -1556,21 +1556,21 @@ export function SettingsView() {
                                 value={materialDraft.name}
                                 onChange={event => setMaterialDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do material"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={materialDraft.code}
                                 onChange={event => setMaterialDraft(current => ({ ...current, code: event.target.value }))}
                                 placeholder="Código opcional"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={materialDraft.unit}
                                 onChange={event => setMaterialDraft(current => ({ ...current, unit: event.target.value }))}
                                 placeholder="Unidade (ex: m², un, lata)"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <button
                                 onClick={() => void handleSaveMaterial()}
@@ -1644,12 +1644,12 @@ export function SettingsView() {
                                       <div className="mt-2 flex flex-wrap gap-1.5">
                                         {(vendor.tags || []).length > 0 ? (
                                           (vendor.tags || []).map(tag => (
-                                            <span key={`${vendor.id}-${tag}`} className="rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2 py-0.5 text-[10px] text-roman-primary">
+                                            <span key={`${vendor.id}-${tag}`} className="rounded-full border border-roman-primary/30 bg-roman-primary/10 px-2 py-0.5 text-[11px] text-roman-primary">
                                               {tag}
                                             </span>
                                           ))
                                         ) : (
-                                          <span className="text-[10px] text-roman-text-sub">Sem tags</span>
+                                          <span className="text-[11px] text-roman-text-sub">Sem tags</span>
                                         )}
                                       </div>
                                     </div>
@@ -1659,7 +1659,7 @@ export function SettingsView() {
                             </div>
 
                             <div className="rounded-xl border border-stone-200 bg-white p-3 space-y-3">
-                              <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">
+                              <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">
                                 {vendorDraft.id ? 'Editar terceiro' : 'Novo terceiro'}
                               </div>
                               <input
@@ -1667,26 +1667,26 @@ export function SettingsView() {
                                 value={vendorDraft.name}
                                 onChange={event => setVendorDraft(current => ({ ...current, name: event.target.value }))}
                                 placeholder="Nome do terceiro"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="email"
                                 value={vendorDraft.email}
                                 onChange={event => setVendorDraft(current => ({ ...current, email: event.target.value }))}
                                 placeholder="terceiro@email.com"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <input
                                 type="text"
                                 value={vendorDraft.contact}
                                 onChange={event => setVendorDraft(current => ({ ...current, contact: event.target.value }))}
                                 placeholder="Contato (telefone/WhatsApp)"
-                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               />
                               <div>
-                                <div className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</div>
+                                <div className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</div>
                                 {thirdPartyTags.length === 0 ? (
-                                  <div className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] text-roman-text-sub">
+                                  <div className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-roman-text-sub">
                                     Cadastre tags na aba "Tags compartilhadas" para selecionar aqui.
                                   </div>
                                 ) : (
@@ -1782,7 +1782,7 @@ export function SettingsView() {
                               value={tagDraft}
                               onChange={event => setTagDraft(event.target.value)}
                               placeholder="Nova tag de especialidade"
-                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <button
                               type="button"
@@ -1809,7 +1809,7 @@ export function SettingsView() {
                           </div>
 
                           {authorizerEmails.length === 0 && (
-                            <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+                            <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                               <strong>Desligado.</strong> Sem ninguém cadastrado, nenhuma mensagem é lida como
                               autorização.
                             </div>
@@ -1848,7 +1848,7 @@ export function SettingsView() {
                                 }
                               }}
                               placeholder="email@dominio.com"
-                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <button
                               type="button"
@@ -2118,7 +2118,7 @@ export function SettingsView() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {legacyCards.map(card => (
                                 <div key={card.label} className="rounded-xl border border-stone-200 bg-stone-50 p-4">
-                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
+                                  <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">{card.label}</div>
                                   <div className="text-3xl font-serif text-roman-text-main">{card.value}</div>
                                 </div>
                               ))}

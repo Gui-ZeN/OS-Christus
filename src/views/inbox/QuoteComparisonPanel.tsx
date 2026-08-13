@@ -27,7 +27,7 @@ export function QuoteComparisonPanel() {
           {quoteComparisonSections.map(section => (
             <div key={section.key} className="min-w-[980px] rounded-xl border border-roman-border bg-roman-bg overflow-hidden">
               <div className="border-b border-roman-border px-4 py-2">
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">{section.label}</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">{section.label}</div>
               </div>
               <table className="w-full border-collapse text-sm">
                 <thead>
@@ -37,7 +37,7 @@ export function QuoteComparisonPanel() {
                     <th className="px-3 py-2 font-medium text-roman-text-main">Und.</th>
                     {quotes.map((quote, index) => (
                       <th key={`${section.key}-quote-${index}`} colSpan={2} className="border-l border-roman-border px-3 py-2">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">
                           Fornecedor {index < 26 ? String.fromCharCode(65 + index) : index + 1}
                         </div>
                         <div className="mt-1 text-sm font-medium text-roman-text-main">{quote.vendor || 'Fornecedor não informado'}</div>

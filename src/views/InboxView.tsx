@@ -1740,7 +1740,7 @@ export function InboxView() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-[17px] font-semibold tracking-wide text-roman-text-main">Caixa de Entrada</h2>
+                <h2 className="font-serif text-lg font-semibold tracking-wide text-roman-text-main">Caixa de Entrada</h2>
                 <ChevronDown size={16} className="text-roman-text-sub" />
               </div>
               <p className="text-xs text-roman-text-sub mt-1">Responsável atual: {displayActor}</p>
@@ -1769,7 +1769,7 @@ export function InboxView() {
         <div className="p-3 border-b border-roman-border bg-roman-bg/50">
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+              <label className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">
                 Status
               </label>
               <div className="relative">
@@ -1795,7 +1795,7 @@ export function InboxView() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">
+              <label className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">
                 Sede
               </label>
               <div className="relative">
@@ -1881,7 +1881,7 @@ export function InboxView() {
           {!finalizedExplicitlyFiltered && finalizedInScopeCount > 0 && (
             <button
               onClick={() => setShowFinalized(value => !value)}
-              className="sticky bottom-0 z-10 flex w-full items-center justify-center gap-2 border-t border-roman-border bg-roman-surface px-3 py-2.5 text-[12px] font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
+              className="sticky bottom-0 z-10 flex w-full items-center justify-center gap-2 border-t border-roman-border bg-roman-surface px-3 py-2.5 text-xs font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
             >
               <CheckCircle size={13} />
               {showFinalized ? 'Ocultar encerradas' : `Mostrar encerradas (${finalizedInScopeCount})`}
@@ -1937,7 +1937,7 @@ export function InboxView() {
         <div className="hidden md:flex h-full">
             <div className="h-full px-3 border-r border-roman-border flex items-center gap-2 bg-roman-bg border-t-2 border-t-roman-primary font-medium">
               <span className="w-2 h-2 rounded-full bg-roman-primary"></span>
-              <span className="font-serif italic text-roman-text-sub mr-1 text-[12px]">#{activeTicket.id}</span>
+              <span className="font-serif italic text-roman-text-sub mr-1 text-xs">#{activeTicket.id}</span>
               {activeTicket.subject.length > 20
                 ? `${activeTicket.subject.substring(0, 20)}…`
                 : activeTicket.subject}
@@ -1993,7 +1993,7 @@ export function InboxView() {
                     <span className="font-medium text-roman-text-main">{activeTicket.id}</span>
                     <StatusBadge status={activeTicket.status} />
                     {activeTicket.waterIssue ? (
-                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
                         Goteira/Infiltração
                       </span>
                     ) : null}
@@ -2115,20 +2115,20 @@ export function InboxView() {
                 <div className="flex overflow-x-auto border-b border-roman-border bg-roman-bg/50">
                   <button
                     onClick={() => setReplyMode('internal')}
-                    className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-sm flex items-center gap-2 ${replyMode === 'internal' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     <Lock size={14} /> {internalTabLabel}
                   </button>
                   <button
                     onClick={() => setReplyMode('public')}
-                    className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                    className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-sm ${replyMode === 'public' ? 'bg-roman-surface text-roman-text-main border-t-2 border-t-roman-primary' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                   >
                     Mensagem aos Interessados
                   </button>
                   {canMessageDirector && (
                     <button
                       onClick={() => setReplyMode('director')}
-                      className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-[15px] ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
+                      className={`shrink-0 px-3 py-1.5 font-serif text-sm tracking-wide lg:px-4 lg:text-sm ${replyMode === 'director' ? 'bg-roman-parchment text-roman-text-main border-t-2 border-t-stone-800' : 'text-roman-text-sub hover:bg-roman-surface/50'}`}
                     >
                       Mensagem à Diretoria
                     </button>
@@ -2160,7 +2160,7 @@ export function InboxView() {
                   <div className="border-b border-roman-border/50 bg-white px-3 py-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cópias da mensagem</div>
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Cópias da mensagem</div>
                         <div className="text-xs text-roman-text-sub">O solicitante recebe no destinatário principal. Os e-mails abaixo recebem em cópia nesta mesma corrente.</div>
                       </div>
                       <span className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">
@@ -2236,7 +2236,7 @@ export function InboxView() {
                       ) : (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Pular/voltar etapa</label>
+                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Pular/voltar etapa</label>
                             {!hasStageChange && (
                               <button
                                 type="button"
@@ -2332,7 +2332,7 @@ export function InboxView() {
                 <textarea
                   ref={replyTextRef}
                   rows={1}
-                  className={`w-full overflow-y-auto p-3 outline-none resize-none bg-transparent text-[13px] font-sans disabled:opacity-50 disabled:cursor-not-allowed ${composerView === 'max' ? 'min-h-[40vh] max-h-[70vh]' : 'min-h-[2.5rem] max-h-[40vh]'}`}
+                  className={`w-full overflow-y-auto p-3 outline-none resize-none bg-transparent text-sm font-sans disabled:opacity-50 disabled:cursor-not-allowed ${composerView === 'max' ? 'min-h-[40vh] max-h-[70vh]' : 'min-h-[2.5rem] max-h-[40vh]'}`}
                   placeholder={
                     isClosed
                       ? 'Esta OS está encerrada e não aceita novos comentários.'
@@ -2349,7 +2349,7 @@ export function InboxView() {
 
                 {mention && mentionResults.length > 0 && (
                   <div className="mx-3 mb-2 max-h-44 overflow-y-auto rounded-sm border border-roman-border bg-white shadow-lg">
-                    <div className="border-b border-roman-border/60 px-3 py-1 text-[10px] uppercase tracking-widest text-roman-text-sub">Marcar pessoa (recebe a resposta)</div>
+                    <div className="border-b border-roman-border/60 px-3 py-1 text-[11px] uppercase tracking-widest text-roman-text-sub">Marcar pessoa (recebe a resposta)</div>
                     {mentionResults.map((person, i) => (
                       <button
                         key={person.id}
@@ -2472,7 +2472,7 @@ export function InboxView() {
               <div className="flex gap-2">
                 <button
                   onClick={handleCopyLink}
-                  className="flex-1 flex items-center justify-center px-3 py-2 bg-roman-bg border border-roman-border rounded-xl hover:border-roman-primary/50 transition-colors group gap-2 text-roman-text-main font-medium text-[13px]"
+                  className="flex-1 flex items-center justify-center px-3 py-2 bg-roman-bg border border-roman-border rounded-xl hover:border-roman-primary/50 transition-colors group gap-2 text-roman-text-main font-medium text-sm"
                   title="Copiar link seguro para o solicitante"
                 >
                   <Copy size={14} className="text-roman-text-sub group-hover:text-roman-primary" />
@@ -2513,17 +2513,17 @@ export function InboxView() {
 
               {showTriagePanel && (
               <section className="rounded-xl border border-roman-border bg-roman-bg/50 px-3 py-3">
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Atendimento e triagem</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Atendimento e triagem</div>
                 <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe responsável e decisões de atendimento.</div>
                 {activeTicket.status === TICKET_STATUS.NEW && (
                   <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3">
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-amber-800">Triagem inicial</div>
-                    <div className="mt-1 text-[12px] text-amber-900">Defina equipe, urgência e decida se a OS será aceita ou cancelada.</div>
+                    <div className="text-[11px] font-serif uppercase tracking-widest text-amber-800">Triagem inicial</div>
+                    <div className="mt-1 text-xs text-amber-900">Defina equipe, urgência e decida se a OS será aceita ou cancelada.</div>
                   </div>
                 )}
                 {quickPanelCollapsed && (
                   <div className="mt-3 space-y-2">
-                    <div className="rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-sub">
+                    <div className="rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-sub">
                       Responsável: <span className="font-medium text-roman-text-main">{techTeam || 'Não definido'}</span> ·
                       Urgência: <span className="font-medium text-roman-text-main"> {ticketPriority || 'Não definida'}</span>
                     </div>
@@ -2573,7 +2573,7 @@ export function InboxView() {
                   <div className="grid grid-cols-1 gap-3">
                     {canManageStatus && (
                       <div>
-                        <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Data de abertura</label>
+                        <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Data de abertura</label>
                         <DateTimePicker
                           value={ticketDetailsForm.time}
                           onChange={value => setTicketDetailsForm(current => ({ ...current, time: value }))}
@@ -2582,11 +2582,11 @@ export function InboxView() {
                       </div>
                     )}
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Responsável técnico</label>
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Responsável técnico</label>
                       <select
                         value={techTeam}
                         onChange={handleTechTeamChange}
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isSending || !canEditQuickPanel}
                       >
                         <option value="">Selecione a Equipe...</option>
@@ -2596,8 +2596,8 @@ export function InboxView() {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Goteira / infiltração</label>
-                      <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-main">
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Goteira / infiltração</label>
+                      <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-main">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-roman-border text-roman-primary focus:ring-roman-primary"
@@ -2610,11 +2610,11 @@ export function InboxView() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Grau de urgência</label>
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Grau de urgência</label>
                       <select
                         value={ticketPriority}
                         onChange={handlePriorityChange}
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isSending || !canEditQuickPanel}
                       >
                         <option value="">Selecione a urgência...</option>
@@ -2625,13 +2625,13 @@ export function InboxView() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Local</label>
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Local</label>
                       <input
                         type="text"
                         value={ticketDetailsForm.sector}
                         onChange={event => setTicketDetailsForm(current => ({ ...current, sector: event.target.value }))}
                         placeholder="Ex.: Coordenação, Infantil, Manutenção..."
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isSending || !canEditQuickPanel}
                       />
                       {activeTicket.sector === 'Email' && (
@@ -2642,23 +2642,23 @@ export function InboxView() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Detalhe do local</label>
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Detalhe do local</label>
                       <input
                         type="text"
                         value={ticketDetailsForm.location}
                         onChange={event => setTicketDetailsForm(current => ({ ...current, location: event.target.value }))}
                         placeholder="Ex.: Bloco A, Sala 12, corredor, recepção..."
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isSending || !canEditQuickPanel}
                       />
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</label>
                       <select
                         value={ticketDetailsForm.macroServiceId}
                         onChange={handleMacroServiceChange}
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isSending || !canEditQuickPanel}
                       >
                         <option value="">Definir na triagem</option>
@@ -2673,7 +2673,7 @@ export function InboxView() {
                             value={newMacroServiceName}
                             onChange={event => setNewMacroServiceName(event.target.value)}
                             placeholder="Novo macroserviço"
-                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-main outline-none focus:border-roman-primary"
+                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-main outline-none focus:border-roman-primary"
                             disabled={isSending || savingQuickCatalog}
                           />
                           <button
@@ -2689,11 +2689,11 @@ export function InboxView() {
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
+                      <label className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Serviço</label>
                       <select
                         value={ticketDetailsForm.serviceCatalogId}
                         onChange={handleServiceCatalogChange}
-                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={isSending || !canEditQuickPanel || !ticketDetailsForm.macroServiceId}
                       >
                         <option value="">{ticketDetailsForm.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
@@ -2708,7 +2708,7 @@ export function InboxView() {
                             value={newServiceName}
                             onChange={event => setNewServiceName(event.target.value)}
                             placeholder="Novo serviço"
-                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-[12px] text-roman-text-main outline-none focus:border-roman-primary"
+                            className="min-w-0 flex-1 rounded-sm border border-roman-border bg-white px-3 py-2 text-xs text-roman-text-main outline-none focus:border-roman-primary"
                             disabled={isSending || savingQuickCatalog || !ticketDetailsForm.macroServiceId}
                           />
                           <button
@@ -2727,9 +2727,9 @@ export function InboxView() {
 
                   {isExternalTeam && (
                     <div className="space-y-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Terceiro</div>
+                      <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Terceiro</div>
                       <div className="rounded-sm border border-roman-border bg-roman-surface px-3 py-3">
-                        <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Selecionados</div>
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Selecionados</div>
                         <div className="mt-1 text-sm font-medium text-roman-text-main">
                           {selectedThirdParties.length > 0
                             ? `${selectedThirdParties.length} terceiro(s)`
@@ -2782,7 +2782,7 @@ export function InboxView() {
 
                   <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Diretores envolvidos</label>
+                      <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Diretores envolvidos</label>
                       <span className="rounded-sm border border-roman-border bg-white px-2 py-0.5 text-[11px] text-roman-text-sub">
                         {selectedDirectors.length} selecionado(s)
                       </span>
@@ -2896,7 +2896,7 @@ export function InboxView() {
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                    <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
+                    <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Resumo do chamado</div>
                     <div className="mt-1 text-[11px] text-roman-text-sub">Informações de leitura e contexto do atendimento.</div>
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.summary ? 'rotate-180' : ''}`} />
@@ -2964,7 +2964,7 @@ export function InboxView() {
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                      <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação interna</div>
+                      <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Classificação interna</div>
                       <div className="mt-1 text-[11px] text-roman-text-sub">Definições técnicas e administrativas da OS.</div>
                   </div>
                   <ChevronDown size={16} className={`mt-0.5 shrink-0 text-roman-text-sub transition-transform ${sidebarSections.classification ? 'rotate-180' : ''}`} />
@@ -3110,7 +3110,7 @@ export function InboxView() {
             </div>
             {statusEmailPrompt.recipients.length > 0 ? (
               <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
-                <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">O e-mail vai para</div>
+                <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">O e-mail vai para</div>
                 <div className="mt-1 break-words text-roman-text-main">{statusEmailPrompt.recipients.join(', ')}</div>
               </div>
             ) : (

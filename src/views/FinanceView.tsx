@@ -1092,7 +1092,7 @@ export function FinanceView() {
 
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
           <div className="rounded-xl border border-roman-border bg-roman-surface p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Status financeiro</div>
+            <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Status financeiro</div>
             <div className="mt-2 text-lg font-semibold text-roman-text-main">{financeSummary.tickets} OS em acompanhamento</div>
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
               <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Em aberto: {openFinanceTickets.length}</div>
@@ -1101,7 +1101,7 @@ export function FinanceView() {
             </div>
           </div>
           <div className="rounded-xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
-            <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-primary">Saldo a liberar</div>
+            <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-primary">Saldo a liberar</div>
             <div className="mt-2 text-lg font-semibold text-roman-text-main">{formatCurrency(financeSummary.remaining)}</div>
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
               <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
@@ -1214,7 +1214,7 @@ export function FinanceView() {
 
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
                   <div className="min-w-0">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">OS em acompanhamento</div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">OS em acompanhamento</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-roman-text-main">{ticket.id}</span>
                       <span className="rounded-full border border-roman-border bg-roman-bg px-2 py-0.5 text-xs text-roman-text-sub">
@@ -1266,21 +1266,21 @@ export function FinanceView() {
                   <div className="rounded-xl border border-roman-border bg-roman-bg/60 p-3">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-xs text-roman-text-sub">
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Classificação</div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Classificação</div>
                         <div className="mt-1 font-medium text-roman-text-main">{ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
                       </div>
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Fluxo</div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Fluxo</div>
                         <div className="mt-1 font-medium text-roman-text-main">
                           {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'Não definido'}
                         </div>
                       </div>
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Andamento</div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Andamento</div>
                         <div className="mt-1 font-medium text-roman-text-main">{progressPercent}%</div>
                       </div>
                       <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-roman-text-sub">Contrato</div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Contrato</div>
                         <div className="mt-1 font-medium text-roman-text-main">{contractValue}</div>
                       </div>
                     </div>
@@ -1411,17 +1411,17 @@ export function FinanceView() {
                       {measurementFormOpen[ticket.id] && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border border-roman-border rounded-sm p-3 bg-roman-surface">
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição da atualização</label>
+                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição da atualização</label>
                             <input
                               type="text"
                               value={measurementDraft.label}
                               onChange={e => setMeasurementDraft(ticket.id, { label: e.target.value })}
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               placeholder="Ex: cobertura finalizada e pintura iniciada"
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
+                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
                             <input
                               type="text"
                               inputMode="decimal"
@@ -1429,14 +1429,14 @@ export function FinanceView() {
                               onChange={event => setMeasurementDraft(ticket.id, { grossAmount: sanitizeCurrencyTypingInput(event.target.value) })}
                               onBlur={() => setMeasurementDraft(ticket.id, { grossAmount: normalizeCurrencyInput(measurementDraft.grossAmount) })}
                               placeholder="Ex: 12500,00"
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                             <div className="mt-2">
-                              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Origem do valor</label>
+                              <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Origem do valor</label>
                               <select
                                 value={measurementDraft.budgetSource}
                                 onChange={event => setMeasurementDraft(ticket.id, { budgetSource: event.target.value === 'additive' ? 'additive' : 'initial' })}
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                               >
                                 <option value="initial">Orçamento inicial</option>
                                 <option value="additive">Aditivo</option>
@@ -1451,7 +1451,7 @@ export function FinanceView() {
                           </div>
                           {expectedBaselineValue > 0 && (
                             <div className="md:col-span-2">
-                              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Atalhos por marco</label>
+                              <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Atalhos por marco</label>
                               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                               {getPaymentFlowMilestones(ticket.executionProgress?.paymentFlowParts || 1).map(milestone => {
                                 const milestoneGross = (expectedBaselineValue * milestone) / 100;
@@ -1469,9 +1469,9 @@ export function FinanceView() {
                                         : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
                                     ].join(' ')}
                                   >
-                                    <div className="text-[10px] font-serif uppercase tracking-widest opacity-75">Marco</div>
+                                    <div className="text-[11px] font-serif uppercase tracking-widest opacity-75">Marco</div>
                                     <div className="mt-1 text-base font-semibold">{milestone}%</div>
-                                    <div className="mt-1 text-[10px]">{formatCurrency(projectedGross)}</div>
+                                    <div className="mt-1 text-[11px]">{formatCurrency(projectedGross)}</div>
                                   </button>
                                 );
                               })}
@@ -1479,25 +1479,25 @@ export function FinanceView() {
                           </div>
                           )}
                           <div>
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualização</label>
+                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualização</label>
                             <input
                               type="text"
                               value={`${releasePreview.releasePercent}%`}
                               disabled
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
+                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
                             <textarea
                               value={measurementDraft.notes}
                               onChange={e => setMeasurementDraft(ticket.id, { notes: e.target.value })}
-                              className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+                              className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
                               placeholder="Ex: relatório com fotos enviado para liberação."
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
+                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 <label className="inline-flex cursor-pointer items-center justify-center rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary">
@@ -1655,19 +1655,19 @@ export function FinanceView() {
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto inicial</div>
+                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto inicial</div>
                           <div className="text-lg font-serif text-roman-text-main">{expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'Não informado'}</div>
                         </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Realizado (previsto + aditivos)</div>
+                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Realizado (previsto + aditivos)</div>
                           <div className="text-lg font-serif text-roman-text-main">{formatCurrency(totalValue)}</div>
                         </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
+                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
                           <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
                         </div>
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
+                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
                           <div className="text-lg font-serif text-roman-text-main">
                             {plannedValue > 0 ? `${roundProgressPercent((paidValue / plannedValue) * 100)}%` : '0%'}
                           </div>
@@ -1787,7 +1787,7 @@ export function FinanceView() {
 
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">
                                 <div>
-                                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto</label>
+                                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto</label>
                                   <input
                                     type="text"
                                     inputMode="decimal"
@@ -1795,12 +1795,12 @@ export function FinanceView() {
                                     onChange={event => setPaymentDraft(ticket.id, payment, { grossValue: sanitizeCurrencyTypingInput(event.target.value) })}
                                     onBlur={() => setPaymentDraft(ticket.id, payment, { grossValue: normalizeCurrencyInput(paymentDraft.grossValue) })}
                                     disabled={payment.status === 'paid'}
-                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                                     placeholder="Ex: 1000,00"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impostos</label>
+                                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impostos</label>
                                   <input
                                     type="text"
                                     inputMode="decimal"
@@ -1808,12 +1808,12 @@ export function FinanceView() {
                                     onChange={event => setPaymentDraft(ticket.id, payment, { taxValue: sanitizeCurrencyTypingInput(event.target.value) })}
                                     onBlur={() => setPaymentDraft(ticket.id, payment, { taxValue: normalizeCurrencyInput(paymentDraft.taxValue) })}
                                     disabled={payment.status === 'paid'}
-                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                                     placeholder="Ex: 150,00"
                                   />
                                 </div>
                                 <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Líquido calculado</div>
+                                  <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Líquido calculado</div>
                                   <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(netPreview)}</div>
                                 </div>
                               </div>
@@ -1982,42 +1982,42 @@ export function FinanceView() {
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Início do serviço</label>
+                          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Início do serviço</label>
                           <input
                             type="date"
                             value={closureDraft.serviceStartedAt}
                             onChange={e => setClosureDraft(ticket.id, { serviceStartedAt: e.target.value })}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Término do serviço</label>
+                          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Término do serviço</label>
                           <input
                             type="date"
                             value={closureDraft.serviceCompletedAt}
                             onChange={e => setClosureDraft(ticket.id, { serviceCompletedAt: e.target.value })}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Garantia (meses)</label>
+                          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Garantia (meses)</label>
                           <input
                             type="number"
                             min="1"
                             max="60"
                             value={closureDraft.guaranteeMonths}
                             onChange={e => setClosureDraft(ticket.id, { guaranteeMonths: e.target.value })}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de encerramento</label>
+                        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de encerramento</label>
                         <textarea
                           value={closureDraft.closureNotes}
                           onChange={e => setClosureDraft(ticket.id, { closureNotes: e.target.value })}
-                          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
+                          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
                           placeholder="Ex: laudo final anexado, direção comunicada, garantia de 12 meses para estrutura."
                         />
                       </div>
@@ -2194,7 +2194,7 @@ export function FinanceView() {
               </div>
               {(paymentEmailModal.payment.attachments || []).length > 0 && (
                 <div className="border-t border-roman-border pt-2 mt-1">
-                  <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Anexos incluídos</div>
+                  <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Anexos incluídos</div>
                   {(paymentEmailModal.payment.attachments || []).map(attachment => (
                     <div key={attachment.id} className="text-xs text-roman-text-sub truncate">• {attachment.name}</div>
                   ))}
@@ -2203,7 +2203,7 @@ export function FinanceView() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">
+              <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">
                 Destinatários
               </label>
               <p className="mb-2 text-[11px] text-roman-text-sub">Pré-carrega os e-mails configurados e os últimos usados no financeiro.</p>

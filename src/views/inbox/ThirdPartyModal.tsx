@@ -72,7 +72,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
     >
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Filtro por tag</label>
+          <label className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Filtro por tag</label>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -105,11 +105,11 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
         </div>
 
         <div>
-          <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
+          <label className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Lista de terceiros</label>
           <select
             value={thirdPartySelectDraftId}
             onChange={event => onSelectDraft(event.target.value)}
-            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isSending || !canEdit}
           >
             <option value="">Selecione o terceiro...</option>
@@ -143,44 +143,44 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
         )}
 
         <div>
-          <label className="mb-1 block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail manual adicional (opcional)</label>
+          <label className="mb-1 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">E-mail manual adicional (opcional)</label>
           <input
             type="email"
             value={customEmail}
             onChange={e => onCustomEmailChange(e.target.value)}
             placeholder="terceiro@email.com"
-            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isSending || !canEdit}
           />
         </div>
 
         {canEdit && (
           <div className="space-y-2 rounded-sm border border-roman-border/70 bg-roman-surface px-3 py-3">
-            <div className="text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Cadastrar novo terceiro</div>
+            <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Cadastrar novo terceiro</div>
             <input
               type="text"
               value={newThirdPartyName}
               onChange={event => onNewNameChange(event.target.value)}
               placeholder="Nome do terceiro"
-              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             />
             <input
               type="email"
               value={newThirdPartyEmail}
               onChange={event => onNewEmailChange(event.target.value)}
               placeholder="Email (opcional)"
-              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             />
             <input
               type="text"
               value={newThirdPartyContact}
               onChange={event => onNewContactChange(event.target.value)}
               placeholder="Contato (opcional)"
-              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
             />
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
-                <label className="block text-[10px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
+                <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Tags compartilhadas</label>
                 <button
                   type="button"
                   onClick={() => void onCreateSharedTag()}
@@ -197,10 +197,10 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                 value={newSharedTagDraft}
                 onChange={event => onNewSharedTagDraftChange(event.target.value)}
                 placeholder="Nova tag (ex.: Gesso)"
-                className="mb-2 w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                className="mb-2 w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
               />
               {thirdPartyTagOptions.length === 0 ? (
-                <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-[13px] text-roman-text-sub">
+                <div className="w-full rounded-sm border border-roman-border bg-white px-3 py-2 text-sm text-roman-text-sub">
                   Cadastre tags em Configurações para selecionar aqui.
                 </div>
               ) : (
