@@ -16,13 +16,17 @@ export function StatCard({ title, value, highlight, onClick, subtitle }: StatCar
       <button
         type="button"
         onClick={onClick}
-        className={`w-full text-left rounded-2xl border px-4 py-3 transition-colors shadow-sm cursor-pointer ${
+        className={`w-full text-left rounded-xl border px-4 py-3 transition-colors shadow-sm cursor-pointer ${
           highlight
             ? 'bg-roman-primary/5 border-roman-primary/50'
             : 'bg-roman-surface border-roman-border hover:border-roman-primary/40'
         }`}
       >
-        <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">{title}</div>
+        {/* 11px, não 10: é o MESMO papel das outras sobrancelhas da tela (seções,
+          "próxima ação"), e dois tamanhos para o mesmo papel é o que faz nada ler
+          como grupo. O app tem 7 tamanhos entre 9 e 15px — este é o primeiro a
+          convergir. */}
+      <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">{title}</div>
         <div className={`mt-2 text-[1.65rem] sm:text-[1.75rem] font-serif leading-none ${highlight ? 'text-roman-primary' : 'text-roman-text-main'}`}>{value}</div>
         {subtitle ? <div className="mt-2 text-xs text-roman-text-sub">{subtitle}</div> : null}
       </button>
@@ -31,13 +35,17 @@ export function StatCard({ title, value, highlight, onClick, subtitle }: StatCar
 
   return (
     <div
-      className={`rounded-2xl border px-4 py-3 transition-colors shadow-sm cursor-default ${
+      className={`rounded-xl border px-4 py-3 transition-colors shadow-sm cursor-default ${
         highlight
           ? 'bg-roman-primary/5 border-roman-primary/50'
           : 'bg-roman-surface border-roman-border'
       }`}
     >
-      <div className="text-[10px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">{title}</div>
+      {/* 11px, não 10: é o MESMO papel das outras sobrancelhas da tela (seções,
+          "próxima ação"), e dois tamanhos para o mesmo papel é o que faz nada ler
+          como grupo. O app tem 7 tamanhos entre 9 e 15px — este é o primeiro a
+          convergir. */}
+      <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">{title}</div>
       <div className={`mt-2 text-[1.65rem] sm:text-[1.75rem] font-serif leading-none ${highlight ? 'text-roman-primary' : 'text-roman-text-main'}`}>{value}</div>
       {subtitle ? <div className="mt-2 text-xs text-roman-text-sub">{subtitle}</div> : null}
     </div>

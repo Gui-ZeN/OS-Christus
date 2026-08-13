@@ -3,6 +3,39 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (borda passa a significar "isto se clica")
+
+Primeira fatia do rework visual. Antes de escolher cor ou fonte, contei o que estava
+na tela — e o problema não era estilo:
+
+- **13 raios de borda diferentes** (411 `rounded-sm`, 112 `xl`, 60 `2xl`, 21 `lg`, mais
+  oito avulsos como `rounded-[1.25rem]` e `rounded-[22px]`).
+- **17 tamanhos de texto**, sendo **sete** entre 9px e 15px fazendo o mesmo trabalho.
+- **402 classes de cor cruas** (`bg-white`, `border-stone-200`, `bg-stone-50`…) contra
+  2.772 de token — remendadas em runtime por um `.theme-bridge` aplicado na raiz do
+  app. `SettingsView` é praticamente outra linguagem visual, com sombras e caixas
+  pastel próprias.
+- No Início: **18 elementos com borda ou sombra, 9 deles dentro de outros**. Painel com
+  borda → botão com borda → pílula com borda.
+
+A paleta e as fontes estão bem (Source Serif 4 + Manrope, quatro temas coerentes). O
+que faltava era **escala e significado** — quando tudo tem moldura, nada se destaca.
+
+**A regra adotada: borda significa "isto se clica".** Cabeçalho, barra de recorte e
+títulos de seção perderam a caixa; o que agrupa agora é espaço e tipografia. A pílula
+com borda dentro do botão virou número em serifa dourada.
+
+Resultado no Início, medido no navegador: **18 → 12 caixas, 9 → 0 aninhadas, e
+nenhuma caixa com borda que não seja clicável.** A escala de texto da tela ficou em
+11 / 12 / 14 / 18–20 / 28–32, sem a lama do 9–15px — a sobrancelha do `StatCard` era
+10px enquanto as outras da mesma tela eram 11px.
+
+Conferido nos quatro temas: o texto inverte junto com o fundo, porque a poda usou
+token e não cor crua.
+
+⚠️ Isto cobre **uma** tela e um componente. Os outros 12 raios, os 402 usos de paleta
+legada e o `SettingsView` continuam como estão.
+
 ## 2026-08-13 (o Início tinha 19 números e 4 portas)
 
 Pedido do dono: *"acho tudo muito poluído"*. Antes de mexer em cor ou espaçamento,

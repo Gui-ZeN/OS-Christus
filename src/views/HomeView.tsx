@@ -206,8 +206,10 @@ export function HomeView() {
   return (
     <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm">
-          <div className="text-[10px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">Painel operacional</div>
+        {/* O cabeçalho também perdeu a moldura: ele não se clica, e a borda agora
+            significa só isso. O que separa do resto é o espaço e a escala do nome. */}
+        <header className="mb-6 px-1">
+          <div className="text-[11px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">Painel operacional</div>
           <h1 className="mt-2 text-[1.65rem] font-serif font-medium text-roman-text-main md:text-[2rem]">Olá, {greetingName}</h1>
           <p className="mt-2 text-sm text-roman-text-sub font-serif italic">
             {isExecutive
@@ -219,7 +221,11 @@ export function HomeView() {
         </header>
         {isExecutive ? (
           <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_220px_220px] lg:items-center">
-            <div className="text-sm text-roman-text-sub rounded-xl border border-roman-border bg-roman-surface px-3 py-2.5">
+            {/* Sem caixa: é uma frase de contexto, não um objeto. Medido em 13/08, o
+                Início tinha 18 elementos com borda ou sombra e 9 deles dentro de
+                outros — moldura em tudo faz tudo pesar igual e nada se destacar.
+                Borda aqui passa a significar "isto se clica". */}
+            <div className="text-sm text-roman-text-sub px-1 py-2.5">
               Recorte atual: <span className="font-medium text-roman-text-main">{selectedRegion === 'all' ? 'todas as regiões visíveis' : selectedRegion}</span>
               {selectedSite !== 'all' && <span className="font-medium text-roman-text-main"> • {selectedSite}</span>}
             </div>
@@ -233,10 +239,8 @@ export function HomeView() {
             </select>
           </div>
         ) : (
-          <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 text-sm text-roman-text-sub shadow-sm">
-            {(
-              <><span className="font-medium text-roman-text-main">Recorte atual:</span> suas solicitações visíveis no sistema</>
-            )}
+          <div className="mb-6 px-1 text-sm text-roman-text-sub">
+            <span className="font-medium text-roman-text-main">Recorte atual:</span> suas solicitações visíveis no sistema
           </div>
         )}
 
@@ -249,7 +253,7 @@ export function HomeView() {
             aviso que aparece sempre vira moldura; sumindo, o silêncio passa a
             significar "nada pendente", e isso é informação. */}
         {gargalosVisiveis === 0 ? (
-          <p className="mb-5 rounded-2xl border border-roman-border bg-roman-surface px-4 py-3 font-serif italic text-roman-text-sub shadow-sm">
+          <p className="mb-5 border-l-2 border-roman-primary/40 pl-4 font-serif italic text-roman-text-sub">
             Nenhum gargalo agora: nada aguardando parecer, travado, sem responsável ou por triar.
           </p>
         ) : (
@@ -295,7 +299,7 @@ export function HomeView() {
         )}
 
         {isRequester && (
-          <div className="mb-6 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
+          <div className="mb-6 rounded-xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-roman-border pb-3">
               <div>
                 <h2 className="font-serif text-lg font-medium text-roman-text-main">Painel de Tickets da Minha Estrutura</h2>
@@ -472,14 +476,13 @@ export function HomeView() {
             )}
           </div>
         )}
+        {/* Seção sem moldura: o título e o espaço agrupam, a borda fica para o que se
+            clica. Antes eram três níveis de borda encaixados — painel, botão e pílula. */}
         {hasOperationalActions && (
-          <div className="mb-5 rounded-2xl border border-roman-border bg-roman-surface p-4 md:p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-roman-border pb-3">
-              <div>
-                <h2 className="font-serif text-lg font-medium text-roman-text-main">Próximas decisões</h2>
-                <p className="mt-1 text-sm text-roman-text-sub">Atalhos do que precisa de ação agora, sem navegar pelo sistema inteiro.</p>
-              </div>
-              <AlertTriangle size={16} className="text-roman-text-sub" />
+          <div className="mb-6">
+            <div className="flex items-center gap-2 border-b border-roman-border/70 pb-2">
+              <AlertTriangle size={14} className="text-roman-primary" />
+              <h2 className="font-serif text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Próximas decisões</h2>
             </div>
             {executiveNextActions.length === 0 ? (
               <p className="pt-4 text-sm text-roman-text-sub font-serif italic">Nenhuma pendência crítica no recorte atual.</p>
@@ -490,13 +493,17 @@ export function HomeView() {
                     key={item.key}
                     type="button"
                     onClick={item.action}
-                    className="rounded-2xl border border-roman-border bg-roman-bg px-4 py-4 text-left transition-colors hover:border-roman-primary hover:bg-roman-primary/5"
+                    className="rounded-xl border border-roman-border bg-roman-bg px-4 py-4 text-left transition-colors hover:border-roman-primary hover:bg-roman-primary/5"
                   >
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-roman-text-sub">Próxima ação</div>
+                    <div className="font-serif text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Próxima ação</div>
                     <div className="mt-2 text-lg font-medium text-roman-text-main">{item.title}</div>
                     <div className="mt-1 text-sm text-roman-text-sub">{item.subtitle}</div>
-                    <div className="mt-4 inline-flex items-center rounded-full border border-roman-border px-3 py-1 text-xs font-medium text-roman-text-main">
-                      {item.count} OS
+                    {/* Era uma pílula com borda DENTRO de um botão com borda. A
+                        contagem é texto, não objeto: o número em serifa e cor de
+                        destaque pesa mais que a moldura pesava. */}
+                    <div className="mt-4 font-serif text-roman-primary">
+                      <span className="text-xl leading-none">{item.count}</span>
+                      <span className="ml-1 text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">OS</span>
                     </div>
                   </button>
                 ))}
@@ -553,8 +560,8 @@ export function HomeView() {
             abrindo a lista correspondente. */}
         {isExecutive && (
         <div className="mb-5">
-          <div className="bg-roman-surface border border-roman-border rounded-2xl p-4 md:p-5 shadow-sm xl:max-w-sm">
-            <h2 className="font-serif text-lg font-medium text-roman-text-main mb-4 border-b border-roman-border pb-2">Ações Rápidas</h2>
+          <div className="xl:max-w-sm">
+            <h2 className="font-serif text-[11px] uppercase tracking-[0.24em] text-roman-text-sub mb-3 border-b border-roman-border/70 pb-2">Ações Rápidas</h2>
             <div className="space-y-3">
               <button onClick={() => navigateTo('public-form')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
                 <Plus size={18} className="text-roman-primary" />
