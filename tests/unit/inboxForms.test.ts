@@ -184,17 +184,28 @@ describe('formulários da OS', () => {
   });
 });
 
-describe('formatInputDate x formatInputDateTime (P3 do backlog)', () => {
-  // As duas vivem lado a lado em utils/date, mas só formatInputDateTime corrige o
-  // fuso antes de serializar. Em fuso negativo (Fortaleza é UTC-3), uma data local
-  // do fim do dia vira o DIA SEGUINTE em formatInputDate. O teste documenta o
-  // desvio — não o endossa. Só roda onde há defasagem, senão não prova nada.
+describe('formatInputDate x formatInputDateTime', () => {
+  // Este bloco documentava um DESVIO e agora cobra o conserto. `formatInputDate`
+  // usava `toISOString()` direto: em fuso negativo (Fortaleza é UTC-3), uma data do
+  // fim do dia virava o DIA SEGUINTE. Chegava ao usuário no checklist de
+  // encerramento financeiro, que pré-preenche início e conclusão do serviço — um
+  // registro salvo às 21h30 voltava para a tela com a data de amanhã.
+  //
+  // A asserção só prova algo onde existe defasagem de fuso; num ambiente em UTC as
+  // duas implementações coincidem e o teste passaria sem testar nada.
   const fimDoDia = new Date(2026, 2, 10, 23, 0, 0);
-  const temDefasagem = fimDoDia.getTimezoneOffset() > 0;
+  const temDefasagem = fimDoDia.getTimezoneOffset() !== 0;
 
-  it.skipIf(!temDefasagem)('formatInputDate adianta a data no fim do dia', () => {
-    expect(formatInputDate(fimDoDia)).toBe('2026-03-11');
+  it.skipIf(!temDefasagem)('o fim do dia continua sendo o MESMO dia', () => {
+    expect(formatInputDate(fimDoDia)).toBe('2026-03-10');
     expect(formatInputDateTime(fimDoDia)).toBe('2026-03-10T23:00');
+  });
+
+  it('a data do input é sempre o prefixo do datetime — são a mesma conta', () => {
+    for (const h of [0, 3, 12, 21, 23]) {
+      const d = new Date(2026, 2, 10, h, 30, 0);
+      expect(formatInputDate(d), `${h}h`).toBe(formatInputDateTime(d).slice(0, 10));
+    }
   });
 
   it('meio-dia é seguro nos dois (é o caso comum)', () => {

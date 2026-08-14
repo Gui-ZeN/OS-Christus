@@ -1806,6 +1806,7 @@ export function InboxView() {
                     status: value ? [value] : [],
                   });
                 }}
+                aria-label="Filtrar por etapa"
                 className="w-full appearance-none rounded-sm border border-roman-border bg-roman-surface px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todos</option>
@@ -1832,6 +1833,7 @@ export function InboxView() {
                     site: value ? [value] : [],
                   });
                 }}
+                aria-label="Filtrar por sede"
                 className="w-full appearance-none rounded-sm border border-roman-border bg-roman-surface px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todas</option>

@@ -425,9 +425,35 @@ export function TodayView() {
           );
         })}
 
-        {tickets.length === 0 && (
+        {/* DOIS vazios diferentes, e antes só um deles existia.
+            "Nenhuma OS carregada" cobre o caso de não ter dado nenhum. Não cobria o
+            caso de a BUSCA não achar: cada grupo devolve `null` quando fica vazio,
+            então digitar algo que não existe deixava a tela em branco — só o
+            cabeçalho e o bloco de tempo. Medido: o texto da tela caía de 3.165 para
+            48 caracteres, sem uma palavra explicando.
+
+            Tela em branco é indistinguível de defeito, e esta é a porta de entrada
+            de quem opera. A Gestão já dizia "Nenhuma OS corresponde aos filtros";
+            aqui não dizia nada. */}
+        {tickets.length === 0 ? (
           <p className="p-10 text-center text-roman-text-sub">Nenhuma OS carregada.</p>
-        )}
+        ) : GROUP_ORDER.every(grupo => filtra(agenda.groups[grupo]).length === 0) ? (
+          <div className="p-10 text-center">
+            <p className="text-roman-text-sub">
+              {busca.trim()
+                ? `Nenhuma OS da agenda corresponde a “${busca.trim()}”.`
+                : 'Nada na agenda — nenhuma OS pede ação hoje.'}
+            </p>
+            {busca.trim() && (
+              <button
+                onClick={() => setBusca('')}
+                className="mt-3 inline-flex min-h-6 items-center text-sm font-medium text-roman-primary hover:underline"
+              >
+                Limpar a busca
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
       <FloatingToast message={toast} />
     </div>

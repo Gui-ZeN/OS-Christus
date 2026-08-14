@@ -48,13 +48,17 @@ export function formatDistanceToNowSafe(value: unknown, fallbackText = '-') {
 // Helpers de <input type="date"/"datetime-local"> — ficavam no DateTimePicker.tsx,
 // o que obrigava modulos puros a importar um componente React so para formatar data.
 //
-// ATENCAO ao par abaixo: formatInputDateTime corrige o fuso antes de serializar;
-// formatInputDate NAO (usa toISOString direto). Em Fortaleza (UTC-3) isso adianta
-// a data em um dia para horarios a partir de 21h. E o P3 do backlog — mantido como
-// esta para nao mudar a UI sem decisao, e coberto por teste que documenta o desvio.
+// As duas corrigem o fuso antes de serializar. `formatInputDate` NAO corrigia: usava
+// `toISOString()` direto, e em fuso negativo (Fortaleza e UTC-3) isso ADIANTA a data
+// em um dia a partir das 21h. Era o P3 do backlog.
+//
+// Chegava ao usuario no checklist de encerramento financeiro, que pre-preenche
+// "servico iniciado em" e "servico concluido em" (utils/financeClosure.ts): um
+// registro salvo as 21h30 voltava para a tela com a data do dia seguinte. Data errada
+// em registro financeiro nao e detalhe de UI, e o conserto e o mesmo que a irmã ja
+// fazia — daí terem virado uma coisa só.
 export function formatInputDate(value?: Date | null) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return '';
-  return value.toISOString().slice(0, 10);
+  return formatInputDateTime(value).slice(0, 10);
 }
 
 export function formatInputDateTime(value?: Date | null) {

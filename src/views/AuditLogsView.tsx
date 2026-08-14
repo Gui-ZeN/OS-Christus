@@ -308,6 +308,7 @@ export function AuditLogsView() {
               <select
                 value={selectedTicket}
                 onChange={event => setSelectedTicket(event.target.value)}
+                aria-label="Filtrar por OS"
                 className="w-full appearance-none border border-roman-border rounded-sm pl-10 pr-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
               >
                 <option value="all">Todas as OS</option>
@@ -322,6 +323,7 @@ export function AuditLogsView() {
               <select
                 value={selectedCategory}
                 onChange={event => setSelectedCategory(event.target.value as 'all' | AuditCategory)}
+                aria-label="Filtrar por categoria"
                 className="w-full appearance-none border border-roman-border rounded-sm px-3 py-2 bg-roman-surface text-sm text-roman-text-main outline-none focus:border-roman-primary"
               >
                 <option value="all">Todas as categorias</option>

@@ -104,6 +104,53 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### Caça de bugs
+
+Varredura medida — transbordo, rótulo acessível, estado vazio, console, e leitura do
+código nos pontos de risco. Quatro defeitos reais.
+
+**1. A data adiantava um dia a partir das 21h.** `formatInputDate` usava
+`toISOString()` direto; em Fortaleza (UTC-3) isso joga o fim do dia para o dia
+seguinte. Estava documentado como P3 do backlog, mas chega ao usuário no **checklist
+de encerramento financeiro**, que pré-preenche "serviço iniciado em" e "concluído em":
+um registro salvo às 21h30 voltava com a data de amanhã. Provado no fuso -3:
+
+```
+hora local   antes        depois
+20h30        2026-03-10   2026-03-10
+21h30        2026-03-11   2026-03-10   <-- adiantava
+```
+
+O conserto é o mesmo que a função irmã já fazia — as duas viraram uma conta só. O
+teste que *documentava* o desvio agora cobra o acerto.
+
+**2. Buscar algo inexistente na tela Hoje deixava a tela em branco.** Cada grupo da
+agenda devolve `null` quando fica vazio, e o único estado vazio existente cobria
+"nenhuma OS carregada" — não "a busca não achou". Medido: o texto da tela caía de
+**3.165 para 48 caracteres**, sem uma palavra explicando. Tela em branco é
+indistinguível de defeito, e esta é a porta de entrada de quem opera. A Gestão já
+dizia "Nenhuma OS corresponde aos filtros"; aqui não dizia nada. Agora diz, e oferece
+"Limpar a busca".
+
+**3. O modal de confirmação não prendia o Tab.** O comentário dizia "simple focus
+trap" e só dava foco inicial — Tab saía para a página atrás. É justamente o modal que
+confirma **ações destrutivas**: sair dele por Tab e apertar Enter num controle de
+fundo é o acidente que a confirmação existe para evitar. A lógica correta já existia
+no `ModalShell`.
+
+**4. Quatro filtros sem nome acessível** (2 na Caixa de Entrada, 2 na Auditoria) —
+um leitor de tela anunciava "caixa de seleção" sem dizer do quê.
+
+**O que investiguei e NÃO era defeito**, para não virar retrabalho depois:
+
+- Os gráficos avisam `width(-1)` no console em 390px, mas **renderizam** (252×288). É
+  ruído do primeiro quadro, não gráfico invisível.
+- `parseCurrency("1,234.56")` devolve 0. É **por projeto**: adivinhar formato foi o
+  que causou o defeito de inflar valores 100× que já foi corrigido. Recusar entrada
+  ambígua é mais seguro que chutar.
+- Nenhuma tela tem rolagem horizontal indevida a 390px (a tabela da Gestão rola
+  dentro do próprio contêiner, que é o esperado).
+
 ### Código morto: o que saiu, e o que NÃO saiu
 
 Levantamento por grafo de imports a partir do `src/main.tsx`, não por casamento de

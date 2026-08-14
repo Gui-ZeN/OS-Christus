@@ -38,7 +38,7 @@ export function ConfirmModal({
 
   React.useEffect(() => {
     if (isOpen && modalRef.current) {
-      // Simple focus trap: focus the first focusable element or the container
+      // Foco inicial. A armadilha de Tab está no efeito de teclado abaixo.
       const focusable = modalRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
       if (focusable.length > 0) {
         (focusable[0] as HTMLElement).focus();
@@ -48,10 +48,45 @@ export function ConfirmModal({
     }
   }, [isOpen]);
 
+  // Escape fecha; Tab fica preso DENTRO do modal.
+  //
+  // O comentário acima dizia "simple focus trap" e não era: só dava foco inicial.
+  // Tab saía para a página atrás, e este é justamente o modal que confirma ações
+  // destrutivas — sair dele por Tab e apertar Enter num controle de fundo é o tipo
+  // de acidente que a confirmação existe para evitar. A lógica é a mesma do
+  // ModalShell, que já fazia certo.
   React.useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const node = modalRef.current;
+      if (!node) return;
+      const focaveis = (
+        Array.from(
+          node.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          )
+        )
+      ).filter(el => !el.hasAttribute('disabled') && (el.offsetParent !== null || el === document.activeElement));
+      if (focaveis.length === 0) {
+        event.preventDefault();
+        node.focus();
+        return;
+      }
+      const primeiro = focaveis[0];
+      const ultimo = focaveis[focaveis.length - 1];
+      const ativo = document.activeElement;
+      if (event.shiftKey && (ativo === primeiro || ativo === node)) {
+        event.preventDefault();
+        ultimo.focus();
+      } else if (!event.shiftKey && ativo === ultimo) {
+        event.preventDefault();
+        primeiro.focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
