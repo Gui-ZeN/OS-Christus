@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CloudRain, Droplets } from 'lucide-react';
+import { ArrowRight, CloudRain, Droplets } from 'lucide-react';
 import { fetchTempoAgora, type TempoAgora } from '../../services/weatherApi';
 
 /**
@@ -41,35 +41,67 @@ export function TempoEmFortaleza({ osDeAgua, aoFiltrarAgua }: Props) {
   const quandoPico =
     tempo.horasAteOPico === 0 ? 'nesta hora' : `em ${tempo.horasAteOPico}h`;
 
+  /**
+   * DIA SECO fala baixo; CHUVA A CAMINHO fala alto.
+   *
+   * A versão anterior tratava os dois quase igual — só trocava a cor do texto — e o
+   * dono pediu mais destaque. O destaque não podia ser permanente: bloco de clima
+   * gritando num dia seco é o enfeite que saiu do Início hoje, onde 15 de 19 números
+   * não levavam a lugar nenhum.
+   *
+   * Então a diferença entre os dois estados é que ficou grande: no seco, uma linha
+   * discreta; na chuva, um bloco com fundo, contorno e o número de OS de água ao
+   * lado — porque aí ele deixou de ser informação e virou trabalho.
+   */
+  if (!chuvaImporta) {
+    return (
+      <div className="flex items-center gap-2.5 text-roman-text-sub">
+        <span className="font-serif text-xl tabular-nums text-roman-text-main">
+          {Math.round(tempo.temperatura)}°
+        </span>
+        <span className="flex items-center gap-1.5 text-sm tabular-nums">
+          <CloudRain size={14} />
+          {tempo.chanceDeChuva}% de chuva
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="font-serif text-lg text-roman-text-main tabular-nums">
-        {Math.round(tempo.temperatura)}°
-      </span>
+    <div className="flex items-center gap-3 rounded-xl border border-roman-primary/50 bg-roman-primary/10 px-3.5 py-2">
+      <CloudRain size={22} className="shrink-0 text-roman-primary" />
 
-      <span className={`flex items-center gap-1.5 ${chuvaImporta ? 'text-roman-text-main' : 'text-roman-text-sub'}`}>
-        <CloudRain size={14} className={chuvaImporta ? 'text-roman-primary' : ''} />
-        {tempo.chovendoAgora ? (
-          <span>chovendo agora</span>
-        ) : (
-          <span className="tabular-nums">
-            {tempo.chanceDeChuva}% de chuva
-            {tempo.chanceDeChuva > 0 && <span className="text-roman-text-sub"> · pico {quandoPico}</span>}
-          </span>
-        )}
-      </span>
+      <div className="leading-tight">
+        <div className="font-serif text-lg text-roman-text-main">
+          {tempo.chovendoAgora ? (
+            'Chovendo agora'
+          ) : (
+            <>
+              <span className="tabular-nums">{tempo.chanceDeChuva}%</span> de chuva
+            </>
+          )}
+        </div>
+        <div className="text-xs text-roman-text-sub tabular-nums">
+          {Math.round(tempo.temperatura)}°
+          {!tempo.chovendoAgora && ` · pico ${quandoPico}`}
+        </div>
+      </div>
 
-      {/* O número só aparece quando a chuva pesa E existe OS de água aberta: fora
-          disso seria mais um contador competindo por atenção. */}
-      {chuvaImporta && osDeAgua > 0 && (
+      {/* O número só aparece quando existe OS de água aberta — senão o bloco
+          prometeria uma lista vazia, que é o defeito do botão "Abrir em Financeiro"
+          removido em 12/08. */}
+      {osDeAgua > 0 && (
         <button
           type="button"
           onClick={aoFiltrarAgua}
-          className="inline-flex items-center gap-1.5 rounded-sm border border-roman-primary/50 bg-roman-primary/5 px-2 py-1 text-sm font-medium text-roman-text-main transition-colors hover:bg-roman-primary/10"
+          className="group ml-1 inline-flex items-center gap-2 rounded-sm border border-roman-primary bg-roman-surface px-3 py-2 text-left transition-colors hover:bg-roman-primary/10"
         >
-          <Droplets size={13} className="text-roman-primary" />
-          <span className="tabular-nums">{osDeAgua}</span>
-          <span className="text-roman-text-sub">de água</span>
+          <Droplets size={16} className="shrink-0 text-roman-primary" />
+          <span className="leading-tight">
+            <span className="block font-serif text-base tabular-nums text-roman-text-main">{osDeAgua}</span>
+            <span className="block text-[11px] uppercase tracking-wider text-roman-text-sub">de água</span>
+          </span>
+          <ArrowRight size={14} className="shrink-0 text-roman-primary transition-transform group-hover:translate-x-0.5" />
         </button>
       )}
     </div>

@@ -3,6 +3,26 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-14 (o tempo fala baixo no dia seco e alto quando importa)
+
+Pedido do dono: *"podia ser um pouco mais chamativo a questão do tempo"*. O destaque
+não podia ser permanente — bloco de clima gritando num dia de sol é o enfeite que
+saiu do Início. Então o que cresceu foi o **contraste entre os dois estados**, que
+antes era quase nada (só a cor do texto mudava).
+
+| | Dia seco | Chuva a caminho |
+|---|---|---|
+| Tamanho | 140×29px | **310×73px** |
+| Fundo e borda | nenhum | dourados |
+| Conteúdo | `31° · 0% de chuva` | `88% de chuva · 24° · pico em 2h` + botão **1 DE ÁGUA →** |
+
+São **5,6× mais área** no estado que decide se a visita ao telhado é hoje ou não. O
+botão de água deixou de ser um chip e virou alvo de verdade: número, rótulo e seta.
+
+**O custo, medido:** o primeiro cartão da agenda desce de 137px para **161px** (18% →
+22% da tela) — mas só nos dias de chuva. No dia seco a tela volta ao que era.
+Verificado a 1366, 1280 e 390: cabe nos três, sem rolagem horizontal.
+
 ## 2026-08-13 (a landing era o login com um clique a mais)
 
 Pedido do dono: rework da tela de entrada pública. Medindo antes de desenhar, o
