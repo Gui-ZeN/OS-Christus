@@ -4,6 +4,7 @@ import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { PeriodPicker, type PeriodMode } from './kpi/PeriodPicker';
+import { usePaletaDeGraficos } from './kpi/paletaDeGraficos';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
@@ -26,7 +27,9 @@ function formatCurrencyBRL(value: number) {
  *  `Moderado` fica porque o formulário ainda o oferece. */
 const PRIORITY_ORDER = ['Urgente', 'Alta', 'Moderado', 'Trivial'];
 
-const CHART_LABEL_STYLE = { fontSize: 11, fill: '#525252', fontWeight: 500 };
+/* O estilo do rótulo passou a depender do tema, então virou função: uma constante
+   de módulo congelaria a cor do primeiro tema carregado. */
+const rotuloDeDados = (cor: string) => ({ fontSize: 11, fill: cor, fontWeight: 500 });
 function compactChartValue(value: number | string) {
   const n = Number(value);
   if (!Number.isFinite(n) || n === 0) return '';
@@ -90,6 +93,8 @@ const MONTH_NAMES = [
 
 export function KpiView() {
   const { currentUser, tickets: todasAsTickets } = useApp();
+  const paleta = usePaletaDeGraficos();
+  const CHART_LABEL_STYLE = rotuloDeDados(paleta.rotulo);
 
   /**
    * A base de TODO número desta tela, sem as OS de teste.
@@ -1246,33 +1251,33 @@ export function KpiView() {
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={perspective === 'managerial' ? osPorSede : custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12, fill: '#737373' }}
+                    tick={{ fontSize: 12, fill: paleta.eixo }}
                     dx={-10}
                     tickFormatter={perspective === 'managerial' ? undefined : (value => `R$ ${value / 1000}k`)}
                   />
                   <Tooltip
-                    cursor={{ fill: '#f5f5f5' }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                    itemStyle={{ color: '#1a1a1a' }}
+                    cursor={{ fill: paleta.cursor }}
+                    contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                    itemStyle={{ color: paleta.textoDica }}
                     formatter={perspective === 'managerial' ? undefined : ((value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo'])}
                   />
                   {perspective === 'managerial' ? (
                     <>
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="abertas" name="Em aberto" stackId="a" fill="#a3a3a3" barSize={40}>
-                        <LabelList dataKey="abertas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: '#1a1a1a', fontWeight: 600 }} />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
+                      <Bar dataKey="abertas" name="Em aberto" stackId="a" fill={paleta.serieC} barSize={40}>
+                        <LabelList dataKey="abertas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
                       </Bar>
-                      <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40}>
-                        <LabelList dataKey="fechadas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: '#ffffff', fontWeight: 600 }} />
+                      <Bar dataKey="fechadas" name="Concluídas" stackId="a" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={40}>
+                        <LabelList dataKey="fechadas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.superficie, fontWeight: 600 }} />
                       </Bar>
                     </>
                   ) : (
-                    <Bar dataKey="custo" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={40}>
+                    <Bar dataKey="custo" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={40}>
                       <LabelList dataKey="custo" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                     </Bar>
                   )}
@@ -1288,16 +1293,16 @@ export function KpiView() {
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={perspective === 'managerial' ? tempoPorEtapa : custoPorServico} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={perspective === 'managerial' ? undefined : (value => `R$ ${Math.round(value / 1000)}k`)} />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={130} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={paleta.grade} />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={perspective === 'managerial' ? undefined : (value => `R$ ${Math.round(value / 1000)}k`)} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} width={130} />
                   <Tooltip
-                    cursor={{ fill: '#f5f5f5' }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                    itemStyle={{ color: '#1a1a1a' }}
+                    cursor={{ fill: paleta.cursor }}
+                    contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                    itemStyle={{ color: paleta.textoDica }}
                     formatter={perspective === 'managerial' ? ((value: number) => [`${value} dias`, 'Duração']) : ((value: number) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Custo'])}
                   />
-                  <Bar dataKey={perspective === 'managerial' ? 'dias' : 'custo'} fill="#525252" radius={[0, 2, 2, 0]} barSize={20}>
+                  <Bar dataKey={perspective === 'managerial' ? 'dias' : 'custo'} fill={paleta.serieB} radius={[0, 2, 2, 0]} barSize={20}>
                     <LabelList dataKey={perspective === 'managerial' ? 'dias' : 'custo'} position="right" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                   </Bar>
                 </BarChart>
@@ -1314,16 +1319,16 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={backlogPorEtapa} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dx={-10} allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dx={-10} allowDecimals={false} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number) => [`${value}`, 'OS']}
                       />
-                      <Bar dataKey="total" fill="#525252" radius={[2, 2, 0, 0]} barSize={36}>
+                      <Bar dataKey="total" fill={paleta.serieB} radius={[2, 2, 0, 0]} barSize={36}>
                         <LabelList dataKey="total" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>
@@ -1363,13 +1368,13 @@ export function KpiView() {
                         travada por teste. A faixa dourada É a fila; quando ela afina,
                         a equipe está ganhando da entrada. */}
                     <ComposedChart data={fluxoDemandas} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="rotulo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="rotulo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
                       <Tooltip
-                        cursor={{ stroke: '#a3a3a3', strokeWidth: 1 }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ stroke: paleta.serieC, strokeWidth: 1 }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         labelFormatter={(rotulo: string) => {
                           const ponto = fluxoDemandas.find(item => item.rotulo === rotulo);
                           if (!ponto) return rotulo;
@@ -1380,15 +1385,15 @@ export function KpiView() {
                           return `${intervalo} · ${ponto.abertas} abertas, ${ponto.saidas} fechadas`;
                         }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: '16px' }} />
+                      <Legend wrapperStyle={{ paddingTop: '16px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
                       <Area
                         type="monotone"
                         dataKey="saidasAcumuladas"
                         name="Já resolvidas (acumulado)"
                         stackId="acumulado"
-                        stroke="#1a1a1a"
+                        stroke={paleta.serieA}
                         strokeWidth={2}
-                        fill="#1a1a1a"
+                        fill={paleta.serieA}
                         fillOpacity={0.85}
                       />
                       <Area
@@ -1396,9 +1401,9 @@ export function KpiView() {
                         dataKey="pendencias"
                         name="Ainda na fila"
                         stackId="acumulado"
-                        stroke="#b08d57"
+                        stroke={paleta.destaque}
                         strokeWidth={2}
-                        fill="#b08d57"
+                        fill={paleta.destaque}
                         fillOpacity={0.35}
                       />
                     </ComposedChart>
@@ -1413,16 +1418,16 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={agingBuckets} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number) => [`${value}`, 'OS em aberto']}
                       />
-                      <Bar dataKey="total" fill="#737373" radius={[2, 2, 0, 0]} barSize={28}>
+                      <Bar dataKey="total" fill={paleta.serieB} radius={[2, 2, 0, 0]} barSize={28}>
                         <LabelList dataKey="total" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>
@@ -1435,16 +1440,16 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={backlogPorEquipe} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={120} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={paleta.grade} />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} width={120} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number) => [`${value}`, 'OS em aberto']}
                       />
-                      <Bar dataKey="total" fill="#525252" radius={[0, 2, 2, 0]} barSize={20}>
+                      <Bar dataKey="total" fill={paleta.serieB} radius={[0, 2, 2, 0]} barSize={20}>
                         <LabelList dataKey="total" position="right" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>
@@ -1457,16 +1462,16 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={distribuicaoUrgencia} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number) => [`${value}`, 'OS']}
                       />
-                      <Bar dataKey="total" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={28}>
+                      <Bar dataKey="total" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={28}>
                         <LabelList dataKey="total" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>
@@ -1547,20 +1552,20 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={financeiroPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number, name: string) => [formatCurrencyBRL(value), name === 'previsto' ? 'Previsto' : 'Pago']}
                       />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24}>
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
+                      <Bar dataKey="previsto" name="Previsto" fill={paleta.serieC} radius={[2, 2, 0, 0]} barSize={24}>
                         <LabelList dataKey="previsto" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
-                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24}>
+                      <Bar dataKey="pago" name="Pago" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={24}>
                         <LabelList dataKey="pago" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>
@@ -1573,16 +1578,16 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={financeiroPorFornecedor} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e5e5" />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} width={130} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={paleta.grade} />
+                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} width={130} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number) => [formatCurrencyBRL(value), 'Saldo']}
                       />
-                      <Bar dataKey="saldo" fill="#525252" radius={[0, 2, 2, 0]} barSize={20}>
+                      <Bar dataKey="saldo" fill={paleta.serieB} radius={[0, 2, 2, 0]} barSize={20}>
                         <LabelList dataKey="saldo" position="right" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>
@@ -1597,20 +1602,20 @@ export function KpiView() {
                 <div className="h-72 min-w-0 min-h-[18rem]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={calendarioFinanceiro} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#737373' }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={value => `R$ ${Math.round(value / 1000)}k`} />
                       <Tooltip
-                        cursor={{ fill: '#f5f5f5' }}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e5e5', borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: '#1a1a1a' }}
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
                         formatter={(value: number, name: string) => [formatCurrencyBRL(value), name === 'previsto' ? 'Previsto' : 'Pago']}
                       />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                      <Bar dataKey="previsto" name="Previsto" fill="#a3a3a3" radius={[2, 2, 0, 0]} barSize={24}>
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
+                      <Bar dataKey="previsto" name="Previsto" fill={paleta.serieC} radius={[2, 2, 0, 0]} barSize={24}>
                         <LabelList dataKey="previsto" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
-                      <Bar dataKey="pago" name="Pago" fill="#1a1a1a" radius={[2, 2, 0, 0]} barSize={24}>
+                      <Bar dataKey="pago" name="Pago" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={24}>
                         <LabelList dataKey="pago" position="top" formatter={compactChartValue} style={CHART_LABEL_STYLE} />
                       </Bar>
                     </BarChart>

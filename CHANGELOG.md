@@ -104,11 +104,43 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
-**Achado que fica para o próximo bloco:** o `KpiView` tem **80 cores cravadas** em
-props do Recharts (`#1a1a1a`, `#737373`, `#e5e5e5`…), inclusive o dourado *antigo*
-`#b08d57`. Os gráficos não participam de tema nenhum: no tema escuro, barra
-quase-preta sobre fundo quase-preto mede **1,01:1**. Não é classe de CSS, é valor em
-JavaScript — precisa ler as variáveis em tempo de execução.
+### Os gráficos dos Indicadores passam a ter tema
+
+O `KpiView` tinha **79 cores cravadas** em props do Recharts — `fill`, `stroke`,
+`contentStyle` recebem cor por *valor*, não por classe, então esta tela nunca
+participou de tema nenhum. No tema escuro a barra de "Concluídas" (`#1a1a1a`) sobre
+o fundo `#0b0f14` media **1,01:1**: invisível. E a linha de destaque ainda usava
+`#b08d57`, o dourado *anterior* ao ajuste de contraste — os gráficos ficaram para
+trás quando o acento escureceu.
+
+Um `usePaletaDeGraficos()` lê as variáveis do tema ativo. As séries saem de tokens
+que já têm contraste garantido, em degraus distintos de luminância para se separarem
+entre si:
+
+| papel | token | contraste sobre a superfície (4 temas) |
+|---|---|---|
+| série A | `text-main` | 16,4 – 18,1 |
+| série B | `text-sub` | 7,66 – 12,4 |
+| série C | `border-control` | 3,05 – 3,29 |
+| destaque | `primary` | 4,64 – 6,67 |
+
+A barra empilhada usa A e C, não A e B: no tema escuro esses dois ficam a **1,45**
+um do outro e virariam um bloco só.
+
+**Duas coisas quebraram e só a medição pegou:**
+
+1. **Um `useEffect` dependente do `theme` do contexto não funciona.** O `data-theme`
+   é escrito no `<html>` por um efeito do AppContext, e no React os efeitos dos
+   filhos rodam **antes** dos do pai — a leitura pegava o tema anterior e, como
+   `theme` não mudava de novo, ficava velha para sempre. Trocar para o tema escuro
+   deixava os gráficos com as cores do claro. A fonte da verdade virou o **atributo**,
+   observado com `MutationObserver`.
+2. **A legenda do Recharts pinta o rótulo com a cor da série**, ignorando o
+   `wrapperStyle`. A série C media 3,13:1 como texto. Quem identifica a série é o
+   quadradinho ao lado, então o rótulo passou a usar a cor de texto do tema.
+
+Medido na tela, tema claro e escuro, 119 elementos cada (HTML + texto dentro do SVG):
+**zero abaixo de 4,5:1**. E a troca de tema atualiza os gráficos sem recarregar.
 
 ### Contorno de controle e foco de teclado
 
