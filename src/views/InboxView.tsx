@@ -1082,6 +1082,30 @@ export function InboxView() {
             showToast('Não foi possível salvar a atualização — verifique a conexão e tente de novo. Seu texto foi mantido.', 5000);
             return;
           }
+
+          /*
+           * DIZER QUE DEU CERTO.
+           *
+           * Toda saída daqui tinha aviso — "não foi possível salvar", "transição
+           * inválida", "nada foi alterado" —, menos o sucesso, que era mudo. E
+           * quando a etapa é final, a OS ainda SOME da lista no mesmo instante
+           * (`hideFinalized` é padrão). Silêncio + sumiço se lê como "não
+           * aconteceu nada": foi o que voltou em três relatos de "não está
+           * atualizando o status", sem que nenhuma gravação tivesse falhado —
+           * medido: 78 OS com transição, zero divergência entre histórico e campo,
+           * zero recusa do servidor, zero clique repetido.
+           *
+           * A frase nomeia a etapa nova, que é a confirmação que a pessoa foi
+           * procurar na lista e não achou.
+           */
+          if (newStatus !== activeTicket.status) {
+            const saiuDaLista = isFinalizedTicketStatus(newStatus) && !showFinalized;
+            showToast(
+              `${activeTicket.id} agora está em "${newStatus}".` +
+                (saiuDaLista ? ' Ela saiu da lista — use "Mostrar encerradas" para vê-la.' : ''),
+              saiuDaLista ? 6000 : 3500
+            );
+          }
         }
       } else if (replyMode === 'public') {
         if (!trimmedReply && uploadedReplyAttachments.length === 0) {
