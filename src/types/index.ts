@@ -124,6 +124,14 @@ export interface OsBoardFilter {
    * classificação, e o selo na linha mostrava o problema sem dar como agrupá-lo.
    */
   bloqueadas: boolean;
+  /**
+   * Só as OS marcadas como problema de água.
+   *
+   * Filtro de primeira classe porque é a pergunta que a chuva faz: 26 das 178 OS da
+   * produção (15%) são de água, e o bloco de tempo da tela Hoje precisa de uma lista
+   * para abrir — número que não vira porta é o enfeite que saiu do Início.
+   */
+  agua: boolean;
   /** `parada` = mais tempo na etapa atual primeiro. `recentes` = mais novas primeiro. */
   ordem: 'parada' | 'recentes';
 }

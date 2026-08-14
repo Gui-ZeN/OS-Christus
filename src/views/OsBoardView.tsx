@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { ArrowRightLeft, MessageSquare, Search, TriangleAlert, UserRound, X } from 'lucide-react';
+import { ArrowRightLeft, Droplets, MessageSquare, Search, TriangleAlert, UserRound, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -68,7 +68,7 @@ export function OsBoardView() {
 
   // O filtro mora no CONTEXTO, não em estado local: esta view desmonta ao abrir
   // uma OS, e com `useState` a seleção se perdia toda vez que a pessoa voltava.
-  const { search, sede, macroService, service, team, status, responsible, showClosed, bloqueadas, ordem } = osBoardFilter;
+  const { search, sede, macroService, service, team, status, responsible, showClosed, bloqueadas, agua, ordem } = osBoardFilter;
   const setFilter = (patch: Partial<typeof osBoardFilter>) => setOsBoardFilter({ ...osBoardFilter, ...patch });
 
   useEffect(() => {
@@ -141,6 +141,9 @@ export function OsBoardView() {
       // "Falta classificar" era visível linha a linha (o selo) e impossível de
       // agrupar. A fila precisa da pergunta inteira: quais estão travadas AGORA.
       if (bloqueadas && !bloqueioParaAvancar(entry.ticket)) return false;
+      // Chuva vira goteira: é por aqui que o bloco de tempo da tela Hoje entrega uma
+      // lista em vez de só um termômetro.
+      if (agua && !entry.ticket.waterIssue) return false;
       return matchesSearch(haystack, search);
     })
       .sort((a, b) => {
@@ -150,12 +153,18 @@ export function OsBoardView() {
         const quando = (t: Ticket) => coerceDate(t.stageEnteredAt, t.time).getTime();
         return ordem === 'parada' ? quando(a.ticket) - quando(b.ticket) : quando(b.ticket) - quando(a.ticket);
       });
-  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed, bloqueadas, ordem]);
+  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed, bloqueadas, agua, ordem]);
 
   // Conta sobre as OS VIVAS do escopo, não sobre o recorte filtrado: o atalho
   // precisa dizer quantas existem, e não quantas sobraram do filtro atual.
   const totalBloqueadas = useMemo(
     () => decorated.filter(e => isTicketOpen(e.ticket.status) && bloqueioParaAvancar(e.ticket)).length,
+    [decorated]
+  );
+
+  /** Conta na hora, como o de travadas: número fixo mente na semana seguinte. */
+  const totalDeAgua = useMemo(
+    () => decorated.filter(e => isTicketOpen(e.ticket.status) && e.ticket.waterIssue).length,
     [decorated]
   );
 
@@ -165,9 +174,9 @@ export function OsBoardView() {
   };
 
   const hasActiveFilter =
-    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed || bloqueadas;
+    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed || bloqueadas || agua;
   const clearFilters = () =>
-    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false, bloqueadas: false, ordem });
+    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false, bloqueadas: false, agua: false, ordem });
 
   const selectClass =
     'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
@@ -256,6 +265,22 @@ export function OsBoardView() {
         >
           <TriangleAlert size={14} />
           Travadas ({totalBloqueadas})
+        </button>
+        {/* Visível mesmo quando ligado de fora (pelo bloco de tempo da tela Hoje):
+            chegar numa lista recortada sem enxergar o recorte é como a pessoa conclui
+            que o sistema perdeu OS. Daqui ela vê o filtro aceso e desliga num clique. */}
+        <button
+          type="button"
+          onClick={() => setFilter({ agua: !agua })}
+          className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm transition-colors ${
+            agua
+              ? 'border-roman-primary bg-roman-primary/10 text-roman-text-main'
+              : 'border-roman-border bg-roman-surface text-roman-text-sub hover:border-roman-primary/40 hover:text-roman-text-main'
+          }`}
+          title="OS marcadas como problema de água — as que a chuva faz reaparecer"
+        >
+          <Droplets size={14} />
+          Água ({totalDeAgua})
         </button>
         <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-roman-text-sub">
           <input

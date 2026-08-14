@@ -3,6 +3,83 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (o Início deixa de ser a porta; quem opera entra na agenda)
+
+Pedido do dono: *"a tela de Início parece meio deslocada"* — e depois da poda de hoje
+dava para provar por quê. Para quem opera, **100% do que restava nela era link para
+outra tela**: quatro cartões de gargalo e três atalhos, todos abrindo a Gestão. Um
+saguão que só aponta para as duas telas onde o trabalho acontece não é tela, é uma
+parada a mais no caminho.
+
+**Quem opera entra direto no Hoje.** A tela de entrada passou a ser derivada do papel,
+não uma constante — mandar todo mundo para a mesma porta foi o que criou o saguão.
+
+**E o Hoje deixou de ser prévia de Admin.** Ficou fechado enquanto era experimento, e
+a medição de hoje mostrou o preço: a agenda existe COMPLETA (campo, gravação,
+precedência, tela) e tinha **1 OS com data futura em 181**. Não era desenho ruim nem
+falta de adesão — os **7 gestores**, incluindo quem responde por 406 das 1.207 ações
+dos últimos 90 dias, não enxergavam a tela onde a próxima ação se define.
+
+**O solicitante não perdeu a tela dele.** `Usuario` são **18 dos 28** cadastrados, e o
+Início era o portal de acompanhamento deles. Ele continua, agora chamado *"Minhas
+solicitações"* — e sem os cartões de gargalo, que chegavam lá **sem clique** porque
+`abrirGestao` só existe para quem opera. Eram números mortos na única tela deles,
+exatamente o que passamos o dia tirando.
+
+### O tempo, e por que ele não é enfeite
+
+O cabeçalho do Hoje passou a mostrar **temperatura e chance de chuva** em Fortaleza.
+
+Termômetro sozinho seria decoração — e decoração é o que acabou de sair do Início.
+O que justifica é a ponte medida: **26 das 178 OS (15%) são problema de água**, e o
+aviso de chuva por e-mail já existe no Serv3 justamente porque chuva vira goteira.
+Então, quando a chuva pesa (≥40% ou chovendo), o bloco deixa de ser leitura e vira
+porta: mostra quantas OS de água estão abertas e abre a lista.
+
+- **Fonte: Open-Meteo, no NAVEGADOR.** Gratuita, sem chave e com CORS — não gasta
+  nenhuma das **12 funções serverless** do plano Hobby, que já estão todas em uso.
+- **Previsão, não observação.** O METAR que já existe entrega chuva OBSERVADA, que é
+  o gatilho certo para o e-mail ("acabou de chover, confira as goteiras"). Aqui a
+  pergunta é outra: *vai* chover, para decidir se agenda a visita no telhado hoje.
+- **Falhar não é evento: o bloco some.** Clima é contexto, não fila de trabalho — uma
+  tarja de erro sobre a agenda custaria mais do que a informação vale.
+- **Filtro "Água" de primeira classe na Gestão**, visível e desligável. Chegar numa
+  lista recortada sem enxergar o recorte é como a pessoa conclui que o sistema perdeu
+  OS — foi o defeito do botão "Abrir em Financeiro", removido em 12/08.
+
+Verificado no navegador ponta a ponta: Admin cai no Hoje (barra sem Início, sem
+rótulo de prévia); `Usuario` cai em "Minhas solicitações" com **zero números mortos**;
+e, simulando 88% de chuva, o botão "1 de água" aparece e leva à Gestão com **1 linha —
+"Goteira no refeitório"** — e o chip "Água (1)" aceso.
+
+⚠️ O seed ganhou `waterIssue` na OS de goteira pela mesma lição dos grupos vazios:
+recurso sem dado no seed é recurso que nenhuma verificação exercita.
+
+### Cinco E2E quebrados pela mudança de porta — e a lição do helper
+
+Trocar a tela de entrada derrubou **5 specs de uma vez**, todos pela MESMA linha: o
+helper de login esperava o cabeçalho `/olá,/i`, que é do Início. Quem opera passou a
+cair no Hoje e o heading deixou de existir.
+
+Agora o sinal de "entrou" é a **barra lateral** (o botão Sair), que existe para
+qualquer papel. Amarrar o login à tela de destino fazia o helper reprovar sempre que
+a porta de entrada mudasse — decisão de produto, não regressão.
+
+### A fileira de contadores do Hoje sai: 33% → 18% da tela antes do primeiro dado
+
+Retorno do dono: *"a tela Hoje é ruim visualmente, a questão de descer a tela para
+ver os dados"*. Medido a 1366×768: a fileira ocupava **117px (15% da altura)** e
+empurrava o primeiro cartão para **254px** — um terço da tela gasto antes de aparecer
+qualquer OS.
+
+E o que ela mostrava já estava 30px abaixo: cada seção traz o próprio total ao lado
+do título. Eram **quatro números repetidos, nenhum clicável e dois deles zero** — as
+duas regras aplicadas ao Início hoje (zero não aparece; número é porta) nunca tinham
+passado pelo Hoje.
+
+Removida: primeiro dado em **137px (18%)**. O que sobra é densidade de cartão (84px
+para três linhas), não desperdício.
+
 ## 2026-08-13 (a paleta legada sai, e ela escondia um defeito no tema escuro)
 
 Quarta fatia do rework visual: converter as **402 classes de cor cruas**

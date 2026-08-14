@@ -32,7 +32,9 @@ import {
   fetchCommitments,
   type HydratedCommitment,
 } from '../services/commitmentsApi';
+import { TempoEmFortaleza } from './today/TempoEmFortaleza';
 import { ATTENTION_KIND_LABEL, ATTENTION_KIND_WHY } from '../constants/attentionKind';
+import { isTicketOpen } from '../constants/ticketLifecycle';
 import { matchesSearch } from '../utils/search';
 import { repairMojibake } from '../utils/text';
 import type { NextAction, Ticket, TicketAttention } from '../types';
@@ -43,8 +45,10 @@ import { mensagemDeErro } from '../utils/errorMessage';
  * Ela responde *o que precisa acontecer hoje, onde e por quem*, no lugar de *em que
  * etapa está a OS*. Duzentas e poucas OS viram meia dúzia de linhas acionáveis.
  *
- * ⚠️ Visível só para Admin por enquanto (gate em App.tsx): roda em produção, com
- * dado real, sem a operação ver — é o jeito de validar sem prometer nada a ninguém.
+ * É a PORTA DE ENTRADA de quem opera (Admin/Gestor/Diretor) desde 13/08. Antes era
+ * prévia de Admin, e a medição mostrou o preço: a agenda existia completa e tinha
+ * 1 OS com data futura em 181 — os 7 gestores não enxergavam a tela onde a próxima
+ * ação se define. `Usuario` continua fora: a tela dele é o portal de acompanhamento.
  *
  * Sem query nova: deriva de `tickets`, que já vive no contexto. A lógica de
  * agrupamento é pura e testada em `utils/agenda.ts`.
@@ -181,6 +185,27 @@ export function TodayView() {
 
   const agenda = useMemo(() => buildAgenda(tickets, agora), [tickets, agora]);
 
+  /**
+   * A ponte entre o tempo e o trabalho: 26 das 178 OS da produção são problema de
+   * água (15%). Sem esse número, o bloco de clima seria termômetro — e termômetro
+   * numa tela de agenda é o mesmo enfeite que saiu do Início hoje.
+   */
+  const osDeAgua = useMemo(
+    () => tickets.filter(t => t.waterIssue && isTicketOpen(t.status)).length,
+    [tickets]
+  );
+
+  /** Abre a Gestão só com as de água. O filtro é de primeira classe lá, senão a
+   *  pessoa chegaria numa lista inteira sem entender por que clicou. */
+  const abrirAgua = useCallback(() => {
+    setOsBoardFilter({
+      search: '', sede: 'all', macroService: 'all', service: 'all', team: 'all',
+      status: 'all', responsible: 'all', showClosed: false, bloqueadas: false,
+      agua: true, ordem: 'parada',
+    });
+    navigateTo('os-board');
+  }, [navigateTo, setOsBoardFilter]);
+
   const filtra = (lista: Ticket[]) =>
     lista.filter(t =>
       matchesSearch(
@@ -306,36 +331,17 @@ export function TodayView() {
             {erroCompromissos}
           </span>
         )}
-        <span className="rounded-full border border-roman-border bg-roman-parchment px-2.5 py-1 text-[11px] uppercase tracking-wider text-roman-text-sub">
-          prévia · só Admin
-        </span>
+        <TempoEmFortaleza aoFiltrarAgua={abrirAgua} osDeAgua={osDeAgua} />
       </header>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2.5 px-4 pb-1 pt-4 md:px-6">
-        <Contador valor={agenda.needingActionToday} titulo="Exigem ação" detalhe="hoje e vencidas" destaque />
-        <Contador
-          valor={agenda.groups[AGENDA_GROUP.WAITING_SITE].length}
-          titulo="Aguardando a sede"
-          detalhe="pergunta já enviada"
-        />
-        <Contador
-          valor={agenda.groups[AGENDA_GROUP.UPCOMING].length}
-          titulo="Próximos 7 dias"
-          detalhe="para se preparar"
-        />
-        {/* O número que importa: OS viva que ninguém está tocando. Fica por último
-            de propósito — é consequência, não meta a bater. */}
-        <Contador
-          valor={agenda.withoutNextAction}
-          titulo="Sem próxima ação"
-          detalhe={
-            agenda.groups[AGENDA_GROUP.NO_ACTION][0]
-              ? `a mais antiga há ${idleDays(agenda.groups[AGENDA_GROUP.NO_ACTION][0], agora)} dias`
-              : 'nenhuma'
-          }
-          alerta={agenda.withoutNextAction > 0}
-        />
-      </div>
+      {/* A FILEIRA DE CONTADORES SAIU (13/08).
+          Medido a 1366×768: ela ocupava 117px — 15% da tela — e empurrava o primeiro
+          dado para 254px, ou seja, um TERÇO da altura gasto antes de aparecer
+          qualquer OS. Só 6 dos 13 cartões cabiam sem rolar.
+          E o que ela mostrava já estava logo abaixo: cada seção traz o próprio total
+          ao lado do título, a 30px de distância. Eram quatro números repetidos,
+          NENHUM clicável e dois deles zero — as duas regras que tiramos do Início
+          hoje (zero não aparece; número é porta) nunca tinham passado por aqui. */}
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pb-10 md:px-6">
         {/* O PASSIVO COMO NÚMERO, NÃO COMO LISTA.
@@ -415,38 +421,6 @@ export function TodayView() {
         )}
       </div>
       <FloatingToast message={toast} />
-    </div>
-  );
-}
-
-function Contador({
-  valor,
-  titulo,
-  detalhe,
-  destaque,
-  alerta,
-}: {
-  valor: number;
-  titulo: string;
-  detalhe: string;
-  destaque?: boolean;
-  alerta?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-xl border bg-roman-surface px-3.5 py-2.5 ${
-        destaque ? 'border-roman-primary shadow-[inset_0_-2px_0_var(--color-roman-primary,#b08d57)]' : 'border-roman-border'
-      }`}
-    >
-      <div
-        className={`font-serif text-2xl font-semibold leading-none tabular-nums ${
-          alerta ? 'text-amber-700' : destaque ? 'text-roman-primary' : 'text-roman-text-main'
-        }`}
-      >
-        {valor}
-      </div>
-      <div className="mt-1 text-sm font-medium text-roman-text-main">{titulo}</div>
-      <div className="text-xs text-roman-text-sub">{detalhe}</div>
     </div>
   );
 }

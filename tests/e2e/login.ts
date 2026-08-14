@@ -25,8 +25,16 @@ export async function loginWithPassword(
   await page.getByLabel('E-mail institucional').fill(email);
   await page.getByLabel('Senha').fill(password);
   await page.getByRole('button', { name: /acessar o sistema/i }).click();
-  // Timeout maior que o global (5s): este é o primeiro render pós-login e no CI
-  // ele paga o cold start (bundle + Auth do emulador). Com 5s o spec de escopo
-  // de acesso ficava flaky justamente por ser o primeiro a rodar.
-  await expect(page.getByRole('heading', { name: /olá,/i })).toBeVisible({ timeout: 20000 });
+  // O sinal de "entrou" é a BARRA LATERAL, não o conteúdo de uma tela específica.
+  //
+  // Antes esperava o cabeçalho "Olá," — que é do Início. Quando quem opera passou a
+  // cair direto no Hoje (13/08), esse heading deixou de existir para Admin/Gestor e
+  // CINCO specs quebraram de uma vez, todos por esta linha. Amarrar o login à tela de
+  // destino faz o helper reprovar sempre que a porta de entrada mudar, que é decisão
+  // de produto e não regressão.
+  //
+  // Timeout maior que o global (5s): este é o primeiro render pós-login e no CI ele
+  // paga o cold start (bundle + Auth do emulador). Com 5s o spec de escopo de acesso
+  // ficava flaky justamente por ser o primeiro a rodar.
+  await expect(page.getByTitle('Sair', { exact: true })).toBeVisible({ timeout: 20000 });
 }

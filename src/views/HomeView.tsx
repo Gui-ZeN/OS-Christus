@@ -56,6 +56,7 @@ export function HomeView() {
       responsible: 'all',
       showClosed: false,
       bloqueadas: false,
+      agua: false,
       ordem: 'parada',
       ...patch,
     });
@@ -209,7 +210,12 @@ export function HomeView() {
         {/* O cabeçalho também perdeu a moldura: ele não se clica, e a borda agora
             significa só isso. O que separa do resto é o espaço e a escala do nome. */}
         <header className="mb-6 px-1">
-          <div className="text-[11px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">Painel operacional</div>
+          {/* Esta tela virou o PORTAL DO SOLICITANTE quando quem opera passou a entrar
+              direto na agenda. Chamar de "painel operacional" para quem só acompanha
+              as próprias solicitações é prometer uma tela que não é esta. */}
+          <div className="text-[11px] font-serif uppercase tracking-[0.24em] text-roman-text-sub">
+            {isRequester ? 'Minhas solicitações' : 'Painel operacional'}
+          </div>
           <h1 className="mt-2 text-[1.65rem] font-serif font-medium text-roman-text-main md:text-[2rem]">Olá, {greetingName}</h1>
           <p className="mt-2 text-sm text-roman-text-sub font-serif italic">
             {isExecutive
@@ -252,7 +258,10 @@ export function HomeView() {
             É a mesma regra que a faixa de próxima ação já aplica (`NextActionStrip`):
             aviso que aparece sempre vira moldura; sumindo, o silêncio passa a
             significar "nada pendente", e isso é informação. */}
-        {gargalosVisiveis === 0 ? (
+        {/* Os gargalos são pergunta de quem OPERA a fila, e `abrirGestao` só existe
+            para Admin/Gestor. Para o solicitante eles chegavam sem clique — números
+            mortos na única tela dele, que é o defeito que passamos o dia tirando. */}
+        {isRequester ? null : gargalosVisiveis === 0 ? (
           <p className="mb-5 border-l-2 border-roman-primary/40 pl-4 font-serif italic text-roman-text-sub">
             Nenhum gargalo agora: nada aguardando parecer, travado, sem responsável ou por triar.
           </p>

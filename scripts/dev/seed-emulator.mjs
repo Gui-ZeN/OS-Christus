@@ -171,7 +171,11 @@ const tickets = [
   // não havia cartão nenhum. Grupo vazio no seed é ponto cego na verificação.
   //
   // "Vencidas" é, ainda por cima, o motivo de a tela Hoje existir.
-  { id: 'OS-0008', status: 'Aguardando Parecer Técnico', subject: 'Goteira no refeitório — visita atrasada', site: 'dl', region: 'universidade', sede: 'DL', priority: 'Alta', agenda: 'vencida' },
+  // `waterIssue` marcado: é goteira, e sem isso o bloco de tempo da tela Hoje não
+  // teria como virar porta — o botão "N de água" só aparece quando a chuva pesa E
+  // existe OS de água aberta. Mesma lição dos grupos vazios: recurso sem dado no
+  // seed é recurso que nenhuma verificação exercita.
+  { id: 'OS-0008', status: 'Aguardando Parecer Técnico', subject: 'Goteira no refeitório — visita atrasada', site: 'dl', region: 'universidade', sede: 'DL', priority: 'Alta', agenda: 'vencida', agua: true },
   { id: 'OS-0009', status: 'Aguardando Orçamento', subject: 'Troca de esquadrias — parada aguardando verba', site: 'sul3', region: 'regiao-sul', sede: 'SUL3', priority: 'Moderado', agenda: 'suspensa' },
 ];
 const DIA = 24 * 60 * 60 * 1000;
@@ -185,6 +189,7 @@ for (const t of tickets) {
     macroServiceId: null, macroServiceName: null, serviceCatalogId: null, serviceCatalogName: null,
     directorIds: [], directorEmails: [], time: now, createdAt: now, updatedAt: now,
     history: baseHistory(t.subject),
+    waterIssue: t.agua === true,
     // Próxima ação com data no PASSADO → cai em "Vencidas".
     ...(t.agenda === 'vencida'
       ? { nextAction: { what: 'Confirmar a visita técnica com a sede', dueAt: new Date(now.getTime() - 6 * DIA), ownerName: 'Gestor E2E', createdAt: new Date(now.getTime() - 9 * DIA) } }

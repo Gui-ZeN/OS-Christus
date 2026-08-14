@@ -203,9 +203,28 @@ export default function App() {
   const isRequesterRole = currentRole === 'Usuario';
   const canAccessInbox = !isRequesterRole;
   const canAccessOsBoard = currentRole === 'Admin' || currentRole === 'Gestor';
-  // A tela nova roda em produção com dado real, mas só o Admin vê enquanto a
-  // migração não termina.
-  const canAccessToday = currentRole === 'Admin';
+  /**
+   * A tela Hoje deixou de ser prévia de Admin — ela é a porta de entrada.
+   *
+   * Ficou fechada enquanto era experimento, e o preço apareceu na medição de 13/08:
+   * a agenda existe COMPLETA (campo, gravação, precedência, tela), e tinha **1 OS
+   * com data futura em 181**. Não era desenho ruim nem falta de adesão — os 7
+   * gestores, incluindo quem responde por 406 das 1.207 ações dos últimos 90 dias,
+   * não enxergavam a tela onde a próxima ação se define.
+   *
+   * `Usuario` (solicitante, 18 dos 28 cadastrados) continua fora: a agenda é
+   * operacional, e a tela dele é o portal de acompanhamento no Início.
+   */
+  const canAccessToday = currentRole === 'Admin' || currentRole === 'Gestor' || currentRole === 'Diretor';
+
+  /**
+   * Onde a pessoa cai ao entrar — e para onde volta quando a tela atual é negada.
+   *
+   * Quem opera cai na agenda; o solicitante cai no portal dele. Derivado do papel de
+   * propósito: mandar todo mundo para uma constante foi o que criou o saguão que não
+   * levava a lugar nenhum.
+   */
+  const telaDeEntrada = canAccessToday ? VIEWS.TODAY : VIEWS.HOME;
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Gestor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessAudit = currentRole === 'Admin';
@@ -354,9 +373,9 @@ export default function App() {
     }
     if (!currentUser) return;
     if (restrictedViews.has(currentView)) {
-      navigateTo(VIEWS.HOME);
+      navigateTo(telaDeEntrada);
     }
-  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, restrictedViews]);
+  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, restrictedViews, telaDeEntrada]);
 
   useEffect(() => {
     const reviewerName = currentUser?.name?.trim();
@@ -404,10 +423,10 @@ export default function App() {
         }
         navigateTo(redirectView as ViewState);
       } else {
-        navigateTo(VIEWS.HOME);
+        navigateTo(telaDeEntrada);
       }
     }
-  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, setActiveTicketId]);
+  }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, setActiveTicketId, telaDeEntrada]);
 
   if (currentView === VIEWS.LANDING) {
     if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
@@ -478,8 +497,15 @@ export default function App() {
           <img src="/serv3-selo.svg" alt="Serv3" className="h-8 w-8" />
         </div>
         <nav className="flex flex-col gap-1.5 w-full px-1.5">
-          <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Início" />
-          {canAccessToday && <SidebarIcon icon={<CalendarCheck size={20} />} active={currentView === VIEWS.TODAY} onClick={() => navigateTo(VIEWS.TODAY)} title="Hoje (prévia)" />}
+          {/* O Início virou o portal DO SOLICITANTE e sai da barra de quem opera.
+              Medido em 13/08: para Admin/Gestor/Diretor, 100% do que havia nele era
+              link para outra tela — quatro cartões e três atalhos que abriam a Gestão.
+              Saguão que só aponta para as duas telas onde o trabalho acontece é uma
+              parada a mais no caminho, não uma tela. */}
+          {isRequesterRole && (
+            <SidebarIcon icon={<Home size={20} />} active={currentView === VIEWS.HOME} onClick={() => navigateTo(VIEWS.HOME)} title="Minhas solicitações" />
+          )}
+          {canAccessToday && <SidebarIcon icon={<CalendarCheck size={20} />} active={currentView === VIEWS.TODAY} onClick={() => navigateTo(VIEWS.TODAY)} title="Hoje" />}
           {canAccessInbox && (
             <SidebarIcon icon={<Inbox size={20} />} active={currentView === VIEWS.INBOX} onClick={() => navigateTo(VIEWS.INBOX)} title="Caixa de Entrada" />
           )}
