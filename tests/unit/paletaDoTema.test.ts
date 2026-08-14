@@ -30,9 +30,22 @@ const PERMITIDAS = [
   // Tom semântico do TodayView, aplicado como TINTA sobre a superfície do tema
   // (`/10`) e não como pastel fixo — funciona nos quatro temas. Ver GROUP_TONE.
   /^bg-(red|slate)-500\/10$/,
+  // Azul do Google no botão "Entrar com Google". É marca de TERCEIRO: tematizá-la
+  // seria descaracterizar o logo de outra empresa, não harmonizar o nosso.
+  /^text-\[#4285F4\]$/i,
 ];
 
 const RX_COR_CRUA = /\b(?:bg|text|border)-(?:white|black|stone|gray|slate|zinc|neutral)(?:-\d{2,3})?(?:\/\d{1,3})?\b/g;
+
+/**
+ * Cor em HEX cravada na classe — `bg-[#efe8de]` e parentes.
+ *
+ * A guarda original só olhava as classes NOMEADAS do Tailwind, então um bege escrito
+ * à mão passava direto. Passou mesmo: sobreviveu à conversão de 402 classes e só
+ * apareceu quando o dono pediu para tirar o bege do tema — a cor não vinha do tema,
+ * então nenhuma troca de token a alcançava.
+ */
+const RX_HEX_CRAVADO = /\b(?:bg|text|border|from|via|to)-\[#[0-9a-fA-F]{3,8}\]/g;
 
 function arquivosTsx(dir: string): string[] {
   return readdirSync(dir).flatMap(nome => {
@@ -57,6 +70,10 @@ describe('paleta: só token do tema', () => {
     for (const arquivo of arquivosTsx('src')) {
       const fonte = semComentarios(readFileSync(arquivo, 'utf8'));
       for (const classe of fonte.match(RX_COR_CRUA) || []) {
+        if (PERMITIDAS.some(regra => regra.test(classe))) continue;
+        encontradas.push(`${arquivo.replace(/\\/g, '/')}: ${classe}`);
+      }
+      for (const classe of fonte.match(RX_HEX_CRAVADO) || []) {
         if (PERMITIDAS.some(regra => regra.test(classe))) continue;
         encontradas.push(`${arquivo.replace(/\\/g, '/')}: ${classe}`);
       }

@@ -1191,7 +1191,10 @@ export function SettingsView() {
                               </div>
                               <div>
                                 <div className="text-[11px] text-roman-text-sub">Prévia visual renderizada</div>
-                                <div className="mt-2 overflow-hidden rounded-xl border border-roman-border bg-[#efe8de]">
+                                {/* Era `bg-[#efe8de]` — bege cravado no código, fora do
+                                    tema e por isso invisível para a guarda de paleta,
+                                    que só olha as classes nomeadas do Tailwind. */}
+                                <div className="mt-2 overflow-hidden rounded-xl border border-roman-border bg-roman-bg">
                                   <iframe
                                     title="Prévia do e-mail"
                                     srcDoc={renderedTemplatePreview}

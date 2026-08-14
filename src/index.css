@@ -21,18 +21,40 @@
 
 :root,
 [data-theme="official"] {
-  --theme-roman-bg: #fbfaf8;
+  /* NEUTROS SEM BEGE (14/08).
+     Retorno do dono: "todos os beges dão cara de sistema antigo". O tom terroso
+     estava sobretudo na BORDA (#d8cec0), com 636 usos contornando tudo — o fundo
+     (#fbfaf8) já era quase branco e quase não contribuía.
+
+     Cada cor foi trocada por um cinza de MESMA LUMINÂNCIA, então contraste,
+     hierarquia e legibilidade ficam idênticos: muda só a temperatura. Para cinza
+     puro (R=G=B=v) a luminância relativa é o próprio v, o que torna a conversão
+     exata em vez de estimada.
+
+       antes            luminância → depois
+       #fbfaf8 fundo      250,1   → #fafafa
+       #d8cec0 borda      207,1   → #cfcfcf
+       #ebe3d8 borda-clara 227,9  → #e4e4e4
+       #fdfbf7 pergaminho 251,1   → #fbfbfb
+       #d4c4a8 perg-borda 197,4   → #c5c5c5
+       #2c2a29 sidebar     42,4   → #2b2b2b
+       #4a4745 sidebar-cl  71,5   → #484848
+
+     O DOURADO FICA. Ele é a marca, não um neutro bege — e é justamente contra
+     cinza que ele para de parecer "a mesma cor do fundo, só que mais escura".
+     `text-sub` também fica: é azulado (ardósia), não bege. */
+  --theme-roman-bg: #fafafa;
   --theme-roman-surface: #ffffff;
-  --theme-roman-border: #d8cec0;
-  --theme-roman-border-light: #ebe3d8;
-  --theme-roman-text-main: #171513;
+  --theme-roman-border: #cfcfcf;
+  --theme-roman-border-light: #e4e4e4;
+  --theme-roman-text-main: #161616;
   --theme-roman-text-sub: #465563;
   --theme-roman-primary: #b08d57;
   --theme-roman-primary-hover: #8c7045;
-  --theme-roman-sidebar: #2c2a29;
-  --theme-roman-sidebar-light: #4a4745;
-  --theme-roman-parchment: #fdfbf7;
-  --theme-roman-parchment-border: #d4c4a8;
+  --theme-roman-sidebar: #2b2b2b;
+  --theme-roman-sidebar-light: #484848;
+  --theme-roman-parchment: #fbfbfb;
+  --theme-roman-parchment-border: #c5c5c5;
 }
 
 [data-theme="blue-orange"] {
