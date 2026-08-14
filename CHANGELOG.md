@@ -29,6 +29,48 @@ Um token conserta os dois lados: `--theme-roman-primary` de `#b08d57` para
 | textos abaixo de 4,5 | 21 | **0** |
 | mediana | 7,66 | 7,66 |
 
+### A cor da etapa não dizia nada — 6 status, 1 aparência
+
+O ponto do Sol sobre semântica de cor, medido no navegador. O `StatusBadge` dava um
+matiz diferente para cada etapa (sky, violet, amber, orange, emerald, cyan, indigo).
+Na tela da Gestão:
+
+| | antes | depois |
+|---|---|---|
+| status distintos | 6 | 6 |
+| **aparências distintas** | **1** | **3** |
+
+O `.theme-bridge` captura todos esses matizes e os achata no dourado do tema — todos
+menos o vermelho. A cor prometia dizer a etapa e não dizia nada, em nenhum dos 4 temas.
+
+Restaurar os 7 matizes seria pior: teriam de passar em contraste nos 4 temas, e o
+olho não separa 7 tons parecidos numa tabela densa. O agrupamento não foi inventado
+— está no vocabulário do próprio sistema, onde **9 dos 13 status começam com
+"Aguardando"**:
+
+| grupo | status | tratamento |
+|---|---|---|
+| precisa de triagem | Nova OS | acento, pílula contornada |
+| parado esperando | **9 "Aguardando…"** | neutro |
+| está andando | Em andamento | `success` (verde) |
+| terminou | Encerrada | neutro claro |
+| morreu | Cancelada / Reprovada | `danger` (vermelho) |
+
+Numa tabela onde 70% das linhas dizem "Aguardando alguma coisa", a pergunta do gestor
+é **quais estão de fato andando** — e essa varredura passou a funcionar. Uma cor nova
+só: verde. Dourado, vermelho e neutro já existiam.
+
+Dois tokens de função entraram (`success`, `danger`), escolhidos já **contra a própria
+tinta de 12%** em cada tema. O acento não pôde ganhar fundo pelo mesmo motivo: ele tem
+só 4,8:1 de folga sobre a superfície, e uma tinta dele mesmo come essa folga — a 12% o
+texto cai para 3,96 e nem a 6% chega aos 4,5. Por isso a pílula da triagem é
+contornada. Medido depois: **zero textos de badge abaixo de 4,5:1 nos 4 temas**.
+
+**O que ainda falta:** 59 elementos fora do badge continuam pedindo amber/emerald/sky
+e sendo achatados — e de forma inconsistente (na Caixa de Entrada, 26 elementos pedem
+2 matizes e rendem 2 aparências; em Configurações, 3 matizes rendem 4). Cada um exige
+decidir se é aviso, sucesso ou informação, então fica como próximo bloco.
+
 ### Contorno de controle e foco de teclado
 
 Seguindo a fila do Sol. A borda a 1,56:1 contra os 3,0 da WCAG 1.4.11 era o ponto
