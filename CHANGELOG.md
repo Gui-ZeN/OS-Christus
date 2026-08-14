@@ -3,6 +3,41 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-14 (o dourado da marca não passava em contraste — nos dois sentidos)
+
+Consultei o gpt-5.6-sol sobre o que ainda faltava no visual e pedi contestação.
+Ele acertou os três pontos que eu pude medir, incluindo um em que **eu ia mexer no
+token errado**:
+
+| Ele disse | Veredito | Medição |
+|---|---|---|
+| "Não conserte os textos fracos escurecendo `text-sub`" | ✅ | `#465563` no branco já dá **7,66:1** |
+| "A borda `#cfcfcf` é fraca pra significar 'interativo'" | ✅ | **1,56:1**; WCAG 1.4.11 exige 3,0 |
+| "A tabela da Gestão está superajustada em 1209px" | ✅ | sobra **0px** a 100%; a 110% transborda 63px |
+
+Medindo a tela com as transições desligadas, apareceu o que nenhum de nós tinha
+visto: não eram 13 textos fracos, eram **21** — e todos no mesmo número, **3,09:1**.
+Onze em branco sobre o botão dourado, dez em dourado sobre o fundo branco. Todos a
+12px, tamanho que exige 4,5:1. O acento da marca reprovava **nos dois sentidos**.
+
+Um token conserta os dois lados: `--theme-roman-primary` de `#b08d57` para
+`#8c7045` (hover `#7a5f33`). Zero componentes tocados, e continua lendo como dourado.
+
+| | antes | depois |
+|---|---|---|
+| pior contraste | 3,09 | **4,65** |
+| textos abaixo de 4,5 | 21 | **0** |
+| mediana | 7,66 | 7,66 |
+
+**Pendente, e é um problema de sistema:** `blue-orange` (2,61) e `dark` (2,63 no
+rótulo branco) continuam reprovando. O tema escuro mostra que escurecer não resolve
+lá — o azul *precisa* ser claro sobre o fundo escuro (6,35 ✓) e é o rótulo branco em
+cima que falha. Falta um token para a cor do texto que vai *sobre* o preenchimento.
+
+Consulta guardada em `Segundo Cerebro/.../Serv3 — Consulta 11 melhorias visuais.md`,
+com a fila que saiu dela: contraste de componentes e foco, tokens semânticos,
+`tabular-nums` em datas e IDs, piloto de peso tipográfico em Hoje e Caixa de Entrada.
+
 ## 2026-08-14 (o tempo fala baixo no dia seco e alto quando importa)
 
 Pedido do dono: *"podia ser um pouco mais chamativo a questão do tempo"*. O destaque
