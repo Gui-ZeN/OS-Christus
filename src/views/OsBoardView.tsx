@@ -369,7 +369,11 @@ export function OsBoardView() {
                   }}
                   role="button"
                   tabIndex={0}
-                  className="cursor-pointer border-b border-roman-border/60 align-top transition-colors hover:bg-roman-primary/[0.06] focus:bg-roman-primary/10 focus:outline-none"
+                  // `focus:outline-none` saiu daqui: a linha ficava com a tinta de 10%
+                  // como único sinal de foco, e isso mede 1,13:1 — invisível. Quem navega
+                  // a tabela por teclado não sabia onde estava. A tinta fica como reforço,
+                  // e o contorno do tema volta a ser o indicador.
+                  className="cursor-pointer border-b border-roman-border/60 align-top transition-colors hover:bg-roman-primary/[0.06] focus:bg-roman-primary/10"
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 font-medium text-roman-text-main">{ticket.id}</td>
                   {/* Sem `truncate`: o assunto é o que identifica a OS na tabela.

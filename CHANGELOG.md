@@ -29,6 +29,49 @@ Um token conserta os dois lados: `--theme-roman-primary` de `#b08d57` para
 | textos abaixo de 4,5 | 21 | **0** |
 | mediana | 7,66 | 7,66 |
 
+### Contorno de controle e foco de teclado
+
+Seguindo a fila do Sol. A borda a 1,56:1 contra os 3,0 da WCAG 1.4.11 era o ponto
+dele, e a medição confirmou — mas mostrou que escurecer o token seria errado:
+
+| | controle | moldura |
+|---|---|---|
+| `border-roman-border` renderizado | **106** | 113 |
+| ocorrências no código | 253 | 356 |
+
+Moldura (painel, tabela, agrupamento) **não** é coberta pela 1.4.11, e engrossar 113
+delas desfaria a poda visual. Token separado, `border-control`, e **uma regra** em
+vez de 253 edições — porque o critério não é "esta borda aqui", é "isto é um
+controle":
+
+```css
+button.border-roman-border, input…, select…, textarea… { border-color: … }
+```
+
+A especificidade é o mecanismo: `button.border-roman-border` (0,1,1) ganha do
+utilitário (0,1,0) e **perde** para `hover:`/`focus:` (0,2,0). Por isso a regra mora
+na camada de utilitários — fora de camada, venceria até o hover.
+
+Medido nas seis telas: de 41/41 reprovando na Gestão e 21/21 na Inbox para **zero**,
+pior caso 3,10.
+
+**Foco de teclado.** As linhas da tabela da Gestão traziam `focus:outline-none` e
+deixavam como único sinal uma tinta do acento a 10% — **1,13:1**. Quem navegava por
+teclado não via onde estava. E na barra lateral o anel dourado dava 2,95:1 (o laranja
+do blue-orange, 2,30). Procurei um tom que passasse em todo fundo e **não existe** —
+mesma álgebra do rótulo do athletico: nada contrasta ao mesmo tempo com branco e com
+cinza-médio. Mas a barra é escura nos quatro temas, então lá o anel é branco, com
+folga (pior caso 8,15:1).
+
+Duas armadilhas no caminho, ambas registradas em comentário para não custarem duas
+vezes: `transition-colors` **anima `outline-color`**, então medir logo depois do Tab
+pega a transição no ponto de partida (`currentColor`) — um botão dourado de texto
+branco reportava contorno branco a 1,04:1, defeito que não existia. E `element.focus()`
+por script não ativa `:focus-visible`, nem `:focus` numa aba sem foco de janela:
+medição de foco **só vale com Tab de verdade**, por isso a guarda nova é E2E.
+
+Trava em `tests/foco-visivel.e2e.spec.ts`, agora no `test:e2e`.
+
 ### O conserto de verdade: o acento tem dois empregos, não um
 
 Ao estender para os outros temas, ficou claro que o problema era mais fundo — e que

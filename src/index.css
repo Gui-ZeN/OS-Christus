@@ -9,6 +9,7 @@
   --color-roman-surface: var(--theme-roman-surface);
   --color-roman-border: var(--theme-roman-border);
   --color-roman-border-light: var(--theme-roman-border-light);
+  --color-roman-border-control: var(--theme-roman-border-control);
   --color-roman-text-main: var(--theme-roman-text-main);
   --color-roman-text-sub: var(--theme-roman-text-sub);
   --color-roman-primary: var(--theme-roman-primary);
@@ -48,6 +49,7 @@
   --theme-roman-surface: #ffffff;
   --theme-roman-border: #cfcfcf;
   --theme-roman-border-light: #e4e4e4;
+  --theme-roman-border-control: #8f8f8f;
   --theme-roman-text-main: #161616;
   --theme-roman-text-sub: #465563;
   /* O acento tem DOIS empregos e cada um é um par de contraste diferente:
@@ -72,6 +74,7 @@
   --theme-roman-surface: #ffffff;
   --theme-roman-border: #bfd3ea;
   --theme-roman-border-light: #dce9fb;
+  --theme-roman-border-control: #828f9f;
   --theme-roman-text-main: #0c1827;
   --theme-roman-text-sub: #2f4c69;
   /* Laranja queimado. O #ff7a00 vibrante dava 2,61:1 como texto — o pior dos
@@ -91,6 +94,7 @@
   --theme-roman-surface: #131a23;
   --theme-roman-border: #39485a;
   --theme-roman-border-light: #2b3746;
+  --theme-roman-border-control: #5d6978;
   --theme-roman-text-main: #f3f8ff;
   --theme-roman-text-sub: #c3d0e0;
   --theme-roman-primary: #4da3ff;
@@ -112,6 +116,7 @@
   --theme-roman-surface: #141010;
   --theme-roman-border: #5d3131;
   --theme-roman-border-light: #3f2525;
+  --theme-roman-border-control: #7c5858;
   --theme-roman-text-main: #fff7f7;
   --theme-roman-text-sub: #e2cccc;
   /* Mesma situação do tema escuro: o vermelho clareia para servir de texto
@@ -187,12 +192,72 @@ body {
   }
 }
 
+/* CONTORNO DE CONTROLE (WCAG 1.4.11).
+   Medido: `border-roman-border` reprovava em 106 controles renderizados — 41 de 41
+   na Gestão, 21 de 21 na Caixa de Entrada — a 1,49~1,56:1, contra os 3,0 exigidos.
+
+   Escurecer o token não servia: das 609 ocorrências dele no código, 48% são
+   controle e 52% são moldura (painel, tabela, agrupamento). Moldura NÃO é coberta
+   pela 1.4.11, e engrossar 113 delas desfaria a poda visual.
+
+   Também não são 253 edições à mão, porque o critério não é "esta borda aqui" — é
+   "isto é um controle". A regra abaixo diz exatamente isso, e vale para código que
+   ainda nem foi escrito.
+
+   A especificidade é o mecanismo, e é de propósito: `button.border-roman-border`
+   (0,1,1) ganha do utilitário `.border-roman-border` (0,1,0) e PERDE para
+   `.hover\:border-roman-primary:hover` (0,2,0). Ou seja, o repouso fica legível e
+   hover/foco continuam mandando. Por isso a regra mora na camada de utilitários:
+   fora de camada ela venceria tudo, inclusive o hover. */
+@layer utilities {
+  button.border-roman-border,
+  input.border-roman-border,
+  select.border-roman-border,
+  textarea.border-roman-border,
+  [role='button'].border-roman-border,
+  [role='checkbox'].border-roman-border {
+    border-color: var(--color-roman-border-control);
+  }
+}
+
+/* ANEL DE FOCO.
+   Usa o acento, que passou a valer 4,8:1 sobre a superfície — acima dos 3,0 que a
+   1.4.11 pede. Links e elementos com `role`/`tabindex` entram aqui porque a lista
+   antiga só cobria as quatro tags nativas, e a Gestão navega por linhas de tabela
+   focáveis.
+
+   Uma armadilha, porque ela custou caro: `transition-colors` inclui `outline-color`.
+   Quem medir o estilo logo depois do Tab pega a transição no ponto de PARTIDA, que é
+   `currentColor` — um botão dourado de texto branco reporta "contorno branco" e
+   parece defeito grave. Desligue as transições antes de medir. */
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible {
+select:focus-visible,
+a[href]:focus-visible,
+[role='button']:focus-visible,
+[role='checkbox']:focus-visible,
+[tabindex]:not([tabindex='-1']):focus-visible {
   outline: 2px solid var(--color-roman-primary);
   outline-offset: 2px;
+}
+
+/* Na barra lateral o acento não serve: medido, o dourado dá 2,95:1 sobre o
+   #2b2b2b, e o laranja do blue-orange, 2,30. Tentei achar UM tom que passasse em
+   todo fundo e não existe — a mesma álgebra do rótulo do athletico: nada contrasta
+   ao mesmo tempo com branco e com cinza-médio.
+
+   Mas a barra é escura nos QUATRO temas (de #2b2b2b a #000000), então um valor só
+   resolve os quatro, e com folga: o pior caso é 8,15:1. Por isso o token mora no
+   `:root` e nenhum tema o sobrescreve. */
+:root {
+  --theme-roman-focus-sidebar: #ffffff;
+}
+
+aside button:focus-visible,
+aside a:focus-visible,
+aside [tabindex]:not([tabindex='-1']):focus-visible {
+  outline-color: var(--theme-roman-focus-sidebar);
 }
 
 /* Bridge for legacy neutral Tailwind classes to follow active app theme tokens. */

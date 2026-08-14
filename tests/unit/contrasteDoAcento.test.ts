@@ -50,7 +50,7 @@ function contraste(a: string, b: string): number {
  * os outros num seletor simples. Pegamos o bloco que contém o nome do tema.
  */
 function tokensDoTema(tema: string): Record<string, string> {
-  const blocos = CSS.match(/[^{}]*\{[^{}]*\}/g) ?? [];
+  const blocos: string[] = CSS.match(/[^{}]*\{[^{}]*\}/g) ?? [];
   const bloco = blocos.find(
     (b) => b.includes(`[data-theme="${tema}"]`) && b.includes('--theme-roman-primary:'),
   );
@@ -84,6 +84,20 @@ describe('contraste do acento, nos quatro temas', () => {
       contraste(t['on-primary'], t['primary-hover']),
       `${tema}: on-primary sobre primary-hover`,
     ).toBeGreaterThanOrEqual(MINIMO);
+  });
+
+  /**
+   * WCAG 1.4.11 pede 3:1 para o contorno que identifica um controle. A borda comum
+   * (`border`) fica de fora de propósito: moldura de painel e linha de tabela não
+   * são controle, e engrossá-las desfaria a poda visual.
+   */
+  it.each(TEMAS)('%s: a borda de CONTROLE passa em 3:1, e a de moldura segue leve', (tema) => {
+    const t = tokensDoTema(tema);
+    expect(contraste(t['border-control'], t.surface), `${tema}: borda de controle sobre surface`).toBeGreaterThanOrEqual(3);
+    expect(contraste(t['border-control'], t.bg), `${tema}: borda de controle sobre bg`).toBeGreaterThanOrEqual(3);
+    // A de moldura continua discreta — se um dia alguém igualar as duas, o token
+    // separado perdeu a razão de existir e é melhor saber por aqui.
+    expect(t['border-control'], `${tema}: os dois tokens de borda viraram o mesmo valor`).not.toBe(t.border);
   });
 
   it('o hover continua sendo um passo VISÍVEL a partir do repouso', () => {
