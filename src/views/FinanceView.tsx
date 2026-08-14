@@ -2182,7 +2182,10 @@ export function FinanceView() {
                 {paymentEmailModal.sendFeedbackMessage}
               </div>
             )}
-            <div className="rounded-sm border border-roman-border bg-roman-bg px-4 py-3 space-y-1 text-sm">
+            {/* Bruto, imposto e líquido são três valores empilhados que a pessoa
+                compara na vertical — é o caso em que a largura desigual dos dígitos
+                da Manrope (o "1" é 35% mais estreito que o "0") desalinha a coluna. */}
+            <div className="rounded-sm border border-roman-border bg-roman-bg px-4 py-3 space-y-1 text-sm tabular-nums">
               <div className="flex justify-between">
                 <span className="text-roman-text-sub">Valor bruto</span>
                 <span className="font-medium text-roman-text-main">{formatCurrency(paymentEmailModal.grossAmount)}</span>

@@ -104,6 +104,41 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### Algarismos tabulares e alvo de clique
+
+Dois itens da fila do Sol, os dois decididos por medição.
+
+**Algarismos.** A pergunta que decide era se a fonte sequer tem a variante:
+
+| fonte | larguras distintas dos 10 dígitos | com `tabular-nums` |
+|---|---|---|
+| **Manrope** (sans) | **9** — de 40,6 a 62,6px em corpo 100 | uniformes (62) |
+| Source Serif 4 | **1** — já uniformes | sem efeito |
+
+O "1" da Manrope é **35% mais estreito** que o "0" — numa coluna de datas,
+"11/11" e "08/08" não se alinham. A serifa já é tabular por padrão, então títulos
+e totais nunca tiveram o problema.
+
+Uma regra em `table` resolve a Gestão inteira: **32 números proporcionais viraram 1**.
+Fora da tabela, só onde valores se empilham para comparação (bruto/imposto/líquido
+no Financeiro). Número dentro de frase — "20 obras", "Últimos 30 dias" — fica
+proporcional de propósito: alargar o "1" no meio de um texto abre um buraco.
+
+**Alvo de clique.** A WCAG 2.5.8 pede 24×24px. Medido em 7 telas, 220 controles:
+**15 reprovavam** — ícones de 16×16 sem área ao redor na Caixa de Entrada,
+"Editar"/"Excluir" de 20px de altura em Acessos, o rótulo de um checkbox na Gestão.
+Todos corrigidos; agora **zero**.
+
+Os 111 controles entre 24 e 36px ficaram como estão. O Sol recomenda 36–40, mas
+isso é conselho de usabilidade, não norma — e engordá-los quebraria a tabela da
+Gestão, que cabe com folga zero em 1280px.
+
+Duas escolhas de medição que mudam o resultado, registradas no teste: o alvo de um
+checkbox é o **`<label>`** que o envolve, não o `<input>` de 14px; e só conta o que
+está visível, senão menu fechado e modal não aberto entram na conta.
+
+Trava em `tests/alvo-de-clique.e2e.spec.ts`, no `test:e2e`.
+
 ### Os gráficos dos Indicadores passam a ter tema
 
 O `KpiView` tinha **79 cores cravadas** em props do Recharts — `fill`, `stroke`,

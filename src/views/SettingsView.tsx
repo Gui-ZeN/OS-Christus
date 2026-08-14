@@ -1026,8 +1026,8 @@ export function SettingsView() {
                                   <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
+                                  <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
                             ))}
@@ -1063,8 +1063,8 @@ export function SettingsView() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId, aliases: (item.aliases || []).join(', ') })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
+                                  <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId, aliases: (item.aliases || []).join(', ') })} className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline">Editar</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
                             ))}
@@ -1339,7 +1339,7 @@ export function SettingsView() {
                                       <button
                                         type="button"
                                         onClick={() => setMacroDraft({ id: item.id, name: item.name || '', code: item.code || '' })}
-                                        className="text-xs font-medium text-roman-primary hover:underline"
+                                        className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
                                       </button>
@@ -1423,7 +1423,7 @@ export function SettingsView() {
                                             suggestedMaterialIds: Array.isArray(item.suggestedMaterialIds) ? item.suggestedMaterialIds : [],
                                           })
                                         }
-                                        className="text-xs font-medium text-roman-primary hover:underline"
+                                        className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
                                       </button>
@@ -1536,7 +1536,7 @@ export function SettingsView() {
                                             unit: item.unit || '',
                                           })
                                         }
-                                        className="text-xs font-medium text-roman-primary hover:underline"
+                                        className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
                                       </button>
@@ -1644,7 +1644,7 @@ export function SettingsView() {
                                               tags: (vendor.tags || []).filter(Boolean),
                                             })
                                           }
-                                          className="text-xs font-medium text-roman-primary hover:underline"
+                                          className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                         >
                                           Editar
                                         </button>

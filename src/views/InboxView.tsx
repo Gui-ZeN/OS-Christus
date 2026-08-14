@@ -2047,7 +2047,7 @@ export function InboxView() {
                         });
                       }}
                       disabled={ticketAttachmentItems.length === 0}
-                      className="ml-auto shrink-0 whitespace-nowrap flex items-center gap-1 font-medium text-xs text-roman-primary hover:underline disabled:text-roman-text-sub disabled:no-underline disabled:cursor-not-allowed"
+                      className="ml-auto min-h-6 shrink-0 whitespace-nowrap flex items-center gap-1 font-medium text-xs text-roman-primary hover:underline disabled:text-roman-text-sub disabled:no-underline disabled:cursor-not-allowed"
                     >
                       <ImageIcon size={14} /> {ticketAttachmentItems.length > 0 ? 'Ver Anexos' : 'Sem anexos'}
                     </button>
@@ -2056,7 +2056,7 @@ export function InboxView() {
                 <div className="relative">
                   <button
                     onClick={() => setShowActionsMenu(v => !v)}
-                    className={`text-roman-text-sub hover:text-roman-text-main ${showActionsMenu ? 'text-roman-primary' : ''}`}
+                    className={`inline-flex h-6 w-6 items-center justify-center text-roman-text-sub hover:text-roman-text-main ${showActionsMenu ? 'text-roman-primary' : ''}`}
                     title="Ações da OS"
                     aria-label="Ações da OS"
                     aria-expanded={showActionsMenu}
@@ -2163,7 +2163,7 @@ export function InboxView() {
                       onClick={() => setComposerView(v => (v === 'min' ? 'normal' : 'min'))}
                       title={composerView === 'min' ? 'Expandir' : 'Minimizar'}
                       aria-label={composerView === 'min' ? 'Expandir o campo de mensagem' : 'Minimizar o campo de mensagem'}
-                      className="rounded p-1 text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
                     >
                       {composerView === 'min' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </button>
@@ -2172,7 +2172,7 @@ export function InboxView() {
                       onClick={() => setComposerView(v => (v === 'max' ? 'normal' : 'max'))}
                       title={composerView === 'max' ? 'Restaurar' : 'Maximizar'}
                       aria-label={composerView === 'max' ? 'Restaurar o campo de mensagem' : 'Maximizar o campo de mensagem'}
-                      className="rounded p-1 text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
                     >
                       {composerView === 'max' ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                     </button>
@@ -2263,7 +2263,7 @@ export function InboxView() {
                           type="button"
                           onClick={() => setShowStageControls(true)}
                           disabled={stageLocked || isSending}
-                          className="flex w-full items-center justify-between gap-2 text-left text-xs text-roman-text-sub transition-colors hover:text-roman-text-main disabled:opacity-50"
+                          className="flex min-h-6 w-full items-center justify-between gap-2 text-left text-xs text-roman-text-sub transition-colors hover:text-roman-text-main disabled:opacity-50"
                         >
                           <span className="truncate">
                             Etapa atual: <span className="font-medium text-roman-text-main">{activeTicket.status}</span>
@@ -2500,7 +2500,7 @@ export function InboxView() {
                   e.stopPropagation();
                   setShowMobileContext(false);
                 }}
-                className={`${isCompactInboxWorkspace ? '' : 'md:hidden'} text-roman-text-sub hover:text-roman-text-main`}
+                className={`${isCompactInboxWorkspace ? '' : 'md:hidden'} inline-flex h-6 w-6 items-center justify-center text-roman-text-sub hover:text-roman-text-main`}
                 aria-label="Fechar painel de dados"
               >
                 <X size={16} />

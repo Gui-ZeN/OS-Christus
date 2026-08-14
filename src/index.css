@@ -178,6 +178,22 @@ body {
   letter-spacing: 0.005em;
 }
 
+/* ALGARISMOS TABULARES ONDE NÚMERO SE EMPILHA.
+   Medido: na Manrope os dez dígitos têm NOVE larguras diferentes, de 40,6 a
+   62,6px em corpo 100 — o "1" é 35% mais estreito que o "0". Numa coluna de
+   datas, "11/11" e "08/08" não se alinham. Com `tabular-nums` todos vão a 62.
+
+   A Source Serif 4 já é tabular por padrão (largura única, 48,81), então a
+   regra não muda nada nos títulos e totais em serifa — mas fica, porque a
+   fonte pode mudar e a intenção precisa estar escrita.
+
+   Só em TABELA, de propósito. Número dentro de frase — "20 obras", "Últimos 30
+   dias" — lê melhor proporcional, e é a maioria dos números do app. Alargar o
+   "1" no meio de um texto abre um buraco antes do algarismo. */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Escala de tipo ampliada (legibilidade) — só em monitores grandes (>=1536px).
    Em laptops 14-15" e telas menores, os tamanhos pequenos ficam no valor natural
    (text-xs=12px, text-sm=14px, text-[11px]=11px, ...) pra a UI não ficar grande

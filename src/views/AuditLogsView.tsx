@@ -334,7 +334,7 @@ export function AuditLogsView() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-xs text-roman-text-sub">
+            <label className="flex min-h-6 items-center gap-2 text-xs text-roman-text-sub">
               <input
                 type="checkbox"
                 checked={includeSystem}

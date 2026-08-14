@@ -282,7 +282,7 @@ export function OsBoardView() {
           <Droplets size={14} />
           Água ({totalDeAgua})
         </button>
-        <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-roman-text-sub">
+        <label className="inline-flex min-h-6 cursor-pointer items-center gap-1.5 text-sm text-roman-text-sub">
           <input
             type="checkbox"
             checked={showClosed}

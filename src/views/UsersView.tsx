@@ -333,10 +333,10 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                           </span>
                         </div>
                         <div className="flex items-start justify-end gap-3">
-                          <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-sm font-medium text-roman-primary hover:underline disabled:opacity-50 disabled:no-underline">
+                          <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="inline-flex min-h-6 items-center text-sm font-medium text-roman-primary hover:underline disabled:opacity-50 disabled:no-underline">
                             Editar
                           </button>
-                          <button onClick={() => setPendingDeleteUser(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-sm font-medium text-roman-danger hover:text-roman-danger disabled:opacity-50">
+                          <button onClick={() => setPendingDeleteUser(user)} disabled={!canManageUsers || saving} className="inline-flex min-h-6 items-center gap-1 text-sm font-medium text-roman-danger hover:text-roman-danger disabled:opacity-50">
                             <Trash2 size={14} />
                             Excluir
                           </button>
