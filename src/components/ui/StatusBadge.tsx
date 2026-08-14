@@ -14,7 +14,7 @@ interface StatusBadgeProps {
  * O badge dava uma cor diferente para cada etapa: sky, violet, amber, orange,
  * emerald, cyan, indigo. Medido no navegador, o resultado era outro:
  * **6 status distintos na tela da Gestão renderizavam 1 única aparência.** O
- * `.theme-bridge` captura todos esses matizes e os achata no dourado do tema —
+ * `.theme-bridge` (removido depois) capturava todos esses matizes e os achatava —
  * todos menos o vermelho. A cor prometia dizer a etapa e não dizia nada.
  *
  * Restaurar os 7 matizes seria pior: teriam de passar em contraste nos 4 temas

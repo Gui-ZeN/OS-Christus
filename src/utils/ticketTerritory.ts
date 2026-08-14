@@ -42,11 +42,3 @@ export function getTicketSiteLabel(ticket: Ticket, sites: CatalogSite[]) {
   if (site) return site.code || site.name;
   return ticket.sede || 'Não definida';
 }
-
-export function getTicketRegionId(ticket: Ticket, regions: CatalogRegion[], sites: CatalogSite[]) {
-  return resolveTicketRegion(ticket, regions, sites)?.id || ticket.regionId || null;
-}
-
-export function getTicketSiteId(ticket: Ticket, sites: CatalogSite[]) {
-  return resolveTicketSite(ticket, sites)?.id || ticket.siteId || null;
-}

@@ -25,13 +25,6 @@ async function readAttachmentError(response: Response) {
   return payload?.error || 'Não foi possível abrir o anexo.';
 }
 
-export function hasProtectedAttachmentLocator(locator: AttachmentLocator) {
-  return Boolean(
-    String(locator.ticketId || '').trim() &&
-    String(locator.path || '').trim()
-  );
-}
-
 export async function resolveAttachmentUrl(locator: AttachmentLocator) {
   const ticketId = String(locator.ticketId || '').trim();
   const path = String(locator.path || '').trim();

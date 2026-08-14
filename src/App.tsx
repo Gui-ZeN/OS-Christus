@@ -495,7 +495,7 @@ export default function App() {
   }
 
   return (
-    <div className="theme-bridge relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-sm">
+    <div className="relative flex h-screen overflow-hidden bg-roman-bg text-roman-text-main font-sans text-sm">
       <aside className="sticky top-0 flex h-screen w-14 shrink-0 overflow-visible bg-roman-sidebar flex-col py-3 z-[90] border-r border-roman-border">
         <div className="flex items-center justify-center px-2 mb-6">
           <img src="/serv3-selo.svg" alt="Serv3" className="h-8 w-8" />

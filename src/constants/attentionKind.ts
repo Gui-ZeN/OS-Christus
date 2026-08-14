@@ -18,8 +18,6 @@ export const ATTENTION_KIND = {
   NO_PROGRESS: 'sem-progresso',
 } as const;
 
-export type AttentionKind = (typeof ATTENTION_KIND)[keyof typeof ATTENTION_KIND];
-
 /**
  * O rótulo CONSTATA, não exige.
  *

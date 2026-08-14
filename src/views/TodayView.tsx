@@ -86,7 +86,7 @@ const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
  *
  * O preenchimento é TINTA sobre a superfície do tema (`/10`), não pastel fixo.
  * Medido em 13/08: `bg-red-50/60` e `bg-slate-50/60` ficavam idênticos nos temas
- * claro e escuro — o `.theme-bridge` remapeia amber/sky/emerald/green e companhia,
+ * claro e escuro — o `.theme-bridge` (removido depois) remapeava amber/sky/emerald/green,
  * mas não vermelho nem slate. No tema escuro os cartões de "Vencidas" e "Suspensas"
  * apareceriam quase brancos sobre um fundo #0b0f14.
  *

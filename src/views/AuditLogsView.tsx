@@ -65,7 +65,7 @@ const CATEGORY_LABELS: Record<AuditCategory, string> = {
  * Aqui a cor NÃO é severidade, é categoria — e categoria não se pinta.
  *
  * Antes eram três matizes (sky para status, emerald para financeiro, amber para
- * aprovação) que o `.theme-bridge` achatava no dourado: três categorias, uma
+ * aprovação) que o `.theme-bridge` — já removido — achatava no dourado: três categorias, uma
  * aparência. Ao migrar para tokens de função, o mapa automático transformou
  * "financeiro" em sucesso e "aprovação" em atenção — o que é pior que o defeito
  * original, porque passa a AFIRMAR algo falso: um lançamento financeiro não é um

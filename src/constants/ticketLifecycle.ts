@@ -26,13 +26,6 @@ export const LIFECYCLE = {
 
 export type Lifecycle = (typeof LIFECYCLE)[keyof typeof LIFECYCLE];
 
-export const LIFECYCLE_LABEL: Record<Lifecycle, string> = {
-  nova: 'Nova',
-  ativa: 'Em andamento',
-  encerrada: 'Encerrada',
-  cancelada: 'Cancelada',
-};
-
 export function lifecycleOf(status: TicketStatus | string | undefined | null): Lifecycle {
   if (status === TICKET_STATUS.CLOSED) return LIFECYCLE.CLOSED;
   if (status === TICKET_STATUS.CANCELED) return LIFECYCLE.CANCELED;

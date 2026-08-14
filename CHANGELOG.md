@@ -104,6 +104,47 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### Código morto: o que saiu, e o que NÃO saiu
+
+Levantamento por grafo de imports a partir do `src/main.tsx`, não por casamento de
+nome — a primeira tentativa acusou `App.tsx` como órfão.
+
+**Saiu:**
+
+| | |
+|---|---|
+| `.theme-bridge` inteiro | **154 linhas** de CSS |
+| Cormorant Garamond + Inter no `index.html` | duas famílias baixadas em toda visita |
+| exports sem consumidor | 9 |
+
+O bridge existia para remapear classes legadas do Tailwind (`bg-white`, `bg-stone-*`,
+e os matizes semânticos) para os tokens do tema. Depois das migrações de hoje,
+**nenhuma classe viva casava com nenhuma das 104 regras** — era casca. Medido depois
+de remover: 605 elementos no tema claro e 661 no escuro, **zero abaixo de 4,5:1**.
+Nada mudou de aparência, que era a aposta.
+
+As fontes do `index.html` não eram usadas desde que o app adotou Manrope e Source
+Serif 4 — o CSS as importa por conta própria. Eram duas requisições bloqueantes para
+não pintar um caractere.
+
+**NÃO saiu — e a distinção importa:**
+
+Os **22 arquivos** de `src/views/inbox/` que o grafo aponta como inalcançáveis são o
+editor de Cotações. Não é código esquecido: o commit `f7493ce` os deixou de fora de
+propósito e escreveu por quê —
+
+> *"ficam no repositório sem ninguém importando — não entram no bundle, e são a
+> ÚNICA CÓPIA desse editor caso a decisão seja manter o financeiro."*
+
+O fluxo teve **235 ações auditadas entre março e maio**, parou em 19/05 e ninguém
+decidiu se volta. Apagar seria destruir a única cópia de uma funcionalidade que foi
+usada, para resolver um problema que não existe: eles não entram no bundle.
+
+Junto ficam os oito exports que os servem (`saveQuotes`, `saveContract`, os uploads,
+`executionFlow`), pela mesma razão. E fica `cancelCommitment`: o servidor **trata** o
+cancelamento (`api/tickets.js:980`), então é um cliente funcional sem botão — apagar
+metade deixaria a outra órfã.
+
 ### Ícones: a régua, e o teste que importava mais que ela
 
 Último item da fila, e o próprio Sol o colocou por último: *"convergir significados

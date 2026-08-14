@@ -28,11 +28,6 @@ export const ATTENTION_STATE = {
 
 export type AttentionState = (typeof ATTENTION_STATE)[keyof typeof ATTENTION_STATE];
 
-export const ATTENTION_STATE_LABEL: Record<AttentionState, string> = {
-  ativa: 'Ativa',
-  suspensa: 'Suspensa',
-};
-
 /**
  * Por que a OS está suspensa — **opções de um toque**, nunca campo de texto puro.
  *
@@ -68,7 +63,6 @@ export const SUSPENSION_REASON_LABEL: Record<SuspensionReason, string> = {
  * carimbo. Sempre dá para suspender de novo — o que não pode é sumir.
  */
 export const DEFAULT_SUSPENSION_DAYS = 7;
-export const MAX_SUSPENSION_DAYS = 90;
 
 /**
  * A partir de quantas OS "paradas sem responsável" a pauta vira UM contador.
@@ -171,13 +165,6 @@ export const RESCHEDULE_REASON = {
 
 export type RescheduleReason = (typeof RESCHEDULE_REASON)[keyof typeof RESCHEDULE_REASON];
 
-export const RESCHEDULE_REASON_LABEL: Record<RescheduleReason, string> = {
-  'fornecedor-pediu': 'O fornecedor pediu',
-  'faltou-material': 'Faltou material',
-  'sede-nao-pode-receber': 'A sede não pôde receber',
-  outro: 'Outro',
-};
-
 /**
  * Tolerância padrão até o horário marcado virar `sem-confirmacao`.
  *
@@ -186,4 +173,3 @@ export const RESCHEDULE_REASON_LABEL: Record<RescheduleReason, string> = {
  * começa no FIM da tolerância, não no clique de "não veio".
  */
 export const DEFAULT_TOLERANCE_MINUTES = 30;
-export const CRITICAL_TOLERANCE_MINUTES = 15;

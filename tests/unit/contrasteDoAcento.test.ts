@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -135,7 +135,6 @@ describe('a cor do rótulo sobre o acento sai do token, não de text-white', () 
 });
 
 function listarTsx(dir: string): string[] {
-  const { readdirSync } = require('node:fs') as typeof import('node:fs');
   const saida: string[] = [];
   for (const entrada of readdirSync(dir, { withFileTypes: true })) {
     const caminho = join(dir, entrada.name);
