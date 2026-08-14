@@ -67,7 +67,7 @@ export function DateTimePicker({
               className="rounded-sm border border-roman-border p-1 text-roman-text-sub transition-colors hover:border-roman-primary hover:text-roman-text-main"
               aria-label="Mês anterior"
             >
-              <ChevronLeft size={15} />
+              <ChevronLeft size={14} />
             </button>
             <div className="font-serif text-sm capitalize text-roman-text-main">{monthLabel}</div>
             <button
@@ -76,7 +76,7 @@ export function DateTimePicker({
               className="rounded-sm border border-roman-border p-1 text-roman-text-sub transition-colors hover:border-roman-primary hover:text-roman-text-main"
               aria-label="Próximo mês"
             >
-              <ChevronRight size={15} />
+              <ChevronRight size={14} />
             </button>
           </div>
 

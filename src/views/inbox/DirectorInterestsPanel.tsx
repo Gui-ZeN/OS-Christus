@@ -73,7 +73,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
                 className="text-roman-text-sub hover:text-roman-danger"
                 aria-label={`Remover ${email}`}
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             </span>
           ))

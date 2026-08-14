@@ -573,18 +573,18 @@ export function HomeView() {
             <h2 className="font-serif text-[11px] uppercase tracking-[0.24em] text-roman-text-sub mb-3 border-b border-roman-border/70 pb-2">Ações Rápidas</h2>
             <div className="space-y-3">
               <button onClick={() => navigateTo('public-form')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
-                <Plus size={18} className="text-roman-primary" />
+                <Plus size={16} className="text-roman-primary" />
                 <span className="font-medium">Registrar Nova OS</span>
               </button>
               {currentUser?.role === 'Admin' && (
                 <button onClick={() => navigateTo('settings')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
-                  <Users size={18} className="text-roman-primary" />
+                  <Users size={16} className="text-roman-primary" />
                   <span className="font-medium">Gerenciar Acessos</span>
                 </button>
               )}
               {isExecutive && (
                 <button onClick={() => navigateTo('kpi')} className="w-full text-left px-4 py-3 border border-roman-border rounded-sm hover:border-roman-primary hover:bg-roman-primary/5 transition-colors flex items-center gap-3">
-                  <BarChart2 size={18} className="text-roman-primary" />
+                  <BarChart2 size={16} className="text-roman-primary" />
                   <span className="font-medium">Ver Indicadores</span>
                 </button>
               )}

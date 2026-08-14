@@ -65,7 +65,7 @@ export function PreliminaryActionsModal(props: PreliminaryActionsModalProps) {
             }`}
           >
             <div className={`w-4 h-4 border rounded-sm flex items-center justify-center flex-shrink-0 ${form[item.id] ? 'bg-roman-primary border-roman-primary' : 'border-roman-border'}`}>
-              {form[item.id] && <CheckSquare size={10} className="text-white" />}
+              {form[item.id] && <CheckSquare size={14} className="text-white" />}
             </div>
             <span className="text-sm font-medium">{item.label}</span>
           </button>

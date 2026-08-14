@@ -73,12 +73,12 @@ const GROUP_HINT: Record<AgendaGroup, string> = {
 };
 
 const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
-  vencidas: <CircleAlert size={15} />,
-  hoje: <Clock size={15} />,
-  'aguardando-sede': <Hourglass size={15} />,
-  'proximos-7-dias': <CalendarClock size={15} />,
-  suspensas: <PauseCircle size={15} />,
-  'sem-proxima-acao': <CircleAlert size={15} />,
+  vencidas: <CircleAlert size={14} />,
+  hoje: <Clock size={14} />,
+  'aguardando-sede': <Hourglass size={14} />,
+  'proximos-7-dias': <CalendarClock size={14} />,
+  suspensas: <PauseCircle size={14} />,
+  'sem-proxima-acao': <CircleAlert size={14} />,
 };
 
 /**
@@ -353,7 +353,7 @@ export function TodayView() {
             some sozinha e as OS voltam a aparecer uma a uma. */}
         {agenda.semResponsavel.agrupado && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-sm border border-roman-primary/35 bg-roman-primary/12 p-4">
-            <UserRound size={18} className="text-roman-primary" />
+            <UserRound size={16} className="text-roman-primary" />
             <div className="min-w-[14rem] flex-1">
               <div className="font-medium text-roman-primary">
                 {agenda.semResponsavel.total} OS paradas sem responsável

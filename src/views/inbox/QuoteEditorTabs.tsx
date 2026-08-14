@@ -66,7 +66,7 @@ export function QuoteEditorTabs({ quotes, focus, onSelectFocus, onAddSlot, canAd
           onClick={onAddSlot}
           className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
         >
-          <Plus size={12} />
+          <Plus size={14} />
           Adicionar cotação
         </button>
       )}

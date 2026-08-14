@@ -53,7 +53,31 @@ for (const tela of ['Hoje', 'Caixa de Entrada', 'Gestão de OS', 'Configuraçõe
     await page.getByTitle(tela, { exact: true }).click();
     await page.waitForTimeout(1200);
 
-    const alvos = (await page.evaluate(SONDA)) as Alvo[];
+    /**
+     * Desligar animação ANTES de medir não é detalhe: é a diferença entre medir o
+     * controle e medir um quadro dele. Animação de entrada costuma escalar de 95%
+     * para 100%, e um alvo de 24px lido no meio disso reporta 22 — defeito que não
+     * existe. É a mesma armadilha que `transition-colors` armou na guarda de foco,
+     * onde o contorno era lido no ponto de partida da transição.
+     */
+    await page.addStyleTag({ content: '*{transition:none!important;animation:none!important}' });
+
+    /**
+     * E ainda assim mede até estabilizar: uma espera fixa pega a tela no meio da
+     * montagem, e controle sem conteúdo mede menos do que vai medir. Duas leituras
+     * iguais seguidas valem; se nunca estabilizar, a última vale e o teste cobra
+     * dela. Guarda que falha à toa é guarda que o time aprende a ignorar.
+     */
+    let alvos: Alvo[] = [];
+    let anterior = '';
+    for (let tentativa = 0; tentativa < 5; tentativa++) {
+      alvos = (await page.evaluate(SONDA)) as Alvo[];
+      const assinatura = JSON.stringify(alvos.map(a => a.menor));
+      if (assinatura === anterior) break;
+      anterior = assinatura;
+      await page.waitForTimeout(300);
+    }
+
     expect(alvos.length, `${tela}: nenhum controle encontrado — o teste não mediu nada`).toBeGreaterThan(3);
 
     const pequenos = alvos.filter(a => a.menor < MINIMO);

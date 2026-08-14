@@ -119,7 +119,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                 onClick={onBack}
                 className="mb-6 inline-flex items-center gap-2 text-sm text-roman-text-sub transition-colors hover:text-roman-text-main lg:mb-8"
               >
-                <ArrowLeft size={18} /> Voltar
+                <ArrowLeft size={16} /> Voltar
               </button>
             )}
 

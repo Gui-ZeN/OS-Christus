@@ -1867,7 +1867,7 @@ export function InboxView() {
                   className="hover:text-roman-danger transition-colors ml-0.5"
                   aria-label={`Remover filtro ${chip.value}`}
                 >
-                  <X size={10} />
+                  <X size={14} />
                 </button>
               </span>
             ))}
@@ -1907,9 +1907,9 @@ export function InboxView() {
               onClick={() => setShowFinalized(value => !value)}
               className="sticky bottom-0 z-10 flex w-full items-center justify-center gap-2 border-t border-roman-border bg-roman-surface px-3 py-2.5 text-xs font-medium text-roman-text-sub transition-colors hover:bg-roman-border-light hover:text-roman-text-main"
             >
-              <CheckCircle size={13} />
+              <CheckCircle size={14} />
               {showFinalized ? 'Ocultar encerradas' : `Mostrar encerradas (${finalizedInScopeCount})`}
-              <ChevronDown size={13} className={`transition-transform ${showFinalized ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`transition-transform ${showFinalized ? 'rotate-180' : ''}`} />
             </button>
           )}
         </div>
@@ -1920,7 +1920,7 @@ export function InboxView() {
         {!hasTickets ? (
           <div className="flex-1 flex items-center justify-center bg-roman-bg p-8">
             <div className="max-w-md text-center bg-roman-surface border border-roman-border rounded-sm p-8 shadow-sm">
-              <Lock size={22} className="mx-auto mb-4 text-roman-primary" />
+              <Lock size={20} className="mx-auto mb-4 text-roman-primary" />
               <h2 className="text-2xl font-serif text-roman-text-main mb-2">Nenhuma OS disponível</h2>
               <p className="text-sm text-roman-text-sub font-serif italic">
                 Este usuário não possui OS visíveis com as permissões atuais de região e sede.
@@ -2104,7 +2104,7 @@ export function InboxView() {
               {activeTicket.status === TICKET_STATUS.WAITING_PAYMENT && (
                 <div className="mt-4 rounded-sm border border-roman-primary/30 bg-roman-primary/8 px-4 py-3 text-roman-text-main">
                   <div className="flex items-start gap-3">
-                    <CheckSquare size={18} className="mt-0.5 shrink-0 text-roman-primary" />
+                    <CheckSquare size={16} className="mt-0.5 shrink-0 text-roman-primary" />
                     <div className="space-y-1">
                       <div className="text-sm font-semibold">Obra concluída e em fase financeira</div>
                       <div className="text-sm text-roman-text-sub">
@@ -2165,7 +2165,7 @@ export function InboxView() {
                       aria-label={composerView === 'min' ? 'Expandir o campo de mensagem' : 'Minimizar o campo de mensagem'}
                       className="inline-flex h-6 w-6 items-center justify-center rounded text-roman-text-sub transition-colors hover:bg-roman-surface/60 hover:text-roman-text-main"
                     >
-                      {composerView === 'min' ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      {composerView === 'min' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
                     <button
                       type="button"
@@ -2227,7 +2227,7 @@ export function InboxView() {
                               aria-label={`Remover ${email}`}
                               disabled={isClosed}
                             >
-                              <X size={12} />
+                              <X size={14} />
                             </button>
                           </span>
                         ))
@@ -2269,7 +2269,7 @@ export function InboxView() {
                             Etapa atual: <span className="font-medium text-roman-text-main">{activeTicket.status}</span>
                           </span>
                           <span className="inline-flex shrink-0 items-center gap-1 font-medium text-roman-primary">
-                            <RefreshCw size={12} /> Alterar etapa
+                            <RefreshCw size={14} /> Alterar etapa
                           </span>
                         </button>
                       ) : (
@@ -2408,9 +2408,9 @@ export function InboxView() {
                   <div className="px-4 pb-2 flex flex-wrap gap-2">
                     {replyFiles.map((file, i) => (
                       <div key={i} className="flex items-center gap-1 text-xs bg-roman-surface border border-roman-border px-2 py-1 rounded-sm text-roman-text-main">
-                        <FileText size={12} />
+                        <FileText size={14} />
                         <span className="max-w-[150px] truncate">{file.name}</span>
-                        <button onClick={() => setReplyFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:text-roman-danger" disabled={isClosed}><X size={12} /></button>
+                        <button onClick={() => setReplyFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:text-roman-danger" disabled={isClosed}><X size={14} /></button>
                       </div>
                     ))}
                   </div>
@@ -2420,9 +2420,9 @@ export function InboxView() {
                   <div className="px-4 pb-2 flex flex-wrap gap-2">
                     {inlineImages.map(att => (
                       <div key={att.id} className="flex items-center gap-1 text-xs bg-roman-primary/10 border border-roman-primary/30 px-2 py-1 rounded-sm text-roman-primary">
-                        <ImageIcon size={12} />
+                        <ImageIcon size={14} />
                         <span className="max-w-[150px] truncate">{att.name}</span>
-                        <button onClick={() => handleRemoveInlineImage(att)} className="ml-1 hover:text-roman-danger" disabled={isClosed}><X size={12} /></button>
+                        <button onClick={() => handleRemoveInlineImage(att)} className="ml-1 hover:text-roman-danger" disabled={isClosed}><X size={14} /></button>
                       </div>
                     ))}
                   </div>
@@ -3092,7 +3092,7 @@ export function InboxView() {
                 disabled={isDeletingTicket}
                 className="inline-flex items-center gap-2 rounded-sm bg-roman-danger px-4 py-2 text-sm font-medium text-roman-on-danger transition-colors hover:bg-roman-danger disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isDeletingTicket ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {isDeletingTicket ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 {isDeletingTicket ? 'Excluindo...' : 'Confirmar exclusão'}
               </button>
             </div>

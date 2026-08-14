@@ -1190,7 +1190,7 @@ export function KpiView() {
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {maiorCusto.valor.toLocaleString('pt-BR')}</div>
                 <div className="text-sm text-roman-text-sub truncate mb-4" title={maiorCusto.subject}>{maiorCusto.subject}</div>
                 <div className="flex items-center gap-2 text-xs font-medium text-roman-danger bg-roman-danger/12 w-fit px-2 py-1 rounded-sm border border-roman-danger/35">
-                  <TrendingUp size={12} /> {maiorCusto.id} • {maiorCusto.sede}
+                  <TrendingUp size={14} /> {maiorCusto.id} • {maiorCusto.sede}
                 </div>
               </div>
 

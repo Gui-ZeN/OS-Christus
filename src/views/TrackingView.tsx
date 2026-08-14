@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle, Users, Activity } from 'lucide-react';
 import { TICKET_STATUS, type TicketStatus } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { useApp } from '../context/AppContext';
@@ -595,7 +595,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
     return (
       <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center py-12 px-4 relative">
         <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-roman-text-sub hover:text-roman-text-main font-medium transition-colors">
-          <ArrowRight size={16} className="rotate-180" /> Voltar
+          <ArrowLeft size={16} /> Voltar
         </button>
         <div className="max-w-3xl w-full">
           <div className="bg-roman-surface border border-roman-border p-6 rounded-xl shadow-sm mb-6 text-center">
@@ -612,7 +612,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
   return (
     <div className="h-screen w-full bg-roman-bg overflow-y-auto flex flex-col items-center py-12 px-4 relative">
       <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-roman-text-sub hover:text-roman-text-main font-medium transition-colors">
-        <ArrowRight size={16} className="rotate-180" /> Voltar ao sistema interno
+        <ArrowLeft size={16} /> Voltar ao sistema interno
       </button>
 
       <div className="max-w-4xl w-full">

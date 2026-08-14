@@ -271,7 +271,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       {(data?.droppedInbound?.length || 0) > 0 && (
         <section className={`mb-6 p-5 ${embedded ? 'rounded-xl border border-roman-primary/35 bg-roman-primary/12' : 'rounded-sm border border-roman-primary/35 bg-roman-primary/12'}`}>
           <h2 className="mb-1 flex items-center gap-2 text-lg font-serif text-roman-text-main">
-            <MailQuestion size={18} className="text-roman-primary" />
+            <MailQuestion size={16} className="text-roman-primary" />
             Entraram e não viraram OS
           </h2>
           <p className="mb-4 text-sm text-roman-text-sub">
@@ -294,12 +294,12 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
 
       <section className={`p-5 ${embedded ? 'rounded-xl border border-roman-border bg-roman-surface' : 'rounded-sm border border-roman-border bg-roman-surface'}`}>
         <h2 className="mb-4 flex items-center gap-2 text-lg font-serif text-roman-text-main">
-          <Mail size={18} />
+          <Mail size={16} />
           Últimas falhas
         </h2>
         {(data?.recentErrors.length || 0) === 0 ? (
           <div className="flex items-center justify-center gap-2 py-8 text-center font-serif italic text-roman-text-sub">
-            <CheckCircle2 size={18} className="text-roman-success" />
+            <CheckCircle2 size={16} className="text-roman-success" />
             Nenhuma falha recente.
           </div>
         ) : (

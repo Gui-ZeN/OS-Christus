@@ -189,7 +189,7 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
             <div className="flex flex-wrap gap-2">
               {files.map((file, index) => (
                 <span key={`${file.name}-${file.size}-${index}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-[11px] text-roman-text-main">
-                  <FileText size={12} />
+                  <FileText size={14} />
                   <span className="max-w-[220px] truncate">{file.name}</span>
                   <button
                     type="button"
@@ -197,7 +197,7 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
                     className="text-roman-text-sub hover:text-roman-danger"
                     aria-label={`Remover arquivo ${file.name}`}
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
                 </span>
               ))}

@@ -69,7 +69,7 @@ export function TempoEmFortaleza({ osDeAgua, aoFiltrarAgua }: Props) {
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-roman-primary/50 bg-roman-primary/10 px-3.5 py-2">
-      <CloudRain size={22} className="shrink-0 text-roman-primary" />
+      <CloudRain size={20} className="shrink-0 text-roman-primary" />
 
       <div className="leading-tight">
         <div className="font-serif text-lg text-roman-text-main">

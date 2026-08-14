@@ -201,7 +201,7 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
                 modo === 'interna' ? 'bg-roman-sidebar hover:bg-roman-sidebar-light' : 'bg-roman-primary hover:bg-roman-primary/90'
               }`}
             >
-              {enviando && <Loader2 size={15} className="animate-spin" />}
+              {enviando && <Loader2 size={14} className="animate-spin" />}
               {modo === 'interna' ? 'Registrar nota' : 'Enviar ao solicitante'}
             </button>
           </div>
@@ -271,14 +271,14 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
                 key={`${arquivo.name}-${i}`}
                 className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-xs text-roman-text-sub"
               >
-                <Paperclip size={11} />
+                <Paperclip size={14} />
                 {arquivo.name}
                 <button
                   type="button"
                   onClick={() => setArquivos(prev => prev.filter((_, idx) => idx !== i))}
                   className="ml-0.5 hover:text-roman-danger"
                 >
-                  <X size={11} />
+                  <X size={14} />
                 </button>
               </span>
             ))}
@@ -287,7 +287,7 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
 
         <div className="flex flex-wrap items-center gap-2">
           <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main">
-            <Paperclip size={13} />
+            <Paperclip size={14} />
             Anexar
             <input
               type="file"
@@ -314,7 +314,7 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
         </div>
 
         <div className="flex flex-wrap items-center gap-2 rounded-sm border border-roman-border bg-roman-bg p-3">
-          <Hourglass size={15} className="text-roman-text-sub" />
+          <Hourglass size={14} className="text-roman-text-sub" />
           {aguardaDesde ? (
             <>
               <span className="flex-1 text-sm text-roman-text-main">

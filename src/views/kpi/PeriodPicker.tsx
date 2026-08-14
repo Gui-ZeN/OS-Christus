@@ -80,7 +80,7 @@ export function PeriodPicker({
         onClick={() => setOpen(o => !o)}
         className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary/50"
       >
-        <Calendar size={15} className="text-roman-primary" />
+        <Calendar size={14} className="text-roman-primary" />
         <span className="whitespace-nowrap">{label}</span>
         <ChevronDown size={14} className={`text-roman-text-sub transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>

@@ -407,7 +407,7 @@ export function OsBoardView() {
                         onClick={() => setResponsavelDe(ticket.id)}
                         className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-1 text-left hover:bg-roman-primary/10 ${ticket.responsible?.name ? 'text-roman-text-main' : 'text-roman-text-sub italic'}`}
                       >
-                        <UserRound size={13} />
+                        <UserRound size={14} />
                         {ticket.responsible?.name || 'definir'}
                       </button>
                     ) : (
@@ -424,7 +424,7 @@ export function OsBoardView() {
                         className="mt-1 flex w-fit items-center gap-1 rounded-sm bg-roman-primary/12 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-roman-text-main"
                         title="A OS não avança enquanto isto não for resolvido. Use o botão Etapa."
                       >
-                        <TriangleAlert size={11} />
+                        <TriangleAlert size={14} />
                         {bloqueioParaAvancar(ticket)?.motivo}
                       </div>
                     )}
@@ -474,7 +474,7 @@ export function OsBoardView() {
                         onClick={() => setConversaDe(ticket.id)}
                         className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
                       >
-                        <MessageSquare size={13} /> Conversa
+                        <MessageSquare size={14} /> Conversa
                       </button>
                       {podeTrocarEtapa && (
                         <button
@@ -482,7 +482,7 @@ export function OsBoardView() {
                           onClick={() => setEtapaDe(ticket.id)}
                           className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
                         >
-                          <ArrowRightLeft size={13} /> Etapa
+                          <ArrowRightLeft size={14} /> Etapa
                         </button>
                       )}
                     </div>

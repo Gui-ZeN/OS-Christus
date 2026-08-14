@@ -24,7 +24,7 @@ function MessageBodyComponent({ text }: { text: string }) {
           >
             <span className="leading-none tracking-widest" aria-hidden="true">&middot;&middot;&middot;</span>
             {showQuoted ? 'Ocultar conversa anterior' : 'Mostrar conversa anterior'}
-            <ChevronDown size={12} className={`transition-transform ${showQuoted ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`transition-transform ${showQuoted ? 'rotate-180' : ''}`} />
           </button>
           {showQuoted && (
             <div className="mt-2 whitespace-pre-line break-words border-l-2 border-roman-border pl-3 text-[11px] leading-relaxed text-roman-text-sub">

@@ -104,6 +104,42 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### Ícones: a régua, e o teste que importava mais que ela
+
+Último item da fila, e o próprio Sol o colocou por último: *"convergir significados
+importa mais que convergir números"*. Então a auditoria começou pelo significado.
+
+**A mesma ação usa sempre o mesmo ícone?** Quase. O cruzamento rótulo × ícone
+acusou 13 pares, mas **12 eram falso positivo meu**: o `Loader2` é o giro de
+"carregando" do *mesmo* botão, não um segundo desenho para a mesma ação. Sobrou um
+par real — `Plus` e `PlusCircle`, ambos querendo dizer "adicionar". Unificados.
+
+**O mesmo ícone significa sempre a mesma coisa?** O caso que mais assustava era
+`ArrowRight` rotulado "Voltar" no acompanhamento público. Fui ver: é
+`<ArrowRight className="rotate-180" />` — girado, **desenha uma seta para a
+esquerda**. Não era defeito visual, era vocabulário redundante no código, com
+`ArrowLeft` já em uso para "Voltar" no resto do app. Trocado pelo ícone certo.
+
+**Os tamanhos, aí sim.** De 15 distintos para 6:
+
+| | antes | depois |
+|---|---|---|
+| interface | 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24 | **14 · 16 · 20** |
+| ilustração | 28, 32, 64 | 28 · 32 · 64 *(mantidos)* |
+
+Os grandes ficam por recomendação explícita do Sol — "não force os ícones de 64px a
+virar 20px só para satisfazer a contagem". São estado vazio e cabeçalho de modal,
+categoria separada.
+
+O risco real era a **tabela da Gestão**, que cabe com folga zero em 1280px e tinha
+ícones de 12 e 13px crescendo para 14. Medido depois: **1209px, sobra 0, sem
+rolagem horizontal** — igual a antes.
+
+De quebra, a guarda de alvo de clique acusou instabilidade na Caixa de Entrada e
+passou no retry. Isolada, 4 de 4 verdes: a espera fixa media a tela no meio da
+montagem, e um controle ainda sem conteúdo mede menos do que vai medir. Agora ela
+lê até estabilizar. Guarda que falha à toa é guarda que o time aprende a ignorar.
+
 ### Piloto de peso tipográfico — e uma correção ao que eu disse ao Sol
 
 O briefing afirmava que "a interface inteira tem um peso só", a partir da contagem

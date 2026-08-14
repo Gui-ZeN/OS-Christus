@@ -160,7 +160,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
             disabled={!podeSalvar}
             className="inline-flex items-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60"
           >
-            {salvando && <Loader2 size={15} className="animate-spin" />}
+            {salvando && <Loader2 size={14} className="animate-spin" />}
             Trocar etapa
           </button>
         </div>

@@ -562,7 +562,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
               <details className="group rounded-sm border border-roman-border bg-roman-bg">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-medium text-roman-text-main">
                   Classificação opcional
-                  <ChevronDown size={17} className="shrink-0 text-roman-text-sub transition-transform group-open:rotate-180" />
+                  <ChevronDown size={16} className="shrink-0 text-roman-text-sub transition-transform group-open:rotate-180" />
                 </summary>
                 <div className="grid grid-cols-1 gap-4 border-t border-roman-border px-4 py-4 md:grid-cols-2">
                   <div>

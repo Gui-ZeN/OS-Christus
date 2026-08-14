@@ -263,7 +263,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
         <div className={`bg-roman-surface border border-roman-border overflow-hidden ${embedded ? 'rounded-xl shadow-sm' : 'rounded-sm shadow-sm'}`}>
           {loading ? (
             <div className="p-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={16} className="animate-spin" />
               Carregando usuários...
             </div>
           ) : (

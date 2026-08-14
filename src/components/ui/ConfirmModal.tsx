@@ -100,7 +100,7 @@ export function ConfirmModal({
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <div className="flex items-start gap-4">
             <div className={`p-2 rounded-full shrink-0 ${isDestructive ? 'bg-roman-danger/12 text-roman-danger' : 'bg-roman-primary/10 text-roman-primary'}`}>
-              <AlertCircle size={24} />
+              <AlertCircle size={20} />
             </div>
             <div className="flex-1">
               <h3 id="confirm-modal-title" className="text-lg font-serif font-medium text-roman-text-main mb-2">{title}</h3>

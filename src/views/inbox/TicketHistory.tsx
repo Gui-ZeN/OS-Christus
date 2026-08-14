@@ -71,7 +71,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                 <div className="max-w-[92%] rounded-full border border-roman-border bg-roman-border-light/50 px-3 py-1 text-roman-text-sub xl:max-w-[86%]">
                   <div className="flex items-center justify-center gap-2 text-center">
                     <div className="flex min-w-0 items-center gap-1.5 font-serif italic text-[11px] md:text-[11px]">
-                      <Clock size={11} />
+                      <Clock size={14} />
                       <span className="truncate">{displayText}</span>
                     </div>
                     <div className="shrink-0 text-[11px] font-sans text-roman-text-sub">
@@ -190,7 +190,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                             })}
                             className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface/78 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
                           >
-                            <FileText size={12} />
+                            <FileText size={14} />
                             <span className="max-w-[180px] truncate">{attachment.title}</span>
                           </button>
                         ))}

@@ -29,7 +29,7 @@ export function QuoteEditorCardHeader({ i, canRemoveSlot, attachment, handleRemo
                 </button>
               )}
               <label className="text-xs text-roman-primary hover:underline flex items-center gap-1 cursor-pointer">
-                <Paperclip size={12} /> {attachment ? 'Trocar PDF' : 'Anexar PDF'}
+                <Paperclip size={14} /> {attachment ? 'Trocar PDF' : 'Anexar PDF'}
                 <input
                   type="file"
                   accept=".pdf"

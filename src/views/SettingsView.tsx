@@ -303,7 +303,7 @@ function IntegrationStatusCard({
           <div className="text-base font-serif text-roman-text-main mt-1">{check.ok ? 'Operacional' : 'Atenção'}</div>
         </div>
         <div className={`shrink-0 ${check.ok ? 'text-roman-success' : 'text-roman-primary'}`}>
-          {check.ok ? <ShieldCheck size={18} /> : <TriangleAlert size={18} />}
+          {check.ok ? <ShieldCheck size={16} /> : <TriangleAlert size={16} />}
         </div>
       </div>
       <p className="text-sm text-roman-text-sub">{check.detail}</p>
@@ -920,7 +920,7 @@ export function SettingsView() {
                         : 'border-roman-border bg-roman-bg text-roman-text-sub hover:border-roman-primary hover:bg-roman-bg hover:text-roman-text-main'
                     }`}
                   >
-                    <Icon size={15} />
+                    <Icon size={14} />
                     {meta.navLabel}
                   </button>
                 );
@@ -952,7 +952,7 @@ export function SettingsView() {
           </div>
             {loading ? (
               <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
-                <Loader2 size={18} className="animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
                 Carregando configurações...
               </div>
             ) : (
@@ -1008,7 +1008,7 @@ export function SettingsView() {
 
                     {catalogLoading ? (
                       <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
-                        <Loader2 size={18} className="animate-spin" />
+                        <Loader2 size={16} className="animate-spin" />
                         Carregando estrutura...
                       </div>
                     ) : (
@@ -1027,7 +1027,7 @@ export function SettingsView() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={14} />Excluir</button>
                                 </div>
                               </div>
                             ))}
@@ -1064,7 +1064,7 @@ export function SettingsView() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId, aliases: (item.aliases || []).join(', ') })} className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={14} />Excluir</button>
                                 </div>
                               </div>
                             ))}
@@ -1231,11 +1231,11 @@ export function SettingsView() {
                           >
                             {templateSaving ? (
                               <>
-                                <Loader2 size={15} className="animate-spin" /> Salvando...
+                                <Loader2 size={14} className="animate-spin" /> Salvando...
                               </>
                             ) : templateSaved ? (
                               <>
-                                <CheckCircle size={15} /> Template salvo
+                                <CheckCircle size={14} /> Template salvo
                               </>
                             ) : (
                               'Salvar template'
@@ -1315,7 +1315,7 @@ export function SettingsView() {
 
                     {catalogLoading ? (
                       <div className="py-12 text-center text-roman-text-sub flex items-center justify-center gap-3">
-                        <Loader2 size={18} className="animate-spin" />
+                        <Loader2 size={16} className="animate-spin" />
                         Carregando catálogo...
                       </div>
                     ) : (
@@ -2104,7 +2104,7 @@ export function SettingsView() {
 
                     {integrationsLoading && (
                       <div className="py-10 text-center text-roman-text-sub flex items-center justify-center gap-3">
-                        <Loader2 size={18} className="animate-spin" />
+                        <Loader2 size={16} className="animate-spin" />
                         Validando integrações...
                       </div>
                     )}

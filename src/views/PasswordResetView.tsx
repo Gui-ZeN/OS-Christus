@@ -114,12 +114,12 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
 
             {loading ? (
               <div className="flex items-center gap-3 rounded-xl border border-roman-border bg-roman-bg px-4 py-5 text-roman-text-sub">
-                <Loader2 size={18} className="animate-spin" /> Validando link de acesso...
+                <Loader2 size={16} className="animate-spin" /> Validando link de acesso...
               </div>
             ) : success ? (
               <div className="rounded-xl border border-roman-success/35 bg-roman-success/12 px-5 py-5 text-roman-success">
                 <div className="flex items-center gap-2 font-semibold">
-                  <CheckCircle size={18} /> Senha definida com sucesso
+                  <CheckCircle size={16} /> Senha definida com sucesso
                 </div>
                 <p className="mt-2 text-sm">Agora você já pode entrar no sistema com seu e-mail e a nova senha.</p>
                 <button
@@ -178,7 +178,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                   disabled={saving || !password || !confirmPassword}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-5 py-4 text-lg font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? <Loader2 size={18} className="animate-spin" /> : null}
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : null}
                   {saving ? 'Salvando...' : 'Definir senha'}
                 </button>
               </form>

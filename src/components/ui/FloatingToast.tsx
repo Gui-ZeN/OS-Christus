@@ -24,7 +24,7 @@ export function FloatingToast({ message, type }: FloatingToastProps) {
         aria-live="polite"
       >
         <div className="flex items-center gap-3">
-          {isError ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
+          {isError ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
           <span className="text-sm font-medium">{message}</span>
         </div>
       </div>

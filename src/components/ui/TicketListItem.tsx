@@ -82,7 +82,7 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
                   : 'text-roman-text-sub'
             }`}
           >
-            {normalizedPriority === 'Urgente' && <AlertCircle size={10} />}
+            {normalizedPriority === 'Urgente' && <AlertCircle size={14} />}
             {normalizedPriority}
           </span>
         )}

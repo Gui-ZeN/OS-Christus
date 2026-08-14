@@ -189,7 +189,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                   aria-label="Cadastrar tag compartilhada"
                   title="Cadastrar tag compartilhada"
                 >
-                  <Plus size={12} />
+                  <Plus size={14} />
                 </button>
               </div>
               <input

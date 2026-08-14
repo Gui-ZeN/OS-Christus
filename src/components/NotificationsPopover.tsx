@@ -178,7 +178,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
         aria-label={`Notificações${unreadCount ? `, ${unreadCount} não lidas` : ''}`}
         aria-expanded={isOpen}
       >
-        <Bell size={18} />
+        <Bell size={16} />
         {unreadCount > 0 && (
           <span className="absolute right-0 top-0 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-roman-danger px-1 text-[9px] font-bold leading-none text-roman-on-danger">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -219,7 +219,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
                 title="Atualizar notificações"
                 aria-label="Atualizar notificações"
               >
-                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
           </header>
@@ -233,7 +233,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
           <div className="min-h-0 overflow-y-auto">
             {loading && notifications.length === 0 ? (
               <div className="flex min-h-32 items-center justify-center text-roman-text-sub">
-                <Loader2 size={18} className="animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
               </div>
             ) : notifications.length === 0 ? (
               <p className="px-4 py-10 text-center font-serif text-sm italic text-roman-text-sub">
@@ -263,7 +263,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
                           {formatDistanceToNowSafe(notification.time)}
                         </span>
                       </span>
-                      {isPending && <Loader2 size={15} className="mt-1 shrink-0 animate-spin text-roman-primary" />}
+                      {isPending && <Loader2 size={14} className="mt-1 shrink-0 animate-spin text-roman-primary" />}
                     </button>
                     <button
                       type="button"

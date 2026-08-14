@@ -532,7 +532,7 @@ export default function App() {
               aria-label="Temas"
               aria-expanded={showThemeMenu}
             >
-              <Palette size={18} />
+              <Palette size={16} />
             </button>
             {showThemeMenu && (
               <div className="fixed left-[4.25rem] bottom-24 z-[220] w-64 rounded-xl border border-roman-border bg-roman-surface p-2.5 shadow-2xl">
@@ -559,7 +559,7 @@ export default function App() {
             )}
           </div>
           <button onClick={() => { void logout().finally(() => navigateTo(VIEWS.LANDING)); }} className="flex items-center justify-center text-white/70 hover:text-white transition-colors py-2" title="Sair" aria-label="Sair">
-            <LogOut size={18} />
+            <LogOut size={16} />
           </button>
           <div className="flex items-center justify-center rounded-xl border border-white/10 bg-roman-sidebar-light px-1.5 py-1.5" title={`Logado como: ${currentUser?.name || currentUserEmail || 'Usuário'}`}>
             <div className="w-8 h-8 rounded-full bg-roman-sidebar border border-roman-primary/30 flex items-center justify-center text-roman-primary font-serif font-medium text-xs">
@@ -573,7 +573,7 @@ export default function App() {
         {ticketsError && (
           <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-xs text-roman-text-main md:px-4">
             <div className="flex min-w-0 items-center gap-2">
-              <AlertTriangle size={15} className="shrink-0" />
+              <AlertTriangle size={14} className="shrink-0" />
               <span className="truncate">
                 Não foi possível atualizar os tickets. Os dados já carregados foram mantidos.
               </span>
@@ -583,7 +583,7 @@ export default function App() {
               onClick={() => void refreshTickets()}
               className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-sm border border-roman-primary/35 bg-roman-surface px-2.5 font-medium hover:bg-roman-primary/12"
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={14} />
               Tentar novamente
             </button>
           </div>
@@ -628,7 +628,7 @@ export default function App() {
                   <h3 className="font-serif text-lg font-medium">{attachmentPreview.title}</h3>
                 </div>
                 <button onClick={closeAttachment} className="text-white/70 hover:text-white transition-colors">
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
               {attachmentItems.length > 1 && (
@@ -659,7 +659,7 @@ export default function App() {
               <div ref={attachmentContentRef} className="flex-1 bg-roman-bg p-8 overflow-auto">
                 {attachmentResolveLoading ? (
                   <div className="flex h-full items-center justify-center gap-2 text-sm text-roman-text-sub">
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                     Carregando anexo...
                   </div>
                 ) : attachmentPreview.type === 'image' && attachmentItems.some(item => item.url) ? (

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, Mail, PlusCircle, Trash2, X } from 'lucide-react';
+import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, Mail, Plus, Trash2, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -1317,7 +1317,7 @@ export function FinanceView() {
                             onClick={() => openAttachment(`Nota Fiscal: ${vendor}`, 'pdf')}
                             className="inline-flex items-center justify-center gap-2 rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
                           >
-                            <FileText size={15} /> Ver NF / Recibo
+                            <FileText size={14} /> Ver NF / Recibo
                           </button>
                           <button
                             type="button"
@@ -1341,7 +1341,7 @@ export function FinanceView() {
                             }}
                             className="inline-flex items-center justify-center gap-2 rounded-full border border-roman-primary/30 bg-roman-primary/5 px-3 py-2 text-sm font-medium text-roman-primary transition-colors hover:bg-roman-primary/10"
                           >
-                            <PlusCircle size={15} /> Atualizar andamento
+                            <Plus size={14} /> Atualizar andamento
                           </button>
                         </div>
                       </div>
@@ -1352,7 +1352,7 @@ export function FinanceView() {
                     <FinanceSection
                       title="Andamento da obra"
                       description="Execução acumulada e marcos liberados."
-                      icon={<ClipboardList size={15} />}
+                      icon={<ClipboardList size={14} />}
                     >
                       <div className="mb-3 flex items-center justify-between text-xs text-roman-text-sub">
                         <span>Fluxo definido</span>
@@ -1400,14 +1400,14 @@ export function FinanceView() {
                     <FinanceSection
                       title="Atualizações de andamento"
                       description="Cada avanço registra um novo lançamento para o financeiro."
-                      icon={<PlusCircle size={15} />}
+                      icon={<Plus size={14} />}
                     >
                       <div className="mb-3 flex items-center justify-end">
                         <button
                           onClick={() => setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }))}
                           className="text-xs font-medium text-roman-primary hover:underline flex items-center gap-1"
                         >
-                          <PlusCircle size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar atualização' : 'Atualizar andamento'}
+                          <Plus size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar atualização' : 'Atualizar andamento'}
                         </button>
                       </div>
 
@@ -1527,7 +1527,7 @@ export function FinanceView() {
                                 <div className="flex flex-wrap gap-2">
                                   {measurementDraft.reportFiles.map((file, index) => (
                                     <span key={`${file.name}-${file.size}-${index}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main">
-                                      <FileText size={12} />
+                                      <FileText size={14} />
                                       <span className="max-w-[220px] truncate">{file.name}</span>
                                       <button
                                         type="button"
@@ -1539,7 +1539,7 @@ export function FinanceView() {
                                         className="text-roman-text-sub hover:text-roman-danger"
                                         aria-label={`Remover arquivo ${file.name}`}
                                       >
-                                        <X size={12} />
+                                        <X size={14} />
                                       </button>
                                     </span>
                                   ))}
@@ -1603,7 +1603,7 @@ export function FinanceView() {
                                       )}
                                       className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
                                     >
-                                      <FileText size={12} />
+                                      <FileText size={14} />
                                       <span className="max-w-[220px] truncate">{attachment.name || 'Anexo'}</span>
                                     </button>
                                   ))}
@@ -1619,7 +1619,7 @@ export function FinanceView() {
                       <FinanceSection
                         title="Escopo contratado"
                         description="Itens aprovados na cotação vencedora."
-                        icon={<FileText size={15} />}
+                        icon={<FileText size={14} />}
                       >
                         <div className="space-y-2">
                           {contract.items.map(item => (
@@ -1644,7 +1644,7 @@ export function FinanceView() {
                     <FinanceSection
                       title="Previsto x pago"
                       description="Conciliação entre contrato, plano e pagamentos."
-                      icon={<DollarSign size={15} />}
+                      icon={<DollarSign size={14} />}
                     >
                       <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${
                         remainingValue > 0
@@ -1685,7 +1685,7 @@ export function FinanceView() {
                     <FinanceSection
                       title="Fluxo de pagamento"
                       description="Os lançamentos surgem conforme os registros de valor bruto no andamento."
-                      icon={<DollarSign size={15} />}
+                      icon={<DollarSign size={14} />}
                     >
                       <div className="mb-3 text-xs text-roman-text-sub">
                         O financeiro recebe um novo lançamento toda vez que o gestor registra valor bruto no andamento da obra.
@@ -1928,19 +1928,19 @@ export function FinanceView() {
                                   className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {processingId === `${ticket.id}:${payment.id}` ? (
-                                    <><Loader2 size={15} className="animate-spin" /> Processando...</>
+                                    <><Loader2 size={14} className="animate-spin" /> Processando...</>
                                   ) : payment.status === 'paid' ? (
-                                    <><CheckCircle size={15} /> Pago</>
+                                    <><CheckCircle size={14} /> Pago</>
                                   ) : payment.status !== 'approved' ? (
-                                    <><DollarSign size={15} /> Aguardando avanço</>
+                                    <><DollarSign size={14} /> Aguardando avanço</>
                                   ) : canConfirmPayment ? (
-                                    <><Mail size={15} /> Disparar Email</>
+                                    <><Mail size={14} /> Disparar Email</>
                                   ) : isFinalInstallment && ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ? (
-                                    <><DollarSign size={15} /> Aguardando solicitante</>
+                                    <><DollarSign size={14} /> Aguardando solicitante</>
                                   ) : isFinalInstallment && ticket.status === TICKET_STATUS.IN_PROGRESS ? (
-                                    <><DollarSign size={15} /> Aguardando conclusão</>
+                                    <><DollarSign size={14} /> Aguardando conclusão</>
                                   ) : (
-                                    <><DollarSign size={15} /> Preencher checklist</>
+                                    <><DollarSign size={14} /> Preencher checklist</>
                                   )}
                                 </button>
                               </div>
@@ -1961,7 +1961,7 @@ export function FinanceView() {
                     <FinanceSection
                       title="Encerramento e garantia"
                       description="Checklist final, laudos e período de garantia."
-                      icon={<CheckCircle size={15} />}
+                      icon={<CheckCircle size={14} />}
                     >
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -2040,7 +2040,7 @@ export function FinanceView() {
                       <FinanceSection
                         title="Documentos do encerramento"
                         description="Laudos, evidências e anexos da OS."
-                        icon={<FileText size={15} />}
+                        icon={<FileText size={14} />}
                       >
                         <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-4">
                           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -2158,11 +2158,11 @@ export function FinanceView() {
                 className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {paymentEmailModal.isSending ? (
-                  <><Loader2 size={15} className="animate-spin" /> Enviando...</>
+                  <><Loader2 size={14} className="animate-spin" /> Enviando...</>
                 ) : paymentEmailModal.sendFeedbackType === 'success' ? (
-                  <><CheckCircle size={15} /> Enviado</>
+                  <><CheckCircle size={14} /> Enviado</>
                 ) : (
-                  <><Mail size={15} /> Enviar Email e Confirmar</>
+                  <><Mail size={14} /> Enviar Email e Confirmar</>
                 )}
               </button>
             </div>
@@ -2237,7 +2237,7 @@ export function FinanceView() {
                       className="text-roman-danger hover:text-roman-danger transition-colors flex-shrink-0 disabled:opacity-50"
                       aria-label={`Remover ${email}`}
                     >
-                      <X size={15} />
+                      <X size={14} />
                     </button>
                   </div>
                 ))}
@@ -2279,7 +2279,7 @@ export function FinanceView() {
                   disabled={paymentEmailModal.isSending || !paymentEmailModal.newRecipient.trim().includes('@')}
                   className="flex-shrink-0 px-3 py-2 border border-roman-border rounded-sm text-sm text-roman-text-main hover:bg-roman-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                 >
-                  <PlusCircle size={15} /> Adicionar
+                  <Plus size={14} /> Adicionar
                 </button>
               </div>
             </div>

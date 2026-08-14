@@ -120,7 +120,7 @@ export function ResponsavelModal({ ticketId, onClose }: { ticketId: string; onCl
             disabled={!mudou || salvando}
             className="inline-flex items-center gap-2 rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-sidebar-light disabled:opacity-60"
           >
-            {salvando && <Loader2 size={15} className="animate-spin" />}
+            {salvando && <Loader2 size={14} className="animate-spin" />}
             Salvar
           </button>
         </div>
@@ -135,7 +135,7 @@ export function ResponsavelModal({ ticketId, onClose }: { ticketId: string; onCl
 
         {carregando ? (
           <div className="flex items-center gap-2 py-4 text-sm text-roman-text-sub">
-            <Loader2 size={15} className="animate-spin" /> Carregando pessoas…
+            <Loader2 size={14} className="animate-spin" /> Carregando pessoas…
           </div>
         ) : (
           <label className="block">

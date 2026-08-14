@@ -25,7 +25,7 @@ export function AdditiveReferenceCard({ expanded, onToggle, approvedQuote }: Add
           onClick={onToggle}
           className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1 text-xs font-medium text-roman-text-main hover:bg-roman-bg"
         >
-          <ChevronDown size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
           {expanded ? 'Recolher' : 'Expandir'}
         </button>
       </div>
