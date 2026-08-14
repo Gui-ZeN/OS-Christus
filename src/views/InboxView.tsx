@@ -2214,6 +2214,21 @@ export function InboxView() {
                   </div>
                 )}
 
+                {/* QUEM NÃO PODE TROCAR ETAPA PRECISA SABER DISSO.
+                    O controle simplesmente não era renderizado, e 18 dos 28 usuários
+                    cadastrados são `Usuario` — coordenadores de sede, justamente quem
+                    conclui o serviço. Eles abriam a OS, não achavam como encerrar e
+                    concluíam que o sistema estava quebrado: foi esse o relato de
+                    13/08 ("ainda não estamos conseguindo alterar os status").
+                    Ausência silenciosa é indistinguível de defeito. */}
+                {replyMode === 'internal' && !canManageStatus && (
+                  <div className="border-b border-roman-border/50 bg-roman-bg px-3 py-2 text-xs text-roman-text-sub">
+                    Etapa atual: <span className="font-medium text-roman-text-main">{activeTicket.status}</span>
+                    {' — '}seu acesso permite acompanhar e responder. Quem altera a etapa é a Gestão;
+                    escreva na conversa que o serviço foi concluído e ela encerra.
+                  </div>
+                )}
+
                 {replyMode === 'internal' && canManageStatus && (() => {
                   const hasStageChange = Boolean(statusDraft) && statusDraft !== activeTicket.status;
                   const stageControlsVisible = showStageControls || hasStageChange;
