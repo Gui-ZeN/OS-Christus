@@ -104,6 +104,38 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### Piloto de peso tipográfico — e uma correção ao que eu disse ao Sol
+
+O briefing afirmava que "a interface inteira tem um peso só", a partir da contagem
+de classes: 499 `font-medium` contra 1 `font-normal`. **Isso estava errado.** Contei
+classe, não renderização — o corpo sem classe herda 400 do `body`. Medido na tela:
+
+| | Hoje | Caixa de Entrada |
+|---|---|---|
+| sans 400 (corpo) | 49 | 30 |
+| sans 500 (rótulo, controle) | 61 | 31 |
+| sans 600 (ênfase) | 21 | 22 |
+| serifa 600 (título) | 6 | 36 |
+
+Os quatro papéis que o Sol propôs já existiam. O defeito não era a falta de sistema,
+era **onde o peso estava**:
+
+- **Na tela Hoje, o item mais pesado do cartão era o menos importante.** O comentário
+  do código diz "a AÇÃO é o título, o assunto vira contexto embaixo" — e o título
+  vinha em 500 enquanto o número da OS, na linha de contexto, vinha em 600. O código
+  contradizia o próprio comentário. Título → 600; número → 500 (ele já se distingue
+  por fonte monoespaçada *e* cor, o 600 era um terceiro sinal para o mesmo fim).
+- **Na Caixa de Entrada, o 600 da seleção competia com um 600 permanente.** O nome do
+  solicitante estava sempre em 600, e o assunto só chegava a 600 quando o item estava
+  aberto — então a marca de "é este" nascia disputando atenção. Solicitante → 500.
+
+Resultado medido: na Hoje, o que está em 600 deixou de ser número de OS e passou a
+ser **título de ação**. Na Caixa de Entrada, sans 600 caiu de **22 para 1** — e esse
+um é o nome do autor de uma mensagem na conversa, que é ênfase legítima.
+
+Nenhuma das 499 ocorrências foi substituída em massa: o Sol pediu piloto nas duas
+telas mais usadas antes de mexer no resto, e o piloto mostrou que a régua já existe.
+
 ### Algarismos tabulares e alvo de clique
 
 Dois itens da fila do Sol, os dois decididos por medição.

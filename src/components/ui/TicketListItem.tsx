@@ -55,7 +55,11 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
             aria-hidden="true"
             title={isNew ? 'Nova OS — aguardando triagem' : 'OS em andamento'}
           />
-          <span className="truncate text-sm font-semibold text-roman-text-main 2xl:text-base">{normalizedRequester}</span>
+          {/* 500, não 600. O 600 desta lista tem UM emprego: marcar qual OS está
+              aberta (o assunto, logo abaixo). Com o solicitante sempre em 600, o peso
+              da seleção competia com um que estava lá o tempo todo, e a marca de
+              "é este que você abriu" ficava mais fraca do que devia. */}
+          <span className="truncate text-sm font-medium text-roman-text-main 2xl:text-base">{normalizedRequester}</span>
         </div>
         <span className="whitespace-nowrap text-[11px] font-serif italic text-roman-text-sub">
           {formatDateTimeSafe(time)}

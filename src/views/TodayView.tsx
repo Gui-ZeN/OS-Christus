@@ -488,8 +488,12 @@ function Cartao({
         className="min-w-0 cursor-pointer rounded-sm focus:outline-none focus:ring-1 focus:ring-roman-primary"
       >
         {/* A AÇÃO é o título, não o assunto da OS: a tela responde "o que fazer",
-            e o assunto vira contexto embaixo. */}
-        <div className="font-medium text-roman-text-main">
+            e o assunto vira contexto embaixo.
+
+            O peso passou de 500 para 600 porque o código contradizia este comentário:
+            medido, o número da OS — que é contexto, na linha de baixo — vinha em 600 e
+            o título em 500. O item mais pesado do cartão era o menos importante. */}
+        <div className="font-semibold text-roman-text-main">
           {suspensao
             ? SUSPENSION_REASON_LABEL[suspensao.reason]
             : acao?.what || (acao?.kind && ATTENTION_KIND_LABEL[acao.kind]) || 'Definir a próxima ação'}
@@ -503,7 +507,10 @@ function Cartao({
           </div>
         )}
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-roman-text-sub">
-          <span className="font-mono font-semibold text-roman-text-main">{ticket.id}</span>
+          {/* Já se distingue por DUAS coisas — a fonte monoespaçada e a cor principal
+              contra o cinza do resto da linha. O 600 era um terceiro sinal para o
+              mesmo fim, e ele roubava a ênfase do título. */}
+          <span className="font-mono font-medium text-roman-text-main">{ticket.id}</span>
           <span>· {ticket.sede || 'sem sede'}</span>
           <span className="truncate">· {repairMojibake(ticket.subject)}</span>
           {suspensao?.note && <span className="truncate">· {suspensao.note}</span>}
