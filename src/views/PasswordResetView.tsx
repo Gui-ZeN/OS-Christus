@@ -125,7 +125,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 <button
                   type="button"
                   onClick={onBack}
-                  className="mt-5 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover"
+                  className="mt-5 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover"
                 >
                   Ir para login
                 </button>
@@ -176,7 +176,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 <button
                   type="submit"
                   disabled={saving || !password || !confirmPassword}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-5 py-4 text-lg font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-5 py-4 text-lg font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? <Loader2 size={18} className="animate-spin" /> : null}
                   {saving ? 'Salvando...' : 'Definir senha'}

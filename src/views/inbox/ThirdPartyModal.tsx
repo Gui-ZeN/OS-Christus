@@ -79,7 +79,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
               onClick={() => onSelectTag('')}
               className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                 !thirdPartyTag
-                  ? 'border-roman-primary bg-roman-primary text-white'
+                  ? 'border-roman-primary bg-roman-primary text-roman-on-primary'
                   : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
               }`}
               disabled={isSending || !canEdit}
@@ -93,7 +93,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                 onClick={() => onSelectTag(tag)}
                 className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                   thirdPartyTag === tag
-                    ? 'border-roman-primary bg-roman-primary text-white'
+                    ? 'border-roman-primary bg-roman-primary text-roman-on-primary'
                     : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                 }`}
                 disabled={isSending || !canEdit}
@@ -214,7 +214,7 @@ export function ThirdPartyModal(props: ThirdPartyModalProps) {
                         onClick={() => onToggleNewTag(tag)}
                         className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                           selected
-                            ? 'border-roman-primary bg-roman-primary text-white'
+                            ? 'border-roman-primary bg-roman-primary text-roman-on-primary'
                             : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                         }`}
                       >

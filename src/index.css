@@ -13,6 +13,7 @@
   --color-roman-text-sub: var(--theme-roman-text-sub);
   --color-roman-primary: var(--theme-roman-primary);
   --color-roman-primary-hover: var(--theme-roman-primary-hover);
+  --color-roman-on-primary: var(--theme-roman-on-primary);
   --color-roman-sidebar: var(--theme-roman-sidebar);
   --color-roman-sidebar-light: var(--theme-roman-sidebar-light);
   --color-roman-parchment: var(--theme-roman-parchment);
@@ -49,13 +50,17 @@
   --theme-roman-border-light: #e4e4e4;
   --theme-roman-text-main: #161616;
   --theme-roman-text-sub: #465563;
-  /* Dourado escurecido de #b08d57 para #8c7045. Medido: o tom antigo dava
-     3,09:1 nos DOIS sentidos — dourado sobre branco (chips, rótulos) e branco
-     sobre dourado (botões). Texto de 12px exige 4,5:1, então os 21 textos de
-     acento reprovavam. Escurecer o token conserta os dois lados de uma vez
-     (4,65:1) sem tocar em componente nenhum, e continua lendo como dourado. */
-  --theme-roman-primary: #8c7045;
-  --theme-roman-primary-hover: #7a5f33;
+  /* O acento tem DOIS empregos e cada um é um par de contraste diferente:
+     ele é texto sobre a página (chips, rótulos) e é preenchimento com um
+     rótulo em cima (botões). O dourado antigo #b08d57 reprovava nos dois,
+     em 3,09:1, e texto de 12px exige 4,5:1.
+
+     `primary` agora responde só pela primeira pergunta: passa como texto
+     sobre `surface` E sobre `bg`. Quem responde pela segunda é `on-primary`.
+     Ver o bloco de `on-primary` abaixo para o porquê de serem dois tokens. */
+  --theme-roman-primary: #896e44;
+  --theme-roman-primary-hover: #745e3a;
+  --theme-roman-on-primary: #ffffff;
   --theme-roman-sidebar: #2b2b2b;
   --theme-roman-sidebar-light: #484848;
   --theme-roman-parchment: #fbfbfb;
@@ -69,8 +74,12 @@
   --theme-roman-border-light: #dce9fb;
   --theme-roman-text-main: #0c1827;
   --theme-roman-text-sub: #2f4c69;
-  --theme-roman-primary: #ff7a00;
-  --theme-roman-primary-hover: #d86500;
+  /* Laranja queimado. O #ff7a00 vibrante dava 2,61:1 como texto — o pior dos
+     quatro temas. Escurecer custa saturação, mas é o único jeito de o acento
+     servir de texto num tema claro. */
+  --theme-roman-primary: #b35500;
+  --theme-roman-primary-hover: #984800;
+  --theme-roman-on-primary: #ffffff;
   --theme-roman-sidebar: #0d3b66;
   --theme-roman-sidebar-light: #15518a;
   --theme-roman-parchment: #fff7ee;
@@ -86,6 +95,12 @@
   --theme-roman-text-sub: #c3d0e0;
   --theme-roman-primary: #4da3ff;
   --theme-roman-primary-hover: #2d86e6;
+  /* Aqui está a razão de `on-primary` existir. Neste tema o azul PRECISA ser
+     claro para servir de texto sobre o fundo escuro (6,67:1) — e é justamente
+     por ser claro que o rótulo branco em cima dele reprovava, em 2,63:1.
+     Nenhum ajuste do próprio azul resolve os dois: são pares opostos. O rótulo
+     vira escuro (7,32:1) e as duas perguntas passam a ter respostas separadas. */
+  --theme-roman-on-primary: #0b0f14;
   --theme-roman-sidebar: #080b12;
   --theme-roman-sidebar-light: #131a24;
   --theme-roman-parchment: #1c2430;
@@ -99,8 +114,12 @@
   --theme-roman-border-light: #3f2525;
   --theme-roman-text-main: #fff7f7;
   --theme-roman-text-sub: #e2cccc;
-  --theme-roman-primary: #e10600;
-  --theme-roman-primary-hover: #b80400;
+  /* Mesma situação do tema escuro: o vermelho clareia para servir de texto
+     (3,8 -> 4,64:1) e o rótulo em cima vira preto. E o hover CLAREIA em vez de
+     escurecer — escurecendo, o rótulo preto cairia para 3,5:1. */
+  --theme-roman-primary: #e83d38;
+  --theme-roman-primary-hover: #ef605c;
+  --theme-roman-on-primary: #0b0808;
   --theme-roman-sidebar: #000000;
   --theme-roman-sidebar-light: #242424;
   --theme-roman-parchment: #1a1212;

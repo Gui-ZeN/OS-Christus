@@ -38,7 +38,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
         <button
           type="button"
           onClick={onAdd}
-          className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover"
+          className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover"
         >
           Adicionar
         </button>

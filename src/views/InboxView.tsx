@@ -2209,7 +2209,7 @@ export function InboxView() {
                       <button
                         type="button"
                         onClick={() => addPublicInterestedEmails(publicInterestedDraft)}
-                        className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-50"
+                        className="rounded-sm bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-50"
                         disabled={isClosed || !publicInterestedDraft.trim()}
                       >
                         Adicionar
@@ -2461,7 +2461,7 @@ export function InboxView() {
                             OS morta confunde quem lê o histórico depois. */}
                         <button
                           onClick={handleSend}
-                          className="flex items-center gap-2 bg-roman-sidebar px-4 py-1.5 font-medium tracking-wide text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex items-center gap-2 bg-roman-sidebar px-4 py-1.5 font-medium tracking-wide text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={(isClosed && !hasStageChangePending) || isSending}
                         >
                           {isSending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
@@ -2573,7 +2573,7 @@ export function InboxView() {
                             type="button"
                             onClick={handleAcceptFromCollapsed}
                             disabled={isSending}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                           >
                             {isSending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                             Aceitar OS
@@ -2841,7 +2841,7 @@ export function InboxView() {
                               }
                               className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                                 selected
-                                  ? 'border-roman-primary bg-roman-primary text-white'
+                                  ? 'border-roman-primary bg-roman-primary text-roman-on-primary'
                                   : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                               }`}
                               disabled={isSending || !canEditQuickPanel}
@@ -2866,7 +2866,7 @@ export function InboxView() {
                       <button
                         onClick={handleAcceptTicket}
                         disabled={isSending}
-                        className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                       >
                         {isSending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                         Aceitar OS
@@ -2897,7 +2897,7 @@ export function InboxView() {
                         <button
                           onClick={handleSaveQuickPanel}
                           disabled={isSending}
-                          className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
+                          className="inline-flex items-center justify-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                         >
                           {isSending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                           Salvar painel
@@ -3134,7 +3134,7 @@ export function InboxView() {
               <button
                 onClick={() => { statusEmailPrompt.resolve('notify'); setStatusEmailPrompt(null); }}
                 disabled={statusEmailPrompt.recipients.length === 0}
-                className="rounded-sm bg-roman-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-sm bg-roman-primary px-4 py-2 text-sm font-medium text-roman-on-primary transition-colors hover:bg-roman-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Alterar e avisar solicitante
               </button>

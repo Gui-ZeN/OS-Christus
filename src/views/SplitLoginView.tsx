@@ -188,7 +188,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                   <button
                     type="submit"
                     disabled={isLoading || isGoogleLoading || isPasswordResetLoading || !loginEmail.trim() || !loginPassword.trim()}
-                    className="mt-2 inline-flex w-full items-center justify-center gap-3 rounded-xl border border-roman-border bg-roman-sidebar px-5 py-3 text-base font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-2 inline-flex w-full items-center justify-center gap-3 rounded-xl border border-roman-border bg-roman-sidebar px-5 py-3 text-base font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Acessar o sistema <ArrowRight size={20} /></>}
                   </button>

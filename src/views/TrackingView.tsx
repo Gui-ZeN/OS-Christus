@@ -682,7 +682,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     type="button"
                     onClick={() => void handleRequesterApproval()}
                     disabled={isSubmittingValidation}
-                    className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-70"
+                    className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-70"
                   >
                     {isSubmittingValidation ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                     Confirmar entrega da obra
@@ -712,7 +712,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                   type="button"
                   onClick={() => void handleRequesterMessage()}
                   disabled={isSubmittingMessage || !publicMessage.trim()}
-                  className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-70"
+                  className="inline-flex items-center gap-2 rounded-full bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-70"
                 >
                   {isSubmittingMessage ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                   Enviar mensagem
@@ -738,7 +738,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
                     <div
                       className={`flex items-center justify-center w-10 h-10 rounded-full border border-white shadow shrink-0 md:order-1 z-10 self-start md:self-center ${
                         isCustomerMessage
-                          ? 'bg-roman-primary text-white md:-translate-x-1/2'
+                          ? 'bg-roman-primary text-roman-on-primary md:-translate-x-1/2'
                           : isStatusEntry
                             ? 'bg-roman-primary/15 text-roman-primary md:translate-x-1/2'
                             : 'bg-roman-surface text-roman-primary md:translate-x-1/2'

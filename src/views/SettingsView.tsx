@@ -1036,7 +1036,7 @@ export function SettingsView() {
                           <div className="grid gap-3 border-t border-roman-border pt-4 md:grid-cols-[minmax(0,1fr)_120px_auto]">
                             <input type="text" value={regionDraft.name} onChange={event => setRegionDraft(current => ({ ...current, name: event.target.value }))} placeholder="Nome da região" className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
                             <input type="text" value={regionDraft.code} onChange={event => setRegionDraft(current => ({ ...current, code: event.target.value }))} placeholder="Código" className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary" />
-                            <button onClick={() => void handleSaveRegion()} disabled={catalogSavingEntity === 'regions'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
+                            <button onClick={() => void handleSaveRegion()} disabled={catalogSavingEntity === 'regions'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
                               {catalogSavingEntity === 'regions' ? <Loader2 size={14} className="animate-spin" /> : null}
                               {catalogSavingEntity === 'regions' ? 'Salvando...' : regionDraft.id ? 'Salvar' : 'Criar'}
                             </button>
@@ -1077,7 +1077,7 @@ export function SettingsView() {
                               <option value="">Selecione a região</option>
                               {regions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                             </select>
-                            <button onClick={() => void handleSaveSite()} disabled={catalogSavingEntity === 'sites'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
+                            <button onClick={() => void handleSaveSite()} disabled={catalogSavingEntity === 'sites'} className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60">
                               {catalogSavingEntity === 'sites' ? <Loader2 size={14} className="animate-spin" /> : null}
                               {catalogSavingEntity === 'sites' ? 'Salvando...' : siteDraft.id ? 'Salvar' : 'Criar'}
                             </button>
@@ -1374,7 +1374,7 @@ export function SettingsView() {
                               <button
                                 onClick={() => void handleSaveMacroService()}
                                 disabled={catalogSavingEntity === 'macroServices'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'macroServices' ? <Loader2 size={14} className="animate-spin" /> : null}
                                 {catalogSavingEntity === 'macroServices' ? 'Salvando...' : macroDraft.id ? 'Salvar macroserviço' : 'Criar macroserviço'}
@@ -1490,7 +1490,7 @@ export function SettingsView() {
                               <button
                                 onClick={() => void handleSaveService()}
                                 disabled={catalogSavingEntity === 'serviceCatalog'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'serviceCatalog' ? <Loader2 size={14} className="animate-spin" /> : null}
                                 {catalogSavingEntity === 'serviceCatalog' ? 'Salvando...' : serviceDraft.id ? 'Salvar serviço' : 'Criar serviço'}
@@ -1578,7 +1578,7 @@ export function SettingsView() {
                               <button
                                 onClick={() => void handleSaveMaterial()}
                                 disabled={catalogSavingEntity === 'materials'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {catalogSavingEntity === 'materials' ? <Loader2 size={14} className="animate-spin" /> : null}
                                 {catalogSavingEntity === 'materials' ? 'Salvando...' : materialDraft.id ? 'Salvar material' : 'Criar material'}
@@ -1710,7 +1710,7 @@ export function SettingsView() {
                                           }
                                           className={`rounded-sm border px-2.5 py-1 text-xs transition-colors ${
                                             selected
-                                              ? 'border-roman-primary bg-roman-primary text-white'
+                                              ? 'border-roman-primary bg-roman-primary text-roman-on-primary'
                                               : 'border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
                                           }`}
                                         >
@@ -1726,7 +1726,7 @@ export function SettingsView() {
                                   type="button"
                                   onClick={() => void handleSaveVendor()}
                                   disabled={vendorSaving}
-                                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {vendorSaving ? <Loader2 size={14} className="animate-spin" /> : null}
                                   {vendorSaving ? 'Salvando...' : vendorDraft.id ? 'Salvar terceiro' : 'Cadastrar terceiro'}
@@ -1790,7 +1790,7 @@ export function SettingsView() {
                             <button
                               type="button"
                               onClick={() => void handleAddSharedTag()}
-                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover"
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover"
                             >
                               Salvar tag
                             </button>
@@ -1856,7 +1856,7 @@ export function SettingsView() {
                             <button
                               type="button"
                               onClick={() => void handleAddAuthorizer()}
-                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:bg-roman-primary-hover"
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover"
                             >
                               Adicionar
                             </button>
@@ -1886,7 +1886,7 @@ export function SettingsView() {
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => void handleRunBackfill()}
-                          className="px-4 py-2 bg-roman-sidebar text-white rounded-xl text-sm font-medium hover:bg-roman-primary-hover flex items-center gap-2 disabled:opacity-60"
+                          className="px-4 py-2 bg-roman-sidebar text-white hover:text-roman-on-primary rounded-xl text-sm font-medium hover:bg-roman-primary-hover flex items-center gap-2 disabled:opacity-60"
                           disabled={backfillLoading || integrationsLoading}
                         >
                           {backfillLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
@@ -2006,7 +2006,7 @@ export function SettingsView() {
                                 Boolean(attachmentDryRunResult.nextCursor) ||
                                 Boolean(attachmentApplyResult && !attachmentApplyResult.nextCursor)
                               }
-                              className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:bg-roman-primary-hover disabled:opacity-50"
+                              className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-roman-sidebar px-3 py-2 text-xs font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:opacity-50"
                               title="Disponível somente depois de concluir o ensaio de todos os lotes"
                             >
                               {attachmentMigrationLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}

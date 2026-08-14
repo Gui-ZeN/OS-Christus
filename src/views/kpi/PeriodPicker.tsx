@@ -99,7 +99,7 @@ export function PeriodPicker({
                 }}
                 className={`flex-1 rounded-sm px-2 py-1.5 text-xs font-medium transition-colors ${
                   period === q.key
-                    ? 'bg-roman-primary text-white shadow-sm'
+                    ? 'bg-roman-primary text-roman-on-primary shadow-sm'
                     : 'text-roman-text-sub hover:bg-roman-bg hover:text-roman-text-main'
                 }`}
               >
@@ -144,7 +144,7 @@ export function PeriodPicker({
                     setOpen(false);
                   }}
                   className={`rounded-sm py-1.5 text-xs font-medium transition-colors ${
-                    active ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-main hover:bg-roman-bg'
+                    active ? 'bg-roman-primary text-roman-on-primary shadow-sm' : 'text-roman-text-main hover:bg-roman-bg'
                   }`}
                 >
                   {m}
@@ -183,7 +183,7 @@ export function PeriodPicker({
               onRange(rangeStart, rangeEnd);
               setOpen(false);
             }}
-            className="mt-2 w-full rounded-sm bg-roman-sidebar px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:opacity-40"
+            className="mt-2 w-full rounded-sm bg-roman-sidebar px-3 py-1.5 text-xs font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:opacity-40"
           >
             Aplicar intervalo
           </button>

@@ -237,7 +237,7 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
                 modo === m
                   ? m === 'interna'
                     ? 'bg-roman-surface text-roman-text-main shadow-sm'
-                    : 'bg-roman-primary text-white shadow-sm'
+                    : 'bg-roman-primary text-roman-on-primary shadow-sm'
                   : 'text-roman-text-sub hover:text-roman-text-main'
               }`}
             >

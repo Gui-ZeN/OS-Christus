@@ -98,7 +98,7 @@ export function DateTimePicker({
                   onClick={() => selectDay(day)}
                   className={`h-8 rounded-sm text-xs font-medium transition-colors ${
                     selected
-                      ? 'bg-roman-primary text-white'
+                      ? 'bg-roman-primary text-roman-on-primary'
                       : today
                         ? 'border border-roman-primary/40 bg-roman-primary/5 text-roman-primary'
                         : 'text-roman-text-main hover:bg-roman-bg'

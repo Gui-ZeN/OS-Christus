@@ -919,7 +919,7 @@ export function KpiView() {
               <button
                 onClick={handleExportPdf}
                 disabled={generating}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-roman-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-roman-primary px-4 py-2.5 text-sm font-semibold text-roman-on-primary shadow-sm transition-colors hover:bg-roman-primary-hover disabled:opacity-60"
                 title="Gera um relatório gerencial em PDF com os filtros atuais (período, sede, região)"
               >
                 <Download size={16} /> {generating ? 'Gerando…' : 'Exportar PDF'}
@@ -932,14 +932,14 @@ export function KpiView() {
             <div className="flex shrink-0 rounded-sm border border-roman-border bg-roman-bg p-0.5">
               <button
                 onClick={() => setPerspective('managerial')}
-                className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+                className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-roman-on-primary shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
               >
                 Gerencial
               </button>
               {canViewFinancials && (
                 <button
                   onClick={() => setPerspective('financial')}
-                  className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-white shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
+                  className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-roman-on-primary shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
                 >
                   Financeira
                 </button>

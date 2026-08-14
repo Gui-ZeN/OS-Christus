@@ -29,10 +29,43 @@ Um token conserta os dois lados: `--theme-roman-primary` de `#b08d57` para
 | textos abaixo de 4,5 | 21 | **0** |
 | mediana | 7,66 | 7,66 |
 
-**Pendente, e é um problema de sistema:** `blue-orange` (2,61) e `dark` (2,63 no
-rótulo branco) continuam reprovando. O tema escuro mostra que escurecer não resolve
-lá — o azul *precisa* ser claro sobre o fundo escuro (6,35 ✓) e é o rótulo branco em
-cima que falha. Falta um token para a cor do texto que vai *sobre* o preenchimento.
+### O conserto de verdade: o acento tem dois empregos, não um
+
+Ao estender para os outros temas, ficou claro que o problema era mais fundo — e que
+o tema escuro **prova** que um token só não resolve. Lá o azul *precisa* ser claro
+para servir de texto sobre o fundo escuro (6,67:1), e é justamente por ser claro que
+o rótulo branco em cima dele reprovava (2,63:1). São pares opostos: não existe valor
+de azul que satisfaça os dois.
+
+O acento responde a duas perguntas diferentes, e agora tem dois tokens:
+
+- **`primary`** — o acento como **texto** sobre a página. Passa contra `surface` e `bg`.
+- **`on-primary`** (novo) — o **rótulo sobre o preenchimento**. Passa contra `primary` e `primary-hover`.
+
+| tema | primary | on-primary | texto/sup | texto/fundo | rótulo | rótulo no hover |
+|---|---|---|---|---|---|---|
+| official | `#b08d57` → `#896e44` | branco | 4,80 | 4,60 | 4,80 | 6,17 |
+| blue-orange | `#ff7a00` → `#b35500` | branco | 4,98 | 4,63 | 4,98 | 6,44 |
+| dark | `#4da3ff` *(intacto)* | `#0b0f14` | 6,67 | 7,32 | 7,32 | 5,18 |
+| athletico | `#e10600` → `#e83d38` | `#0b0808` | 4,64 | 4,90 | 4,90 | 6,17 |
+
+Dois achados no caminho: o **athletico é matematicamente impossível com rótulo
+branco** (para o vermelho servir de texto no fundo escuro ele precisa ser claro, e
+aí o branco em cima não fecha em nenhuma tonalidade) — lá o rótulo virou preto. E o
+**hover dele agora clareia em vez de escurecer**: escurecendo, o rótulo preto cairia
+para 3,5:1.
+
+No tema escuro **nenhuma cor mudou** — bastou o token novo.
+
+Nos componentes, 24 preenchimentos sólidos trocaram `text-white` por
+`text-roman-on-primary`, e 31 botões escuros que viram acento no hover ganharam
+`hover:text-roman-on-primary` (só no hover: em repouso eles estão sobre a barra
+lateral, onde no tema escuro o `on-primary` quase preto sumiria).
+
+Medido na tela, nos quatro temas: **zero textos abaixo de 4,5:1**, pior caso 4,64.
+Trava nova em `tests/unit/contrasteDoAcento.test.ts` — relê o CSS, refaz a conta nos
+quatro temas e verifica que o hover continua um passo visível do repouso. Confirmei
+que ela falha: com o `#b08d57` de volta, acusa os 3,09 nos dois sentidos.
 
 Consulta guardada em `Segundo Cerebro/.../Serv3 — Consulta 11 melhorias visuais.md`,
 com a fila que saiu dela: contraste de componentes e foco, tokens semânticos,

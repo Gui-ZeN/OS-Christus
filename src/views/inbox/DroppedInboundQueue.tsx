@@ -149,7 +149,7 @@ export function DroppedInboundQueue({
                   type="button"
                   disabled={ocupado === item.id}
                   onClick={() => void vincular(item)}
-                  className="rounded-sm bg-roman-primary px-2 py-1 text-[11px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="rounded-sm bg-roman-primary px-2 py-1 text-[11px] font-medium text-roman-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   Vincular
                 </button>

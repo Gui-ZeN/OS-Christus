@@ -538,7 +538,7 @@ function Cartao({
           className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
             acao
               ? 'border-roman-border text-roman-text-sub hover:border-roman-primary hover:text-roman-primary'
-              : 'border-roman-primary bg-roman-primary font-medium text-white hover:opacity-90'
+              : 'border-roman-primary bg-roman-primary font-medium text-roman-on-primary hover:opacity-90'
           }`}
         >
           {suspensao
@@ -762,7 +762,7 @@ function EditorDeAcao({
             type="button"
             onClick={retomar}
             disabled={salvando}
-            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-roman-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             Retomar agora
           </button>
@@ -825,7 +825,7 @@ function EditorDeAcao({
             type="button"
             onClick={suspender}
             disabled={salvando}
-            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-roman-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {salvando ? 'Salvando…' : 'Suspender'}
           </button>
@@ -900,7 +900,7 @@ function EditorDeAcao({
         <button
           type="submit"
           disabled={salvando}
-          className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-roman-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {salvando ? 'Salvando…' : 'Salvar'}
         </button>
@@ -977,7 +977,7 @@ function ConfirmacaoDaVisita({
             type="button"
             disabled={salvando}
             onClick={() => setPedindoDesfecho(true)}
-            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-roman-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             Veio
           </button>
@@ -1015,7 +1015,7 @@ function ConfirmacaoDaVisita({
             type="button"
             disabled={salvando}
             onClick={() => registrar(COMMITMENT_STATE.ARRIVED, desfecho)}
-            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-sm bg-roman-primary px-3 py-1.5 text-sm font-medium text-roman-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {salvando ? 'Salvando…' : 'Registrar'}
           </button>

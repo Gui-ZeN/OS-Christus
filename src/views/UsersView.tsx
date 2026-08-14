@@ -242,7 +242,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
             <h1 className={`${embedded ? 'text-2xl' : 'text-3xl'} font-serif font-medium text-roman-text-main mb-2`}>Usuários</h1>
             <p className="text-roman-text-sub font-serif italic">Controle de acesso por perfil, região e sede vinculada.</p>
           </div>
-          <button onClick={openNew} disabled={!canManageUsers} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
+          <button onClick={openNew} disabled={!canManageUsers} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
             <Plus size={16} /> Novo Usuário
           </button>
         </header>
@@ -414,7 +414,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               <button onClick={() => setModalOpen(false)} className="rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main transition-colors hover:bg-roman-bg">
                 Cancelar
               </button>
-              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim()} className="flex items-center gap-2 rounded-xl bg-roman-sidebar px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
+              <button onClick={() => void handleSave()} disabled={saving || !form.name.trim() || !form.email.trim() || !form.role.trim()} className="flex items-center gap-2 rounded-xl bg-roman-sidebar px-5 py-2 text-sm font-medium text-white hover:text-roman-on-primary transition-colors hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
                 {saving ? <Loader2 size={16} className="animate-spin" /> : null}
                 {editingId ? 'Salvar alterações' : 'Criar usuário'}
               </button>

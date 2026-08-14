@@ -1556,7 +1556,7 @@ export function FinanceView() {
                             <button
                               onClick={() => handleAddMeasurement(ticket.id)}
                               disabled={processingId === ticket.id}
-                              className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                               {processingId === ticket.id ? 'Salvando...' : 'Salvar andamento'}
                             </button>
@@ -1922,7 +1922,7 @@ export function FinanceView() {
                                 <button
                                   onClick={() => void handlePayInstallment(ticket.id, payment)}
                                   disabled={!canConfirmPayment || processingId === `${ticket.id}:${payment.id}`}
-                                  className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {processingId === `${ticket.id}:${payment.id}` ? (
                                     <><Loader2 size={15} className="animate-spin" /> Processando...</>
@@ -2152,7 +2152,7 @@ export function FinanceView() {
                 type="button"
                 onClick={() => void handleConfirmPaymentEmail()}
                 disabled={paymentEmailModal.isSending || paymentEmailModal.recipients.length === 0 || paymentEmailModal.sendFeedbackType === 'success'}
-                className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {paymentEmailModal.isSending ? (
                   <><Loader2 size={15} className="animate-spin" /> Enviando...</>

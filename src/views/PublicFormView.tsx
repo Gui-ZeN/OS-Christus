@@ -690,7 +690,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-roman-primary hover:bg-roman-primary-hover text-white py-4 rounded-sm font-serif tracking-wide text-base transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+              className="w-full bg-roman-primary hover:bg-roman-primary-hover text-roman-on-primary py-4 rounded-sm font-serif tracking-wide text-base transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
             >
               {isSubmitting
                 ? <Loader2 size={20} className="animate-spin" />
