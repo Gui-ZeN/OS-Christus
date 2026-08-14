@@ -327,7 +327,7 @@ export function TodayView() {
           />
         </div>
         {erroCompromissos && (
-          <span className="rounded-sm border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700">
+          <span className="rounded-sm border border-roman-danger/35 bg-roman-danger/12 px-2 py-1 text-xs text-roman-danger">
             {erroCompromissos}
           </span>
         )}
@@ -352,13 +352,13 @@ export function TodayView() {
             Quando o passivo cair abaixo de MAX_SEM_RESPONSAVEL_NA_PAUTA, esta linha
             some sozinha e as OS voltam a aparecer uma a uma. */}
         {agenda.semResponsavel.agrupado && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-sm border border-amber-300 bg-amber-50 p-4">
-            <UserRound size={18} className="text-amber-800" />
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-sm border border-roman-primary/35 bg-roman-primary/12 p-4">
+            <UserRound size={18} className="text-roman-primary" />
             <div className="min-w-[14rem] flex-1">
-              <div className="font-medium text-amber-900">
+              <div className="font-medium text-roman-primary">
                 {agenda.semResponsavel.total} OS paradas sem responsável
               </div>
-              <p className="text-sm text-amber-900/80">
+              <p className="text-sm text-roman-primary">
                 Não estão na lista abaixo de propósito: é passivo acumulado, e ele se resolve
                 em lote — não uma por dia.
               </p>
@@ -369,7 +369,7 @@ export function TodayView() {
                 setOsBoardFilter({ ...osBoardFilter, responsible: 'none' });
                 navigateTo('os-board');
               }}
-              className="inline-flex items-center gap-1.5 rounded-sm bg-amber-800 px-3 py-2 text-sm font-medium text-white hover:bg-amber-900"
+              className="inline-flex items-center gap-1.5 rounded-sm bg-roman-primary px-3 py-2 text-sm font-medium text-roman-on-primary hover:bg-roman-primary"
             >
               Definir responsáveis <ArrowRight size={14} />
             </button>
@@ -521,7 +521,7 @@ function Cartao({
         ) : acao?.dueAt ? (
           <span
             className={`text-xs font-medium tabular-nums ${
-              grupo === AGENDA_GROUP.OVERDUE ? 'text-red-700' : 'text-roman-text-sub'
+              grupo === AGENDA_GROUP.OVERDUE ? 'text-roman-danger' : 'text-roman-text-sub'
             }`}
           >
             {grupo === AGENDA_GROUP.TODAY || grupo === AGENDA_GROUP.WAITING_SITE
@@ -530,7 +530,7 @@ function Cartao({
           </span>
         ) : (
           // Sem data, o que importa é HÁ QUANTO TEMPO está assim.
-          <span className="text-xs font-medium text-amber-700">parada há {parado} dias</span>
+          <span className="text-xs font-medium text-roman-primary">parada há {parado} dias</span>
         )}
         <button
           type="button"
@@ -581,7 +581,7 @@ function Cartao({
           <button
             type="button"
             onClick={() => void onCorrigir('nao-se-aplica')}
-            className="ml-auto text-[11px] text-roman-text-sub underline underline-offset-2 hover:text-red-700"
+            className="ml-auto text-[11px] text-roman-text-sub underline underline-offset-2 hover:text-roman-danger"
           >
             Não se aplica
           </button>
@@ -595,7 +595,7 @@ function Cartao({
       )}
 
       {compromisso && compromisso.effectiveState === COMMITMENT_STATE.MISSED && (
-        <p className="mt-2 border-t border-roman-border pt-2 text-xs text-red-700">
+        <p className="mt-2 border-t border-roman-border pt-2 text-xs text-roman-danger">
           {compromisso.vendorName || 'O fornecedor'} não compareceu
           {compromisso.confirmedAt ? ` · registrado em ${dataCurta(compromisso.confirmedAt)}` : ''}
         </p>
@@ -773,7 +773,7 @@ function EditorDeAcao({
           >
             Mudar motivo ou data
           </button>
-          {erro && <span className="text-xs text-red-700">{erro}</span>}
+          {erro && <span className="text-xs text-roman-danger">{erro}</span>}
         </div>
       </div>
     );
@@ -836,7 +836,7 @@ function EditorDeAcao({
           >
             Voltar
           </button>
-          {erro && <span className="text-xs text-red-700">{erro}</span>}
+          {erro && <span className="text-xs text-roman-danger">{erro}</span>}
         </div>
       </div>
     );
@@ -923,12 +923,12 @@ function EditorDeAcao({
             type="button"
             onClick={remover}
             disabled={salvando}
-            className="ml-auto text-xs text-roman-text-sub underline underline-offset-2 hover:text-red-700 disabled:opacity-50"
+            className="ml-auto text-xs text-roman-text-sub underline underline-offset-2 hover:text-roman-danger disabled:opacity-50"
           >
             Remover a próxima ação
           </button>
         )}
-        {erro && <span className="text-xs text-red-700">{erro}</span>}
+        {erro && <span className="text-xs text-roman-danger">{erro}</span>}
       </div>
     </form>
   );
@@ -966,7 +966,7 @@ function ConfirmacaoDaVisita({
   };
 
   return (
-    <div className="mt-2.5 rounded-sm border border-amber-300 bg-amber-50/70 p-3">
+    <div className="mt-2.5 rounded-sm border border-roman-primary/35 bg-roman-primary/12 p-3">
       <p className="text-sm text-roman-text-main">
         {compromisso.vendorName || 'O fornecedor'} tinha visita às {horaCurta(compromisso.startAt)}.
         A sede confirmou alguma coisa?
@@ -985,14 +985,14 @@ function ConfirmacaoDaVisita({
             type="button"
             disabled={salvando}
             onClick={() => registrar(COMMITMENT_STATE.MISSED, null)}
-            className="rounded-sm border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="rounded-sm border border-roman-danger/35 px-3 py-1.5 text-sm text-roman-danger hover:bg-roman-danger/12 disabled:opacity-50"
           >
             Não veio
           </button>
           <span className="text-xs text-roman-text-sub">
             ainda sem resposta não é falta — só vira falta quando alguém disser
           </span>
-          {erro && <span className="text-xs text-red-700">{erro}</span>}
+          {erro && <span className="text-xs text-roman-danger">{erro}</span>}
         </div>
       ) : (
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1026,7 +1026,7 @@ function ConfirmacaoDaVisita({
           >
             voltar
           </button>
-          {erro && <span className="text-xs text-red-700">{erro}</span>}
+          {erro && <span className="text-xs text-roman-danger">{erro}</span>}
         </div>
       )}
     </div>

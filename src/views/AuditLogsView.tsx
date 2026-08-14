@@ -61,12 +61,26 @@ const CATEGORY_LABELS: Record<AuditCategory, string> = {
   outros: 'Outros',
 };
 
+/**
+ * Aqui a cor NÃO é severidade, é categoria — e categoria não se pinta.
+ *
+ * Antes eram três matizes (sky para status, emerald para financeiro, amber para
+ * aprovação) que o `.theme-bridge` achatava no dourado: três categorias, uma
+ * aparência. Ao migrar para tokens de função, o mapa automático transformou
+ * "financeiro" em sucesso e "aprovação" em atenção — o que é pior que o defeito
+ * original, porque passa a AFIRMAR algo falso: um lançamento financeiro não é um
+ * sucesso, e uma aprovação registrada não é um aviso.
+ *
+ * Todas ficam neutras. O rótulo já diz a categoria, e existe filtro por ela.
+ * A exceção é `exclusao`: apagar é destrutivo, e destrutivo é vermelho — a única
+ * cor semântica que o bridge nunca achatou.
+ */
 const CATEGORY_STYLES: Record<AuditCategory, string> = {
-  status: 'border-sky-200 bg-sky-50 text-sky-700',
-  financeiro: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  aprovacao: 'border-amber-200 bg-amber-50 text-amber-700',
-  cadastro: 'border-violet-200 bg-violet-50 text-violet-700',
-  exclusao: 'border-red-200 bg-red-50 text-red-700',
+  status: 'border-roman-border bg-roman-bg text-roman-text-sub',
+  financeiro: 'border-roman-border bg-roman-bg text-roman-text-sub',
+  aprovacao: 'border-roman-border bg-roman-bg text-roman-text-sub',
+  cadastro: 'border-roman-border bg-roman-bg text-roman-text-sub',
+  exclusao: 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger',
   configuracao: 'border-roman-border bg-roman-bg text-roman-text-sub',
   outros: 'border-roman-border bg-roman-bg text-roman-text-sub',
 };
@@ -335,7 +349,7 @@ export function AuditLogsView() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 border border-red-200 bg-red-50 text-red-700 rounded-sm flex items-center gap-2">
+          <div className="mb-6 p-4 border border-roman-danger/35 bg-roman-danger/12 text-roman-danger rounded-sm flex items-center gap-2">
             <AlertCircle size={16} />
             {error}
           </div>

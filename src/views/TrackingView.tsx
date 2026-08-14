@@ -667,7 +667,7 @@ export function TrackingView({ ticketToken, onBack }: TrackingViewProps) {
             <div className="mb-6 rounded-xl border border-roman-border bg-roman-bg/70 p-4">
               <div className="text-sm font-medium text-roman-text-main">Validação da entrega</div>
               {ticket.closureChecklist?.requesterApproved ? (
-                <p className="mt-1 text-sm text-emerald-700">
+                <p className="mt-1 text-sm text-roman-success">
                   Entrega validada em {formatDateTimeSafe(ticket.closureChecklist.requesterApprovedAt || ticket.time)}.
                 </p>
               ) : (

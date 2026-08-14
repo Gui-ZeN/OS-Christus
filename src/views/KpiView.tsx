@@ -1184,7 +1184,7 @@ export function KpiView() {
                 <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior obra do recorte</h3>
                 <div className="text-2xl font-medium text-roman-text-main mb-1">R$ {maiorCusto.valor.toLocaleString('pt-BR')}</div>
                 <div className="text-sm text-roman-text-sub truncate mb-4" title={maiorCusto.subject}>{maiorCusto.subject}</div>
-                <div className="flex items-center gap-2 text-xs font-medium text-red-600 bg-red-50 w-fit px-2 py-1 rounded-sm border border-red-100">
+                <div className="flex items-center gap-2 text-xs font-medium text-roman-danger bg-roman-danger/12 w-fit px-2 py-1 rounded-sm border border-roman-danger/35">
                   <TrendingUp size={12} /> {maiorCusto.id} • {maiorCusto.sede}
                 </div>
               </div>
@@ -1347,7 +1347,7 @@ export function KpiView() {
                     : resumoFluxo.saldo > 0
                       ? ` (${resumoFluxo.saldo} a mais).`
                       : ` (${Math.abs(resumoFluxo.saldo)} a menos).`}
-                  <span className="block text-xs text-roman-text-sub/80 mt-1">
+                  <span className="block text-xs text-roman-text-sub mt-1">
                     Acumulado desde a primeira OS, por {granularidadeFluxo === 'semana' ? 'semana' : 'mês'}: a altura
                     total é tudo que já foi aberto e a <strong className="font-medium">faixa dourada é a fila</strong>{' '}
                     — quando ela afina, a equipe está fechando mais do que entra. Não segue o filtro de etapa, porque

@@ -1864,7 +1864,7 @@ export function InboxView() {
                 {chip.value}
                 <button
                   onClick={() => removeChip(chip.dim, chip.value)}
-                  className="hover:text-red-600 transition-colors ml-0.5"
+                  className="hover:text-roman-danger transition-colors ml-0.5"
                   aria-label={`Remover filtro ${chip.value}`}
                 >
                   <X size={10} />
@@ -2017,7 +2017,7 @@ export function InboxView() {
                     <span className="font-medium text-roman-text-main">{activeTicket.id}</span>
                     <StatusBadge status={activeTicket.status} />
                     {activeTicket.waterIssue ? (
-                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                      <span className="rounded-full border border-roman-primary/35 bg-roman-primary/12 px-2 py-0.5 text-[11px] font-medium text-roman-text-main">
                         Goteira/Infiltração
                       </span>
                     ) : null}
@@ -2075,11 +2075,11 @@ export function InboxView() {
                         Duplicar OS
                       </button>
                       {(activeTicket.status === TICKET_STATUS.CLOSED || activeTicket.status === TICKET_STATUS.CANCELED) ? (
-                        <button onClick={handleReopenTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-bg transition-colors text-emerald-700">
+                        <button onClick={handleReopenTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-bg transition-colors text-roman-success">
                           Reabrir OS
                         </button>
                       ) : (
-                        <button onClick={handleCancelTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 transition-colors text-red-700">
+                        <button onClick={handleCancelTicket} className="w-full text-left px-3 py-2 text-sm hover:bg-roman-danger/12 transition-colors text-roman-danger">
                           Cancelar OS
                         </button>
                       )}
@@ -2089,7 +2089,7 @@ export function InboxView() {
                             setShowActionsMenu(false);
                             setShowDeleteTicketModal(true);
                           }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 transition-colors text-red-700 flex items-center gap-2 border-t border-roman-border"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-roman-danger/12 transition-colors text-roman-danger flex items-center gap-2 border-t border-roman-border"
                         >
                           <Trash2 size={14} />
                           Excluir OS
@@ -2223,7 +2223,7 @@ export function InboxView() {
                             <button
                               type="button"
                               onClick={() => removePublicInterestedEmail(email)}
-                              className="text-roman-text-sub hover:text-red-700"
+                              className="text-roman-text-sub hover:text-roman-danger"
                               aria-label={`Remover ${email}`}
                               disabled={isClosed}
                             >
@@ -2305,7 +2305,7 @@ export function InboxView() {
                               value={statusTransitionReason}
                               onChange={event => setStatusTransitionReason(event.target.value)}
                               placeholder="Motivo da transição (obrigatório)"
-                              className="w-full rounded-sm border border-amber-300 bg-amber-50/40 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                              className="w-full rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
                               /* O motivo acompanha o SELETOR, não a resposta ao
                                  solicitante: reabrir exige justificar, e com `isClosed`
                                  aqui a etapa podia ser escolhida mas nunca salva. */
@@ -2410,7 +2410,7 @@ export function InboxView() {
                       <div key={i} className="flex items-center gap-1 text-xs bg-roman-surface border border-roman-border px-2 py-1 rounded-sm text-roman-text-main">
                         <FileText size={12} />
                         <span className="max-w-[150px] truncate">{file.name}</span>
-                        <button onClick={() => setReplyFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:text-red-500" disabled={isClosed}><X size={12} /></button>
+                        <button onClick={() => setReplyFiles(prev => prev.filter((_, idx) => idx !== i))} className="ml-1 hover:text-roman-danger" disabled={isClosed}><X size={12} /></button>
                       </div>
                     ))}
                   </div>
@@ -2422,7 +2422,7 @@ export function InboxView() {
                       <div key={att.id} className="flex items-center gap-1 text-xs bg-roman-primary/10 border border-roman-primary/30 px-2 py-1 rounded-sm text-roman-primary">
                         <ImageIcon size={12} />
                         <span className="max-w-[150px] truncate">{att.name}</span>
-                        <button onClick={() => handleRemoveInlineImage(att)} className="ml-1 hover:text-red-500" disabled={isClosed}><X size={12} /></button>
+                        <button onClick={() => handleRemoveInlineImage(att)} className="ml-1 hover:text-roman-danger" disabled={isClosed}><X size={12} /></button>
                       </div>
                     ))}
                   </div>
@@ -2555,9 +2555,9 @@ export function InboxView() {
                 <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Atendimento e triagem</div>
                 <div className="mt-1 text-[11px] text-roman-text-sub">Status, equipe responsável e decisões de atendimento.</div>
                 {activeTicket.status === TICKET_STATUS.NEW && (
-                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3">
-                    <div className="text-[11px] font-serif uppercase tracking-widest text-amber-800">Triagem inicial</div>
-                    <div className="mt-1 text-xs text-amber-900">Defina equipe, urgência e decida se a OS será aceita ou cancelada.</div>
+                  <div className="mt-3 rounded-xl border border-roman-primary/35 bg-roman-primary/12 px-3 py-3">
+                    <div className="text-[11px] font-serif uppercase tracking-widest text-roman-primary">Triagem inicial</div>
+                    <div className="mt-1 text-xs text-roman-primary">Defina equipe, urgência e decida se a OS será aceita ou cancelada.</div>
                   </div>
                 )}
                 {quickPanelCollapsed && (
@@ -2582,7 +2582,7 @@ export function InboxView() {
                             type="button"
                             onClick={handleCancelTicket}
                             disabled={isSending}
-                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-roman-surface px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-danger/35 bg-roman-surface px-3 py-2 text-xs font-medium text-roman-danger transition-colors hover:bg-roman-danger/12 disabled:opacity-60"
                           >
                             <X size={14} />
                             Recusar OS
@@ -2674,7 +2674,7 @@ export function InboxView() {
                         disabled={isSending || !canEditQuickPanel}
                       />
                       {activeTicket.sector === 'Email' && (
-                        <div className="mt-1 text-[11px] text-amber-700">
+                        <div className="mt-1 text-[11px] text-roman-primary">
                           Esta OS veio por e-mail. Ajuste o local correto antes de aceitar.
                         </div>
                       )}
@@ -2874,7 +2874,7 @@ export function InboxView() {
                       <button
                         onClick={handleCancelTicket}
                         disabled={isSending}
-                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-red-300 bg-roman-surface px-3 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-sm border border-roman-danger/35 bg-roman-surface px-3 py-2 text-xs font-medium text-roman-danger transition-colors hover:bg-roman-danger/12 disabled:opacity-60"
                       >
                         <X size={14} />
                         Recusar OS
@@ -2967,9 +2967,9 @@ export function InboxView() {
                       />
                     </div>
                     {recurrentLocationSummary.relatedTickets.length > 0 && (
-                      <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-950">
+                      <div className="mt-3 rounded-xl border border-roman-primary/35 bg-roman-primary/12 px-3 py-3 text-xs text-roman-text-main">
                         <div className="font-serif text-[11px] font-semibold uppercase tracking-widest">Local recorrente</div>
-                        <div className="mt-2 space-y-1 text-amber-900">
+                        <div className="mt-2 space-y-1 text-roman-text-main">
                           <div>{recurrentLocationSummary.openCount} OS abertas neste local</div>
                           <div>{recurrentLocationSummary.finalizedCount} OS concluídas/encerradas neste local</div>
                           {recurrentLocationSummary.latestTicket && (
@@ -2984,7 +2984,7 @@ export function InboxView() {
                               key={`related-location-${ticket.id}`}
                               type="button"
                               onClick={() => setActiveTicketId(ticket.id)}
-                              className="rounded-sm border border-amber-300 bg-roman-surface px-2 py-1 text-[11px] font-medium text-amber-950 transition-colors hover:border-amber-600"
+                              className="rounded-sm border border-roman-primary/35 bg-roman-surface px-2 py-1 text-[11px] font-medium text-roman-primary transition-colors hover:border-roman-primary/35"
                             >
                               {ticket.id}
                             </button>
@@ -3090,7 +3090,7 @@ export function InboxView() {
               <button
                 onClick={handleDeleteTicket}
                 disabled={isDeletingTicket}
-                className="inline-flex items-center gap-2 rounded-sm bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-sm bg-roman-danger px-4 py-2 text-sm font-medium text-roman-on-danger transition-colors hover:bg-roman-danger disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeletingTicket ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                 {isDeletingTicket ? 'Excluindo...' : 'Confirmar exclusão'}
@@ -3098,7 +3098,7 @@ export function InboxView() {
             </div>
           )}
         >
-          <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
+          <div className="rounded-sm border border-roman-danger/35 bg-roman-danger/12 px-3 py-3 text-sm text-roman-danger">
             <div className="font-medium">Serão excluídos:</div>
             <div className="mt-1">ticket, cotações, contrato, lançamentos, medições, conversa por e-mail e anexos vinculados.</div>
           </div>
@@ -3153,7 +3153,7 @@ export function InboxView() {
                 <div className="mt-1 break-words text-roman-text-main">{statusEmailPrompt.recipients.join(', ')}</div>
               </div>
             ) : (
-              <div className="rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+              <div className="rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-roman-text-main">
                 Esta OS não tem e-mail de solicitante — "avisar" não enviaria nada.
               </div>
             )}

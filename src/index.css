@@ -19,6 +19,8 @@
      medição que as justificou: 6 status distintos renderizavam 1 aparência. */
   --color-roman-success: var(--theme-roman-success);
   --color-roman-danger: var(--theme-roman-danger);
+  --color-roman-on-success: var(--theme-roman-on-success);
+  --color-roman-on-danger: var(--theme-roman-on-danger);
   --color-roman-sidebar: var(--theme-roman-sidebar);
   --color-roman-sidebar-light: var(--theme-roman-sidebar-light);
   --color-roman-parchment: var(--theme-roman-parchment);
@@ -68,7 +70,9 @@
   --theme-roman-primary-hover: #745e3a;
   --theme-roman-on-primary: #ffffff;
   --theme-roman-success: #047552;
+  --theme-roman-on-success: #ffffff;
   --theme-roman-danger: #c42222;
+  --theme-roman-on-danger: #ffffff;
   --theme-roman-sidebar: #2b2b2b;
   --theme-roman-sidebar-light: #484848;
   --theme-roman-parchment: #fbfbfb;
@@ -90,7 +94,9 @@
   --theme-roman-primary-hover: #984800;
   --theme-roman-on-primary: #ffffff;
   --theme-roman-success: #047250;
+  --theme-roman-on-success: #ffffff;
   --theme-roman-danger: #bf2121;
+  --theme-roman-on-danger: #ffffff;
   --theme-roman-sidebar: #0d3b66;
   --theme-roman-sidebar-light: #15518a;
   --theme-roman-parchment: #fff7ee;
@@ -114,7 +120,9 @@
      vira escuro (7,32:1) e as duas perguntas passam a ter respostas separadas. */
   --theme-roman-on-primary: #0b0f14;
   --theme-roman-success: #34d399;
+  --theme-roman-on-success: #0b0808;
   --theme-roman-danger: #f87171;
+  --theme-roman-on-danger: #0b0808;
   --theme-roman-sidebar: #080b12;
   --theme-roman-sidebar-light: #131a24;
   --theme-roman-parchment: #1c2430;
@@ -136,7 +144,9 @@
   --theme-roman-primary-hover: #ef605c;
   --theme-roman-on-primary: #0b0808;
   --theme-roman-success: #34d399;
+  --theme-roman-on-success: #0b0808;
   --theme-roman-danger: #f87171;
+  --theme-roman-on-danger: #0b0808;
   --theme-roman-sidebar: #000000;
   --theme-roman-sidebar-light: #242424;
   --theme-roman-parchment: #1a1212;

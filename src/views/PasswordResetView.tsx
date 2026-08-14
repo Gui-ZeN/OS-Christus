@@ -117,7 +117,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 <Loader2 size={18} className="animate-spin" /> Validando link de acesso...
               </div>
             ) : success ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-5 text-emerald-900">
+              <div className="rounded-xl border border-roman-success/35 bg-roman-success/12 px-5 py-5 text-roman-success">
                 <div className="flex items-center gap-2 font-semibold">
                   <CheckCircle size={18} /> Senha definida com sucesso
                 </div>
@@ -139,7 +139,7 @@ export function PasswordResetView({ onBack }: PasswordResetViewProps) {
                 }}
               >
                 {error && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
+                  <div className="rounded-xl border border-roman-danger/35 bg-roman-danger/12 px-4 py-4 text-sm text-roman-danger">
                     {error}
                   </div>
                 )}

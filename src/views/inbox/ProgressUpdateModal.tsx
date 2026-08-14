@@ -114,7 +114,7 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
                   className={[
                     'rounded-sm border px-3 py-3 text-left transition-colors',
                     isCompleted
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
                       : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
                   ].join(' ')}
                 >
@@ -194,7 +194,7 @@ export function ProgressUpdateModal(props: ProgressUpdateModalProps) {
                   <button
                     type="button"
                     onClick={() => onRemoveFile(index)}
-                    className="text-roman-text-sub hover:text-red-600"
+                    className="text-roman-text-sub hover:text-roman-danger"
                     aria-label={`Remover arquivo ${file.name}`}
                   >
                     <X size={12} />

@@ -222,14 +222,14 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-roman-danger/35 bg-roman-danger/12 px-4 py-3 text-sm text-roman-danger">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <div>{error}</div>
         </div>
       )}
 
       {syncMessage && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-roman-success/35 bg-roman-success/12 px-4 py-3 text-sm text-roman-success">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
           <div>{syncMessage}</div>
         </div>
@@ -269,9 +269,9 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           falha de envio o sistema tenta de novo; isto aqui ninguém tenta, e a pessoa
           do outro lado acha que avisou. */}
       {(data?.droppedInbound?.length || 0) > 0 && (
-        <section className={`mb-6 p-5 ${embedded ? 'rounded-xl border border-amber-300 bg-amber-50/60' : 'rounded-sm border border-amber-300 bg-amber-50/60'}`}>
+        <section className={`mb-6 p-5 ${embedded ? 'rounded-xl border border-roman-primary/35 bg-roman-primary/12' : 'rounded-sm border border-roman-primary/35 bg-roman-primary/12'}`}>
           <h2 className="mb-1 flex items-center gap-2 text-lg font-serif text-roman-text-main">
-            <MailQuestion size={18} className="text-amber-700" />
+            <MailQuestion size={18} className="text-roman-primary" />
             Entraram e não viraram OS
           </h2>
           <p className="mb-4 text-sm text-roman-text-sub">
@@ -280,7 +280,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
           </p>
           <div className="space-y-2">
             {data?.droppedInbound?.map(item => (
-              <div key={item.id} className="rounded-sm border border-amber-200 bg-roman-surface/78 p-3">
+              <div key={item.id} className="rounded-sm border border-roman-primary/35 bg-roman-surface/78 p-3">
                 <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-roman-text-sub">
                   <span>{formatDate(item.createdAt)}</span>
                   <span>{item.fromEmail || 'remetente desconhecido'}</span>
@@ -299,7 +299,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
         </h2>
         {(data?.recentErrors.length || 0) === 0 ? (
           <div className="flex items-center justify-center gap-2 py-8 text-center font-serif italic text-roman-text-sub">
-            <CheckCircle2 size={18} className="text-green-700" />
+            <CheckCircle2 size={18} className="text-roman-success" />
             Nenhuma falha recente.
           </div>
         ) : (
@@ -317,7 +317,7 @@ export function EmailHealthView({ embedded = false }: { embedded?: boolean }) {
                 {explicaErroTecnico(item.error) && (
                   <div className="text-sm text-roman-text-main">{explicaErroTecnico(item.error)}</div>
                 )}
-                <div className={explicaErroTecnico(item.error) ? 'mt-1 font-mono text-xs text-red-700/80' : 'text-sm text-red-700'}>
+                <div className={explicaErroTecnico(item.error) ? 'mt-1 font-mono text-xs text-roman-danger' : 'text-sm text-roman-danger'}>
                   {item.error}
                 </div>
               </div>

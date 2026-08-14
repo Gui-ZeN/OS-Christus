@@ -71,7 +71,7 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
     return (
       <div
         className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
-          atrasada ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-roman-border bg-roman-bg text-roman-text-sub'
+          atrasada ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main' : 'border-roman-border bg-roman-bg text-roman-text-sub'
         }`}
       >
         <CircleAlert size={14} className="mt-0.5 shrink-0" />
@@ -87,13 +87,13 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
     <div
       className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
         atrasada
-          ? 'border-red-300 bg-red-50 text-red-800'
+          ? 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
           : 'border-roman-primary/30 bg-roman-primary/8 text-roman-text-main'
       }`}
     >
       <span
         className={`mt-0.5 shrink-0 font-serif text-[11px] font-semibold uppercase tracking-widest ${
-          atrasada ? 'text-red-700' : 'text-roman-primary'
+          atrasada ? 'text-roman-danger' : 'text-roman-primary'
         }`}
       >
         {atrasada ? 'Atrasada' : 'Próxima ação'}

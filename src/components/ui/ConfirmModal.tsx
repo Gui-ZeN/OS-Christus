@@ -99,7 +99,7 @@ export function ConfirmModal({
       >
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <div className="flex items-start gap-4">
-            <div className={`p-2 rounded-full shrink-0 ${isDestructive ? 'bg-red-100 text-red-600' : 'bg-roman-primary/10 text-roman-primary'}`}>
+            <div className={`p-2 rounded-full shrink-0 ${isDestructive ? 'bg-roman-danger/12 text-roman-danger' : 'bg-roman-primary/10 text-roman-primary'}`}>
               <AlertCircle size={24} />
             </div>
             <div className="flex-1">
@@ -116,11 +116,11 @@ export function ConfirmModal({
                       setReason(e.target.value);
                       if (error) setError('');
                     }}
-                    className={`w-full h-24 p-3 text-sm bg-roman-bg border rounded-sm outline-none resize-none transition-colors ${error ? 'border-red-500 focus:border-red-500' : 'border-roman-border focus:border-roman-primary'}`}
+                    className={`w-full h-24 p-3 text-sm bg-roman-bg border rounded-sm outline-none resize-none transition-colors ${error ? 'border-roman-danger/35 focus:border-roman-danger/35' : 'border-roman-border focus:border-roman-primary'}`}
                     placeholder="Descreva o motivo..."
                     autoFocus
                   />
-                  {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                  {error && <p className="text-xs text-roman-danger mt-1">{error}</p>}
                 </div>
               )}
             </div>
@@ -139,7 +139,7 @@ export function ConfirmModal({
           <button
             onClick={handleConfirm}
             disabled={isLoading}
-            className={`flex w-full items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-70 sm:w-auto ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-roman-sidebar hover:bg-roman-sidebar-light'}`}
+            className={`flex w-full items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-medium text-roman-on-danger shadow-sm transition-colors disabled:opacity-70 sm:w-auto ${isDestructive ? 'bg-roman-danger hover:bg-roman-danger' : 'bg-roman-sidebar hover:bg-roman-sidebar-light'}`}
           >
             {isLoading && <Loader2 size={14} className="animate-spin" />}
             {confirmText}

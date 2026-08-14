@@ -250,10 +250,10 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
           <div
             className={`mb-5 rounded-xl border px-4 py-3 text-sm ${
               feedback.type === 'success'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
                 : feedback.type === 'warning'
-                  ? 'border-amber-200 bg-amber-50 text-amber-900'
-                  : 'border-red-200 bg-red-50 text-red-900'
+                  ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main'
+                  : 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
             }`}
           >
             {feedback.text}
@@ -274,17 +274,17 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                     <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Total</div>
                     <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.total}</div>
                   </div>
-                  <div className="rounded-xl border border-emerald-200 bg-roman-surface px-4 py-4">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-700">Ativos</div>
-                    <div className="mt-2 text-2xl font-serif text-emerald-900">{userStats.active}</div>
+                  <div className="rounded-xl border border-roman-success/35 bg-roman-surface px-4 py-4">
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-roman-success">Ativos</div>
+                    <div className="mt-2 text-2xl font-serif text-roman-success">{userStats.active}</div>
                   </div>
                   <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
                     <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Inativos</div>
                     <div className="mt-2 text-2xl font-serif text-roman-text-main">{userStats.inactive}</div>
                   </div>
-                  <div className="rounded-xl border border-sky-200 bg-roman-surface px-4 py-4">
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-sky-700">Multissede</div>
-                    <div className="mt-2 text-2xl font-serif text-sky-900">{userStats.multiSite}</div>
+                  <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-roman-text-sub">Multissede</div>
+                    <div className="mt-2 text-2xl font-serif text-roman-text-sub">{userStats.multiSite}</div>
                   </div>
                 </div>
 
@@ -305,7 +305,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                     <div>Status</div>
                     <div className="text-right">Ações</div>
                   </div>
-                  <div className="divide-y divide-stone-200">
+                  <div className="divide-y divide-roman-border">
                   {users.length === 0 && (
                     <div className="px-5 py-10 text-center text-sm text-roman-text-sub">
                       Nenhum usuário cadastrado até o momento.
@@ -328,7 +328,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                           <div className="mt-1 text-xs">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
                         </div>
                         <div className="flex items-start">
-                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-roman-bg text-roman-text-sub'}`}>
+                          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'Ativo' ? 'bg-roman-success/12 text-roman-success' : 'bg-roman-bg text-roman-text-sub'}`}>
                             {user.status}
                           </span>
                         </div>
@@ -336,7 +336,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                           <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-sm font-medium text-roman-primary hover:underline disabled:opacity-50 disabled:no-underline">
                             Editar
                           </button>
-                          <button onClick={() => setPendingDeleteUser(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:text-red-900 disabled:opacity-50">
+                          <button onClick={() => setPendingDeleteUser(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-sm font-medium text-roman-danger hover:text-roman-danger disabled:opacity-50">
                             <Trash2 size={14} />
                             Excluir
                           </button>
@@ -372,11 +372,11 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                           <td className="p-4 text-roman-text-sub">
                             <div className="space-y-1">
                               <div>{userRegions.length > 0 ? userRegions.join(', ') : '-'}</div>
-                              <div className="text-xs text-roman-text-sub/80">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
+                              <div className="text-xs text-roman-text-sub">{userSites.length > 0 ? userSites.join(', ') : 'Nenhuma sede vinculada'}</div>
                             </div>
                           </td>
                           <td className="p-4">
-                            <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-roman-bg text-roman-text-sub border border-roman-border'}`}>
+                            <span className={`px-2 py-1 rounded-sm text-xs font-medium ${user.status === 'Ativo' ? 'bg-roman-success/12 text-roman-success border border-roman-success/35' : 'bg-roman-bg text-roman-text-sub border border-roman-border'}`}>
                               {user.status}
                             </span>
                           </td>
@@ -385,7 +385,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                               <button onClick={() => openEdit(user)} disabled={!canManageUsers} className="text-roman-primary hover:underline font-medium text-sm disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed">
                                 Editar
                               </button>
-                              <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                              <button onClick={() => void handleDelete(user)} disabled={!canManageUsers || saving} className="inline-flex items-center gap-1 text-roman-danger hover:text-roman-danger font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                 <Trash2 size={14} />
                                 Excluir
                               </button>
@@ -517,7 +517,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
               <button onClick={() => setPendingDeleteUser(null)} className="rounded-full border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg">
                 Cancelar
               </button>
-              <button onClick={() => void handleDelete(pendingDeleteUser)} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60">
+              <button onClick={() => void handleDelete(pendingDeleteUser)} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-roman-danger px-5 py-2 text-sm font-semibold text-roman-on-danger hover:bg-roman-danger disabled:opacity-60">
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 Excluir usuário
               </button>

@@ -302,7 +302,7 @@ function IntegrationStatusCard({
           <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">{title}</div>
           <div className="text-base font-serif text-roman-text-main mt-1">{check.ok ? 'Operacional' : 'Atenção'}</div>
         </div>
-        <div className={`shrink-0 ${check.ok ? 'text-green-700' : 'text-amber-700'}`}>
+        <div className={`shrink-0 ${check.ok ? 'text-roman-success' : 'text-roman-primary'}`}>
           {check.ok ? <ShieldCheck size={18} /> : <TriangleAlert size={18} />}
         </div>
       </div>
@@ -330,9 +330,9 @@ function FeedbackBanner({
 }) {
   const palette =
     tone === 'success'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
       : tone === 'error'
-        ? 'border-red-200 bg-red-50 text-red-700'
+        ? 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
         : 'border-roman-border bg-roman-bg text-roman-text-sub';
 
   const Icon = tone === 'success' ? CheckCircle : tone === 'error' ? AlertCircle : Database;
@@ -960,17 +960,17 @@ export function SettingsView() {
                 {section === 'access' && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 p-5">
+                      <div className="rounded-xl border border-roman-primary/35 bg-roman-primary/12 p-5">
                         <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Administração</div>
                         <div className="text-lg font-serif text-roman-text-main">Usuários e papéis</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cadastre acessos, ajuste perfis e mantenha a estrutura territorial vinculada.</p>
                       </div>
-                      <div className="rounded-xl border border-sky-200/70 bg-sky-50/70 p-5">
+                      <div className="rounded-xl border border-roman-border bg-roman-bg p-5">
                         <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Acesso</div>
                         <div className="text-lg font-serif text-roman-text-main">Firebase Auth</div>
                         <p className="mt-2 text-sm text-roman-text-sub">O cadastro acompanha autenticação, status e ciclo de acesso ao sistema.</p>
                       </div>
-                      <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 p-5">
+                      <div className="rounded-xl border border-roman-success/35 bg-roman-success/12 p-5">
                         <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Escopo</div>
                         <div className="text-lg font-serif text-roman-text-main">Regiões e sedes</div>
                         <p className="mt-2 text-sm text-roman-text-sub">Cada perfil enxerga apenas a malha operacional vinculada ao seu cadastro.</p>
@@ -1027,7 +1027,7 @@ export function SettingsView() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <button onClick={() => setRegionDraft({ id: item.id, code: item.code || '', name: item.name, group: item.group || 'operacao' })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'regions', id: item.id, label: `a região ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
                             ))}
@@ -1064,7 +1064,7 @@ export function SettingsView() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <button onClick={() => setSiteDraft({ id: item.id, code: item.code || '', name: item.name, regionId: item.regionId, aliases: (item.aliases || []).join(', ') })} className="text-xs font-medium text-roman-primary hover:underline">Editar</button>
-                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline"><Trash2 size={12} />Excluir</button>
+                                  <button onClick={() => setPendingCatalogDelete({ entity: 'sites', id: item.id, label: `a sede ${item.name}` })} className="inline-flex items-center gap-1 text-xs font-medium text-roman-danger hover:underline"><Trash2 size={12} />Excluir</button>
                                 </div>
                               </div>
                             ))}
@@ -1122,10 +1122,10 @@ export function SettingsView() {
                                 <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/70' : 'text-roman-text-sub'}`}>
                                   {item.subject || 'Sem assunto definido'}
                                 </div>
-                                <div className={`mt-1 text-[11px] uppercase tracking-[0.2em] ${template.trigger === item.trigger ? 'text-white/50' : 'text-roman-text-sub/80'}`}>
+                                <div className={`mt-1 text-[11px] uppercase tracking-[0.2em] ${template.trigger === item.trigger ? 'text-white/50' : 'text-roman-text-sub'}`}>
                                   {item.trigger}
                                 </div>
-                                <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/60' : 'text-roman-text-sub/80'}`}>
+                                <div className={`mt-1 text-[11px] ${template.trigger === item.trigger ? 'text-white/60' : 'text-roman-text-sub'}`}>
                                   {item.recipients?.trim() ? `Destinatários: ${item.recipients}` : 'Destinatário definido pelo fluxo'}
                                 </div>
                               </div>
@@ -1212,7 +1212,7 @@ export function SettingsView() {
                         </div>
 
                         {templateError && (
-                          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                          <div className="mt-4 rounded-xl border border-roman-danger/35 bg-roman-danger/12 px-4 py-3 text-sm text-roman-danger">
                             {templateError}
                           </div>
                         )}
@@ -1220,8 +1220,13 @@ export function SettingsView() {
                           <button
                             onClick={() => void handleSaveTemplate()}
                             disabled={templateSaving}
-                            className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors ${
-                              templateSaved ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-roman-sidebar hover:bg-roman-primary-hover'
+                            // A cor do rótulo entra no ternário junto com o fundo, e não
+                            // pode ficar fixa em branco: nos temas escuros o verde de
+                            // sucesso é claro (#34d399) e branco em cima dele dá 1,92:1.
+                            className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-colors ${
+                              templateSaved
+                                ? 'bg-roman-success text-roman-on-success hover:bg-roman-success'
+                                : 'bg-roman-sidebar text-white hover:bg-roman-primary-hover hover:text-roman-on-primary'
                             }`}
                           >
                             {templateSaving ? (
@@ -1347,7 +1352,7 @@ export function SettingsView() {
                                             label: item.name || item.id,
                                           })
                                         }
-                                        className="text-xs font-medium text-red-700 hover:underline"
+                                        className="text-xs font-medium text-roman-danger hover:underline"
                                       >
                                         Excluir
                                       </button>
@@ -1431,7 +1436,7 @@ export function SettingsView() {
                                             label: item.name || item.id,
                                           })
                                         }
-                                        className="text-xs font-medium text-red-700 hover:underline"
+                                        className="text-xs font-medium text-roman-danger hover:underline"
                                       >
                                         Excluir
                                       </button>
@@ -1544,7 +1549,7 @@ export function SettingsView() {
                                             label: item.name || item.id,
                                           })
                                         }
-                                        className="text-xs font-medium text-red-700 hover:underline"
+                                        className="text-xs font-medium text-roman-danger hover:underline"
                                       >
                                         Excluir
                                       </button>
@@ -1812,7 +1817,7 @@ export function SettingsView() {
                           </div>
 
                           {authorizerEmails.length === 0 && (
-                            <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                            <div className="mb-3 rounded-xl border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-sm text-roman-text-main">
                               <strong>Desligado.</strong> Sem ninguém cadastrado, nenhuma mensagem é lida como
                               autorização.
                             </div>
@@ -1862,7 +1867,7 @@ export function SettingsView() {
                             </button>
                           </div>
                           {authorizerError && (
-                            <p className="mt-2 text-xs text-red-700">{authorizerError}</p>
+                            <p className="mt-2 text-xs text-roman-danger">{authorizerError}</p>
                           )}
                           <p className="mt-3 text-[11px] text-roman-text-sub">
                             O sistema apenas REGISTRA: a etapa da OS não anda sozinha. Frases como “ainda não
@@ -2024,7 +2029,7 @@ export function SettingsView() {
                                 <div>URLs removíveis: {attachmentDryRunResult.removedUrlFields}</div>
                                 <div>Sem path seguro: {attachmentDryRunResult.unresolvedUrls}</div>
                                 {attachmentDryRunResult.invalidStoragePaths > 0 && (
-                                  <div className="text-red-700">
+                                  <div className="text-roman-danger">
                                     Paths inválidos: {attachmentDryRunResult.invalidStoragePaths}
                                   </div>
                                 )}
@@ -2071,7 +2076,7 @@ export function SettingsView() {
                               ) : null}
                               {attachmentDryRunResult?.invalidStoragePathSamples?.length ? (
                                 <div>
-                                  <div className="font-medium text-red-700">Caminho fora do escopo da OS</div>
+                                  <div className="font-medium text-roman-danger">Caminho fora do escopo da OS</div>
                                   <p className="mb-1 text-roman-text-sub">
                                     O caminho gravado não pertence à OS do anexo — a URL é preservada e o
                                     arquivo não passa pelo proxy.
@@ -2089,7 +2094,7 @@ export function SettingsView() {
                           </details>
                         ) : null}
                         {(attachmentDryRunResult?.signedUrls ?? 0) > 0 && (
-                          <p className="mt-2 text-xs text-amber-700">
+                          <p className="mt-2 text-xs text-roman-primary">
                             Signed URLs encontradas: {attachmentDryRunResult?.signedUrls}. Elas serão removidas dos documentos,
                             mas a revogação externa exige rotação de chave ou migração do objeto.
                           </p>
@@ -2204,7 +2209,7 @@ export function SettingsView() {
               <button
                 onClick={() => void handleDeleteCatalogItem(pendingCatalogDelete.entity, pendingCatalogDelete.id, pendingCatalogDelete.label)}
                 disabled={catalogDeleting}
-                className="inline-flex items-center gap-2 rounded-full bg-red-700 px-5 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full bg-roman-danger px-5 py-2 text-sm font-semibold text-roman-on-danger hover:bg-roman-danger disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {catalogDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 {catalogDeleting ? 'Excluindo...' : 'Confirmar exclusão'}

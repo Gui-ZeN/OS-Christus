@@ -51,7 +51,7 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 pr-2">
           <span
-            className={`h-2.5 w-2.5 shrink-0 rounded-full ${isNew ? 'bg-red-500' : 'bg-emerald-500'}`}
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${isNew ? 'bg-roman-danger' : 'bg-roman-success'}`}
             aria-hidden="true"
             title={isNew ? 'Nova OS — aguardando triagem' : 'OS em andamento'}
           />
@@ -72,7 +72,7 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
           <span
             className={`flex items-center gap-1 font-medium ${
               normalizedPriority === 'Urgente'
-                ? 'text-red-600'
+                ? 'text-roman-danger'
                 : normalizedPriority === 'Alta'
                   ? 'text-roman-primary'
                   : 'text-roman-text-sub'
@@ -85,13 +85,13 @@ const TicketListItemComponent: React.FC<TicketListItemProps> = ({
       </div>
 
       {isWaitingValidation && (
-        <div className="mb-1.5 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[11px] font-medium text-roman-primary">
+        <div className="mb-1.5 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[11px] font-medium text-roman-text-main">
           Aguardando validação do solicitante
         </div>
       )}
 
       {recurrentLocation && (
-        <div className="mb-1.5 w-fit rounded-sm border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">
+        <div className="mb-1.5 w-fit rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-2 py-1 text-[11px] font-medium text-roman-text-main">
           Local recorrente
         </div>
       )}

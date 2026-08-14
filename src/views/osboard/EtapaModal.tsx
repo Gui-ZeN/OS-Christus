@@ -187,19 +187,19 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
         </label>
 
         {precisaClassificar && (
-          <div className="space-y-3 rounded-sm border border-amber-300 bg-amber-50 p-3">
-            <p className="text-sm text-amber-900">
+          <div className="space-y-3 rounded-sm border border-roman-primary/35 bg-roman-primary/12 p-3">
+            <p className="text-sm text-roman-primary">
               <strong>{bloqueio?.motivo}.</strong> Classifique aqui e a OS avança na mesma ação.
             </p>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-amber-900">Macroserviço</span>
+              <span className="mb-1 block text-xs font-medium text-roman-primary">Macroserviço</span>
               <select
                 value={macroEscolhido}
                 onChange={event => {
                   setMacroEscolhido(event.target.value);
                   setServicoEscolhido('');
                 }}
-                className="w-full rounded-sm border border-amber-300 bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+                className="w-full rounded-sm border border-roman-primary/35 bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
               >
                 <option value="">Escolha…</option>
                 {macros.map(m => (
@@ -208,12 +208,12 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-amber-900">Serviço</span>
+              <span className="mb-1 block text-xs font-medium text-roman-primary">Serviço</span>
               <select
                 value={servicoEscolhido}
                 onChange={event => setServicoEscolhido(event.target.value)}
                 disabled={!macroEscolhido}
-                className="w-full rounded-sm border border-amber-300 bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
+                className="w-full rounded-sm border border-roman-primary/35 bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60"
               >
                 <option value="">{macroEscolhido ? 'Escolha…' : 'Escolha o macroserviço antes'}</option>
                 {servicosDoMacro.map(s => (
@@ -225,7 +225,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
         )}
 
         {impedimento && !precisaClassificar && (
-          <div className="rounded-sm border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="rounded-sm border border-roman-primary/35 bg-roman-primary/12 p-3 text-sm text-roman-text-main">
             {impedimento}
           </div>
         )}
@@ -267,7 +267,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
           )
         )}
 
-        {erro && <div className="rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{erro}</div>}
+        {erro && <div className="rounded-sm border border-roman-danger/35 bg-roman-danger/12 p-3 text-sm text-roman-danger">{erro}</div>}
 
         {destino === TICKET_STATUS.CANCELED && (
           <div className="rounded-sm border border-roman-border bg-roman-bg p-3 text-sm text-roman-text-sub">

@@ -336,7 +336,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
 
         {isSubmitted ? (
           <div className="bg-roman-bg border border-roman-border p-10 rounded-sm shadow-sm text-center animate-in fade-in">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 bg-roman-success/12 text-roman-success rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle size={32} />
             </div>
             <h2 className="text-2xl font-serif text-roman-text-main mb-2">OS Registrada com Sucesso!</h2>
@@ -384,7 +384,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
             {catalogFailed && (
               <div
                 role="alert"
-                className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                className="rounded-xl border border-roman-primary/35 bg-roman-primary/12 px-4 py-3 text-sm text-roman-text-main"
               >
                 <p className="font-medium">Não foi possível carregar a lista de unidades.</p>
                 <p className="mt-1 text-xs">
@@ -395,7 +395,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   type="button"
                   onClick={() => setCatalogReloadKey(key => key + 1)}
                   disabled={catalogLoading}
-                  className="mt-2 inline-flex min-h-11 items-center rounded-sm border border-amber-400 px-4 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                  className="mt-2 inline-flex min-h-11 items-center rounded-sm border border-roman-primary/35 px-4 text-sm font-medium text-roman-text-main hover:bg-roman-primary/12 disabled:opacity-60"
                 >
                   {catalogLoading ? 'Carregando…' : 'Tentar novamente'}
                 </button>
@@ -415,9 +415,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="Ex: João Silva"
                     aria-invalid={Boolean(errors.name)}
                     aria-describedby={errors.name ? 'pf-name-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.name ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.name ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   />
-                  {errors.name && <span id="pf-name-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.name}</span>}
+                  {errors.name && <span id="pf-name-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.name}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-email" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Seu E-mail (Para receber o link)</label>
@@ -430,9 +430,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="nome@dominio.com"
                     aria-invalid={Boolean(errors.email)}
                     aria-describedby={errors.email ? 'pf-email-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.email ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   />
-                  {errors.email && <span id="pf-email-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.email}</span>}
+                  {errors.email && <span id="pf-email-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.email}</span>}
                 </div>
                 <div className="md:col-span-2">
                   <label htmlFor="pf-interested-emails" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Pessoas interessadas na OS (opcional)</label>
@@ -444,10 +444,10 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder={`email1@dominio.com, email2@dominio.com\nou um e-mail por linha`}
                     aria-invalid={Boolean(errors.interestedEmails)}
                     aria-describedby="pf-interested-emails-help"
-                    className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.interestedEmails ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.interestedEmails ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   />
                   {errors.interestedEmails ? (
-                    <span id="pf-interested-emails-help" role="alert" className="text-xs text-red-500 mt-1 block">{errors.interestedEmails}</span>
+                    <span id="pf-interested-emails-help" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.interestedEmails}</span>
                   ) : (
                     <span id="pf-interested-emails-help" className="mt-1 block text-xs text-roman-text-sub">Separe por vírgula ou coloque um e-mail por linha. Essas pessoas receberão as atualizações públicas junto com o solicitante.</span>
                   )}
@@ -469,9 +469,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   placeholder="Ex: Lâmpada queimada na recepção"
                   aria-invalid={Boolean(errors.subject)}
                   aria-describedby={errors.subject ? 'pf-subject-error' : undefined}
-                  className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.subject ? 'border-red-500' : 'border-roman-border'}`}
+                  className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.subject ? 'border-roman-danger/35' : 'border-roman-border'}`}
                 />
-                {errors.subject && <span id="pf-subject-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.subject}</span>}
+                {errors.subject && <span id="pf-subject-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.subject}</span>}
               </div>
 
               <div>
@@ -484,9 +484,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   placeholder="Resuma o problema brevemente..."
                   aria-invalid={Boolean(errors.description)}
                   aria-describedby={errors.description ? 'pf-description-error' : undefined}
-                  className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.description ? 'border-red-500' : 'border-roman-border'}`}
+                  className={`w-full h-20 border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-none ${errors.description ? 'border-roman-danger/35' : 'border-roman-border'}`}
                 />
-                {errors.description && <span id="pf-description-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.description}</span>}
+                {errors.description && <span id="pf-description-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.description}</span>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -501,9 +501,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="Ex: Recepção, Infantil, Coordenação"
                     aria-invalid={Boolean(errors.sector)}
                     aria-describedby={errors.sector ? 'pf-sector-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.sector ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   />
-                  {errors.sector && <span id="pf-sector-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.sector}</span>}
+                  {errors.sector && <span id="pf-sector-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.sector}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-location" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Detalhe do local</label>
@@ -516,9 +516,9 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     placeholder="Ex: Bloco A, sala 12, corredor"
                     aria-invalid={Boolean(errors.location)}
                     aria-describedby={errors.location ? 'pf-location-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.location ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.location ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   />
-                  {errors.location && <span id="pf-location-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.location}</span>}
+                  {errors.location && <span id="pf-location-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.location}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-region" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Região</label>
@@ -529,14 +529,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     onChange={handleInputChange}
                     aria-invalid={Boolean(errors.region)}
                     aria-describedby={errors.region ? 'pf-region-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.region ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary ${errors.region ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
                     {catalogRegions.map(region => (
                       <option key={region.id} value={region.name}>{region.name}</option>
                     ))}
                   </select>
-                  {errors.region && <span id="pf-region-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.region}</span>}
+                  {errors.region && <span id="pf-region-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.region}</span>}
                 </div>
                 <div>
                   <label htmlFor="pf-sede" className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Sede</label>
@@ -548,14 +548,14 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                     disabled={!formData.region}
                     aria-invalid={Boolean(errors.sede)}
                     aria-describedby={errors.sede ? 'pf-sede-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.sede ? 'border-red-500' : 'border-roman-border'}`}
+                    className={`w-full border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-60 ${errors.sede ? 'border-roman-danger/35' : 'border-roman-border'}`}
                   >
                     <option value="">Selecione...</option>
                     {availableSites.map(site => (
                       <option key={site.id} value={site.code}>{site.name}</option>
                     ))}
                   </select>
-                  {errors.sede && <span id="pf-sede-error" role="alert" className="text-xs text-red-500 mt-1 block">{errors.sede}</span>}
+                  {errors.sede && <span id="pf-sede-error" role="alert" className="text-xs text-roman-danger mt-1 block">{errors.sede}</span>}
                 </div>
               </div>
 
@@ -668,7 +668,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-roman-text-sub hover:text-red-700"
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-roman-text-sub hover:text-roman-danger"
                         title={`Remover ${file.name}`}
                         aria-label={`Remover ${file.name}`}
                       >
@@ -678,11 +678,11 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
                   ))}
                 </div>
               )}
-              {errors.files && <span role="alert" className="mt-2 block text-xs text-red-500">{errors.files}</span>}
+              {errors.files && <span role="alert" className="mt-2 block text-xs text-roman-danger">{errors.files}</span>}
             </div>
 
             {submitError && (
-              <div role="alert" className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div role="alert" className="rounded-sm border border-roman-danger/35 bg-roman-danger/12 px-4 py-3 text-sm text-roman-danger">
                 {submitError}
               </div>
             )}

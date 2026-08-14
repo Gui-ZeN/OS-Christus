@@ -1101,7 +1101,10 @@ export function FinanceView() {
             </div>
           </div>
           <div className="rounded-xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
-            <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-primary">Saldo a liberar</div>
+            {/* Texto principal, não acento: a sobrancelha fica DENTRO de um bloco
+                tingido de acento, e dourado sobre dourado mede 4,19:1 num tamanho
+                de 11px, que exige 4,5. O bloco já é o sinal; o texto só precisa ler. */}
+            <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-text-main">Saldo a liberar</div>
             <div className="mt-2 text-lg font-semibold text-roman-text-main">{formatCurrency(financeSummary.remaining)}</div>
             <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
               <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
@@ -1225,10 +1228,10 @@ export function FinanceView() {
                           guaranteeDaysRemaining == null
                             ? 'border-roman-border bg-roman-bg text-roman-text-sub'
                             : guaranteeDaysRemaining < 0
-                              ? 'border-red-200 bg-red-50 text-red-700'
+                              ? 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
                               : guaranteeDaysRemaining <= 30
-                                ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main'
+                                : 'border-roman-success/35 bg-roman-success/12 text-roman-success'
                         }`}>
                           {guaranteeBadgeLabel}
                         </span>
@@ -1465,7 +1468,7 @@ export function FinanceView() {
                                     className={[
                                       'rounded-sm border px-3 py-3 text-left transition-colors',
                                       isCompleted
-                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                        ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
                                         : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
                                     ].join(' ')}
                                   >
@@ -1533,7 +1536,7 @@ export function FinanceView() {
                                             reportFiles: measurementDraft.reportFiles.filter((_, currentIndex) => currentIndex !== index),
                                           })
                                         }
-                                        className="text-roman-text-sub hover:text-red-600"
+                                        className="text-roman-text-sub hover:text-roman-danger"
                                         aria-label={`Remover arquivo ${file.name}`}
                                       >
                                         <X size={12} />
@@ -1645,10 +1648,10 @@ export function FinanceView() {
                     >
                       <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${
                         remainingValue > 0
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          ? 'bg-roman-primary/12 text-roman-text-main border-roman-primary/35'
                           : remainingValue < 0
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-green-50 text-green-700 border-green-200'
+                            ? 'bg-roman-bg text-roman-text-sub border-roman-border'
+                            : 'bg-roman-success/12 text-roman-success border-roman-success/35'
                       }`}>
                         {remainingValue > 0 ? 'Saldo pendente' : remainingValue < 0 ? 'Pagamento acima do previsto' : 'Quitado'}
                       </div>
@@ -1774,9 +1777,9 @@ export function FinanceView() {
                                 <div className="text-xs text-roman-text-sub">
                                   Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Origem: {getBudgetSourceLabel(payment.budgetSource)} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
                                 </div>
-                                {payment.paidAt && <div className="text-xs text-green-700 mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
+                                {payment.paidAt && <div className="text-xs text-roman-success mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
                                 {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
-                                  <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-1">
+                                  <div className="mt-2 rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-xs text-roman-text-main space-y-1">
                                     <div className="font-medium">Último lançamento bloqueado até concluir o encerramento:</div>
                                     {finalInstallmentBlockingReasons.map(reason => (
                                       <div key={reason}>- {reason}</div>
@@ -1865,7 +1868,7 @@ export function FinanceView() {
                                             type="button"
                                             onClick={() => void handlePaymentAttachmentRemove(ticket.id, payment, attachment.id)}
                                             disabled={isUploadingPaymentAttachment}
-                                            className="text-red-700 hover:underline disabled:opacity-50"
+                                            className="text-roman-danger hover:underline disabled:opacity-50"
                                           >
                                             Remover
                                           </button>
@@ -1877,7 +1880,7 @@ export function FinanceView() {
                               </div>
 
                               {paymentOutbox && (
-                                <div className="flex flex-col gap-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex flex-col gap-2 rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-xs text-roman-text-main sm:flex-row sm:items-center sm:justify-between">
                                   <div>
                                     <div className="font-medium">
                                       {paymentOutbox.status === 'processing'
@@ -1886,7 +1889,7 @@ export function FinanceView() {
                                           ? 'E-mail exige intervenção administrativa'
                                         : 'Pagamento registrado; e-mail financeiro pendente'}
                                     </div>
-                                    <div className="mt-0.5 text-amber-800">
+                                    <div className="mt-0.5 text-roman-primary">
                                       {paymentOutbox.lastError ||
                                         `Destinatários: ${paymentOutbox.recipients.join(', ')}`}
                                     </div>
@@ -1898,7 +1901,7 @@ export function FinanceView() {
                                       paymentOutbox.status === 'processing' ||
                                       processingId === outboxProcessingKey
                                     }
-                                    className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-sm border border-amber-300 bg-roman-surface px-3 py-1.5 font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-sm border border-roman-primary/35 bg-roman-surface px-3 py-1.5 font-medium text-roman-text-main hover:bg-roman-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {processingId === outboxProcessingKey ? (
                                       <><Loader2 size={14} className="animate-spin" /> Reenviando...</>
@@ -1912,10 +1915,10 @@ export function FinanceView() {
                               <div className="flex items-center justify-between gap-3">
                                 <span className={`text-xs font-medium px-2 py-1 rounded-sm border ${
                                   payment.status === 'paid'
-                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                    ? 'bg-roman-success/12 text-roman-success border-roman-success/35'
                                     : payment.status === 'approved'
-                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                                      ? 'bg-roman-bg text-roman-text-sub border-roman-border'
+                                      : 'bg-roman-primary/12 text-roman-text-main border-roman-primary/35'
                                 }`}>
                                   {payment.status === 'paid' ? 'Pago' : payment.status === 'approved' ? 'Liberada' : 'Pendente'}
                                 </span>
@@ -2095,7 +2098,7 @@ export function FinanceView() {
                                       type="button"
                                       onClick={() => void handleClosureDocumentRemove(ticket.id, document.id)}
                                       disabled={uploadingTicketId === ticket.id}
-                                      className="inline-flex items-center gap-1 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
+                                      className="inline-flex items-center gap-1 text-sm font-medium text-roman-danger hover:underline disabled:opacity-50"
                                     >
                                       <Trash2 size={14} />
                                       Remover
@@ -2172,8 +2175,8 @@ export function FinanceView() {
               <div
                 className={`rounded-sm border px-4 py-2 text-sm ${
                   paymentEmailModal.sendFeedbackType === 'success'
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                    : 'border-red-300 bg-red-50 text-red-800'
+                    ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
+                    : 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
                 }`}
               >
                 {paymentEmailModal.sendFeedbackMessage}
@@ -2208,7 +2211,7 @@ export function FinanceView() {
               </label>
               <p className="mb-2 text-[11px] text-roman-text-sub">Pré-carrega os e-mails configurados e os últimos usados no financeiro.</p>
               {paymentEmailModal.recipients.length === 0 && (
-                <p className="text-xs text-amber-700 mb-2">Nenhum destinatário configurado. Adicione ao menos um email.</p>
+                <p className="text-xs text-roman-primary mb-2">Nenhum destinatário configurado. Adicione ao menos um email.</p>
               )}
               <div className="space-y-1.5 mb-3">
                 {paymentEmailModal.recipients.map((email, index) => (
@@ -2228,7 +2231,7 @@ export function FinanceView() {
                         })
                       }
                       disabled={paymentEmailModal.isSending}
-                      className="text-red-600 hover:text-red-800 transition-colors flex-shrink-0 disabled:opacity-50"
+                      className="text-roman-danger hover:text-roman-danger transition-colors flex-shrink-0 disabled:opacity-50"
                       aria-label={`Remover ${email}`}
                     >
                       <X size={15} />

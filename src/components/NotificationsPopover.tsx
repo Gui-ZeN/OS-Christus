@@ -17,9 +17,9 @@ interface NotificationsPopoverProps {
 }
 
 function notificationAccent(type: AppNotification['type']) {
-  if (type === 'alert' || type === 'email-bounce') return 'bg-red-500';
-  if (type === 'actionable' || type === 'requester-message') return 'bg-amber-500';
-  return 'bg-sky-500';
+  if (type === 'alert' || type === 'email-bounce') return 'bg-roman-danger';
+  if (type === 'actionable' || type === 'requester-message') return 'bg-roman-primary';
+  return 'bg-roman-text-sub';
 }
 
 export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
@@ -180,7 +180,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute right-0 top-0 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+          <span className="absolute right-0 top-0 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-roman-danger px-1 text-[9px] font-bold leading-none text-roman-on-danger">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -225,7 +225,7 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
           </header>
 
           {error && (
-            <div className="border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">
+            <div className="border-b border-roman-danger/35 bg-roman-danger/12 px-3 py-2 text-xs text-roman-danger" role="alert">
               {error}
             </div>
           )}

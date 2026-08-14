@@ -31,7 +31,7 @@ export function QuoteVendorFields({ quote, i, persistedServicePreference, prefer
                   className="w-full text-sm p-2 border border-roman-border rounded-sm bg-roman-surface outline-none focus:border-roman-primary"
                 />
                 {(persistedServicePreference || preferredVendor) && quote.vendor.trim() && (
-                  <div className={`mt-1 truncate text-[11px] ${quote.vendor.trim().toLowerCase() === String((persistedServicePreference || preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-emerald-700' : 'text-roman-text-sub'}`}>
+                  <div className={`mt-1 truncate text-[11px] ${quote.vendor.trim().toLowerCase() === String((persistedServicePreference || preferredVendor)?.vendor || '').trim().toLowerCase() ? 'text-roman-success' : 'text-roman-text-sub'}`}>
                     {quote.vendor.trim().toLowerCase() === String((persistedServicePreference || preferredVendor)?.vendor || '').trim().toLowerCase()
                       ? persistedServicePreference
                         ? 'Coincide com o fornecedor persistido para este serviço.'

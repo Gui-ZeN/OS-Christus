@@ -103,11 +103,11 @@ export function DroppedInboundQueue({
   };
 
   return (
-    <div className="border-b border-amber-300 bg-amber-50/70">
+    <div className="border-b border-roman-primary/35 bg-roman-primary/12">
       <button
         type="button"
         onClick={() => setAberto(v => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-amber-900 transition-colors hover:bg-amber-100/60"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-roman-text-main transition-colors hover:bg-roman-primary/12"
       >
         <MailQuestion size={14} className="shrink-0" />
         <span className="min-w-0">
@@ -118,9 +118,9 @@ export function DroppedInboundQueue({
 
       {aberto && (
         <div className="space-y-2 px-2 pb-2">
-          {erro && <p className="px-1 text-[11px] text-red-700">{erro}</p>}
+          {erro && <p className="px-1 text-[11px] text-roman-danger">{erro}</p>}
           {itens.map(item => (
-            <div key={item.id} className="rounded-sm border border-amber-200 bg-roman-surface p-2">
+            <div key={item.id} className="rounded-sm border border-roman-primary/35 bg-roman-surface p-2">
               <div className="text-[11px] text-roman-text-sub">{item.fromEmail || 'remetente desconhecido'}</div>
               <div className="mt-0.5 text-xs font-medium text-roman-text-main">
                 {repairMojibake(item.subject) || '(sem assunto)'}
@@ -133,7 +133,7 @@ export function DroppedInboundQueue({
                   📎 {item.attachments.length} anexo(s) guardado(s) — vão junto para a OS.
                 </p>
               ) : item.attachmentCount > 0 ? (
-                <p className="mt-1 text-[11px] text-amber-800">
+                <p className="mt-1 text-[11px] text-roman-primary">
                   ⚠️ {item.attachmentCount} anexo(s) não preservado(s) — abra o e-mail original.
                 </p>
               ) : null}
@@ -157,7 +157,7 @@ export function DroppedInboundQueue({
                   type="button"
                   disabled={ocupado === item.id}
                   onClick={() => void descartar(item)}
-                  className="ml-auto text-[11px] text-roman-text-sub underline underline-offset-2 hover:text-red-700 disabled:opacity-50"
+                  className="ml-auto text-[11px] text-roman-text-sub underline underline-offset-2 hover:text-roman-danger disabled:opacity-50"
                 >
                   Não é trabalho
                 </button>
@@ -165,7 +165,7 @@ export function DroppedInboundQueue({
 
               {/* A saída que faltava: mensagem que É trabalho novo vira OS aqui, sem
                   precisar existir uma para vincular. */}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-amber-100 pt-1.5">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-roman-primary/35 pt-1.5">
                 <span className="text-[11px] text-roman-text-sub">ou criar OS na sede</span>
                 <select
                   value={sedeNova[item.id] || ''}

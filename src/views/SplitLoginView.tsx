@@ -129,13 +129,13 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
 
             <div className="mt-6 space-y-4 lg:mt-7">
               {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
-                  <div className="font-semibold text-red-900">Não foi possível entrar</div>
+                <div className="rounded-xl border border-roman-danger/35 bg-roman-danger/12 px-4 py-4 text-sm text-roman-danger">
+                  <div className="font-semibold text-roman-danger">Não foi possível entrar</div>
                   <div className="mt-1">{error}</div>
                 </div>
               )}
               {passwordResetFeedback && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                <div className="rounded-xl border border-roman-success/35 bg-roman-success/12 px-4 py-4 text-sm text-roman-success">
                   <div className="font-semibold">Recuperação enviada</div>
                   <div className="mt-1">{passwordResetFeedback}</div>
                 </div>
@@ -158,7 +158,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                       onChange={event => setLoginEmail(event.target.value)}
                       placeholder="seu@email.com"
                       autoComplete="email"
-                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
+                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub focus:border-roman-primary"
                     />
                   </div>
 
@@ -171,7 +171,7 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                       onChange={event => setLoginPassword(event.target.value)}
                       placeholder="••••••••"
                       autoComplete="current-password"
-                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub/70 focus:border-roman-primary"
+                      className="w-full rounded-xl border border-roman-border bg-roman-bg px-4 py-3 text-base text-roman-text-main outline-none transition-colors placeholder:text-roman-text-sub focus:border-roman-primary"
                     />
                     <div className="mt-2 flex justify-end">
                       <button

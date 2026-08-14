@@ -23,7 +23,7 @@ export function QuoteEditorCardHeader({ i, canRemoveSlot, attachment, handleRemo
                 <button
                   type="button"
                   onClick={() => handleRemoveQuoteSlot(i)}
-                  className="text-xs text-red-700 hover:underline"
+                  className="text-xs text-roman-danger hover:underline"
                 >
                   Remover
                 </button>

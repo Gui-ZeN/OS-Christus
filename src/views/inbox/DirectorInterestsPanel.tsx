@@ -70,7 +70,7 @@ export function DirectorInterestsPanel(props: DirectorInterestsPanelProps) {
               <button
                 type="button"
                 onClick={() => onRemove(email)}
-                className="text-roman-text-sub hover:text-red-700"
+                className="text-roman-text-sub hover:text-roman-danger"
                 aria-label={`Remover ${email}`}
               >
                 <X size={12} />

@@ -165,7 +165,7 @@ export function ResponsavelModal({ ticketId, onClose }: { ticketId: string; onCl
           </button>
         )}
 
-        {erro && <div className="rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{erro}</div>}
+        {erro && <div className="rounded-sm border border-roman-danger/35 bg-roman-danger/12 p-3 text-sm text-roman-danger">{erro}</div>}
       </div>
     </ModalShell>
   );

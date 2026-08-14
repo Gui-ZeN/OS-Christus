@@ -571,7 +571,7 @@ export default function App() {
 
       <main className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
         {ticketsError && (
-          <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 md:px-4">
+          <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-xs text-roman-text-main md:px-4">
             <div className="flex min-w-0 items-center gap-2">
               <AlertTriangle size={15} className="shrink-0" />
               <span className="truncate">
@@ -581,7 +581,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => void refreshTickets()}
-              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-sm border border-amber-300 bg-roman-surface px-2.5 font-medium hover:bg-amber-100"
+              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-sm border border-roman-primary/35 bg-roman-surface px-2.5 font-medium hover:bg-roman-primary/12"
             >
               <RefreshCw size={13} />
               Tentar novamente
@@ -652,7 +652,7 @@ export default function App() {
                 </div>
               )}
               {attachmentResolveError && (
-                <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-800" role="alert">
+                <div className="border-b border-roman-danger/35 bg-roman-danger/12 px-4 py-2 text-xs text-roman-danger" role="alert">
                   {attachmentResolveError}
                 </div>
               )}

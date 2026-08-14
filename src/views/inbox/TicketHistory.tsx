@@ -74,7 +74,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                       <Clock size={11} />
                       <span className="truncate">{displayText}</span>
                     </div>
-                    <div className="shrink-0 text-[11px] font-sans text-roman-text-sub/80">
+                    <div className="shrink-0 text-[11px] font-sans text-roman-text-sub">
                       {formatDateTimeSafe(item.time)}
                     </div>
                     {canManageStatus && (
@@ -140,7 +140,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                   isExternalMessage
                     ? 'bg-roman-primary/10 text-roman-primary border-roman-primary/20'
                     : isInternalNote
-                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      ? 'bg-roman-primary/12 text-roman-text-main border-roman-primary/35'
                     : 'bg-roman-border-light text-roman-text-main border-roman-border'
                 }`}>
                   {senderInitial}
@@ -170,7 +170,7 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                       isExternalMessage
                         ? 'bg-roman-primary/5 border-roman-primary/20'
                         : isInternalNote
-                          ? 'bg-amber-50/70 border-amber-200'
+                          ? 'bg-roman-primary/12 border-roman-primary/35'
                           : 'bg-roman-surface border-roman-border'
                     }`}
                   >

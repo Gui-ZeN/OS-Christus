@@ -17,8 +17,8 @@ export function FloatingToast({ message, type }: FloatingToastProps) {
       <div
         className={`pointer-events-auto rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm animate-in slide-in-from-top-4 fade-in ${
           isError
-            ? 'border-red-300 bg-red-800/95 text-white'
-            : 'border-emerald-300 bg-emerald-700/95 text-white'
+            ? 'border-roman-danger/35 bg-roman-danger text-roman-on-danger'
+            : 'border-roman-success/35 bg-roman-success text-roman-on-success'
         }`}
         role="status"
         aria-live="polite"

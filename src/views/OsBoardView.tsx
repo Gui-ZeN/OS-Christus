@@ -183,7 +183,7 @@ export function OsBoardView() {
 
   const priorityClass = (priority: string) =>
     priority === 'Urgente'
-      ? 'text-red-600'
+      ? 'text-roman-danger'
       : priority === 'Alta'
         ? 'text-roman-primary'
         : 'text-roman-text-sub';
@@ -258,7 +258,7 @@ export function OsBoardView() {
           onClick={() => setFilter({ bloqueadas: !bloqueadas })}
           className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm transition-colors ${
             bloqueadas
-              ? 'border-amber-400 bg-amber-100 text-amber-900'
+              ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main'
               : 'border-roman-border bg-roman-surface text-roman-text-sub hover:border-roman-primary/40 hover:text-roman-text-main'
           }`}
           title="OS que não avançam enquanto faltar classificação"
@@ -395,7 +395,7 @@ export function OsBoardView() {
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{siteLabel || '—'}</td>
                   <td className="px-3 py-2.5 text-roman-text-sub">
                     <div>{svc || macro || '—'}</div>
-                    {svc && macro && <div className="text-xs text-roman-text-sub/70">{macro}</div>}
+                    {svc && macro && <div className="text-xs text-roman-text-sub">{macro}</div>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{tm || '—'}</td>
                   {/* Clicável na própria célula: definir responsável tem que custar um
@@ -421,7 +421,7 @@ export function OsBoardView() {
                         por um motivo que ninguém sabia que existia. */}
                     {bloqueioParaAvancar(ticket) && (
                       <div
-                        className="mt-1 flex w-fit items-center gap-1 rounded-sm bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-amber-900"
+                        className="mt-1 flex w-fit items-center gap-1 rounded-sm bg-roman-primary/12 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-roman-text-main"
                         title="A OS não avança enquanto isto não for resolvido. Use o botão Etapa."
                       >
                         <TriangleAlert size={11} />

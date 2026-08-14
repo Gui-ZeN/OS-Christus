@@ -66,10 +66,49 @@ só 4,8:1 de folga sobre a superfície, e uma tinta dele mesmo come essa folga �
 texto cai para 3,96 e nem a 6% chega aos 4,5. Por isso a pílula da triagem é
 contornada. Medido depois: **zero textos de badge abaixo de 4,5:1 nos 4 temas**.
 
-**O que ainda falta:** 59 elementos fora do badge continuam pedindo amber/emerald/sky
-e sendo achatados — e de forma inconsistente (na Caixa de Entrada, 26 elementos pedem
-2 matizes e rendem 2 aparências; em Configurações, 3 matizes rendem 4). Cada um exige
-decidir se é aviso, sucesso ou informação, então fica como próximo bloco.
+### O resto do bridge: 353 classes migradas para função
+
+Fechando o item. Fora do badge sobravam 207 classes de matiz cru em 24 arquivos, mais
+153 de vermelho. O mapa saiu do contexto de cada uso, conferido antes:
+
+| matiz | significado real | vira |
+|---|---|---|
+| amber, orange | atenção / pendência | **acento** — o bridge já pintava de dourado, então a aparência não muda; muda a honestidade |
+| emerald, green | sucesso | **`success`** — aqui a aparência muda, e é o ganho |
+| sky, blue, indigo, cyan, violet | informação | **neutro** — deixa de gritar como acento |
+| red | erro / destrutivo | **`danger`** |
+
+**O vermelho entrou por medição, não por simetria.** O bridge nunca o achatou, então
+ele renderizava vermelho de verdade — inclusive no tema escuro, onde `text-red-700`
+sobre `#0b0f14` media **2,73:1**. Migrar para o token o torna claro nos temas escuros.
+
+Dois casos exigiram julgamento, não regra:
+
+- **`AuditLogsView`** pinta **categorias**, não severidades. O mapa automático
+  transformou "financeiro" em sucesso e "aprovação" em atenção — pior que o defeito
+  original, porque passa a *afirmar* algo falso. Todas ficaram neutras; só `exclusao`
+  é vermelha, porque apagar é destrutivo de verdade.
+- **Os gradientes de Configurações** são decoração de cabeçalho de seção, escapam do
+  bridge e não prometem significado. Ficaram.
+
+E a armadilha do acento reapareceu, espalhada pela própria migração: `bg-primary/12`
+com `text-primary` reproduziu 21 vezes o que eu tinha documentado para o badge. Onde o
+bloco é tingido de acento, o texto passou a ser o principal — o bloco já é o sinal.
+Junto, saiu a opacidade de `text-sub` em texto (`/70` mede 3,53 e `/80`, 4,45).
+
+Dois tokens de rótulo entraram pelo mesmo motivo do `on-primary`: `on-success` e
+`on-danger`. Nos temas escuros o verde e o vermelho são claros, e branco em cima deles
+mede 1,92 e 2,77.
+
+**Medido depois, nos quatro temas, ~470 elementos cada: zero abaixo de 4,5:1.**
+Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
+deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
+
+**Achado que fica para o próximo bloco:** o `KpiView` tem **80 cores cravadas** em
+props do Recharts (`#1a1a1a`, `#737373`, `#e5e5e5`…), inclusive o dourado *antigo*
+`#b08d57`. Os gráficos não participam de tema nenhum: no tema escuro, barra
+quase-preta sobre fundo quase-preto mede **1,01:1**. Não é classe de CSS, é valor em
+JavaScript — precisa ler as variáveis em tempo de execução.
 
 ### Contorno de controle e foco de teclado
 

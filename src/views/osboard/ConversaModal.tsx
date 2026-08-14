@@ -276,7 +276,7 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
                 <button
                   type="button"
                   onClick={() => setArquivos(prev => prev.filter((_, idx) => idx !== i))}
-                  className="ml-0.5 hover:text-red-600"
+                  className="ml-0.5 hover:text-roman-danger"
                 >
                   <X size={11} />
                 </button>
@@ -348,7 +348,7 @@ export function ConversaModal({ ticketId, onClose }: { ticketId: string; onClose
         </div>
 
         {aviso && <div className="rounded-sm border border-roman-border bg-roman-bg p-3 text-sm text-roman-text-main">{aviso}</div>}
-        {erro && <div className="rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-700">{erro}</div>}
+        {erro && <div className="rounded-sm border border-roman-danger/35 bg-roman-danger/12 p-3 text-sm text-roman-danger">{erro}</div>}
       </div>
     </ModalShell>
   );

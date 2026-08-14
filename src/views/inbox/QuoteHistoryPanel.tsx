@@ -50,22 +50,22 @@ export function QuoteHistoryPanel({ history, servicePreference, ticketId }: Quot
       <QuoteHistoryMetrics history={history} />
 
       {(servicePreference || history.preferredVendor) && (
-        <div className="mt-4 rounded-sm border border-emerald-200 bg-emerald-50/70 p-3">
+        <div className="mt-4 rounded-sm border border-roman-success/35 bg-roman-success/12 p-3">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="text-[11px] uppercase tracking-widest text-emerald-700">
+              <div className="text-[11px] uppercase tracking-widest text-roman-success">
                 {servicePreference ? 'Fornecedor preferencial persistido' : 'Fornecedor preferencial sugerido'}
               </div>
-              <div className="mt-1 text-sm font-medium text-emerald-950">
+              <div className="mt-1 text-sm font-medium text-roman-success">
                 {(servicePreference || history.preferredVendor)?.vendor}
               </div>
-              <div className="text-[11px] text-emerald-800">
+              <div className="text-[11px] text-roman-success">
                 {servicePreference
                   ? `${servicePreference.approvalCount} aprovação(ões) registradas para ${servicePreference.scopeName}`
                   : history.preferredVendor?.rationale.join(' · ')}
               </div>
             </div>
-            <div className="text-[11px] text-emerald-900 md:text-right">
+            <div className="text-[11px] text-roman-success md:text-right">
               <div>
                 Média:{' '}
                 {servicePreference

@@ -36,7 +36,7 @@ export function QuoteItemRow({
                         <button
                           type="button"
                           onClick={() => handleRemoveQuoteItem(i, item.id)}
-                          className="text-[11px] text-red-700 hover:underline"
+                          className="text-[11px] text-roman-danger hover:underline"
                         >
                           Remover
                         </button>
@@ -106,7 +106,7 @@ export function QuoteItemRow({
                         <button
                           type="button"
                           onClick={() => handleRemoveQuoteItem(i, item.id)}
-                          className="hidden lg:inline-flex h-full items-center justify-end text-[11px] text-red-700 hover:underline"
+                          className="hidden lg:inline-flex h-full items-center justify-end text-[11px] text-roman-danger hover:underline"
                         >
                           Remover
                         </button>
@@ -132,7 +132,7 @@ export function QuoteItemRow({
                       )}
 
                       {reference && (
-                        <div className="mt-2 rounded-sm border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-900">
+                        <div className="mt-2 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-sub">
                           Histórico unitário: média {reference.averageUnitPriceLabel ?? '-'} · faixa {reference.minUnitPriceLabel ?? '-'} a {reference.maxUnitPriceLabel ?? '-'}
                         </div>
                       )}
