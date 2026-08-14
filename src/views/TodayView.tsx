@@ -389,6 +389,14 @@ export function TodayView() {
                 <span className="text-xs text-roman-text-sub">{GROUP_HINT[grupo]}</span>
                 <span className="ml-auto text-xs text-roman-text-sub">{itens.length}</span>
               </div>
+              {/* CARTÕES EM COLUNAS, não empilhados.
+                  Medido a 1366×768 com 14 cartões: cada um ocupava 1247px de largura
+                  para caber no máximo 272px de texto (mediana 161px) — 80% da largura
+                  vazia, enquanto a pessoa rolava para ver o resto. Era o desperdício
+                  grande; os 117px de contadores que tirei antes eram o pequeno.
+                  Três colunas de ~400px acomodam a maior linha (272px + respiro) e
+                  triplicam o que cabe na mesma altura. Uma coluna abaixo de 768px. */}
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {itens.map(ticket => (
                 <Cartao
                   key={ticket.id}
@@ -412,6 +420,7 @@ export function TodayView() {
                   autorNome={currentUser?.name}
                 />
               ))}
+              </div>
             </section>
           );
         })}
@@ -463,7 +472,7 @@ function Cartao({
 
   return (
     <div
-      className={`mb-2 rounded-xl border border-l-[3px] border-roman-border bg-roman-surface px-4 py-3 ${GROUP_TONE[grupo]}`}
+      className={`rounded-xl border border-l-[3px] border-roman-border bg-roman-surface px-4 py-3 ${GROUP_TONE[grupo]}`}
     >
       <div className="grid grid-cols-[1fr_auto] items-start gap-4">
       <div

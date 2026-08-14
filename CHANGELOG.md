@@ -77,8 +77,31 @@ do título. Eram **quatro números repetidos, nenhum clicável e dois deles zero
 duas regras aplicadas ao Início hoje (zero não aparece; número é porta) nunca tinham
 passado pelo Hoje.
 
-Removida: primeiro dado em **137px (18%)**. O que sobra é densidade de cartão (84px
-para três linhas), não desperdício.
+Removida: primeiro dado em **137px (18%)**.
+
+### E aí o dono perguntou "e se forem colunas em vez de linhas?" — e o desperdício real era esse
+
+Eu estava brigando pela vertical. Medido: cada cartão ocupava **1247px de largura**
+para caber no máximo **272px de texto** (mediana 161px). **80% da largura vazia**,
+numa coluna só, enquanto a pessoa rolava para ver o resto.
+
+Os cartões passam a fluir em **3 colunas** (2 em telas médias, 1 no celular):
+
+| A 1366×768 | Antes | Depois |
+|---|---|---|
+| Colunas | 1 | **3** (410px) |
+| Cartões inteiros na tela | 6 | **14 de 14** |
+| Precisa rolar | sim | **não** |
+
+Verificado também a 1280 (3 colunas de 382px, e o maior texto de 272px cabe), a 375
+(1 coluna, sem rolagem horizontal) e com o **editor aberto** dentro de uma coluna
+estreita: 12 campos, zero vazamentos.
+
+**Colunas por cartão, não kanban por grupo.** Kanban seria uma coluna por etapa, e os
+dados são desbalanceados demais: em produção são 5 vencidas, 2 hoje, **110 sem
+próxima ação** e três grupos vazios. Uma coluna quilométrica ao lado de três vazias
+fica pior que a pilha. Os grupos seguem empilhados — a divisão significa algo — e só
+os cartões fluem.
 
 ## 2026-08-13 (a paleta legada sai, e ela escondia um defeito no tema escuro)
 
