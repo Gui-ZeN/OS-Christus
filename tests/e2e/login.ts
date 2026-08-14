@@ -21,7 +21,9 @@ export async function loginWithPassword(
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: /acesso à gestão/i }).click();
+  // A landing deixou de existir em 13/08: ela repetia o painel do login e cobrava um
+  // clique a mais por dia das 28 pessoas com acesso. Agora `/` JÁ é o formulário —
+  // por isso não há mais um "Acesso à Gestão" para clicar antes.
   await page.getByLabel('E-mail institucional').fill(email);
   await page.getByLabel('Senha').fill(password);
   await page.getByRole('button', { name: /acessar o sistema/i }).click();

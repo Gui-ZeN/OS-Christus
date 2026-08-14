@@ -74,7 +74,6 @@ const OsBoardView = lazyWithAutoRecovery(async () => ({ default: (await import('
 const TodayView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/TodayView')).TodayView }));
 const SplitLoginView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SplitLoginView')).SplitLoginView }));
 const PasswordResetView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PasswordResetView')).PasswordResetView }));
-const LandingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/LandingView')).LandingView }));
 const PublicFormView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/PublicFormView')).PublicFormView }));
 const EmailHealthView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/EmailHealthView')).EmailHealthView }));
 const AuditLogsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/AuditLogsView')).AuditLogsView }));
@@ -410,7 +409,11 @@ export default function App() {
       }, 900);
       return () => window.clearTimeout(timer);
     }
-    if (currentUser && currentView === VIEWS.LOGIN) {
+    // LANDING conta junto com LOGIN desde 13/08: as duas renderizam a MESMA tela de
+    // entrada. Sem isto, quem chegou por `/` (o caso normal, e o valor guardado em
+    // localStorage) logava com sucesso e ficava preso no próprio formulário, porque o
+    // redirecionamento só olhava para LOGIN. Seis E2E caíram por isso.
+    if (currentUser && (currentView === VIEWS.LOGIN || currentView === VIEWS.LANDING)) {
       const params = new URLSearchParams(window.location.search);
       const redirectView = params.get('redirectView') || params.get('view');
       if (redirectView === VIEWS.FINANCE || redirectView === VIEWS.INBOX || redirectView === VIEWS.SETTINGS || redirectView === VIEWS.KPI || redirectView === VIEWS.AUDIT_LOGS) {
@@ -428,26 +431,19 @@ export default function App() {
     }
   }, [authEnabled, authResolved, authorizationResolved, currentUser, currentUserEmail, currentView, navigateTo, setActiveTicketId, telaDeEntrada]);
 
-  if (currentView === VIEWS.LANDING) {
-    if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
-      return <ViewLoader fullScreen />;
-    }
-    return (
-      <Suspense fallback={<ViewLoader fullScreen />}>
-        <LandingView onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)} onLogin={() => navigateTo(VIEWS.LOGIN)} />
-      </Suspense>
-    );
-  }
-
-  if (currentView === VIEWS.PUBLIC_FORM) {
-    return (
-      <Suspense fallback={<ViewLoader fullScreen />}>
-        <PublicFormView onBack={() => navigateTo(VIEWS.LANDING)} />
-      </Suspense>
-    );
-  }
-
-  if (currentView === VIEWS.LOGIN) {
+  /**
+   * A LANDING VIROU O PRÓPRIO LOGIN (13/08).
+   *
+   * A tela anterior repetia o painel esquerdo do login — mesmo logo, mesmo "Gestão de
+   * Manutenção" em serifa com o dourado no itálico — e o único conteúdo dela eram dois
+   * cartões: entrar e abrir chamado. As 28 pessoas com acesso pagavam um clique por
+   * dia para atravessar uma tela que repetia a seguinte.
+   *
+   * `LANDING` continua existindo como rota (é o valor guardado em localStorage e o
+   * padrão de quem chega deslogado) — só que agora renderiza a mesma coisa que
+   * `LOGIN`, sem "Voltar", porque não há para onde voltar.
+   */
+  if (currentView === VIEWS.LANDING || currentView === VIEWS.LOGIN) {
     if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return <ViewLoader fullScreen />;
     }
@@ -463,9 +459,17 @@ export default function App() {
           onForgotPassword={async email => {
             await requestPasswordReset(email);
           }}
-          onBack={() => navigateTo(VIEWS.LANDING)}
+          onOpenForm={() => navigateTo(VIEWS.PUBLIC_FORM)}
           authEnabled={authEnabled}
         />
+      </Suspense>
+    );
+  }
+
+  if (currentView === VIEWS.PUBLIC_FORM) {
+    return (
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <PublicFormView onBack={() => navigateTo(VIEWS.LANDING)} />
       </Suspense>
     );
   }

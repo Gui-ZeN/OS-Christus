@@ -3,6 +3,43 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-13 (a landing era o login com um clique a mais)
+
+Pedido do dono: rework da tela de entrada pública. Medindo antes de desenhar, o
+problema não era estilo — era **duplicação**.
+
+A landing mostrava logo + "Gestão de **Manutenção**" em serifa com o dourado no
+itálico. O painel esquerdo do login mostra **exatamente isso**: mesmo logo, mesmo
+título, mesmo tratamento. O único conteúdo próprio dela eram dois cartões — entrar e
+abrir chamado. Resultado: as **28 pessoas com acesso** atravessavam todo dia uma tela
+que repetia a seguinte.
+
+Agora `/` **já é o formulário de login** — zero cliques. O "Voltar" sumiu de lá, porque
+voltar sem destino é laço. `LandingView.tsx` foi deletada.
+
+**O caminho do chamado não foi enterrado, e isso é decisão de produto.** Medido: 98%
+das OS nascem por e-mail (177 de 181) e só 2% pelo formulário (4 na história inteira).
+O reflexo seria encolher o formulário — mas a Consulta 6 do vault registra que o
+Diretor quer **obrigar** a abertura por ele, e o Sol ficou do lado dele no princípio.
+O caminho é estratégico e subutilizado; reduzi-lo brigaria com a direção. Ele ganhou
+bloco próprio abaixo do login, com sobrancelha "Não é da equipe?" e a informação que
+faltava: *"Sem login. O acompanhamento vai por e-mail."*
+
+**O bloco escuro atrás do logo saiu.** Retorno do dono: *"esse Serv3 com fundo escuro
+no meio do claro fica muito ruim"*. A caixa `bg-roman-sidebar` não protegia nada — o
+SVG é predominantemente **dourado** (`#c9903b`, `#dba346`, `#e1b15f`) com contornos
+escuros, então tem contraste próprio no claro. No escuro é que os detalhes se perdiam.
+
+### O defeito que a investigação revelou, e ele iria para produção
+
+Fundir landing e login quebrou **6 E2E**, e a causa era grave: o redirecionamento
+pós-login só olhava para `VIEWS.LOGIN`. Quem entrava por `/` — o caso normal, e o
+valor guardado no localStorage — **logava com sucesso e ficava preso no próprio
+formulário**, com o botão girando.
+
+Teria chegado à operação como "não consigo entrar no sistema". Agora `LANDING` e
+`LOGIN` são tratadas juntas em todo lugar, com o motivo escrito no código.
+
 ## 2026-08-13 (o Início deixa de ser a porta; quem opera entra na agenda)
 
 Pedido do dono: *"a tela de Início parece meio deslocada"* — e depois da poda de hoje

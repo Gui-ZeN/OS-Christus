@@ -1,15 +1,32 @@
 ﻿import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { mensagemDeErro } from '../utils/errorMessage';
+/**
+ * A PORTA DO SISTEMA — login e abertura de chamado na MESMA tela.
+ *
+ * Havia uma landing antes desta, e ela repetia o painel da esquerda daqui: mesmo
+ * logo, mesmo "Gestão de Manutenção" em serifa com o dourado no itálico, mesma
+ * promessa. O único conteúdo próprio dela eram dois cartões — um para entrar, outro
+ * para abrir chamado. Ou seja: as 28 pessoas com acesso pagavam um clique por dia
+ * para atravessar uma tela que repetia a seguinte.
+ *
+ * O caminho do chamado NÃO foi enterrado, e isso é decisão de produto e não de
+ * espaço: 98% das OS nascem por e-mail e só 2% pelo formulário (4 de 181 medidas em
+ * 13/08), mas a diretoria quer justamente puxar as pessoas para o formulário. Reduzir
+ * a presença dele aqui brigaria com a direção — então ele fica visível, ao lado do
+ * login, em vez de escondido atrás de mais um clique.
+ */
 interface SplitLoginViewProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onGoogleLogin?: () => Promise<void>;
   onForgotPassword: (email: string) => Promise<void>;
-  onBack: () => void;
+  /** Ausente quando ESTA é a primeira tela: um "Voltar" sem destino é um laço. */
+  onBack?: () => void;
+  onOpenForm?: () => void;
   authEnabled?: boolean;
 }
 
-export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBack, authEnabled = false }: SplitLoginViewProps) {
+export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBack, onOpenForm, authEnabled = false }: SplitLoginViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isPasswordResetLoading, setIsPasswordResetLoading] = useState(false);
@@ -87,17 +104,24 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
           </section>
 
           <section className="h-full overflow-y-auto overflow-x-hidden bg-roman-surface p-5 sm:p-7 lg:p-8 xl:p-10 2xl:p-12">
+            {/* O logo vai DIRETO na superfície clara.
+                Ele vinha dentro de uma caixa `bg-roman-sidebar` — um bloco escuro no
+                meio de uma tela clara, que o dono apontou como o pior detalhe da tela.
+                A caixa não protegia nada: o SVG é predominantemente DOURADO
+                (#c9903b, #dba346, #e1b15f…) com detalhes escuros de contorno, então
+                ele tem contraste próprio no claro. No escuro é que os detalhes se
+                perdiam contra o fundo. */}
             <div className="mb-6 lg:hidden">
-              <span className="inline-flex rounded-xl bg-roman-sidebar px-4 py-3">
-                <img src="/logo-serv3.svg" alt="Serv3 — Grupo Christus" className="h-9 w-auto" />
-              </span>
+              <img src="/logo-serv3.svg" alt="Serv3 — Grupo Christus" className="h-9 w-auto" />
             </div>
-            <button
-              onClick={onBack}
-              className="mb-6 inline-flex items-center gap-2 text-sm text-roman-text-sub transition-colors hover:text-roman-text-main lg:mb-8"
-            >
-              <ArrowLeft size={18} /> Voltar
-            </button>
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="mb-6 inline-flex items-center gap-2 text-sm text-roman-text-sub transition-colors hover:text-roman-text-main lg:mb-8"
+              >
+                <ArrowLeft size={18} /> Voltar
+              </button>
+            )}
 
             <p className="text-xs uppercase tracking-[0.2em] text-roman-text-sub">Acesso restrito</p>
             <h2 className="mt-3 text-3xl font-serif text-roman-text-main lg:text-4xl">Entrar no sistema</h2>
@@ -196,6 +220,34 @@ export function SplitLoginView({ onLogin, onGoogleLogin, onForgotPassword, onBac
                 </>
               )}
             </div>
+
+            {/* NÃO É DA EQUIPE? — o outro caminho, visível sem mais um clique.
+                Fica depois do login porque é o menos frequente aqui (28 pessoas
+                entram no painel; o formulário abriu 4 OS na história), mas com peso
+                próprio: separador, título e seta. Enterrá-lo brigaria com a decisão
+                de produto de puxar as pessoas para o formulário. */}
+            {onOpenForm && (
+              <div className="mt-8 border-t border-roman-border pt-6">
+                <p className="text-[11px] font-serif uppercase tracking-[0.2em] text-roman-text-sub">
+                  Não é da equipe?
+                </p>
+                <button
+                  onClick={onOpenForm}
+                  className="group mt-2 inline-flex w-full items-center justify-between gap-3 rounded-xl border border-roman-border bg-roman-bg px-5 py-4 text-left transition-colors hover:border-roman-primary"
+                >
+                  <span>
+                    <span className="block font-serif text-lg text-roman-text-main">Abrir chamado</span>
+                    <span className="mt-0.5 block text-sm text-roman-text-sub">
+                      Sem login. O acompanhamento vai por e-mail.
+                    </span>
+                  </span>
+                  <ArrowRight
+                    size={20}
+                    className="shrink-0 text-roman-primary transition-transform group-hover:translate-x-1"
+                  />
+                </button>
+              </div>
+            )}
           </section>
       </div>
     </div>
