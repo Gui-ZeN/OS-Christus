@@ -6,6 +6,7 @@ import {
   isEmailOutboxLeaseActive,
   markEmailOutboxDispatchFailure,
   MAX_EMAIL_OUTBOX_ATTEMPTS,
+  describeOutboxError,
 } from './emailOutbox.js';
 import { notificationTtlAt } from './notificationState.js';
 
@@ -149,7 +150,7 @@ export async function processEmailOutboxBatch({
       return {
         ...item,
         status: 'failed',
-        error: String(error?.message || error || 'Falha ao processar e-mail.').slice(0, 500),
+        error: describeOutboxError(error, 'Falha ao processar e-mail.').slice(0, 500),
       };
     }
   }));

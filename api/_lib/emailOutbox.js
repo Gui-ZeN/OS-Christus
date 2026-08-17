@@ -4,6 +4,42 @@ import { HttpError } from './http.js';
 import { notificationTtlAt } from './notificationState.js';
 
 const OUTBOX_KEY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
+
+/**
+ * O MOTIVO DA FALHA, em texto que serve para alguém decidir algo.
+ *
+ * Era `String(error?.message || error || fallback)`. Quando o erro é um objeto SEM
+ * `.message` — o caso das respostas de erro da API do Gmail, que trazem o motivo em
+ * `response.data.error.message` — o `String(objeto)` devolve `"[object Object]"`.
+ *
+ * Encontrado em produção: o aviso de OS nova da OS-0274 para operacional02@px.com.br
+ * tentou 6 vezes entre 29/07 e 13/08, virou dead-letter, e o único registro do porquê
+ * era `[object Object]`. O e-mail não chegou e ninguém tinha como descobrir a causa —
+ * que é exatamente o que este campo existe para responder.
+ *
+ * A ordem abaixo vai do mais específico ao mais bruto, e o JSON é o último recurso
+ * antes do texto genérico: feio de ler, mas contém o motivo.
+ */
+export function describeOutboxError(error, fallback) {
+  if (!error) return fallback;
+  if (typeof error === 'string') return error.trim() || fallback;
+
+  const message =
+    error.message ||
+    error.response?.data?.error?.message ||
+    error.error?.message ||
+    error.error_description ||
+    error.errors?.[0]?.message;
+  if (message) return String(message);
+
+  try {
+    const json = JSON.stringify(error);
+    if (json && json !== '{}' && json !== 'null') return json;
+  } catch {
+    // Referência circular — cai no genérico, que ainda é melhor que "[object Object]".
+  }
+  return fallback;
+}
 export const DELIVERY_LEASE_MS = 2 * 60 * 1000;
 export const MAX_EMAIL_OUTBOX_ATTEMPTS = 6;
 
@@ -161,7 +197,7 @@ export async function markEmailOutboxFailed(ref, leaseToken, error) {
       status: isDeadLetter ? 'dead-letter' : 'failed',
       leaseToken: null,
       leaseAt: null,
-      lastError: String(error?.message || error || 'Falha ao enviar e-mail.').slice(0, 1000),
+      lastError: describeOutboxError(error, 'Falha ao enviar e-mail.').slice(0, 1000),
       lastFailedAt: now,
       nextAttemptAt: isDeadLetter
         ? null
@@ -223,7 +259,7 @@ export async function markEmailOutboxDispatchFailure(ref, error, now = new Date(
       attempts,
       leaseToken: null,
       leaseAt: null,
-      lastError: String(error?.message || error || 'Falha ao despachar e-mail.').slice(0, 1000),
+      lastError: describeOutboxError(error, 'Falha ao despachar e-mail.').slice(0, 1000),
       lastFailedAt: now,
       nextAttemptAt: isDeadLetter ? null : new Date(now.getTime() + getEmailOutboxRetryDelayMs(attempts)),
       deadLetterAt: isDeadLetter ? now : null,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../api/_lib/http.js';
 import {
   describeEmailOutboxType,
+  describeOutboxError,
   EMAIL_OUTBOX_TYPES,
   getEmailOutboxRetryDelayMs,
   isEmailOutboxEligible,
@@ -97,5 +98,53 @@ describe('destinatários do aviso ao gestor', () => {
     expect(resolveOutboxRecipients('a@x.com, b@x.com')).toEqual(['a@x.com', 'b@x.com']);
     expect(resolveOutboxRecipients(null)).toEqual([]);
     expect(resolveOutboxRecipients([''])).toEqual([]);
+  });
+});
+
+describe('o motivo da falha precisa servir para alguém decidir algo', () => {
+  // Em produção, 213 documentos da emailOutbox morreram como dead-letter, e o campo
+  // que devia dizer o motivo trazia a string "[object Object]". O aviso de OS nova da
+  // OS-0274 tentou 6 vezes entre 29/07 e 13/08 e ninguém tinha como descobrir por
+  // quê — que é exatamente o que aquele campo existe para responder.
+  //
+  // A causa era String(error?.message || error): erro SEM a propriedade `message`
+  // cai no String(objeto). É o formato das respostas de erro da API do Gmail, que
+  // trazem o motivo em response.data.error.message.
+  const PADRAO = 'Falha ao enviar e-mail.';
+
+  it('erro do Gmail, que não tem .message, deixa de virar [object Object]', () => {
+    const erroDoGmail = { response: { data: { error: { message: 'Invalid grant' } } } };
+    expect(describeOutboxError(erroDoGmail, PADRAO)).toBe('Invalid grant');
+  });
+
+  it('Error comum continua saindo pela mensagem', () => {
+    expect(describeOutboxError(new Error('Falha HTTP 500'), PADRAO)).toBe('Falha HTTP 500');
+  });
+
+  it('objeto sem nenhum campo conhecido vira JSON — feio, mas diz o que houve', () => {
+    const saida = describeOutboxError({ code: 429, motivo: 'rate limit' }, PADRAO);
+    expect(saida).toContain('429');
+    expect(saida).toContain('rate limit');
+  });
+
+  it('NADA devolve [object Object] — é a regressão que este bloco existe para impedir', () => {
+    const entradas: unknown[] = [
+      { response: { data: { error: { message: 'x' } } } },
+      { code: 500 },
+      new Error('y'),
+      'texto solto',
+      { errors: [{ message: 'quota' }] },
+    ];
+    for (const entrada of entradas) {
+      expect(describeOutboxError(entrada, PADRAO), String(JSON.stringify(entrada))).not.toContain('[object Object]');
+    }
+  });
+
+  it('vazio e circular caem no texto padrão, nunca em lixo', () => {
+    expect(describeOutboxError(null, PADRAO)).toBe(PADRAO);
+    expect(describeOutboxError({}, PADRAO)).toBe(PADRAO);
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(describeOutboxError(circular, PADRAO)).toBe(PADRAO);
   });
 });
