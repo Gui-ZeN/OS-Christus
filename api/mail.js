@@ -22,7 +22,7 @@ import {
   gmailStartWatch,
   gmailCheckCredential,
 } from './_lib/gmail.js';
-import { readJsonBody, sendError, sendJson } from './_lib/http.js';
+import { HttpError, readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { isAttachmentContentCompatible, isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
 import { normalizeKey, repairMojibake, slugFilename } from './_lib/text.js';
 // Helpers puros de assunto/threading/Message-Id (extraidos deste arquivo).
@@ -2493,17 +2493,33 @@ async function handleRainAlert(req, res) {
     }
     await authorizeEmailOutboxWorker(req);
 
-    const destino = String(process.env.RAIN_ALERT_TO || '').trim();
+    const simular = String(req.query?.simular || '').trim();
+    const forcar = String(req.query?.forcar || '') === '1';
+    const sede = String(req.query?.sede || '').trim() || null;
+
+    /**
+     * `?para=` desvia o teste para um endereço só — mas SÓ em simulação.
+     *
+     * Existe porque validar a entrega exigia mandar um e-mail de teste para a caixa
+     * de quem opera. Com isto, quem está depurando manda para si mesmo.
+     *
+     * O `simular` é a trava, e ela não é formalidade: sem ela, quem tivesse o
+     * CRON_SECRET poderia usar a rota para disparar mensagem com a identidade do
+     * Serv3 para qualquer endereço. Preso à simulação, o corpo sai sempre marcado
+     * `[TESTE]` e o pior caso é uma mensagem obviamente falsa — não um relay.
+     */
+    const paraDeTeste = simular ? String(req.query?.para || '').trim() : '';
+    if (paraDeTeste && !/^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/.test(paraDeTeste)) {
+      return sendJson(res, 400, { ok: false, error: 'O parâmetro `para` não é um e-mail válido.' });
+    }
+
+    const destino = paraDeTeste || String(process.env.RAIN_ALERT_TO || '').trim();
     if (!destino) {
       // 200, não erro: enquanto o destinatário não existir, cada execução viraria uma
       // falha vermelha a cada 5 minutos — ~288 por dia. Ruído nesse volume ensina todo
       // mundo a ignorar o vermelho, inclusive quando ele for de verdade.
       return sendJson(res, 200, { ok: true, enviado: false, motivo: 'RAIN_ALERT_TO não configurado' });
     }
-
-    const simular = String(req.query?.simular || '').trim();
-    const forcar = String(req.query?.forcar || '') === '1';
-    const sede = String(req.query?.sede || '').trim() || null;
 
     // Uma fonte fora do ar não pode derrubar a outra: cada uma cai para vazio e o
     // `avaliarChuva` resolve com o que sobrou.
@@ -2548,6 +2564,9 @@ async function handleRainAlert(req, res) {
     return sendJson(res, 200, {
       ok: true,
       enviado,
+      // Sem isto, um teste que "deu certo" não dizia PARA ONDE foi — e o `?para=`
+      // existe justamente para desviar o destino.
+      destino: enviado ? destino : null,
       estado: { anterior, agora: sinal.state, transicao },
       fontes: sinal.fontes,
       simulado: Boolean(sinal.simulado),
@@ -2557,6 +2576,19 @@ async function handleRainAlert(req, res) {
     // `sendError` preserva o status do HttpError: sem isto, credencial errada vira
     // 500 e o log do Actions diz "erro interno" quando o problema é o segredo. Foi
     // exatamente o que atrapalhou o diagnóstico da fila de e-mail.
+    //
+    // Mas para erro que NÃO é HttpError — o caso de o Gmail recusar — o `sendError`
+    // devolve só o texto genérico, e a mesma cegueira dos 213 se repetia aqui: o
+    // teste `?simular=chovendo` respondia "Falha ao avaliar a chuva." e não dizia
+    // se o problema era credencial, rede ou montagem da mensagem. O motivo entra
+    // na resposta porque esta rota é a ferramenta de diagnóstico de quem opera.
+    if (!(error instanceof HttpError)) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: 'Falha ao avaliar a chuva.',
+        motivo: describeOutboxError(error, 'sem detalhe disponível'),
+      });
+    }
     return sendError(res, error, 'Falha ao avaliar a chuva.');
   }
 }
