@@ -3,6 +3,37 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-17 (nenhum e-mail automático jamais saiu — e o sistema não sabia dizer)
+
+A pergunta era simples: "choveu de madrugada, nossos alertas pegaram?". Não
+pegaram. Puxando o fio, a `emailOutbox` tinha **213 documentos e todos em
+dead-letter — zero enviados**. Nunca, nem uma vez, um e-mail automático chegou.
+
+Pior: o motivo de cada uma das 213 falhas estava gravado como `[object Object]`.
+Meses de evidência apagada na hora de escrever. A causa foi reproduzida no
+emulador com controle negativo e positivo: quando o erro não é um `Error`, o
+`String(error.message)` vira `[object Object]` e leva o diagnóstico junto.
+
+Três consertos, todos no mesmo defeito de forma diferente:
+
+| Onde | O que acontecia | Agora |
+|---|---|---|
+| `emailOutbox` | motivo virava `[object Object]` | `describeOutboxError` tenta 6 formatos antes de desistir |
+| despacho em `api/mail.js` | HTTP 500 sem corpo lido | o corpo entra na mensagem do erro |
+| `?route=rain-alert` | respondia só "Falha ao avaliar a chuva." | vem o `motivo` (ex.: `invalid_client`) |
+
+Novidades para operar: `?route=email-diagnose` responde **por que** o e-mail não
+sai sem expor segredo nenhum (só nomes de variável e booleanos), e o aviso de
+chuva aceita `?para=` para testar num endereço só — travado em simulação, senão
+quem tivesse o `CRON_SECRET` teria um relé aberto na identidade do Serv3.
+
+Também de hoje: a báscula do CEMADEN (0,2 mm) passou a ser o limiar do alerta —
+decisão do dono, "qualquer chuva tem que avisar"; visita desmarcada deixou de
+virar falta; e no Rubronegro o vermelho de perigo virou âmbar, porque acento e
+perigo eram a mesma cor e "salvar" parecia "excluir".
+
+**Fica pendente:** nada disso está em produção — os commits não foram enviados.
+
 ## 2026-08-14 (o dourado da marca não passava em contraste — nos dois sentidos)
 
 Consultei o gpt-5.6-sol sobre o que ainda faltava no visual e pedi contestação.
