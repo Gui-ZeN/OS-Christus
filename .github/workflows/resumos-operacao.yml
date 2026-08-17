@@ -1,0 +1,95 @@
+name: Resumos da operação
+
+# Os três resumos agrupados do lado de dentro. A sede recebe PERGUNTA ("chegou?");
+# a operação recebe RESUMO — alerta individual e imediato existe um só no desenho
+# inteiro, que é a falta confirmada.
+#
+# ⚠️ Horários em UTC. Fortaleza é UTC-3 o ano todo (o Ceará não tem horário de
+# verão desde 2019), então o deslocamento é fixo:
+#
+#   10:00 UTC = 07h00  -> agenda do dia da operação, com o que já venceu
+#   14:30 UTC = 11h30  -> o que ficou sem confirmação
+#   19:30 UTC = 16h30  -> segunda passada do mesmo
+#   21:00 UTC = 18h00  -> fim do dia, para a diretoria
+#
+# ⚠️ Resumo vazio NÃO vira e-mail. Dia sem visita, sem pendência e sem falta é um
+# dia em que está tudo certo. E-mail que chega todo dia dizendo "nada a relatar" é
+# arquivado sem ler em duas semanas — junto com os que importavam.
+#
+# ⚠️ Roda de segunda a domingo. Fim de semana costuma não ter nada marcado, e por
+# isso não gera e-mail nenhum — a regra acima já resolve, sem precisar de exceção
+# de calendário que depois alguém esquece de manter.
+on:
+  schedule:
+    - cron: "0 10 * * *"
+    - cron: "30 14 * * *"
+    - cron: "30 19 * * *"
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+    inputs:
+      tipo:
+        description: "Qual resumo"
+        type: choice
+        required: true
+        options: [agenda, sem-confirmacao, fim-do-dia]
+        default: agenda
+      simular:
+        description: "Só simular (não envia)"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: resumos-da-operacao
+  cancel-in-progress: false
+
+jobs:
+  resumir:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    steps:
+      - name: Montar e enviar o resumo
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          RESUMO_URL: ${{ secrets.RESUMO_OPERACAO_URL || 'https://serv3.vercel.app/api/mail?route=resumo-operacao' }}
+          # `github.event.schedule` traz o cron que disparou — é assim que um
+          # workflow só atende quatro horários com três conteúdos diferentes.
+          AGENDADO: ${{ github.event.schedule }}
+          TIPO_MANUAL: ${{ inputs.tipo }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
+            exit 1
+          fi
+
+          case "$AGENDADO" in
+            "0 10 * * *")  TIPO="agenda" ;;
+            "30 14 * * *") TIPO="sem-confirmacao" ;;
+            "30 19 * * *") TIPO="sem-confirmacao" ;;
+            "0 21 * * *")  TIPO="fim-do-dia" ;;
+            *)             TIPO="$TIPO_MANUAL" ;;
+          esac
+
+          if [ -z "$TIPO" ]; then
+            echo "Não consegui decidir o tipo do resumo (schedule='$AGENDADO')."
+            exit 1
+          fi
+
+          URL="$RESUMO_URL&tipo=$TIPO"
+          # Só o disparo manual simula; o agendado envia de verdade.
+          if [ "$SIMULAR" = "true" ]; then
+            URL="$URL&simular=1"
+          fi
+
+          echo "Resumo: $TIPO"
+          CODIGO=$(curl -sS -o resposta.json -w "%{http_code}" -X POST "$URL" \
+            -H "Authorization: Bearer $CRON_SECRET")
+
+          cat resposta.json
+          echo ""
+          if [ "$CODIGO" != "200" ]; then
+            echo "A rota respondeu $CODIGO."
+            exit 1
+          fi

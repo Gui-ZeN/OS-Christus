@@ -66,19 +66,33 @@ export function precisaDeAlertaDeFalta(commitment) {
  * vai ligar para o fornecedor.
  */
 export function responsaveisPelaCobranca(users, { siteId, regiao }) {
-  const sede = String(siteId || '').trim();
-  const reg = String(regiao || '').trim();
-
   return (users || []).filter(u => {
     if (String(u?.status || 'Ativo') !== 'Ativo') return false;
     if (!String(u?.email || '').trim()) return false;
     const papel = String(u?.role || '');
     if (papel !== 'Gestor' && papel !== 'Admin') return false;
-
-    const sedes = Array.isArray(u.siteIds) ? u.siteIds.map(v => String(v || '').trim()) : [];
-    const regioes = Array.isArray(u.regionIds) ? u.regionIds.map(v => String(v || '').trim()) : [];
-    // Admin sem escopo nenhum responde por tudo — é o que o resto do sistema já faz.
-    if (papel === 'Admin' && sedes.length === 0 && regioes.length === 0) return true;
-    return (sede && sedes.includes(sede)) || (reg && regioes.includes(reg));
+    return cobreASede(u, { siteId, regiao });
   });
+}
+
+/**
+ * O escopo desta pessoa alcança esta sede?
+ *
+ * Serve para decidir sobre uma VISITA, que sabe a sede mas não carrega as OS. Sem
+ * isto o filtro caía só em `siteIds`, e quem tem escopo por REGIÃO — que é o caso
+ * da gestora que toca uma operação inteira — ficava de fora dos resumos. Foi
+ * exatamente o que um teste pegou: a gestora não recebia o "sem confirmação".
+ *
+ * Para decidir sobre uma OS, continua valendo `canUserAccessTicket`; esta função é
+ * o recorte mais grosso, para quando só existe a sede.
+ */
+export function cobreASede(user, { siteId, regiao }) {
+  const sede = String(siteId || '').trim();
+  const reg = String(regiao || '').trim();
+  const sedes = Array.isArray(user?.siteIds) ? user.siteIds.map(v => String(v || '').trim()).filter(Boolean) : [];
+  const regioes = Array.isArray(user?.regionIds) ? user.regionIds.map(v => String(v || '').trim()).filter(Boolean) : [];
+
+  // Admin sem escopo nenhum responde por tudo — é o que o resto do sistema já faz.
+  if (String(user?.role || '') === 'Admin' && sedes.length === 0 && regioes.length === 0) return true;
+  return (sede !== '' && sedes.includes(sede)) || (reg !== '' && regioes.includes(reg));
 }

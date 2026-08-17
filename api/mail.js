@@ -8,8 +8,9 @@ import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
 import { buildNoticeEmailTemplate, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
-import { precisaDeAlertaDeFalta, precisaDeChecagem, responsaveisPelaCobranca } from './_lib/checagemDaVisita.js';
+import { cobreASede, precisaDeAlertaDeFalta, precisaDeChecagem, responsaveisPelaCobranca } from './_lib/checagemDaVisita.js';
 import { montarRevisaoSemanal } from './_lib/fechamentoAssistido.js';
+import { resumoDaAgenda, resumoDoFimDoDia, resumoSemConfirmacao } from './_lib/resumosDaOperacao.js';
 import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
@@ -2933,6 +2934,194 @@ async function handleRevisaoSemanalEmail(req, res) {
   }
 }
 
+/**
+ * OS TRÊS RESUMOS DA OPERAÇÃO — `?tipo=agenda | sem-confirmacao | fim-do-dia`.
+ *
+ * Uma rota só porque as três compartilham tudo que é caro: a mesma janela de
+ * compromissos, o mesmo catálogo de território e a mesma regra de escopo. Três
+ * rotas separadas triplicariam a leitura para responder três recortes do mesmo dado
+ * — e a Vercel está em 12/12 funções.
+ *
+ * ⚠️ Resumo vazio NÃO vira e-mail. Dia sem visita, sem pendência e sem falta é um
+ * dia em que está tudo certo, e silêncio é a informação. E-mail que chega todo dia
+ * dizendo "nada a relatar" é arquivado sem ler em duas semanas — junto com os que
+ * importavam.
+ */
+async function handleResumoDaOperacao(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+
+    const tipo = String(req.query?.tipo || '').trim();
+    if (!['agenda', 'sem-confirmacao', 'fim-do-dia'].includes(tipo)) {
+      return sendJson(res, 400, { ok: false, error: 'Tipo desconhecido.' });
+    }
+    const simular = String(req.query?.simular || '') === '1';
+
+    const db = getAdminDb();
+    const agora = new Date();
+    const baseUrl =
+      String(process.env.APP_BASE_URL || '').trim() ||
+      String(process.env.PUBLIC_APP_URL || '').trim() ||
+      'https://serv3.vercel.app';
+
+    // Janela de 48h nos compromissos — a cota cobra por documento devolvido.
+    const janela = 24 * 3_600_000;
+    const commitments = (
+      await db
+        .collection('commitments')
+        .where('startAt', '>=', new Date(agora.getTime() - janela))
+        .where('startAt', '<=', new Date(agora.getTime() + janela))
+        .get()
+    ).docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      startAt: toDateOrNull(d.data()?.startAt),
+      confirmedAt: toDateOrNull(d.data()?.confirmedAt),
+    }));
+
+    // As OS só são lidas por quem precisa delas: o resumo de sem-confirmação é só
+    // sobre visitas, e ler a coleção de OS ali seria desperdício diário.
+    const precisaDeOs = tipo === 'agenda' || tipo === 'fim-do-dia';
+    const tickets = precisaDeOs
+      ? (await db.collection('tickets').get()).docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+          updatedAt: toDateOrNull(d.data()?.updatedAt),
+          createdAt: toDateOrNull(d.data()?.createdAt),
+          nextAction: d.data()?.nextAction
+            ? { ...d.data().nextAction, dueAt: toDateOrNull(d.data().nextAction.dueAt) }
+            : null,
+        }))
+      : [];
+
+    const territorio = await readTerritoryCatalog(db);
+    const todos = (await db.collection('users').where('status', '==', 'Ativo').get()).docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+    }));
+
+    // O fim do dia é da diretoria; os outros dois são de quem toca a operação.
+    const destinatarios = todos.filter(u =>
+      tipo === 'fim-do-dia' ? u.role === 'Diretor' || u.role === 'Admin' : u.role === 'Gestor' || u.role === 'Admin'
+    );
+
+    const enviados = [];
+    for (const pessoa of destinatarios) {
+      const minhasVisitas = commitments.filter(c => {
+        // Com as OS carregadas, vale a regra fina do sistema. Sem elas (o caso do
+        // "sem confirmação", que não lê OS de propósito), vale o recorte por sede E
+        // REGIÃO — só por sede deixava de fora justamente a gestora que toca uma
+        // operação inteira, que é quem mais precisa deste resumo.
+        const doEscopoFino = (c.ticketIds || []).some(id => {
+          const t = tickets.find(x => x.id === String(id));
+          return t ? canUserAccessTicket(pessoa, t, territorio.regions, territorio.sites) : false;
+        });
+        if (doEscopoFino) return true;
+
+        const siteId = String(c.siteId || c.sede || '');
+        const regiao = territorio.sites?.find?.(s => String(s?.id || '') === siteId)?.regionId || null;
+        return cobreASede(pessoa, { siteId, regiao });
+      });
+      const minhasOs = tickets.filter(t => canUserAccessTicket(pessoa, t, territorio.regions, territorio.sites));
+
+      let corpo = null;
+      let titulo = '';
+      let cartoes = [];
+
+      if (tipo === 'agenda') {
+        const r = resumoDaAgenda({ commitments: minhasVisitas, tickets: minhasOs, now: agora });
+        if (r.vazio) continue;
+        titulo = `Hoje na sua operação — ${r.visitas.length} ${r.visitas.length === 1 ? 'visita' : 'visitas'}`;
+        corpo = r.vencidas.length > 0 ? `${r.vencidas.length} já passaram do prazo.` : 'Nada vencido até agora.';
+        cartoes = [
+          r.visitas.length > 0 && {
+            title: 'Marcado para hoje',
+            rows: r.visitas.map(v => ({ label: `${v.hora} · ${v.sede}`, value: `${v.fornecedor} — ${v.ordens.join(', ')}` })),
+          },
+          r.vencidas.length > 0 && {
+            title: 'Já venceu',
+            rows: r.vencidas.map(v => ({ label: v.id, value: v.oQue || v.assunto })),
+          },
+        ].filter(Boolean);
+      } else if (tipo === 'sem-confirmacao') {
+        const r = resumoSemConfirmacao({ commitments: minhasVisitas, now: agora });
+        if (r.vazio) continue;
+        titulo = `${r.visitas.length} ${r.visitas.length === 1 ? 'visita sem confirmação' : 'visitas sem confirmação'}`;
+        // O texto diz o que o estado significa: sem isto, "sem confirmação" é lido
+        // como falta, e a cobrança sai contra fornecedor que talvez tenha ido.
+        corpo = 'A sede ainda não respondeu. Isto não é falta — é ausência de resposta.';
+        cartoes = [
+          {
+            title: 'Sem resposta da sede',
+            rows: r.visitas.map(v => ({ label: `${v.hora} · ${v.sede}`, value: `${v.fornecedor} — ${v.ordens.join(', ')}` })),
+          },
+        ];
+      } else {
+        const r = resumoDoFimDoDia({ commitments: minhasVisitas, tickets: minhasOs, now: agora });
+        if (r.vazio) continue;
+        titulo = 'Como foi o dia';
+        corpo =
+          'Cobranças feitas ainda não entram neste resumo: o registro de cobrança não existe no sistema, e inventar o número seria pior que omiti-lo.';
+        cartoes = [
+          {
+            title: 'O dia',
+            rows: [
+              { label: 'Faltas confirmadas', value: String(r.faltas.length) },
+              { label: 'Sem confirmação', value: String(r.semConfirmacao) },
+              {
+                label: 'OS sem próxima ação',
+                value: r.diasDaMaisAntiga !== null ? `${r.semProximaAcao} (a mais antiga há ${r.diasDaMaisAntiga} dias)` : String(r.semProximaAcao),
+              },
+            ],
+          },
+          r.faltas.length > 0 && {
+            title: 'Quem não apareceu',
+            rows: r.faltas.map(f => ({ label: f.sede, value: `${f.fornecedor} — ${f.ordens.join(', ')}` })),
+          },
+        ].filter(Boolean);
+      }
+
+      const { html } = buildNoticeEmailTemplate({
+        eyebrow: tipo === 'fim-do-dia' ? 'Fim do dia' : tipo === 'agenda' ? 'Agenda do dia' : 'Sem confirmação',
+        title: titulo,
+        subtitle: pessoa.name ? `Para ${pessoa.name}` : '',
+        bodyText: corpo,
+        detailCards: cartoes,
+        ctaUrl: `${baseUrl}/?view=home`,
+        ctaLabel: 'Abrir a agenda',
+      });
+
+      if (!simular) {
+        await gmailSend({
+          toEmail: pessoa.email,
+          subject: titulo,
+          text: `${titulo}\n\n${corpo}\n\n${baseUrl}/?view=home`,
+          html,
+          ticketId: `resumo-${tipo}`,
+          references: [],
+        });
+      }
+      enviados.push({ para: pessoa.email, titulo });
+    }
+
+    return sendJson(res, 200, { ok: true, tipo, simulado: simular, enviados });
+  } catch (error) {
+    console.error('[mail] falha no resumo da operação', error);
+    if (!(error instanceof HttpError)) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: 'Falha ao montar o resumo.',
+        motivo: describeOutboxError(error, 'sem detalhe disponível'),
+      });
+    }
+    return sendError(res, error, 'Falha ao montar o resumo.');
+  }
+}
+
 async function handleRainAlert(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -3581,6 +3770,7 @@ export default async function handler(req, res) {
   if (route === 'agenda-sedes') return handleAgendaDasSedes(req, res);
   if (route === 'checagem-visitas') return handleChecagemDasVisitas(req, res);
   if (route === 'revisao-semanal') return handleRevisaoSemanalEmail(req, res);
+  if (route === 'resumo-operacao') return handleResumoDaOperacao(req, res);
   if (route === 'email-diagnose') return handleEmailDiagnose(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);

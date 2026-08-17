@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cobreASede,
   momentoDaChecagem,
   precisaDeAlertaDeFalta,
   precisaDeChecagem,
@@ -114,5 +115,32 @@ describe('quem recebe o alerta de falta é quem cobra', () => {
   it('inativo não recebe', () => {
     const r = responsaveisPelaCobranca([{ ...larissa, status: 'Inativo' }], { siteId: 'SUL3', regiao: 'Fortaleza' });
     expect(r).toEqual([]);
+  });
+});
+
+describe('o escopo grosso, para quando só existe a sede', () => {
+  // Este bloco nasceu de um defeito real: o resumo de "sem confirmação" não lê as
+  // OS (de propósito, para não gastar cota), e o filtro caía só em `siteIds` — a
+  // gestora com escopo por REGIÃO, que é quem toca a operação inteira, não recebia
+  // o resumo dela.
+  const porRegiao = { email: 'larissa@px.com.br', status: 'Ativo', role: 'Gestor', regionIds: ['r-for'], siteIds: [] };
+  const porSede = { email: 'thais@px.com.br', status: 'Ativo', role: 'Gestor', regionIds: [], siteIds: ['SUL3'] };
+
+  it('escopo por região alcança a sede da região', () => {
+    expect(cobreASede(porRegiao, { siteId: 'SUL3', regiao: 'r-for' })).toBe(true);
+  });
+
+  it('escopo por sede alcança a própria sede', () => {
+    expect(cobreASede(porSede, { siteId: 'SUL3', regiao: 'r-for' })).toBe(true);
+  });
+
+  it('não alcança sede de outra região', () => {
+    expect(cobreASede(porRegiao, { siteId: 'PQL1', regiao: 'r-sobral' })).toBe(false);
+    expect(cobreASede(porSede, { siteId: 'PQL1', regiao: 'r-for' })).toBe(false);
+  });
+
+  it('sem região resolvida, ainda decide pela sede', () => {
+    expect(cobreASede(porSede, { siteId: 'SUL3', regiao: null })).toBe(true);
+    expect(cobreASede(porRegiao, { siteId: 'SUL3', regiao: null })).toBe(false);
   });
 });
