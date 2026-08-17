@@ -3,6 +3,38 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-17 (o e-mail era caixa dentro de caixa — e a prévia mostrava outro e-mail)
+
+Pedido do dono: "os e-mails estão muito carregados". Estavam. Medindo o que sai:
+
+- **Quatro níveis de caixa** — moldura → bloco "Mensagem" → cartão por valor →
+  linha com borda. Quatro valores viravam quatro quadros; ninguém enxergava que
+  bruto menos imposto dava o valor a pagar.
+- **Três textos abaixo de 4,5:1** — os rotulinhos de 10px em maiúscula espaçada
+  davam **3,85:1**.
+- **A OS aparecia duas vezes** no cabeçalho, e o quadro do lado espremia o título
+  a ponto de quebrá-lo em duas linhas.
+- **O endereço do botão vinha repetido** logo abaixo, como "Link completo".
+
+E o achado que ninguém tinha visto: existiam **dois desenhos**. `api/_lib/emailTemplates.js`
+mandava um e-mail; `src/utils/emailTemplatePreview.ts` desenhava outro, com blocos
+que o envio não tem. Quem ajustava um modelo nas Configurações aprovava uma coisa e
+o destinatário recebia outra. Agora a prévia só traduz o modelo em parâmetros —
+quem desenha é o módulo do envio.
+
+A divergência escondia um defeito real: o envio juntava quebras de linha com
+espaço (a prévia usava `<br/>`). O aviso de nova OS chegava como parágrafo corrido —
+"Assunto: … Solicitante: … Sede: ALD Região: Fortaleza". Agora esses campos vão na
+tabela de detalhes, que é o que eles são.
+
+| | antes | depois |
+|---|---|---|
+| caixas aninhadas | 4 níveis | **1 moldura** |
+| textos abaixo de 4,5:1 | 3 | **0** (pior caso 5,90) |
+| HTML do aviso financeiro | 7.658 B | **6.125 B** |
+| desenhos do mesmo e-mail | 2 | **1** |
+| testes de template | 0 | **15** |
+
 ## 2026-08-17 (nenhum e-mail automático jamais saiu — e o sistema não sabia dizer)
 
 A pergunta era simples: "choveu de madrugada, nossos alertas pegaram?". Não

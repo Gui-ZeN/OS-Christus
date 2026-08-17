@@ -159,18 +159,26 @@ function buildManagerNotificationEmail(ticket) {
     : '';
   const template = buildTicketEmailTemplate({
     trigger: 'EMAIL-NOVA-OS-GESTOR',
-    title: `Nova solicitação recebida (${ticket.id || 'OS'})`,
+    // O título não repete mais a OS: ela já vem embaixo, junto do estado.
+    title: 'Nova solicitação recebida',
     intro: 'Uma nova solicitação de OS foi registrada por e-mail para sua estrutura.',
     ticketId: ticket.id || '-',
     status: ticket.status || 'Nova OS',
     ctaUrl: ctaUrl || null,
     ctaLabel: 'Acompanhar solicitação',
-    bodyText: [
-      `Assunto: ${ticket.subject || '-'}`,
-      `Solicitante: ${ticket.requester || '-'} (${ticket.requesterEmail || '-'})`,
-      `Sede: ${ticket.sede || '-'}`,
-      `Região: ${ticket.region || '-'}`,
-    ].join('\n'),
+    // Assunto, solicitante, sede e região são campos, não prosa — vão na tabela de
+    // detalhes, com rótulo à esquerda e valor à direita.
+    detailCards: [
+      {
+        title: 'Solicitação',
+        rows: [
+          { label: 'Assunto', value: ticket.subject || '-' },
+          { label: 'Solicitante', value: `${ticket.requester || '-'} (${ticket.requesterEmail || '-'})` },
+          { label: 'Sede', value: ticket.sede || '-' },
+          { label: 'Região', value: ticket.region || '-' },
+        ],
+      },
+    ],
   });
   return { subject: `Nova OS recebida - ${ticket.id || 'Sem ID'}`, text: template.text, html: template.html };
 }
