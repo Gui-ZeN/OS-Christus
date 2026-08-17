@@ -20,6 +20,7 @@ import {
   gmailListRecentInbox,
   gmailSend,
   gmailStartWatch,
+  gmailCheckCredential,
 } from './_lib/gmail.js';
 import { readJsonBody, sendError, sendJson } from './_lib/http.js';
 import { isAttachmentContentCompatible, isAllowedAttachmentMime, normalizeMimeType } from './_lib/attachments.js';
@@ -2560,6 +2561,63 @@ async function handleRainAlert(req, res) {
   }
 }
 
+/**
+ * DIAGNÓSTICO DA ENTREGA — responde "por que o e-mail não sai?".
+ *
+ * Motivo de existir: a fila acumulou 213 itens mortos e o campo do motivo dizia
+ * "[object Object]". O conserto do texto ajuda a PRÓXIMA falha; esta rota responde
+ * sobre a atual, sem esperar a próxima tentativa e sem enviar nada.
+ *
+ * Protegida pelo mesmo CRON_SECRET das outras rotas automatizadas, e devolve só
+ * diagnóstico: presença de variável (nome e sim/não), nunca valor.
+ *
+ *   curl -X POST "https://<dominio>/api/mail?route=email-diagnose" \
+ *        -H "Authorization: Bearer $CRON_SECRET"
+ */
+async function handleEmailDiagnose(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+
+    const credencial = await gmailCheckCredential();
+
+    // A URL que o worker usa para chamar a própria rota de envio. Se ela apontar
+    // para o deployment em vez do domínio, a proteção da Vercel devolve uma página
+    // de login e nenhuma entrega acontece — a outra hipótese para os 213.
+    let urlInterna = null;
+    let urlErro = null;
+    try {
+      urlInterna = getOutboxSendUrl();
+    } catch (erro) {
+      urlErro = erro?.message || 'indefinida';
+    }
+
+    return sendJson(res, 200, {
+      ok: true,
+      credencialDoGmail: credencial,
+      envio: {
+        urlInterna,
+        urlErro,
+        // Qual variável decidiu a URL — é o que diz se estamos no domínio estável.
+        origemDaUrl: process.env.APP_BASE_URL
+          ? 'APP_BASE_URL'
+          : process.env.PUBLIC_APP_URL
+            ? 'PUBLIC_APP_URL'
+            : process.env.VERCEL_URL
+              ? 'VERCEL_URL (deployment — pode estar atrás da proteção da Vercel)'
+              : 'nenhuma',
+        cronSecretPresente: Boolean(process.env.CRON_SECRET),
+        destinatarioDoAvisoDeChuva: Boolean(process.env.RAIN_ALERT_TO),
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, 'Falha ao diagnosticar a entrega de e-mail.');
+  }
+}
+
 async function handleEmailOutboxWorker(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -3039,6 +3097,7 @@ export default async function handler(req, res) {
   if (route === 'dropped-inbound') return handleDroppedInbound(req, res);
   if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
   if (route === 'rain-alert') return handleRainAlert(req, res);
+  if (route === 'email-diagnose') return handleEmailDiagnose(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
   if (route === 'gmail-watch') return handleGmailWatch(req, res);

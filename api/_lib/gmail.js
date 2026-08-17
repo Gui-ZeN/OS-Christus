@@ -17,6 +17,58 @@ function createOAuthClient() {
   return oauth2Client;
 }
 
+/**
+ * A CREDENCIAL DO GMAIL AINDA VALE? — sem mandar e-mail.
+ *
+ * Existe porque 213 itens da fila morreram e o motivo gravado era "[object Object]":
+ * quando o refresh token é recusado, o `googleapis` rejeita com um OBJETO sem
+ * `.message`, e todo `String(erro)` no caminho transformava isso em lixo.
+ *
+ * Pedir um access token exercita exatamente a troca que falha — refresh token por
+ * token de acesso — e separa as duas causas que se parecem de fora:
+ *   · credencial recusada  → `invalid_grant` (revogado/expirado) ou `unauthorized_client`
+ *   · credencial boa       → o problema está na montagem da mensagem, não no acesso
+ *
+ * Devolve APENAS diagnóstico. Nunca o token, nunca o segredo, nunca o refresh token.
+ */
+export async function gmailCheckCredential() {
+  const faltando = ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN', 'GMAIL_FROM_EMAIL']
+    .filter(nome => !process.env[nome]);
+  if (faltando.length > 0) {
+    return { ok: false, etapa: 'variaveis', faltando };
+  }
+
+  try {
+    const client = createOAuthClient();
+    const { token } = await client.getAccessToken();
+    if (!token) {
+      return { ok: false, etapa: 'token', motivo: 'O Google respondeu sem token de acesso.' };
+    }
+    return { ok: true, etapa: 'token', expiraEm: client.credentials?.expiry_date || null };
+  } catch (erro) {
+    // O objeto inteiro, achatado — é justamente a forma dele que estava se perdendo.
+    return {
+      ok: false,
+      etapa: 'token',
+      codigo: erro?.response?.data?.error || erro?.error || erro?.code || null,
+      motivo:
+        erro?.response?.data?.error_description ||
+        erro?.error_description ||
+        erro?.message ||
+        null,
+      tipo: erro?.constructor?.name || typeof erro,
+      // Sem isto, um formato novo de erro voltaria a ser invisível.
+      bruto: (() => {
+        try {
+          return JSON.stringify(erro?.response?.data ?? erro)?.slice(0, 600) || null;
+        } catch {
+          return null;
+        }
+      })(),
+    };
+  }
+}
+
 function createGmailClient() {
   return google.gmail({ version: 'v1', auth: createOAuthClient() });
 }
