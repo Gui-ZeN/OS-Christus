@@ -62,6 +62,7 @@ import {
   markEmailOutboxFailed,
   markEmailOutboxSent,
   resolveOutboxRecipients,
+  describeOutboxError,
 } from './_lib/emailOutbox.js';
 import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
 import { fetchCemaden } from './_lib/cemaden.js';
@@ -2409,10 +2410,26 @@ async function handleHealth(req, res) {
   }
 }
 
+/**
+ * A URL que o worker usa para chamar a PRÓPRIA rota de envio.
+ *
+ * A ordem inverteu: o domínio estável vem primeiro, `VERCEL_URL` virou último
+ * recurso. `VERCEL_URL` aponta para o DEPLOYMENT (`serv3-a1b2c3.vercel.app`), não
+ * para o domínio de produção — e deployment pode estar atrás da proteção da Vercel,
+ * que responde uma página de login. A chamada não chega na rota, falha sempre, do
+ * mesmo jeito, desde o primeiro deploy: exatamente o padrão dos 213 dead-letter.
+ *
+ * Não é a causa confirmada — a evidência aponta mais para o OAuth do Gmail — mas é
+ * uma dependência frágil que não custa nada endereçar, e o domínio estável é o certo
+ * de qualquer forma.
+ */
 function getOutboxSendUrl() {
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${String(process.env.VERCEL_URL).replace(/^https?:\/\//, '')}`
-    : process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL;
+  const baseUrl =
+    process.env.APP_BASE_URL ||
+    process.env.PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL
+      ? `https://${String(process.env.VERCEL_URL).replace(/^https?:\/\//, '')}`
+      : null);
   if (!baseUrl) throw new Error('URL interna do Serv3 não configurada para processar a outbox.');
   return new URL('/api/mail?route=send', baseUrl).toString();
 }
@@ -2444,7 +2461,13 @@ async function dispatchAutomatedOutboxItem(item) {
     return { ok: true, skipped: 'ticket-inexistente' };
   }
   if (!response.ok) {
-    throw new Error(payload?.error || `Falha HTTP ${response.status} ao entregar e-mail.`);
+    // O corpo do erro pode não ser texto: rota que responde objeto, ou página HTML
+    // de proteção de deployment (aí o `response.json()` acima falha e devolve {}).
+    // Passar isso direto para `new Error` grava "[object Object]" — o mesmo defeito
+    // que cegou os 213 dead-letter, só que um nível acima. O status HTTP entra
+    // sempre, porque é ele que separa "credencial recusada" de "rota inalcançável".
+    const motivo = describeOutboxError(payload?.error, `HTTP ${response.status}`);
+    throw new Error(`Falha ao entregar e-mail (HTTP ${response.status}): ${motivo}`);
   }
   return payload;
 }
