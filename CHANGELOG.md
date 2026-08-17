@@ -104,6 +104,38 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### A visita desmarcada deixa de ser registrada como falta
+
+O estado `cancelado` existia no domínio (`COMMITMENT_STATE`, com o comentário *"não é
+mais necessário — a sede resolveu, a OS caiu"*), o cliente existia
+(`cancelCommitment`) e o servidor tratava (`api/tickets.js`, grava o estado e recusa
+com 409 se o compromisso já foi encerrado). **Faltava o botão.**
+
+Sem ele, quem opera só tinha duas respostas para uma visita marcada:
+
+| situação | o que dava para registrar |
+|---|---|
+| a visita aconteceu | "veio" + desfecho |
+| o fornecedor não apareceu | "não veio" |
+| **a visita foi desmarcada** | **nada — ou mentir "não veio"** |
+
+E "não veio" não é rótulo inocente: é o sinal que a agenda usa para apontar
+fornecedor que falha. Cada cancelamento registrado como falta **sujava a métrica de
+quem realmente falhou**.
+
+Agora existe nos dois momentos em que faz sentido, porque o servidor aceita enquanto
+o estado guardado for `agendado`:
+
+- **antes da hora** — linha discreta no cartão ("Elétrica Norte às 09:00 · Foi
+  desmarcada"), em dois toques, porque cancelar é decisão e clique solto em cartão
+  denso erra fácil;
+- **depois da hora** — terceira opção ao lado de "Veio" e "Não veio", que é
+  exatamente onde hoje se era forçado a mentir.
+
+Verificado de ponta a ponta no emulador: criei a visita pela interface, cancelei, e
+li o banco pelo SDK admin — `state = cancelado`. O 409 do servidor (compromisso já
+encerrado por outra pessoa) aparece como mensagem no próprio cartão.
+
 ### Caça de bugs
 
 Varredura medida — transbordo, rótulo acessível, estado vazio, console, e leitura do

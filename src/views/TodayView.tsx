@@ -27,6 +27,7 @@ import {
   type CommitmentState,
 } from '../constants/agenda';
 import {
+  cancelCommitment,
   confirmCommitment,
   createCommitment,
   fetchCommitments,
@@ -292,6 +293,21 @@ export function TodayView() {
     await recarregarCompromissos();
   };
 
+  /**
+   * A visita foi DESMARCADA — nem aconteceu, nem falhou.
+   *
+   * O estado `cancelado` existia no domínio e no servidor desde sempre; faltava o
+   * botão. Sem ele, quem operava só tinha "veio" ou "não veio", então uma visita
+   * desmarcada na terça virava "não veio" na quinta — e "não veio" é o sinal que a
+   * agenda usa para apontar fornecedor que falha. Cada cancelamento registrado como
+   * falta sujava a métrica de quem realmente falhou.
+   */
+  const cancelarCompromisso = async (compromissoId: string) => {
+    await cancelCommitment(compromissoId);
+    await recarregarCompromissos();
+    showToast('Visita cancelada.');
+  };
+
   /** `null` retoma a OS: ela volta a cobrar próxima ação na hora. */
   const salvarSuspensao = async (id: string, attention: TicketAttention | null) => {
     const ok = await updateTicket(id, { attention });
@@ -414,6 +430,7 @@ export function TodayView() {
                       : null
                   }
                   onConfirmar={registrarConfirmacao}
+                  onCancelar={cancelarCompromisso}
                   onCorrigir={(resolution, dueAt) => corrigirAtencao(ticket, resolution, dueAt)}
                   onVirarVisita={(acao, fornecedor) => marcarComoVisita(ticket, acao, fornecedor)}
                   autorEmail={currentUser?.email}
@@ -471,6 +488,7 @@ function Cartao({
   onSuspender,
   compromisso,
   onConfirmar,
+  onCancelar,
   onCorrigir,
   onVirarVisita,
   autorEmail,
@@ -486,6 +504,7 @@ function Cartao({
   onSuspender: (attention: TicketAttention | null) => Promise<boolean>;
   compromisso: HydratedCommitment | null;
   onConfirmar: (id: string, state: CommitmentState, outcome: CommitmentOutcome | null) => Promise<void>;
+  onCancelar: (id: string) => Promise<void>;
   onCorrigir: (resolution: 'feito' | 'adiado' | 'nao-se-aplica', dueAt?: Date) => Promise<boolean>;
   onVirarVisita: (acao: NextAction, fornecedor: string) => Promise<string>;
   autorEmail?: string;
@@ -624,7 +643,14 @@ function Cartao({
       {/* A pergunta que elimina a ligação de verificação. Aparece sozinha quando o
           horário combinado passou e ninguém disse nada. */}
       {compromisso && compromisso.effectiveState === COMMITMENT_STATE.UNCONFIRMED && (
-        <ConfirmacaoDaVisita compromisso={compromisso} onConfirmar={onConfirmar} />
+        <ConfirmacaoDaVisita compromisso={compromisso} onConfirmar={onConfirmar} onCancelar={onCancelar} />
+      )}
+
+      {/* Antes da hora: a visita ainda vai acontecer, e pode ser desmarcada. Sem
+          isto, quem soubesse na terça que a visita de quinta caiu não tinha o que
+          fazer além de esperar o prazo vencer para responder "não veio". */}
+      {compromisso && compromisso.effectiveState === COMMITMENT_STATE.SCHEDULED && (
+        <VisitaAgendada compromisso={compromisso} onCancelar={onCancelar} />
       )}
 
       {compromisso && compromisso.effectiveState === COMMITMENT_STATE.MISSED && (
@@ -974,12 +1000,84 @@ function EditorDeAcao({
  * OBRIGATÓRIO: sem ele, o fornecedor que chegou, olhou a pia, disse que faltou
  * material e foi embora ficaria registrado igual a quem resolveu.
  */
+/**
+ * A visita marcada, antes da hora — com a única ação que cabe aqui.
+ *
+ * Discreta de propósito: nada aconteceu ainda, então isto não é pauta. É só a
+ * saída para quando a visita cai antes de acontecer. Fica em dois toques porque
+ * cancelar é decisão, e um clique solto num cartão denso erra fácil.
+ */
+function VisitaAgendada({
+  compromisso,
+  onCancelar,
+}: {
+  compromisso: HydratedCommitment;
+  onCancelar: (id: string) => Promise<void>;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const cancelar = async () => {
+    setSalvando(true);
+    setErro('');
+    try {
+      await onCancelar(compromisso.id);
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível cancelar.'));
+      setConfirmando(false);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-roman-border pt-2 text-xs text-roman-text-sub">
+      <span>
+        {compromisso.vendorName || 'Visita'} às {horaCurta(compromisso.startAt)}
+      </span>
+      {confirmando ? (
+        <>
+          <span className="text-roman-text-main">Cancelar esta visita?</span>
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={() => void cancelar()}
+            className="inline-flex min-h-6 items-center rounded-sm border border-roman-danger/35 px-2 py-0.5 font-medium text-roman-danger transition-colors hover:bg-roman-danger/12 disabled:opacity-50"
+          >
+            {salvando ? 'Cancelando…' : 'Sim, foi desmarcada'}
+          </button>
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={() => setConfirmando(false)}
+            className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-roman-text-main"
+          >
+            não
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirmando(true)}
+          className="ml-auto inline-flex min-h-6 items-center underline underline-offset-2 hover:text-roman-text-main"
+        >
+          Foi desmarcada
+        </button>
+      )}
+      {erro && <span className="text-roman-danger">{erro}</span>}
+    </div>
+  );
+}
+
 function ConfirmacaoDaVisita({
   compromisso,
   onConfirmar,
+  onCancelar,
 }: {
   compromisso: HydratedCommitment;
   onConfirmar: (id: string, state: CommitmentState, outcome: CommitmentOutcome | null) => Promise<void>;
+  onCancelar: (id: string) => Promise<void>;
 }) {
   const [pedindoDesfecho, setPedindoDesfecho] = useState(false);
   const [desfecho, setDesfecho] = useState<CommitmentOutcome>(COMMITMENT_OUTCOME.DONE);
@@ -993,6 +1091,21 @@ function ConfirmacaoDaVisita({
       await onConfirmar(compromisso.id, state, outcome);
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível registrar.'));
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const cancelar = async () => {
+    setSalvando(true);
+    setErro('');
+    try {
+      await onCancelar(compromisso.id);
+    } catch (e) {
+      // O servidor recusa com 409 se o compromisso já foi encerrado por outra
+      // pessoa enquanto esta tela estava aberta — a mensagem dele é mais precisa
+      // que qualquer texto genérico daqui.
+      setErro(mensagemDeErro(e, 'Não foi possível cancelar.'));
     } finally {
       setSalvando(false);
     }
@@ -1021,6 +1134,16 @@ function ConfirmacaoDaVisita({
             className="rounded-sm border border-roman-danger/35 px-3 py-1.5 text-sm text-roman-danger hover:bg-roman-danger/12 disabled:opacity-50"
           >
             Não veio
+          </button>
+          {/* A terceira resposta, que faltava. Sem ela, visita desmarcada só cabia
+              em "não veio" — e "não veio" é o sinal de fornecedor que falha. */}
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={() => cancelar()}
+            className="rounded-sm border border-roman-border px-3 py-1.5 text-sm text-roman-text-sub transition-colors hover:border-roman-border-control hover:text-roman-text-main disabled:opacity-50"
+          >
+            Foi desmarcada
           </button>
           <span className="text-xs text-roman-text-sub">
             ainda sem resposta não é falta — só vira falta quando alguém disser
