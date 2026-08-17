@@ -1,0 +1,79 @@
+name: Checagem das visitas
+
+# Fecha o laço que o e-mail das 07h abre. Duas perguntas, a cada 10 minutos:
+#
+#   1. passou o horário e a sede não disse nada -> pergunta de novo, À SEDE;
+#   2. a sede disse que não veio -> avisa quem cobra, na hora.
+#
+# A (2) é o ÚNICO alerta individual e imediato do desenho. Todo o resto é agrupado,
+# porque um alerta por evento viraria ~80 e-mails por dia e o sensor pararia de
+# funcionar em poucas semanas.
+#
+# ⚠️ POR QUE 10 MINUTOS, e não 5 nem 30. A tolerância padrão é de 30 min ("uma hora
+# é tarde": a falta fica invisível metade da manhã e ainda aparece no relatório como
+# "cobrada rápido"). O agendador do GitHub atrasa — execuções agendadas entram numa
+# fila —, então */10 na prática entrega a pergunta poucos minutos depois da
+# tolerância. */5 dobraria as execuções sem melhorar isso, porque o atraso do
+# agendador domina.
+#
+# ⚠️ CUSTO DE LEITURA. Roda ~144 vezes por dia, e a cota do Firestore cobra por
+# documento devolvido. A rota faz as consultas de compromisso PRIMEIRO e estreitas;
+# a de usuários só acontece se houver algo a enviar. No dia comum — ninguém
+# atrasado, nenhuma falta — cada execução custa duas consultas que voltam vazias.
+#
+# Roda 24h por dia de propósito: visita marcada para as 16h precisa ser perguntada
+# às 16h30, não na manhã seguinte.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      simular:
+        # Devolve o que sairia, sem enviar, sem emitir link e sem marcar nada como
+        # já perguntado — dá para conferir antes de deixar solto.
+        description: "Só simular (não envia, não marca)"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  # Duas execuções juntas leriam as mesmas visitas antes de qualquer uma marcar, e
+  # a sede receberia a pergunta em dobro.
+  group: checagem-das-visitas
+  cancel-in-progress: false
+
+jobs:
+  checar:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    steps:
+      - name: Perguntar às sedes e avisar as faltas
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CHECAGEM_URL: ${{ secrets.CHECAGEM_VISITAS_URL || 'https://serv3.vercel.app/api/mail?route=checagem-visitas' }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
+            exit 1
+          fi
+
+          URL="$CHECAGEM_URL"
+          # `workflow_dispatch` manda "true"; o disparo agendado manda vazio.
+          if [ "$SIMULAR" = "true" ]; then
+            case "$URL" in
+              *\?*) URL="$URL&simular=1" ;;
+              *) URL="$URL?simular=1" ;;
+            esac
+          fi
+
+          CODIGO=$(curl -sS -o resposta.json -w "%{http_code}" -X POST "$URL" \
+            -H "Authorization: Bearer $CRON_SECRET")
+
+          cat resposta.json
+          echo ""
+          if [ "$CODIGO" != "200" ]; then
+            echo "A rota respondeu $CODIGO."
+            exit 1
+          fi

@@ -7,7 +7,8 @@ import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
 import { buildNoticeEmailTemplate, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
-import { montarAgendaDoDia } from './_lib/agendaDoDia.js';
+import { ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
+import { precisaDeAlertaDeFalta, precisaDeChecagem, responsaveisPelaCobranca } from './_lib/checagemDaVisita.js';
 import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
@@ -2628,6 +2629,189 @@ async function handleAgendaDasSedes(req, res) {
   }
 }
 
+/**
+ * A VARREDURA QUE FECHA O LAÇO — roda de poucos em poucos minutos.
+ *
+ * Duas perguntas:
+ *   1. passou o horário e a sede não disse nada -> pergunta de novo, À SEDE;
+ *   2. a sede disse que não veio -> avisa quem cobra, na hora.
+ *
+ * ⚠️ A ORDEM DAS CONSULTAS É PROPOSITAL. A cota de leitura do Firestore cobra por
+ * documento DEVOLVIDO, e esta rota roda ~144 vezes por dia. Por isso as consultas
+ * de compromisso vêm primeiro e são estreitas (janela de horas, não a coleção); a
+ * de usuários só acontece SE houver algo a enviar. No dia comum — ninguém atrasado,
+ * nenhuma falta — a varredura custa duas consultas que voltam vazias.
+ */
+async function handleChecagemDasVisitas(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+
+    const simular = String(req.query?.simular || '') === '1';
+    const db = getAdminDb();
+    const agora = new Date();
+    const baseUrl =
+      String(process.env.APP_BASE_URL || '').trim() ||
+      String(process.env.PUBLIC_APP_URL || '').trim() ||
+      'https://serv3.vercel.app';
+
+    // Janela curta: quem passou do horário há mais de 12h não vira pergunta nova —
+    // já é assunto do digest do dia, e perguntar de noite sobre a manhã é ruído.
+    const doze = new Date(agora.getTime() - 12 * 3_600_000);
+    const aVencer = await db
+      .collection('commitments')
+      .where('startAt', '>=', doze)
+      .where('startAt', '<=', agora)
+      .get();
+    const paraChecar = aVencer.docs
+      .map(d => ({ id: d.id, ...d.data(), startAt: toDateOrNull(d.data()?.startAt) }))
+      .filter(c => precisaDeChecagem(c, agora));
+
+    // Falta confirmada nas últimas 24h. O filtro fino (já avisada?) é em memória:
+    // consultar por campo ausente exigiria índice e devolveria os mesmos poucos docs.
+    const ontem = new Date(agora.getTime() - 24 * 3_600_000);
+    const faltas = await db
+      .collection('commitments')
+      .where('state', '==', 'faltou')
+      .where('confirmedAt', '>=', ontem)
+      .get();
+    const paraAvisar = faltas.docs
+      .map(d => ({ id: d.id, ...d.data(), startAt: toDateOrNull(d.data()?.startAt) }))
+      .filter(precisaDeAlertaDeFalta);
+
+    if (paraChecar.length === 0 && paraAvisar.length === 0) {
+      return sendJson(res, 200, { ok: true, checagens: [], alertas: [], nadaAFazer: true });
+    }
+
+    // Só agora vale a leitura dos usuários.
+    const usuarios = (await db.collection('users').where('status', '==', 'Ativo').get()).docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+    }));
+    const territorio = paraAvisar.length > 0 ? await readTerritoryCatalog(db) : null;
+
+    const checagens = [];
+    for (const visita of paraChecar) {
+      const siteId = String(visita.siteId || visita.sede || '').trim();
+      const coordenadores = usuarios.filter(u => ehCoordenadorDaSede(u, siteId));
+      if (coordenadores.length === 0) continue;
+
+      for (const quem of coordenadores) {
+        let url = `${baseUrl}/`;
+        if (!simular) {
+          const emitido = novoTokenDeConfirmacao({
+            commitmentId: visita.id,
+            email: quem.email,
+            nome: quem.name || '',
+            now: agora,
+          });
+          await db.collection('visitConfirmTokens').doc(emitido.token).set(emitido.doc);
+          url = `${baseUrl}/?confirmar=${emitido.token}`;
+        }
+
+        const fornecedor = String(visita.vendorName || 'O fornecedor');
+        const { html } = buildNoticeEmailTemplate({
+          eyebrow: 'Confirmação',
+          title: `${fornecedor} chegou?`,
+          subtitle: visita.sede ? `Sede ${visita.sede}` : '',
+          bodyText: `Estava marcado para ${horaEmFortaleza(visita.startAt)} e já passou do horário.`,
+          itens: [
+            {
+              quando: horaEmFortaleza(visita.startAt),
+              titulo: `${fornecedor} — ${(visita.ticketIds || []).join(', ')}`,
+              acoes: [
+                { rotulo: 'Chegou', url },
+                { rotulo: 'Não chegou', url },
+              ],
+            },
+          ],
+          rodape: 'Um toque basta. Sem resposta, avisamos a manutenção de que ficou sem confirmação.',
+        });
+
+        if (!simular) {
+          await gmailSend({
+            toEmail: quem.email,
+            subject: `${fornecedor} chegou na ${visita.sede || 'sede'}?`,
+            text: `Estava marcado para ${horaEmFortaleza(visita.startAt)} e já passou do horário. Confirme pelo link: ${url}`,
+            html,
+            ticketId: `checagem-${visita.id}`,
+            references: [],
+          });
+        }
+        checagens.push({ visita: visita.id, para: quem.email, sede: visita.sede || null });
+      }
+
+      // A marca vai DEPOIS do envio: se o envio falhar, a próxima volta tenta de
+      // novo em vez de marcar como perguntado e deixar a visita morrer calada.
+      if (!simular) {
+        await db.collection('commitments').doc(visita.id).update({ checagemEnviadaEm: agora });
+      }
+    }
+
+    const alertas = [];
+    for (const visita of paraAvisar) {
+      const siteId = String(visita.siteId || visita.sede || '').trim();
+      const regiao = territorio?.sites?.find?.(s => String(s?.id || s?.code || '') === siteId)?.regionId || null;
+      const cobradores = responsaveisPelaCobranca(usuarios, { siteId, regiao });
+      if (cobradores.length === 0) continue;
+
+      const fornecedor = String(visita.vendorName || 'O fornecedor');
+      const { html } = buildNoticeEmailTemplate({
+        eyebrow: 'Falta confirmada',
+        title: `${fornecedor} não apareceu na ${visita.sede || 'sede'}`,
+        subtitle: `Estava marcado para ${horaEmFortaleza(visita.startAt)}`,
+        bodyText: 'A sede confirmou. Há prazo correndo para cobrar.',
+        detailCards: [
+          {
+            title: 'A visita',
+            rows: [
+              { label: 'Fornecedor', value: fornecedor },
+              { label: 'Sede', value: String(visita.sede || '-') },
+              { label: 'OS', value: (visita.ticketIds || []).join(', ') || '-' },
+              { label: 'Quem confirmou', value: String(visita.confirmedBy || '-') },
+            ],
+          },
+        ],
+        ctaUrl: `${baseUrl}/?view=home`,
+        ctaLabel: 'Abrir a agenda',
+      });
+
+      for (const quem of cobradores) {
+        if (!simular) {
+          await gmailSend({
+            toEmail: quem.email,
+            subject: `${fornecedor} não apareceu — ${visita.sede || 'sede'}`,
+            text: `A sede confirmou que ${fornecedor} não apareceu. Marcado para ${horaEmFortaleza(visita.startAt)}. OS: ${(visita.ticketIds || []).join(', ')}.`,
+            html,
+            ticketId: `falta-${visita.id}`,
+            references: [],
+          });
+        }
+        alertas.push({ visita: visita.id, para: quem.email, fornecedor });
+      }
+
+      if (!simular) {
+        await db.collection('commitments').doc(visita.id).update({ faltaAvisadaEm: agora });
+      }
+    }
+
+    return sendJson(res, 200, { ok: true, simulado: simular, checagens, alertas });
+  } catch (error) {
+    console.error('[mail] falha na checagem das visitas', error);
+    if (!(error instanceof HttpError)) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: 'Falha na checagem das visitas.',
+        motivo: describeOutboxError(error, 'sem detalhe disponível'),
+      });
+    }
+    return sendError(res, error, 'Falha na checagem das visitas.');
+  }
+}
+
 async function handleRainAlert(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -3274,6 +3458,7 @@ export default async function handler(req, res) {
   if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
   if (route === 'rain-alert') return handleRainAlert(req, res);
   if (route === 'agenda-sedes') return handleAgendaDasSedes(req, res);
+  if (route === 'checagem-visitas') return handleChecagemDasVisitas(req, res);
   if (route === 'email-diagnose') return handleEmailDiagnose(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);
