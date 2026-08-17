@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAccessEmailTemplate,
-  buildConversationHtmlEmail,
   buildNoticeEmailTemplate,
   buildTicketEmailTemplate,
 } from '../../api/_lib/emailTemplates.js';
@@ -131,33 +130,6 @@ describe('a prévia das Configurações mostra o e-mail que sai de verdade', () 
     expect(previa).toContain('OS OS-0051 aguardando aprovação');
     expect(previa).toContain('Olá Solicitante');
     expect(previa).not.toContain('{{');
-  });
-});
-
-describe('a resposta da conversa continua sem moldura, mas com tipografia', () => {
-  it('não vira cartão — cai na thread do solicitante', () => {
-    const html = buildConversationHtmlEmail('Bom dia, o técnico passa amanhã.');
-    expect(html).not.toContain('<!doctype html>');
-    expect(html).not.toContain('Comunicado automático');
-    expect(html).not.toContain('Serv3');
-  });
-
-  it('define fonte, tamanho e cor — antes saía no padrão de cada cliente', () => {
-    const html = buildConversationHtmlEmail('Bom dia.');
-    expect(html).toContain('font-family:');
-    expect(html).toContain('font-size:15px');
-  });
-
-  it('ganha link e @menção, como já acontecia pelo cartão', () => {
-    const html = buildConversationHtmlEmail('Foto em https://drive.google.com/x — @Ana Paula vê.');
-    expect(html).toContain('<a href="https://drive.google.com/x"');
-    expect(html).toContain('<strong');
-  });
-
-  it('mantém parágrafo, quebra simples e escape', () => {
-    expect(buildConversationHtmlEmail('linha 1\nlinha 2\n\npar 2')).toContain('linha 1<br/>linha 2');
-    expect(buildConversationHtmlEmail('<script>alert(1)</script>')).toContain('&lt;script&gt;');
-    expect(buildConversationHtmlEmail('')).toBe('<p></p>');
   });
 });
 

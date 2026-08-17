@@ -6,7 +6,7 @@ import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.j
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
-import { buildConversationHtmlEmail, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
+import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import {
@@ -1910,11 +1910,10 @@ async function handleSend(req, res) {
     if (isDirectorTrigger && !internalCopy && !skipDirectorGreeting) {
       personalizedBody = normalizeDirectorGreeting(resolvedBody);
     }
-    const shouldUseMinimalConversationBody =
-      !internalCopy &&
-      triggerKey === 'EMAIL-NOVA-MENSAGEM' &&
-      templateData.useBodyOnly === true;
-
+    // `useBodyOnly` continua mandando de onde vem o TEXTO (acima, em
+    // forceBodyFromTemplateData). O que saiu daqui foi o segundo efeito, que
+    // ninguém tinha pedido: o HTML da nova mensagem escapava do template e ia sem
+    // moldura, sem fonte e sem o botão "Ver mensagem" que o chamador manda.
     const fallbackTemplate = buildTicketEmailTemplate({
       trigger: trigger || templateId || resolvedSubject,
       title: repairMojibake(templateData.title || '') || `Atualização de ${ticketId}`,
@@ -1937,9 +1936,7 @@ async function handleSend(req, res) {
     });
 
     const finalText = repairMojibake(personalizedBody || text || fallbackTemplate.text);
-    const finalHtml = shouldUseMinimalConversationBody
-      ? buildConversationHtmlEmail(finalText)
-      : (html || fallbackTemplate.html);
+    const finalHtml = html || fallbackTemplate.html;
 
     let sendResult;
     let effectiveInReplyTo = priorMessageId || null;

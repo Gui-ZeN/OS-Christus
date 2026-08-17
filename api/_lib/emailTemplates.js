@@ -352,21 +352,6 @@ export function buildTicketEmailTemplate({
 }
 
 /**
- * A resposta da conversa (EMAIL-NOVA-MENSAGEM). Aqui NÃO entra moldura: este
- * e-mail cai na thread do solicitante e precisa ler como mensagem de gente, não
- * como comunicado de sistema. O que faltava era o mínimo — ele saía em `<p>` puro,
- * sem fonte, tamanho ou cor, e chegava no padrão de cada cliente (Times New Roman
- * no Outlook). E o mesmo texto ganhava link e @menção quando ia pelo cartão, mas
- * não aqui: a foto colada virava texto morto no e-mail mais enviado do sistema.
- */
-export function buildConversationHtmlEmail(value) {
-  const text = String(value || '').replace(/\r\n/g, '\n').trim();
-  const corpo = renderBodyText(text);
-  if (!corpo) return '<p></p>';
-  return `<div style="font-family:${FONTE_TITULO};font-size:15px;line-height:1.65;color:${COR.prosa};">${corpo}</div>`;
-}
-
-/**
  * Aviso que não é de OS — hoje, a chuva. Ele saía em TEXTO PURO: chegava com a
  * fonte de máquina de escrever do cliente, sem hierarquia, e as duas fontes de
  * medição empilhadas em linhas indentadas com espaço. Mesma moldura dos outros.
