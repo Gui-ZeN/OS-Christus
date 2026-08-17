@@ -68,17 +68,24 @@ describe('readStation', () => {
     expect(readStation(EDSON, AGORA).state).toBe('nao-chovendo');
   });
 
-  it('🪣 UMA báscula (0,2 mm) NÃO é chuva', () => {
-    // Medido em produção: em 96h secas, o João XXIII registrou uma báscula. Com o
-    // limite antigo (`> 0`) isso viraria e-mail, a Thaís iria olhar a goteira e não
-    // teria nada para ver — e alerta que erra assim é alerta que ninguém abre depois.
+  it('🪣 UMA báscula (0,2 mm) É chuva', () => {
+    // Este teste JÁ AFIRMOU O CONTRÁRIO. O limiar era 0,4 mm ("encheu duas vezes")
+    // porque, em 96h secas, o João XXIII registrou uma báscula sozinha e isso viraria
+    // e-mail para um respingo invisível no telhado.
+    //
+    // Decisão do dono em 17/08: avisar QUALQUER chuva. Os dois erros não custam o
+    // mesmo — alerta a mais é um e-mail ignorado, alerta a menos é uma goteira que
+    // ninguém foi ver. Numa operação de manutenção predial, o segundo é mais caro.
     const r = readStation(UMA_BASCULA, AGORA);
-    expect(r.state).toBe('nao-chovendo');
+    expect(r.state).toBe('chovendo');
     expect(r.mm).toBe(0.2);
   });
 
-  it('duas básculas na MESMA leitura é chuva', () => {
-    expect(readStation({ ...UMA_BASCULA, ultimovalor: MIN_RAIN_MM }, AGORA).state).toBe('chovendo');
+  it('o limiar é o menor evento que o aparelho mede — não há chuva abaixo dele', () => {
+    // A báscula reporta de 0,2 em 0,2 mm. Um limiar menor que isso não pegaria nada
+    // a mais; só criaria a ilusão de sensibilidade que o hardware não tem.
+    expect(MIN_RAIN_MM).toBe(0.2);
+    expect(readStation({ ...UMA_BASCULA, ultimovalor: 0 }, AGORA).state).toBe('nao-chovendo');
   });
 
   it('chuva fina e constante conta pelo acumulado da hora', () => {

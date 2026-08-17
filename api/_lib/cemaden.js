@@ -33,15 +33,24 @@ export const MAX_READING_AGE_MINUTES = 60;
 export const MAX_CLOCK_DRIFT_MINUTES = 30;
 
 /**
- * **Duas básculas.** O pluviômetro é de báscula com resolução de 0,2 mm — uma concha
- * que reporta ao encher. Aceitar `> 0` fazia o menor evento mensurável virar alerta:
- * em 96h secas, o posto João XXIII registrou **uma** báscula (0,2 mm) e teria disparado
- * e-mail. A Thaís iria olhar a goteira e não haveria nada para ver — e alerta que erra
- * assim é alerta que ninguém abre depois.
+ * **UMA báscula basta.** O pluviômetro é de báscula com resolução de 0,2 mm — uma
+ * concha que reporta ao encher. Este limiar é o menor evento que o aparelho sabe
+ * medir: abaixo dele não existe leitura, então na prática é "qualquer chuva".
  *
- * Exigir 0,4 mm significa "encheu duas vezes": chuva, não respingo.
+ * Já foi 0,4 mm ("encheu duas vezes"), por um motivo real: em 96h secas o posto
+ * João XXIII registrou uma báscula sozinha, e com o limite em qualquer-valor isso
+ * viraria e-mail para um respingo que ninguém veria no telhado.
+ *
+ * **Decisão do dono, 17/08: avisar QUALQUER chuva.** O raciocínio dele vence o meu
+ * porque ele conhece o custo dos dois erros, e eles não são simétricos: alerta a
+ * mais custa um e-mail ignorado; alerta a menos custa uma goteira que ninguém foi
+ * ver. Numa operação de manutenção predial, o segundo é mais caro.
+ *
+ * O que fica de pé do argumento antigo: se as pessoas pararem de abrir o e-mail, é
+ * ESTE número que se ajusta — e a métrica para decidir isso é quantos alertas
+ * viraram OS, não a impressão de quem recebe.
  */
-export const MIN_RAIN_MM = 0.4;
+export const MIN_RAIN_MM = 0.2;
 
 /**
  * **Todas as sedes são em Fortaleza, menos Eusébio** (informado pelo dono). Então o
