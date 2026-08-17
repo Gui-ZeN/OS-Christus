@@ -352,6 +352,42 @@ export function buildTicketEmailTemplate({
 }
 
 /**
+ * Lista de itens com ação própria — a agenda do dia da sede.
+ *
+ * Cada item tem os seus botões porque a resposta é por visita: numa sede com dois
+ * serviços marcados, um fornecedor pode aparecer e o outro não. Um botão só no fim
+ * do e-mail obrigaria a pessoa a responder pelos dois de uma vez.
+ */
+function renderItens(itens) {
+  const lista = Array.isArray(itens) ? itens.filter(item => item && item.titulo) : [];
+  if (lista.length === 0) return '';
+
+  return lista
+    .map(
+      (item, indice) => `
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${indice === 0 ? '' : `border-top:1px solid ${COR.filete};`}">
+          <tr>
+            <td style="padding:${indice === 0 ? '0' : '18px'} 0 0;">
+              <div style="font-family:${FONTE_DADO};font-size:13px;color:${COR.rotulo};">${esc(item.quando || '')}</div>
+              <div style="margin-top:3px;font-family:${FONTE_DADO};font-size:16px;font-weight:600;color:${COR.texto};">${esc(item.titulo)}</div>
+              ${item.detalhe ? `<div style="margin-top:3px;font-family:${FONTE_DADO};font-size:13px;color:${COR.rotulo};">${esc(item.detalhe)}</div>` : ''}
+              ${
+                Array.isArray(item.acoes) && item.acoes.length > 0
+                  ? `<div style="margin:12px 0 18px;">${item.acoes
+                      .map(
+                        acao => `<a href="${esc(acao.url)}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 18px;border:1px solid ${COR.moldura};border-radius:6px;text-decoration:none;font-family:${FONTE_DADO};font-size:14px;font-weight:600;color:${COR.texto};">${esc(acao.rotulo)}</a>`
+                      )
+                      .join('')}</div>`
+                  : ''
+              }
+            </td>
+          </tr>
+        </table>`
+    )
+    .join('');
+}
+
+/**
  * Aviso que não é de OS — hoje, a chuva. Ele saía em TEXTO PURO: chegava com a
  * fonte de máquina de escrever do cliente, sem hierarquia, e as duas fontes de
  * medição empilhadas em linhas indentadas com espaço. Mesma moldura dos outros.
@@ -362,6 +398,7 @@ export function buildNoticeEmailTemplate({
   subtitle = '',
   alerta = null,
   bodyText = '',
+  itens = [],
   detailCards = [],
   rodape = '',
   ctaUrl = '',
@@ -370,6 +407,7 @@ export function buildNoticeEmailTemplate({
   const conteudo = [
     renderAlerta(alerta),
     renderBodyText(bodyText),
+    renderItens(itens),
     renderDetalhes(detailCards),
     rodape
       ? `<p style="margin:0;font-family:${FONTE_DADO};font-size:12px;line-height:1.6;color:${COR.discreto};">${esc(rodape)}</p>`

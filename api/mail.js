@@ -6,7 +6,9 @@ import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.j
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
-import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
+import { buildNoticeEmailTemplate, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
+import { montarAgendaDoDia } from './_lib/agendaDoDia.js';
+import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import {
@@ -2489,6 +2491,143 @@ async function dispatchAutomatedOutboxItem(item) {
  * `?simular=chovendo` produz o mesmo caminho com leitura sintética, para validar o
  * envio sem esperar chover. O e-mail sai marcado `[TESTE]` no assunto.
  */
+/**
+ * A AGENDA DAS 07h PARA CADA SEDE.
+ *
+ * Manda para o coordenador da sede o que está marcado hoje NA SEDE DELE, com um
+ * botão por visita. Só sai para sede que tem item no dia: e-mail que vira rotina
+ * diária é arquivado sem ler em duas semanas, e aí o sensor todo para de funcionar.
+ *
+ * ⚠️ Os botões do e-mail NÃO registram nada — levam para a página de confirmação,
+ * que grava no toque. Filtro de segurança corporativo abre links sozinho, e um
+ * link que gravasse registraria faltas que ninguém informou.
+ *
+ * `?simular=1` monta tudo e devolve o que sairia, SEM enviar e sem emitir token.
+ */
+async function handleAgendaDasSedes(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+
+    const simular = String(req.query?.simular || '') === '1';
+    const paraDeTeste = simular ? String(req.query?.para || '').trim() : '';
+    if (paraDeTeste && !/^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/.test(paraDeTeste)) {
+      return sendJson(res, 400, { ok: false, error: 'O parâmetro `para` não é um e-mail válido.' });
+    }
+
+    const db = getAdminDb();
+    const agora = new Date();
+    const baseUrl =
+      String(process.env.APP_BASE_URL || '').trim() ||
+      String(process.env.PUBLIC_APP_URL || '').trim() ||
+      'https://serv3.vercel.app';
+
+    // Janela de 48h em vez da coleção inteira: a cota de leitura do Firestore é
+    // por documento DEVOLVIDO, e varrer todos os compromissos todo dia às 07h
+    // custaria a coleção inteira por execução.
+    const inicioDaJanela = new Date(agora.getTime() - 24 * 3_600_000);
+    const fimDaJanela = new Date(agora.getTime() + 24 * 3_600_000);
+    const snap = await db
+      .collection('commitments')
+      .where('startAt', '>=', inicioDaJanela)
+      .where('startAt', '<=', fimDaJanela)
+      .get();
+    const commitments = snap.docs.map(d => ({ id: d.id, ...d.data(), startAt: toDateOrNull(d.data()?.startAt) }));
+
+    const usuarios = (await db.collection('users').where('status', '==', 'Ativo').get()).docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+    }));
+
+    const agenda = montarAgendaDoDia({ commitments, users: usuarios, now: agora });
+
+    const enviados = [];
+    for (const sede of agenda.sedes) {
+      for (const destinatario of sede.destinatarios) {
+        const itens = [];
+        for (const visita of sede.visitas) {
+          // Um token por PESSOA e por visita: é o que faz a página saber quem
+          // respondeu, e é o que o registro guarda quando o fornecedor contesta.
+          let url = `${baseUrl}/`;
+          if (!simular) {
+            const emitido = novoTokenDeConfirmacao({
+              commitmentId: visita.commitmentId,
+              email: destinatario.email,
+              nome: destinatario.name || '',
+              now: agora,
+            });
+            await db.collection('visitConfirmTokens').doc(emitido.token).set(emitido.doc);
+            url = `${baseUrl}/?confirmar=${emitido.token}`;
+          }
+          itens.push({
+            quando: visita.hora,
+            titulo: `${visita.fornecedor} — ${visita.ordens.join(', ')}`,
+            detalhe: null,
+            acoes: [
+              { rotulo: 'Chegou', url },
+              { rotulo: 'Não chegou', url },
+            ],
+          });
+        }
+
+        const { html } = buildNoticeEmailTemplate({
+          eyebrow: 'Agenda do dia',
+          title: `Hoje na ${sede.sede} — ${sede.visitas.length} ${sede.visitas.length === 1 ? 'serviço' : 'serviços'}`,
+          subtitle: destinatario.name ? `Para ${destinatario.name}` : '',
+          bodyText: 'Bom dia. O que está marcado para hoje na sua sede:',
+          itens,
+          rodape:
+            'Se ninguém aparecer no horário, a gente pergunta de novo — e avisa a manutenção. Não precisa responder este e-mail nem entrar no sistema.',
+        });
+
+        const texto = [
+          `Hoje na ${sede.sede} — ${sede.visitas.length} serviço(s)`,
+          '',
+          ...sede.visitas.map(v => `${v.hora} — ${v.fornecedor} (${v.ordens.join(', ')})`),
+          '',
+          'Confirme pelos botões do e-mail.',
+        ].join('\n');
+
+        const destino = paraDeTeste || destinatario.email;
+        if (!simular) {
+          await gmailSend({
+            toEmail: destino,
+            subject: `Hoje na ${sede.sede} — ${sede.visitas.length} serviço(s)`,
+            text: texto,
+            html,
+            ticketId: `agenda-sede-${sede.siteId}`,
+            references: [],
+          });
+        }
+        enviados.push({ sede: sede.sede, para: destino, visitas: sede.visitas.length });
+      }
+    }
+
+    return sendJson(res, 200, {
+      ok: true,
+      dia: agenda.dia,
+      simulado: simular,
+      enviados,
+      // Sede com visita e sem coordenador cadastrado não some em silêncio: é falha
+      // de cadastro, e é assim que uma sede fica meses sem ninguém confirmando nada.
+      semDestinatario: agenda.semDestinatario,
+    });
+  } catch (error) {
+    console.error('[mail] falha na agenda das sedes', error);
+    if (!(error instanceof HttpError)) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: 'Falha ao montar a agenda das sedes.',
+        motivo: describeOutboxError(error, 'sem detalhe disponível'),
+      });
+    }
+    return sendError(res, error, 'Falha ao montar a agenda das sedes.');
+  }
+}
+
 async function handleRainAlert(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -3134,6 +3273,7 @@ export default async function handler(req, res) {
   if (route === 'dropped-inbound') return handleDroppedInbound(req, res);
   if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
   if (route === 'rain-alert') return handleRainAlert(req, res);
+  if (route === 'agenda-sedes') return handleAgendaDasSedes(req, res);
   if (route === 'email-diagnose') return handleEmailDiagnose(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);

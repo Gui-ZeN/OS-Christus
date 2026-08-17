@@ -1,0 +1,74 @@
+name: Agenda das sedes (07h)
+
+# A agenda do dia para o coordenador de cada sede: o que está marcado HOJE na sede
+# dele, com um botão por visita.
+#
+# ⚠️ 10:00 UTC = 07:00 em Fortaleza. O Ceará NÃO tem horário de verão desde 2019,
+# então este deslocamento é fixo e não precisa de ajuste duas vezes por ano.
+#
+# ⚠️ O agendador do GitHub não é pontual — execuções agendadas entram numa fila e
+# atrasam. Para um e-mail de 07h isso é aceitável (a primeira visita do dia costuma
+# ser às 08h); para algo com minuto marcado, não seria.
+#
+# ⚠️ Roda TODO dia, inclusive fim de semana. Não tem problema: sede sem nada marcado
+# não recebe e-mail nenhum — é a regra que impede o aviso de virar rotina diária e
+# ser arquivado sem ler. Silêncio aqui é o comportamento certo.
+#
+# ESTE WORKFLOW SÓ CHAMA UMA ROTA. Quem lê a agenda, emite os links e envia é o
+# servidor (`?route=agenda-sedes`), igual aos outros agendados.
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      simular:
+        # Monta tudo e devolve o que sairia, SEM enviar e sem emitir token. Serve
+        # para conferir quem receberia o quê antes de mandar de verdade.
+        description: "Só simular (não envia, não emite link)"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  # Duas execuções juntas emitiriam dois jogos de links e mandariam o e-mail em
+  # dobro para a mesma pessoa.
+  group: agenda-das-sedes
+  cancel-in-progress: false
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    steps:
+      - name: Montar e enviar a agenda do dia
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          AGENDA_URL: ${{ secrets.AGENDA_SEDES_URL || 'https://serv3.vercel.app/api/mail?route=agenda-sedes' }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
+            exit 1
+          fi
+
+          URL="$AGENDA_URL"
+          # `workflow_dispatch` manda "true"; o disparo agendado manda vazio, e aí
+          # é envio de verdade.
+          if [ "$SIMULAR" = "true" ]; then
+            case "$URL" in
+              *\?*) URL="$URL&simular=1" ;;
+              *) URL="$URL?simular=1" ;;
+            esac
+          fi
+
+          echo "Chamando a agenda das sedes..."
+          CODIGO=$(curl -sS -o resposta.json -w "%{http_code}" -X POST "$URL" \
+            -H "Authorization: Bearer $CRON_SECRET")
+
+          cat resposta.json
+          echo ""
+          if [ "$CODIGO" != "200" ]; then
+            echo "A rota respondeu $CODIGO."
+            exit 1
+          fi
