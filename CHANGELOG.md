@@ -104,6 +104,31 @@ mede 1,92 e 2,77.
 Antes: 24 no tema claro, 3 grupos no escuro. Restam 16 cores cruas, todas
 deliberadas — 12 gradientes decorativos e os tons de grupo da agenda.
 
+### No Rubronegro, acento e perigo eram a mesma cor
+
+Achado que **só o print revelou** — a medição dizia que estava tudo certo.
+
+Naquele tema o acento da marca é vermelho (`#e83d38`) e `danger` também era
+(`#f87171`). Resultado: o botão "Definir próxima ação" e a borda de "Vencidas"
+gritavam igual, e a distinção entre *"isto se clica"* e *"isto está atrasado"*
+sumia. Contraste passava nos dois; **significado, não**. É a advertência do Sol na
+prática: *mesma luminância preserva contraste, não preserva percepção*.
+
+Duas mudanças, porque uma sozinha não apareceria na tela:
+
+1. **`danger` do Rubronegro virou âmbar** (`#fbbf24`) — 41 graus de matiz do acento,
+   9,83:1 sobre a própria tinta, 11,95:1 com o rótulo escuro. É o único tema em que
+   `danger` não é vermelho, e a razão está escrita ao lado do token.
+2. **Os tons de grupo da agenda saíram de cor crua para token.** Eram `red-600`,
+   `amber-500` e `slate-400` literais — escolhidos em 13/08 para resolver o sumiço
+   das tintas pastel no tema escuro, e que resolviam aquilo criando outro problema:
+   cor crua não segue tema nenhum, então trocar o token não mudaria nada na tela.
+
+E `aguardando-sede` saiu do âmbar para neutro por causa do texto que ele mesmo
+exibe: *"o horário passou — a pergunta já foi enviada, ninguém precisa ligar"*. Grupo
+que declara não precisar de ação não devia vestir cor de alerta — e, com o `danger`
+em âmbar, os dois ficariam a 5 graus de matiz um do outro.
+
 ### A visita desmarcada deixa de ser registrada como falta
 
 O estado `cancelado` existia no domínio (`COMMITMENT_STATE`, com o comentário *"não é

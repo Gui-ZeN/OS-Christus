@@ -145,7 +145,15 @@
   --theme-roman-on-primary: #0b0808;
   --theme-roman-success: #34d399;
   --theme-roman-on-success: #0b0808;
-  --theme-roman-danger: #f87171;
+  /* ÂMBAR, e este é o único tema em que `danger` não é vermelho.
+     Aqui o acento da marca JÁ é vermelho (#e83d38), então perigo em vermelho fazia
+     "isto se clica" e "isto está atrasado" gritarem igual. Foi o print que mostrou —
+     contraste passava nos dois, significado não. É a advertência do Sol na prática:
+     mesma luminância preserva contraste, não preserva percepção.
+
+     O âmbar fica a 41 graus de matiz do acento, separação que o olho resolve, e
+     mantém 9,83:1 sobre a própria tinta. O rótulo escuro em cima dá 11,95:1. */
+  --theme-roman-danger: #fbbf24;
   --theme-roman-on-danger: #0b0808;
   --theme-roman-sidebar: #000000;
   --theme-roman-sidebar-light: #242424;

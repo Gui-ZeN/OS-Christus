@@ -83,23 +83,31 @@ const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
 };
 
 /**
- * Cor por grupo — semântica, separada do dourado da marca.
+ * Cor por grupo — agora em TOKEN, não em cor crua.
  *
- * O preenchimento é TINTA sobre a superfície do tema (`/10`), não pastel fixo.
- * Medido em 13/08: `bg-red-50/60` e `bg-slate-50/60` ficavam idênticos nos temas
- * claro e escuro — o `.theme-bridge` (removido depois) remapeava amber/sky/emerald/green,
- * mas não vermelho nem slate. No tema escuro os cartões de "Vencidas" e "Suspensas"
- * apareceriam quase brancos sobre um fundo #0b0f14.
+ * Antes eram `red-600`, `amber-500` e `slate-400` literais, escolhidos em 13/08
+ * porque as tintas pastel (`bg-red-50/60`) sumiam no tema escuro. Resolvia aquele
+ * problema e criava outro: cor crua não segue tema nenhum.
  *
- * Não tinha aparecido porque no emulador esses dois grupos estavam vazios — e
- * "Vencidas" é justamente o motivo de a tela existir.
+ * O print do tema Rubronegro mostrou o preço. Lá o acento da marca É vermelho,
+ * então o botão "Definir próxima ação" e a borda de "Vencidas" gritavam igual —
+ * "isto se clica" e "isto está atrasado" viravam a mesma coisa. Contraste passava
+ * nos dois; significado, não. É a advertência do Sol na prática: mesma luminância
+ * preserva contraste, não preserva percepção.
+ *
+ * Com o token, o `danger` do Rubronegro virou âmbar e a separação volta.
+ *
+ * E `aguardando-sede` saiu do âmbar para neutro por causa do próprio texto que ele
+ * exibe: "o horário passou — a pergunta já foi enviada, ninguém precisa ligar".
+ * Grupo que declara não precisar de ação não devia vestir cor de alerta — e, com o
+ * danger em âmbar, os dois ficariam a 5 graus de matiz um do outro.
  */
 const GROUP_TONE: Record<AgendaGroup, string> = {
-  vencidas: 'border-l-red-600 bg-red-500/10',
+  vencidas: 'border-l-roman-danger bg-roman-danger/12',
   hoje: 'border-l-roman-primary',
-  'aguardando-sede': 'border-l-amber-500',
+  'aguardando-sede': 'border-l-roman-border-control',
   'proximos-7-dias': 'border-l-roman-border',
-  suspensas: 'border-l-slate-400 bg-slate-500/10',
+  suspensas: 'border-l-roman-text-sub bg-roman-text-sub/10',
   'sem-proxima-acao': 'border-l-roman-border',
 };
 
