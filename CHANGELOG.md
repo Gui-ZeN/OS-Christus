@@ -33,7 +33,24 @@ tabela de detalhes, que é o que eles são.
 | textos abaixo de 4,5:1 | 3 | **0** (pior caso 5,90) |
 | HTML do aviso financeiro | 7.658 B | **6.125 B** |
 | desenhos do mesmo e-mail | 2 | **1** |
-| testes de template | 0 | **15** |
+| testes de template | 0 | **22** |
+
+Feito o primeiro, veio a pergunta certa: "arruma só 1 e-mail?". Levantando **todos**
+os que o sistema manda, dois nunca tinham passado por moldura nenhuma:
+
+- **O aviso de chuva saía em texto puro** — chegava na fonte de máquina de escrever
+  do cliente, com as duas fontes de medição em linhas indentadas por espaço. Agora
+  usa a mesma moldura, e o disparo de teste se identifica numa tarja âmbar (a única
+  caixa colorida que sobrou no sistema: e-mail de teste que chega numa caixa real
+  sem se identificar faz alguém sair atrás de goteira que não existe).
+- **A resposta da conversa** — o e-mail mais enviado — saía em `<p>` cru, sem fonte,
+  tamanho ou cor, no padrão de cada cliente. Continua **sem cartão** de propósito
+  (cai na thread do solicitante e tem que ler como mensagem de gente), mas ganhou a
+  tipografia dos outros e o mesmo tratamento de link e @menção — antes, a foto
+  colada no corpo virava texto morto justamente no e-mail mais enviado.
+
+O encerramento financeiro em `financeClosure.ts` também monta HTML, mas é documento
+de impressão, não e-mail — ficou de fora de propósito.
 
 ## 2026-08-17 (nenhum e-mail automático jamais saiu — e o sistema não sabia dizer)
 

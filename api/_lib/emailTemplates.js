@@ -244,6 +244,17 @@ function renderBotao(ctaUrl, ctaLabel) {
     </div>`;
 }
 
+// A ÚNICA caixa colorida que sobrou no sistema. Ela existe porque um e-mail de
+// teste que chega numa caixa real sem se identificar faz alguém sair correndo
+// atrás de goteira que não existe — aqui a moldura pesada é o recado.
+function renderAlerta(alerta) {
+  if (!alerta) return '';
+  return `
+    <div style="margin:0 0 22px;padding:12px 16px;background:#fdf3d7;border-left:4px solid #a16207;font-family:${FONTE_DADO};font-size:13px;line-height:1.5;color:#5b4310;">
+      <strong>${esc(alerta.titulo)}</strong>${alerta.detalhe ? `<br/>${esc(alerta.detalhe)}` : ''}
+    </div>`;
+}
+
 // Moldura comum: cabeçalho escuro curto, conteúdo no papel, rodapé de uma linha.
 function renderMoldura({ eyebrow, title, subtitle, conteudo }) {
   return `
@@ -338,6 +349,52 @@ export function buildTicketEmailTemplate({
     .join('\n');
 
   return { html, text };
+}
+
+/**
+ * A resposta da conversa (EMAIL-NOVA-MENSAGEM). Aqui NÃO entra moldura: este
+ * e-mail cai na thread do solicitante e precisa ler como mensagem de gente, não
+ * como comunicado de sistema. O que faltava era o mínimo — ele saía em `<p>` puro,
+ * sem fonte, tamanho ou cor, e chegava no padrão de cada cliente (Times New Roman
+ * no Outlook). E o mesmo texto ganhava link e @menção quando ia pelo cartão, mas
+ * não aqui: a foto colada virava texto morto no e-mail mais enviado do sistema.
+ */
+export function buildConversationHtmlEmail(value) {
+  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  const corpo = renderBodyText(text);
+  if (!corpo) return '<p></p>';
+  return `<div style="font-family:${FONTE_TITULO};font-size:15px;line-height:1.65;color:${COR.prosa};">${corpo}</div>`;
+}
+
+/**
+ * Aviso que não é de OS — hoje, a chuva. Ele saía em TEXTO PURO: chegava com a
+ * fonte de máquina de escrever do cliente, sem hierarquia, e as duas fontes de
+ * medição empilhadas em linhas indentadas com espaço. Mesma moldura dos outros.
+ */
+export function buildNoticeEmailTemplate({
+  eyebrow = 'Aviso',
+  title = '',
+  subtitle = '',
+  alerta = null,
+  bodyText = '',
+  detailCards = [],
+  rodape = '',
+  ctaUrl = '',
+  ctaLabel = 'Abrir o Serv3',
+}) {
+  const conteudo = [
+    renderAlerta(alerta),
+    renderBodyText(bodyText),
+    renderDetalhes(detailCards),
+    rodape
+      ? `<p style="margin:0;font-family:${FONTE_DADO};font-size:12px;line-height:1.6;color:${COR.discreto};">${esc(rodape)}</p>`
+      : '',
+    renderBotao(ctaUrl, ctaLabel),
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return { html: renderMoldura({ eyebrow, title, subtitle, conteudo }) };
 }
 
 export function buildAccessEmailTemplate({

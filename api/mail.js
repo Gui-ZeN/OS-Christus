@@ -6,7 +6,7 @@ import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.j
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
-import { buildTicketEmailTemplate } from './_lib/emailTemplates.js';
+import { buildConversationHtmlEmail, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
 import {
@@ -30,7 +30,6 @@ import {
   buildConversationSubject,
   buildInboundHistoryId,
   buildReplySubject,
-  buildSimpleHtmlEmail,
   buildThreadRootMessageId,
   isTicketConversationSubject,
   normalizeMessageIdToken,
@@ -1939,7 +1938,7 @@ async function handleSend(req, res) {
 
     const finalText = repairMojibake(personalizedBody || text || fallbackTemplate.text);
     const finalHtml = shouldUseMinimalConversationBody
-      ? buildSimpleHtmlEmail(finalText)
+      ? buildConversationHtmlEmail(finalText)
       : (html || fallbackTemplate.html);
 
     let sendResult;
@@ -2556,6 +2555,7 @@ async function handleRainAlert(req, res) {
         toEmail: destino,
         subject: email.subject,
         text: email.text,
+        html: email.html,
         ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
         references: [],
       });

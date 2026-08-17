@@ -16,18 +16,6 @@ export function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-export function buildSimpleHtmlEmail(value) {
-  const text = String(value || '').replace(/\r\n/g, '\n').trim();
-  if (!text) return '<p></p>';
-  const blocks = text
-    .split(/\n{2,}/)
-    .map(block => block.trim())
-    .filter(Boolean);
-  return blocks
-    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
-    .join('');
-}
-
 export function buildConversationSubject(ticketId, ticketSubject, fallbackSubject, sede) {
   const cleanSubject = String(ticketSubject || fallbackSubject || '').trim();
   if (!ticketId) return repairMojibake(cleanSubject || fallbackSubject || 'Atualização da OS');

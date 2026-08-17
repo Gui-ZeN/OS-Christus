@@ -1,6 +1,7 @@
 import { readCityRain, describeStationRain } from './cemaden.js';
 import { readObservation, describeRain } from './metar.js';
 import { readRainSignal } from './rainWatch.js';
+import { buildNoticeEmailTemplate } from './emailTemplates.js';
 
 /**
  * A DECISÃO do aviso de chuva, sem I/O.
@@ -86,8 +87,36 @@ export function montarEmail(sinal, quando, sede = null) {
     '',
     'Aviso automático do Serv3. Fontes: CEMADEN e aviationweather.gov (NOAA).',
   ];
+  // O texto continua sendo a versão de referência — é o que chega em cliente sem
+  // HTML e o que o log guarda. O HTML diz a mesma coisa na moldura dos outros
+  // e-mails; até hoje este era o único aviso que saía em texto puro.
+  const html = buildNoticeEmailTemplate({
+    eyebrow: 'Clima',
+    title: `Começou a chover ${onde}`,
+    subtitle: `Detectado às ${quando} por ${sinal.source === 'aeroporto' ? 'estação do aeroporto' : 'pluviômetro'}`,
+    alerta: sinal.simulado
+      ? { titulo: 'Teste — não é chuva de verdade', detalhe: 'Disparo simulado para validar o caminho do aviso.' }
+      : null,
+    // Sem corpo solto: a leitura que detectou já está na tabela abaixo, e repetir
+    // a mesma frase duas vezes na mesma tela é o tipo de peso que se quis tirar.
+    detailCards: [
+      {
+        title: 'As duas fontes neste momento',
+        rows: [
+          { label: 'Pluviômetros', value: sinal.fontes.posto.detalhe },
+          {
+            label: 'Aeroporto',
+            value: `${sinal.fontes.aeroporto.detalhe}${sinal.fontes.aeroporto.speci ? ' (relatório especial — o tempo acabou de mudar)' : ''}`,
+          },
+        ],
+      },
+    ],
+    rodape: 'Aviso automático do Serv3. Fontes: CEMADEN e aviationweather.gov (NOAA).',
+  }).html;
+
   return {
     subject: `${sinal.simulado ? '[TESTE] ' : ''}Começou a chover ${onde} — verificar pontos de goteira`,
     text: linhas.join('\n'),
+    html,
   };
 }

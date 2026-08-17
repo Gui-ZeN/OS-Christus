@@ -3,7 +3,6 @@ import {
   buildConversationSubject,
   buildInboundHistoryId,
   buildReplySubject,
-  buildSimpleHtmlEmail,
   buildThreadRootMessageId,
   escapeHtml,
   isTicketConversationSubject,
@@ -96,11 +95,4 @@ describe('HTML seguro', () => {
     expect(escapeHtml('<b>"x"&y</b>')).toBe('&lt;b&gt;&quot;x&quot;&amp;y&lt;/b&gt;');
   });
 
-  it('converte parágrafos e quebras, escapando o conteúdo', () => {
-    expect(buildSimpleHtmlEmail('linha 1\nlinha 2\n\npar 2')).toBe(
-      '<p>linha 1<br>linha 2</p><p>par 2</p>'
-    );
-    expect(buildSimpleHtmlEmail('<script>alert(1)</script>')).toContain('&lt;script&gt;');
-    expect(buildSimpleHtmlEmail('')).toBe('<p></p>');
-  });
 });
