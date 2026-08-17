@@ -114,10 +114,10 @@ export function validarEscolhaDaSede(commitment, escolha) {
 }
 
 /** O link ainda vale? Token velho que vaza não deve confirmar para sempre. */
-export function tokenExpirou(token, now = new Date()) {
+export function tokenExpirou(token, now = new Date(), horas = VALIDADE_DO_LINK_EM_HORAS) {
   const criadoEm = token?.createdAt instanceof Date ? token.createdAt : new Date(token?.createdAt || 0);
   if (Number.isNaN(criadoEm.getTime())) return true;
-  return now.getTime() - criadoEm.getTime() > VALIDADE_DO_LINK_EM_HORAS * 3_600_000;
+  return now.getTime() - criadoEm.getTime() > horas * 3_600_000;
 }
 
 /**

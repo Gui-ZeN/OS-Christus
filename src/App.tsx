@@ -68,6 +68,7 @@ const KpiView = lazyWithAutoRecovery(async () => ({ default: (await import('./vi
 const SettingsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
 const TrackingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
 const ConfirmacaoDaVisitaView = lazyWithAutoRecovery(() => import('./views/ConfirmacaoDaVisitaView'));
+const RevisaoSemanalView = lazyWithAutoRecovery(() => import('./views/RevisaoSemanalView'));
 const FinanceView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
 const HomeView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/HomeView')).HomeView }));
 const InboxView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/InboxView')).InboxView }));
@@ -93,6 +94,7 @@ export const VIEWS = {
   SETTINGS: 'settings',
   TRACKING: 'tracking',
   CONFIRMAR_VISITA: 'confirmar-visita',
+  REVISAO_SEMANAL: 'revisao-semanal',
   FINANCE: 'finance',
   EMAIL_HEALTH: 'email-health',
   AUDIT_LOGS: 'audit-logs',
@@ -175,6 +177,7 @@ export default function App() {
     navigateTo,
     trackingTicketToken,
     tokenDeConfirmacaoDaVisita,
+    tokenDaRevisaoSemanal,
     setActiveTicketId,
     tickets,
     ticketsError,
@@ -398,7 +401,7 @@ export default function App() {
   }, [currentView, navigateTo]);
 
   useEffect(() => {
-    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PASSWORD_RESET, VIEWS.PUBLIC_FORM, VIEWS.TRACKING, VIEWS.CONFIRMAR_VISITA]);
+    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PASSWORD_RESET, VIEWS.PUBLIC_FORM, VIEWS.TRACKING, VIEWS.CONFIRMAR_VISITA, VIEWS.REVISAO_SEMANAL]);
     if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return;
     }
@@ -481,6 +484,14 @@ export default function App() {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
         <PasswordResetView onBack={() => navigateTo(VIEWS.LOGIN)} />
+      </Suspense>
+    );
+  }
+
+  if (currentView === VIEWS.REVISAO_SEMANAL && tokenDaRevisaoSemanal) {
+    return (
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <RevisaoSemanalView token={tokenDaRevisaoSemanal} />
       </Suspense>
     );
   }

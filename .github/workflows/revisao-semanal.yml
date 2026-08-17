@@ -1,0 +1,67 @@
+name: Revisão semanal (fechamento assistido)
+
+# Um e-mail por gestora, uma vez por semana: "estas 7 OS não têm atividade há 30
+# dias", com Encerrar · Ainda pendente · Ver depois.
+#
+# ⚠️ NADA ENCERRA SOZINHO. Esta rota só pergunta. Quem encerra é a gestora, na
+# página, com o nome dela gravado — e com desfazer por sete dias. Uma varredura que
+# fechasse por inatividade apagaria trabalho real que só estava mal registrado, e
+# ninguém saberia dizer o que sumiu.
+#
+# ⚠️ Segunda de manhã, 10:00 UTC = 07:00 em Fortaleza. Segunda porque a lista é para
+# ser resolvida ao longo da semana; sexta viraria coisa para "ver na segunda".
+#
+# ⚠️ Esta é a única rota do sistema que lê a coleção de OS inteira. É aceitável por
+# ser semanal (~4 execuções por mês) e porque não dá para achar "parada há 30 dias"
+# sem olhar as abertas. Não copie este padrão para nada que rode com frequência: a
+# cota do Firestore cobra por documento devolvido.
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Só simular (não envia, não emite link)"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  # Duas execuções juntas emitiriam dois links e mandariam o resumo em dobro.
+  group: revisao-semanal
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 5
+    steps:
+      - name: Montar e enviar a revisão semanal
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          REVISAO_URL: ${{ secrets.REVISAO_SEMANAL_URL || 'https://serv3.vercel.app/api/mail?route=revisao-semanal' }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Falta o secret CRON_SECRET."
+            exit 1
+          fi
+
+          URL="$REVISAO_URL"
+          if [ "$SIMULAR" = "true" ]; then
+            case "$URL" in
+              *\?*) URL="$URL&simular=1" ;;
+              *) URL="$URL?simular=1" ;;
+            esac
+          fi
+
+          CODIGO=$(curl -sS -o resposta.json -w "%{http_code}" -X POST "$URL" \
+            -H "Authorization: Bearer $CRON_SECRET")
+
+          cat resposta.json
+          echo ""
+          if [ "$CODIGO" != "200" ]; then
+            echo "A rota respondeu $CODIGO."
+            exit 1
+          fi

@@ -9,6 +9,7 @@ import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCach
 import { buildNoticeEmailTemplate, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
 import { ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
 import { precisaDeAlertaDeFalta, precisaDeChecagem, responsaveisPelaCobranca } from './_lib/checagemDaVisita.js';
+import { montarRevisaoSemanal } from './_lib/fechamentoAssistido.js';
 import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
 import { getAdminDb } from './_lib/firebaseAdmin.js';
@@ -2812,6 +2813,126 @@ async function handleChecagemDasVisitas(req, res) {
   }
 }
 
+/**
+ * O FECHAMENTO ASSISTIDO — um e-mail por gestora, uma vez por semana.
+ *
+ * "Estas 7 OS não têm atividade há 30 dias." Boa parte das mais de duzentas OS
+ * abertas já está resolvida e ninguém fechou; isto derruba o número que incomoda a
+ * diretoria SEM resolver mais nada, e compra tempo para o desenho grande.
+ *
+ * ⚠️ NADA ENCERRA SOZINHO. Esta rota só PERGUNTA. Quem encerra é a gestora, na
+ * página, com nome gravado — e com desfazer por sete dias.
+ */
+async function handleRevisaoSemanalEmail(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+    }
+    await authorizeEmailOutboxWorker(req);
+
+    const simular = String(req.query?.simular || '') === '1';
+    const db = getAdminDb();
+    const agora = new Date();
+    const baseUrl =
+      String(process.env.APP_BASE_URL || '').trim() ||
+      String(process.env.PUBLIC_APP_URL || '').trim() ||
+      'https://serv3.vercel.app';
+
+    // Semanal, então a leitura larga aqui é aceitável: são ~4 execuções por mês, e
+    // não dá para achar "parada há 30 dias" sem olhar as OS abertas.
+    const territorio = await readTerritoryCatalog(db);
+    const tickets = (await db.collection('tickets').get()).docs.map(d => ({
+      id: d.id,
+      ...d.data(),
+      updatedAt: toDateOrNull(d.data()?.updatedAt),
+      createdAt: toDateOrNull(d.data()?.createdAt),
+      revisaoAdiadaAte: toDateOrNull(d.data()?.revisaoAdiadaAte),
+    }));
+
+    const gestoras = (await db.collection('users').where('status', '==', 'Ativo').get()).docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(u => u.role === 'Gestor' || u.role === 'Admin');
+
+    const revisao = montarRevisaoSemanal({
+      tickets,
+      gestoras,
+      // A MESMA regra de escopo do resto do sistema. Uma segunda regra de território
+      // aqui seria a maneira mais rápida de uma gestora encerrar OS de outra região.
+      podeVer: (gestora, ticket) => canUserAccessTicket(gestora, ticket, territorio.regions, territorio.sites),
+      now: agora,
+    });
+
+    const enviados = [];
+    for (const lote of revisao.lotes) {
+      let url = `${baseUrl}/`;
+      if (!simular) {
+        const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '').slice(0, 16);
+        await db.collection('revisaoTokens').doc(token).set({
+          email: lote.gestora.email,
+          nome: lote.gestora.name || '',
+          // O token delimita o que o link pode tocar: só estas OS.
+          ticketIds: lote.ordens.map(o => o.id),
+          createdAt: agora,
+        });
+        url = `${baseUrl}/?revisar=${token}`;
+      }
+
+      const { html } = buildNoticeEmailTemplate({
+        eyebrow: 'Revisão semanal',
+        title: `${lote.total} ${lote.total === 1 ? 'OS parada' : 'OS paradas'} há mais de 30 dias`,
+        subtitle: lote.gestora.name ? `Para ${lote.gestora.name}` : '',
+        bodyText:
+          lote.excedente > 0
+            ? `Boa parte delas provavelmente já foi resolvida e ninguém fechou. As ${lote.ordens.length} mais paradas estão abaixo; as outras ${lote.excedente} entram no próximo resumo.`
+            : 'Boa parte delas provavelmente já foi resolvida e ninguém fechou.',
+        detailCards: [
+          {
+            title: 'As mais paradas',
+            rows: lote.ordens.map(o => ({
+              label: `${o.id} · ${o.dias}d`,
+              value: [o.assunto, o.sede].filter(Boolean).join(' — '),
+            })),
+          },
+        ],
+        ctaUrl: url,
+        ctaLabel: 'Revisar as OS',
+        rodape: 'Nada é encerrado sem você dizer. Cada OS tem Encerrar, Ainda pendente e Ver depois — e dá para desfazer.',
+      });
+
+      if (!simular) {
+        await gmailSend({
+          toEmail: lote.gestora.email,
+          subject: `${lote.total} OS paradas há mais de 30 dias`,
+          text: [
+            `${lote.total} OS sem atividade há mais de 30 dias.`,
+            '',
+            ...lote.ordens.map(o => `${o.id} (${o.dias}d) — ${o.assunto}`),
+            '',
+            `Revisar: ${url}`,
+          ].join('\n'),
+          html,
+          ticketId: 'revisao-semanal',
+          references: [],
+        });
+      }
+      enviados.push({ para: lote.gestora.email, total: lote.total, no_email: lote.ordens.length });
+    }
+
+    return sendJson(res, 200, { ok: true, simulado: simular, paradas: revisao.paradas, enviados });
+  } catch (error) {
+    console.error('[mail] falha na revisão semanal', error);
+    if (!(error instanceof HttpError)) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: 'Falha ao montar a revisão semanal.',
+        motivo: describeOutboxError(error, 'sem detalhe disponível'),
+      });
+    }
+    return sendError(res, error, 'Falha ao montar a revisão semanal.');
+  }
+}
+
 async function handleRainAlert(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -3459,6 +3580,7 @@ export default async function handler(req, res) {
   if (route === 'rain-alert') return handleRainAlert(req, res);
   if (route === 'agenda-sedes') return handleAgendaDasSedes(req, res);
   if (route === 'checagem-visitas') return handleChecagemDasVisitas(req, res);
+  if (route === 'revisao-semanal') return handleRevisaoSemanalEmail(req, res);
   if (route === 'email-diagnose') return handleEmailDiagnose(req, res);
   if (route === 'gmail-sync') return handleGmailSync(req, res);
   if (route === 'reprocess-inbound') return handleReprocessInbound(req, res);

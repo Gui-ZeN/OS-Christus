@@ -13,6 +13,7 @@ import {
   validateConfirmation,
 } from './_lib/commitments.js';
 import { montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
+import { RESPOSTA, diasParada, efeitoDaResposta, podeDesfazer } from './_lib/fechamentoAssistido.js';
 import { collectMessageIds, recordDeletedTicket } from './_lib/deletedTickets.js';
 import { toDateOrNull } from './_lib/dates.js';
 import {
@@ -1281,8 +1282,112 @@ async function handleConfirmVisit(req, res) {
   }
 }
 
+/**
+ * A REVISÃO SEMANAL — a página do fechamento assistido.
+ *
+ * Mesma trava da confirmação da visita, e aqui ela pesa mais: encerrar OS é a ação
+ * mais destrutiva do sistema. O e-mail NÃO encerra nada — leva para esta página, e
+ * o GET não escreve. Um link que fechasse OS ao ser aberto entregaria uma limpeza
+ * silenciosa do backlog ao antivírus do servidor de e-mail.
+ */
+async function handleRevisaoSemanal(req, res) {
+  try {
+    const db = getAdminDb();
+    const agora = new Date();
+
+    const corpo = req.method === 'POST' ? await readJsonBody(req) : null;
+    const token = req.method === 'GET' ? String(req.query?.token || '').trim() : String(corpo?.token || '').trim();
+
+    await enforceRateLimit(req, {
+      bucket: 'revisao-semanal',
+      limit: 200,
+      windowMs: 5 * 60 * 1000,
+      message: 'Muitas tentativas. Aguarde alguns instantes.',
+    });
+    if (!token) throw new HttpError(400, 'Link incompleto.');
+
+    const tokenSnap = await db.collection('revisaoTokens').doc(token).get();
+    const dadosDoToken = tokenSnap.exists
+      ? { ...tokenSnap.data(), createdAt: toDateOrNull(tokenSnap.data()?.createdAt) }
+      : null;
+    // Uma semana: o e-mail é semanal, e um link que morre antes do próximo faria a
+    // gestora abrir na sexta e encontrar porta fechada.
+    if (!dadosDoToken || tokenExpirou(dadosDoToken, agora, 7 * 24)) {
+      throw new HttpError(410, 'Este link não vale mais. O próximo resumo chega na semana que vem.');
+    }
+
+    const idsDoLote = (dadosDoToken.ticketIds || []).map(String);
+
+    const lerOrdens = async () => {
+      const docs = await Promise.all(idsDoLote.map(id => db.collection('tickets').doc(id).get()));
+      return docs
+        .filter(d => d.exists)
+        .map(d => {
+          const t = { id: d.id, ...d.data(), updatedAt: toDateOrNull(d.data()?.updatedAt) };
+          const marca = t.fechamentoAssistido;
+          return {
+            id: t.id,
+            assunto: String(t.subject || ''),
+            sede: String(t.sede || ''),
+            status: String(t.status || ''),
+            dias: diasParada(t, agora),
+            encerradaAqui: Boolean(marca?.em),
+            podeDesfazer: podeDesfazer({ ...t, fechamentoAssistido: marca ? { ...marca, em: toDateOrNull(marca.em) } : null }, agora),
+            adiadaAte: t.revisaoAdiadaAte ? String(toDateOrNull(t.revisaoAdiadaAte)?.toISOString() || '') : null,
+          };
+        });
+    };
+
+    if (req.method === 'GET') {
+      return sendJson(res, 200, {
+        ok: true,
+        gestora: { nome: dadosDoToken.nome || null, email: dadosDoToken.email || null },
+        ordens: await lerOrdens(),
+      });
+    }
+
+    if (req.method === 'POST') {
+      const ticketId = String(corpo?.ticketId || '').trim();
+      const resposta = String(corpo?.resposta || '').trim();
+      // O token delimita o que este link pode tocar: sem isto, quem o tivesse
+      // encerraria qualquer OS do sistema mandando outro id.
+      if (!idsDoLote.includes(ticketId)) throw new HttpError(403, 'Esta OS não faz parte deste resumo.');
+
+      const ref = db.collection('tickets').doc(ticketId);
+      const snap = await ref.get();
+      if (!snap.exists) throw new HttpError(404, 'OS não encontrada.');
+      const ticket = { id: snap.id, ...snap.data() };
+
+      if (resposta === RESPOSTA.DESFAZER) {
+        const marca = ticket.fechamentoAssistido;
+        const normalizada = marca ? { ...marca, em: toDateOrNull(marca.em) } : null;
+        if (!podeDesfazer({ ...ticket, fechamentoAssistido: normalizada }, agora)) {
+          throw new HttpError(409, 'Esta OS não pode mais ser reaberta por este link.');
+        }
+        const efeito = efeitoDaResposta(RESPOSTA.DESFAZER, { now: agora, statusAnterior: normalizada?.statusAnterior });
+        await ref.update({ ...efeito, revisaoRespondidaPor: String(dadosDoToken.email || '') || null });
+        return sendJson(res, 200, { ok: true, ordens: await lerOrdens() });
+      }
+
+      const efeito = efeitoDaResposta(resposta, { now: agora, statusAnterior: String(ticket.status || '') });
+      if (!efeito) throw new HttpError(400, 'Resposta desconhecida.');
+
+      // Quem respondeu fica gravado em TODOS os casos: é o que faz a limpeza ter
+      // autor, e sem autor ninguém consegue dizer depois o que foi fechado e por quem.
+      await ref.update({ ...efeito, revisaoRespondidaPor: String(dadosDoToken.email || '') || null });
+      return sendJson(res, 200, { ok: true, ordens: await lerOrdens() });
+    }
+
+    res.setHeader('Allow', 'GET, POST');
+    throw new HttpError(405, 'Método não permitido.');
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
+  if (route === 'revisao-semanal') return handleRevisaoSemanal(req, res);
   if (route === 'report-pdf') return handleReportPdf(req, res);
   if (route === 'commitments') return handleCommitments(req, res);
   if (route === 'confirm-visit') return handleConfirmVisit(req, res);

@@ -34,6 +34,7 @@ interface AppContextType {
   setActiveTicketId: (id: string) => void;
   trackingTicketToken: string | null;
   tokenDeConfirmacaoDaVisita: string | null;
+  tokenDaRevisaoSemanal: string | null;
   setTrackingTicketToken: (token: string | null) => void;
   inboxFilter: InboxFilter;
   osBoardFilter: OsBoardFilter;
@@ -181,6 +182,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeTicketId, setActiveTicketId] = useState('');
   const [trackingTicketToken, setTrackingTicketToken] = useState<string | null>(null);
   const [tokenDeConfirmacaoDaVisita, setTokenDeConfirmacaoDaVisita] = useState<string | null>(null);
+  const [tokenDaRevisaoSemanal, setTokenDaRevisaoSemanal] = useState<string | null>(null);
   const [inboxFilter, setInboxFilterState] = useState<InboxFilter>(DEFAULT_FILTER);
   const [osBoardFilter, setOsBoardFilter] = useState<OsBoardFilter>(DEFAULT_OS_BOARD_FILTER);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
@@ -628,6 +630,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Vem ANTES do tracking: é o link que o coordenador da sede abre a partir do
     // e-mail, e ele não tem login. Cair na tela de entrada aqui mataria o desenho
     // inteiro — a troca que elimina o telefonema de verificação é "um toque".
+    const tokenDaRevisao = params.get('revisar');
+    if (tokenDaRevisao) {
+      setTokenDaRevisaoSemanal(tokenDaRevisao);
+      setCurrentView('revisao-semanal');
+      return;
+    }
+
     const tokenDeConfirmacao = params.get('confirmar');
     if (tokenDeConfirmacao) {
       setTokenDeConfirmacaoDaVisita(tokenDeConfirmacao);
@@ -806,6 +815,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveTicketId,
         trackingTicketToken,
         tokenDeConfirmacaoDaVisita,
+        tokenDaRevisaoSemanal,
         setTrackingTicketToken,
         inboxFilter,
         setInboxFilter,
