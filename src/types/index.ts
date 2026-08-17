@@ -17,7 +17,7 @@ export type {
   SuspensionReason,
 };
 
-export type ViewState = 'landing' | 'login' | 'password-reset' | 'home' | 'today' | 'inbox' | 'os-board' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'finance' | 'email-health' | 'audit-logs';
+export type ViewState = 'confirmar-visita' | 'landing' | 'login' | 'password-reset' | 'home' | 'today' | 'inbox' | 'os-board' | 'users' | 'kpi' | 'settings' | 'tracking' | 'public-form' | 'finance' | 'email-health' | 'audit-logs';
 
 /**
  * Filtros do quadro de Gestão. Vivem no contexto (e não em `useState` da view)

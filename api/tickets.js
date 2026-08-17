@@ -12,6 +12,7 @@ import {
   serializeCommitmentForApi,
   validateConfirmation,
 } from './_lib/commitments.js';
+import { montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
 import { collectMessageIds, recordDeletedTicket } from './_lib/deletedTickets.js';
 import { toDateOrNull } from './_lib/dates.js';
 import {
@@ -1163,10 +1164,128 @@ async function handleReportPdf(req, res) {
   }
 }
 
+/**
+ * A CONFIRMAÇÃO DA SEDE, sem login.
+ *
+ * Entra como `?route=confirm-visit` dentro de tickets.js pelo mesmo motivo de
+ * `commitments`: a Vercel está no teto de funções do plano, então rota nova não
+ * pode virar arquivo novo.
+ *
+ * ⚠️ O GET NÃO ESCREVE. É a trava mais importante desta rota: filtro de segurança
+ * de e-mail corporativo abre os links sozinho para checar se são seguros. Se o
+ * botão do e-mail gravasse direto, o sistema registraria "não apareceu" em visitas
+ * que ninguém olhou — e cobraria fornecedor que compareceu. O e-mail abre a
+ * página; a página grava no POST.
+ */
+async function handleConfirmVisit(req, res) {
+  try {
+    const db = getAdminDb();
+    const agora = new Date();
+
+    // Lê o corpo UMA vez: `readJsonBody` consome o stream, e uma segunda leitura
+    // devolveria vazio — o `escolha` chegaria nulo e nada seria gravado.
+    const corpo = req.method === 'POST' ? await readJsonBody(req) : null;
+    const token =
+      req.method === 'GET'
+        ? String(req.query?.token || '').trim()
+        : String(corpo?.token || '').trim();
+
+    // Teto por IP: o token tem 192 bits, mas caminho público sem teto é convite
+    // para varredura. Folgado o bastante para quem recarrega a página.
+    await enforceRateLimit(req, {
+      bucket: 'confirm-visit',
+      limit: 120,
+      windowMs: 5 * 60 * 1000,
+      message: 'Muitas tentativas. Aguarde alguns instantes.',
+    });
+
+    if (!token) throw new HttpError(400, 'Link incompleto.');
+
+    const tokenSnap = await db.collection('visitConfirmTokens').doc(token).get();
+    // Mesma resposta para token inexistente e token expirado: distinguir os dois
+    // diria a quem varre que aquele token um dia existiu.
+    const dadosDoToken = tokenSnap.exists
+      ? { ...tokenSnap.data(), createdAt: toDateOrNull(tokenSnap.data()?.createdAt) }
+      : null;
+    if (!dadosDoToken || tokenExpirou(dadosDoToken, agora)) {
+      throw new HttpError(410, 'Este link não vale mais. Peça um novo à equipe de manutenção.');
+    }
+
+    const ref = db.collection('commitments').doc(String(dadosDoToken.commitmentId || ''));
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpError(404, 'Visita não encontrada.');
+    const commitment = { id: snap.id, ...snap.data(), startAt: toDateOrNull(snap.data()?.startAt) };
+
+    const resumoDasOrdens = async () => {
+      const ids = (commitment.ticketIds || []).slice(0, 5);
+      const docs = await Promise.all(ids.map(id => db.collection('tickets').doc(String(id)).get()));
+      return docs
+        .filter(d => d.exists)
+        .map(d => ({ id: d.id, assunto: String(d.data()?.subject || '') }));
+    };
+
+    if (req.method === 'GET') {
+      return sendJson(res, 200, {
+        ok: true,
+        pergunta: montarPergunta({
+          commitment: { ...commitment, confirmedAt: toDateOrNull(commitment.confirmedAt) },
+          token: dadosDoToken,
+          ticketsResumo: await resumoDasOrdens(),
+        }),
+      });
+    }
+
+    if (req.method === 'POST') {
+      const escolha = String(corpo?.escolha || '').trim();
+      const check = validarEscolhaDaSede(commitment, escolha);
+      if (!check.ok) {
+        return sendJson(res, check.jaRespondido ? 409 : 400, {
+          ok: false,
+          error: check.error,
+          pergunta: montarPergunta({
+            commitment: { ...commitment, confirmedAt: toDateOrNull(commitment.confirmedAt) },
+            token: dadosDoToken,
+            ticketsResumo: await resumoDasOrdens(),
+          }),
+        });
+      }
+
+      const quem = String(dadosDoToken.email || '').trim() || null;
+      await ref.update({
+        state: check.efeito.state,
+        outcome: check.efeito.outcome,
+        confirmedBy: quem,
+        confirmedAt: agora,
+        updatedAt: agora,
+        // Fica registrado que veio da sede, e não de dentro do app: é o que permite
+        // distinguir depois "a sede respondeu" de "o gestor preencheu por ela".
+        confirmedVia: 'sede-email',
+      });
+      for (const alvoId of commitment.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
+
+      const atualizado = { ...commitment, ...check.efeito, confirmedBy: quem, confirmedAt: agora };
+      return sendJson(res, 200, {
+        ok: true,
+        pergunta: montarPergunta({
+          commitment: atualizado,
+          token: dadosDoToken,
+          ticketsResumo: await resumoDasOrdens(),
+        }),
+      });
+    }
+
+    res.setHeader('Allow', 'GET, POST');
+    throw new HttpError(405, 'Método não permitido.');
+  } catch (error) {
+    sendError(res, error);
+  }
+}
+
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
   if (route === 'report-pdf') return handleReportPdf(req, res);
   if (route === 'commitments') return handleCommitments(req, res);
+  if (route === 'confirm-visit') return handleConfirmVisit(req, res);
   if (route === 'rebuild-attention') return handleRebuildAttention(req, res);
 
   try {

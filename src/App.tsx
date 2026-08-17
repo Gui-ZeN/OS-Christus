@@ -67,6 +67,7 @@ function lazyWithAutoRecovery<T extends ComponentType<any>>(loader: () => Promis
 const KpiView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/KpiView')).KpiView }));
 const SettingsView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/SettingsView')).SettingsView }));
 const TrackingView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/TrackingView')).TrackingView }));
+const ConfirmacaoDaVisitaView = lazyWithAutoRecovery(() => import('./views/ConfirmacaoDaVisitaView'));
 const FinanceView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/FinanceView')).FinanceView }));
 const HomeView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/HomeView')).HomeView }));
 const InboxView = lazyWithAutoRecovery(async () => ({ default: (await import('./views/InboxView')).InboxView }));
@@ -91,6 +92,7 @@ export const VIEWS = {
   KPI: 'kpi',
   SETTINGS: 'settings',
   TRACKING: 'tracking',
+  CONFIRMAR_VISITA: 'confirmar-visita',
   FINANCE: 'finance',
   EMAIL_HEALTH: 'email-health',
   AUDIT_LOGS: 'audit-logs',
@@ -172,6 +174,7 @@ export default function App() {
     currentView,
     navigateTo,
     trackingTicketToken,
+    tokenDeConfirmacaoDaVisita,
     setActiveTicketId,
     tickets,
     ticketsError,
@@ -395,7 +398,7 @@ export default function App() {
   }, [currentView, navigateTo]);
 
   useEffect(() => {
-    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PASSWORD_RESET, VIEWS.PUBLIC_FORM, VIEWS.TRACKING]);
+    const publicViews = new Set<ViewState>([VIEWS.LANDING, VIEWS.LOGIN, VIEWS.PASSWORD_RESET, VIEWS.PUBLIC_FORM, VIEWS.TRACKING, VIEWS.CONFIRMAR_VISITA]);
     if (authEnabled && (!authResolved || (currentUserEmail && !authorizationResolved))) {
       return;
     }
@@ -478,6 +481,15 @@ export default function App() {
     return (
       <Suspense fallback={<ViewLoader fullScreen />}>
         <PasswordResetView onBack={() => navigateTo(VIEWS.LOGIN)} />
+      </Suspense>
+    );
+  }
+
+  // Antes de tudo: quem chega por este link não tem login e não deve ver menu.
+  if (currentView === VIEWS.CONFIRMAR_VISITA && tokenDeConfirmacaoDaVisita) {
+    return (
+      <Suspense fallback={<ViewLoader fullScreen />}>
+        <ConfirmacaoDaVisitaView token={tokenDeConfirmacaoDaVisita} />
       </Suspense>
     );
   }
