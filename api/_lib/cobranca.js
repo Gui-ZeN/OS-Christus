@@ -130,7 +130,9 @@ export function cobrancasConcluidas(commitment) {
 }
 
 /** O tipo do evento gravado quando alguém toca em Cobrar. Diz o que prova. */
-export const EVENTO_DE_CONTATO = 'whatsappAberto';
+// O servidor grava ANTES do `window.open`, e o navegador pode bloquear o popup.
+// O dado prova que o link foi acionado — nem sequer que a conversa abriu.
+export const EVENTO_DE_CONTATO = 'whatsappLinkAcionado';
 
 export function validarDesfecho(commitment, desfecho) {
   if (!Object.values(DESFECHO).includes(String(desfecho || ''))) {

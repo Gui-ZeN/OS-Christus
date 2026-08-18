@@ -1,6 +1,6 @@
 import { effectiveCommitmentState } from './commitments.js';
 import { diaEmFortaleza, horaEmFortaleza } from './agendaDoDia.js';
-import { esperaDeclarada, precisaDestravar } from './estadoDaOs.js';
+import { esperaDeclarada, precisaDestravar, temProximaAcao } from './estadoDaOs.js';
 import { cobrancasConcluidas } from './cobranca.js';
 import { pendentesDeDesfecho } from './desfechoPendente.js';
 
@@ -77,7 +77,10 @@ export function resumoDaAgenda({ commitments = [], tickets = [], now = new Date(
   const vencidas = (tickets || [])
     .filter(t => {
       if (FECHADAS.has(String(t?.status || ''))) return false;
-      const prazo = t?.nextAction?.dueAt ? new Date(t.nextAction.dueAt) : null;
+      // As duas fontes, como a tela: só `nextAction` deixaria de fora as 58% de OS
+      // cuja atenção o sistema propôs a partir de eventos, sem ninguém digitar.
+      const bruto = t?.nextAction?.dueAt || (t?.operationalAttention?.legacy ? null : t?.operationalAttention?.dueAt);
+      const prazo = bruto ? new Date(bruto) : null;
       return prazo && !Number.isNaN(prazo.getTime()) && prazo.getTime() < now.getTime();
     })
     .map(t => ({ id: t.id, assunto: String(t.subject || ''), oQue: String(t?.nextAction?.what || '') }));
@@ -155,7 +158,7 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
   // inventar "revisar em 30 dias" só para tirá-la da lista — exatamente a maquiagem
   // que os três estados existem para acabar.
   const semProximaAcao = (tickets || []).filter(
-    t => !FECHADAS.has(String(t?.status || '')) && !t?.nextAction?.dueAt && !esperaDeclarada(t, now)
+    t => !FECHADAS.has(String(t?.status || '')) && !temProximaAcao(t) && !esperaDeclarada(t, now)
   );
 
   // Impedidas contam à PARTE. Elas saem de "sem próxima ação" porque foram

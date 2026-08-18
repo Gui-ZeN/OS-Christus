@@ -3042,7 +3042,10 @@ async function handleRevisaoSemanalEmail(req, res) {
       });
 
       if (!simular) {
-        await gmailSend({
+        // Chave por gestora + SEMANA: retry e disparo manual no mesmo dia colidem.
+        const semana = `${agora.getUTCFullYear()}-${Math.floor(agora.getTime() / (7 * 86_400_000))}`;
+        const chave = chaveDeEnvio(['revisao', lote.gestora.email, semana]);
+        const foi = await enviarUmaVez(db, chave, () => gmailSend({
           toEmail: lote.gestora.email,
           subject: `${lote.total} OS paradas há mais de 30 dias`,
           text: [
@@ -3055,7 +3058,8 @@ async function handleRevisaoSemanalEmail(req, res) {
           html,
           ticketId: 'revisao-semanal',
           references: [],
-        });
+        }), agora);
+        if (!foi) continue;
       }
       enviados.push({ para: lote.gestora.email, total: lote.total, no_email: lote.ordens.length });
     }
@@ -3354,15 +3358,17 @@ async function handleRainAlert(req, res) {
     if (transicao === 'comecou' || forcar) {
       const quando = now.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
       const email = montarEmail(sinal, quando, sede);
-      await gmailSend({
+      // A chuva também: a transição já protege contra repetir, mas duas execuções
+      // simultâneas do cron de 5 em 5 minutos leriam o mesmo estado anterior.
+      const chave = chaveDeEnvio(['chuva', destino, sede || 'cidade', quando]);
+      enviado = await enviarUmaVez(db, chave, () => gmailSend({
         toEmail: destino,
         subject: email.subject,
         text: email.text,
         html: email.html,
         ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
         references: [],
-      });
-      enviado = true;
+      }), now);
     }
 
     // Grava DEPOIS de enviar: se o envio falhar, o estado não avança e a próxima

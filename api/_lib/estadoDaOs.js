@@ -96,3 +96,24 @@ export function diasParadaNoEstado(ticket, now = new Date()) {
   if (!base) return null;
   return Math.floor((now.getTime() - base.getTime()) / 86_400_000);
 }
+
+/**
+ * A OS tem próxima ação, vindo de QUALQUER uma das duas fontes?
+ *
+ * ⚠️ Existe porque a tela e o resumo da diretoria discordavam sobre o mesmo número.
+ * A tela resolve `nextAction` OU `operationalAttention` (a proposta do sistema, que
+ * cobre 58% do histórico onde ninguém preenche formulário); o resumo contava só
+ * `nextAction`. Resultado reproduzido pela auditoria (consulta 13): OS que a tela
+ * mostrava com ação chegava à diretoria como "sem próxima ação".
+ *
+ * "Sem próxima ação" é O número do rework — o único que mostra o buraco. Ele não
+ * pode significar coisas diferentes em dois lugares.
+ *
+ * Atenção marcada como `legacy` fica de fora, igual à tela: são as calculadas com
+ * semanas de atraso, e despejá-las seria o painel de culpa.
+ */
+export function temProximaAcao(ticket) {
+  if (ticket?.nextAction?.dueAt) return true;
+  const proposta = ticket?.operationalAttention;
+  return Boolean(proposta?.dueAt && !proposta.legacy);
+}

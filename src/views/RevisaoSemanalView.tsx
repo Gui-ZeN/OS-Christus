@@ -38,7 +38,7 @@ export default function RevisaoSemanalView({ token }: { token: string }) {
     let ativo = true;
     (async () => {
       try {
-        const r = await fetch(`/api/tickets?route=revisao-semanal&token=${encodeURIComponent(token)}`);
+        const r = await fetch(`/api/tickets?route=revisao-pagina&token=${encodeURIComponent(token)}`);
         const d = await r.json();
         if (!ativo) return;
         if (!r.ok) setErro(d?.error || 'Não foi possível abrir esta revisão.');
@@ -62,7 +62,7 @@ export default function RevisaoSemanalView({ token }: { token: string }) {
       setEnviando(`${ticketId}:${resposta}`);
       setErro(null);
       try {
-        const r = await fetch('/api/tickets?route=revisao-semanal', {
+        const r = await fetch('/api/tickets?route=revisao-pagina', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token, ticketId, resposta }),

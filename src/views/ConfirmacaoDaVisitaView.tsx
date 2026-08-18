@@ -183,7 +183,7 @@ function Registrado({
       <h1 className="text-xl font-semibold text-roman-text">Registrado, obrigado.</h1>
       <p className="mt-2 text-sm text-roman-text-sub">
         {faltou
-          ? 'A manutenção foi avisada e vai cobrar o fornecedor.'
+          ? 'A manutenção vai ser avisada e cobrar o fornecedor.'
           : 'A manutenção já está vendo.'}
       </p>
 

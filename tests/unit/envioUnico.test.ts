@@ -164,3 +164,28 @@ describe('ensaio da sombra não deixa rastro de estreia', () => {
     expect(entregue).toBe(true);
   });
 });
+
+describe('falha de infraestrutura NÃO pode passar por duplicata', () => {
+  // A versão anterior engolia qualquer erro do `create` como "outro já enviou":
+  // permissão negada, Firestore fora do ar, cota estourada. O sistema ficaria em
+  // silêncio total dizendo, para si mesmo, que já tinha enviado tudo. (Consulta 13.)
+  function bancoQueFalha(erro: Error) {
+    return {
+      collection: () => ({ doc: () => ({ create: async () => { throw erro; }, delete: async () => {} }) }),
+    };
+  }
+
+  it('"já existe" continua sendo duplicata — e não envia', async () => {
+    const jaExiste = Object.assign(new Error('ALREADY_EXISTS: entity already exists'), { code: 6 });
+    expect(await reivindicarEnvio(bancoQueFalha(jaExiste) as never, 'k')).toBe(false);
+  });
+
+  it('permissão negada SOBE, para o workflow ficar vermelho', async () => {
+    const semPermissao = Object.assign(new Error('PERMISSION_DENIED'), { code: 7 });
+    await expect(reivindicarEnvio(bancoQueFalha(semPermissao) as never, 'k')).rejects.toThrow('PERMISSION_DENIED');
+  });
+
+  it('banco indisponível SOBE, em vez de virar silêncio', async () => {
+    await expect(reivindicarEnvio(bancoQueFalha(new Error('UNAVAILABLE')) as never, 'k')).rejects.toThrow('UNAVAILABLE');
+  });
+});

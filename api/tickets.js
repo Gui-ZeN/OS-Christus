@@ -1340,11 +1340,53 @@ async function handleConfirmVisit(req, res) {
       }
 
       const quem = String(dadosDoToken.email || '').trim() || null;
-      await ref.update({
+
+      /**
+       * O HISTÓRICO É APPEND-ONLY.
+       *
+       * O PDF pede, com todas as letras, que o desfazer tenha "registro de quem
+       * corrigiu e quando". Sobrescrevendo `confirmedBy`/`confirmedAt` a cada
+       * resposta, o relato anterior sumia — e com ele a única prova de que uma
+       * falta chegou a ser relatada antes de alguém corrigir. Quem contesta a falta
+       * depois precisa poder ver a sequência inteira.
+       *
+       * `confirmedBy` continua existindo (é o que a tela e os e-mails leem), mas
+       * agora é o ÚLTIMO evento, não o único.
+       */
+      const eventos = Array.isArray(commitment.confirmationEvents) ? commitment.confirmationEvents : [];
+      eventos.push({
+        em: agora,
+        escolha,
+        estado: check.efeito.state,
+        // `convidado`, não "autor": o token prova posse do link, não identidade.
+        convidado: quem,
+        via: 'link-da-sede',
+      });
+
+      /**
+       * ⚠️ A ESCRITA É TRANSACIONAL, com releitura do estado dentro.
+       *
+       * Duas respostas simultâneas — dois toques, ou o link aberto em dois
+       * aparelhos — liam `agendado`, passavam as duas pela validação, e a última
+       * escrita vencia em silêncio. Numa visita, isso é a diferença entre "faltou"
+       * e "compareceu" decidida por ordem de chegada de pacote.
+       *
+       * A transação relê e revalida: quem chega depois recebe 409 e a página mostra
+       * o que já ficou registrado, em vez de gravar por cima.
+       */
+      await db.runTransaction(async trx => {
+        const atual = await trx.get(ref);
+        if (!atual.exists) throw new HttpError(404, 'Visita não encontrada.');
+        const conferido = validarEscolhaDaSede({ ...atual.data(), id: ref.id }, escolha);
+        if (!conferido.ok) {
+          throw new HttpError(409, conferido.error || 'Esta visita já foi respondida.');
+        }
+        trx.update(ref, {
         state: check.efeito.state,
         outcome: check.efeito.outcome,
         confirmedBy: quem,
         confirmedAt: agora,
+        confirmationEvents: eventos.slice(-20),
         updatedAt: agora,
         // Fica registrado que veio da sede, e não de dentro do app: é o que permite
         // distinguir depois "a sede respondeu" de "o gestor preencheu por ela".
@@ -1353,7 +1395,8 @@ async function handleConfirmVisit(req, res) {
         // consulta 12). Por isso a origem e "link da sede": quem ler o registro
         // depois precisa saber que isto e relato, nao identificacao.
         confirmedVia: 'link-da-sede',
-        ...(pendencia ? { desfechoPendente: pendencia } : {}),
+          ...(pendencia ? { desfechoPendente: pendencia } : {}),
+        });
       });
 
       for (const alvoId of commitment.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
@@ -1543,7 +1586,10 @@ async function handleRevisaoSemanal(req, res) {
 
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
-  if (route === 'revisao-semanal') return handleRevisaoSemanal(req, res);
+  // `revisao-pagina` (aqui) x `revisao-semanal` (em mail.js, que MANDA o e-mail).
+  // Tinham o mesmo nome em arquivos diferentes: funcionava, e era armadilha para
+  // quem chegasse depois.
+  if (route === 'revisao-pagina') return handleRevisaoSemanal(req, res);
   if (route === 'report-pdf') return handleReportPdf(req, res);
   if (route === 'commitments') return handleCommitments(req, res);
   if (route === 'confirm-visit') return handleConfirmVisit(req, res);

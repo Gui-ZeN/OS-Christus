@@ -46,10 +46,21 @@ export async function reivindicarEnvio(db, chave, agora = new Date()) {
   try {
     await db.collection(COLECAO).doc(chave).create({ em: agora });
     return true;
-  } catch {
-    // `create` falha se o documento existe. Qualquer outro erro também cai aqui, e
-    // o conservador é NÃO enviar: duplicata é o dano que não dá para desfazer.
-    return false;
+  } catch (erro) {
+    /**
+     * ⚠️ SÓ "já existe" significa "outro já enviou".
+     *
+     * A versão anterior engolia QUALQUER erro como duplicata — permissão negada,
+     * Firestore fora do ar, cota estourada. O sistema ficaria em silêncio total
+     * dizendo, para si mesmo, que já tinha enviado tudo. Falha de infraestrutura
+     * disfarçada de sucesso é o pior modo de falhar deste circuito. (Consulta 13.)
+     *
+     * Erro de verdade SOBE, para a rota devolver 500 e o workflow ficar vermelho.
+     */
+    const codigo = String(erro?.code || erro?.status || '');
+    const jaExiste = codigo === '6' || codigo === 'already-exists' || /already.?exists/i.test(String(erro?.message || ''));
+    if (jaExiste) return false;
+    throw erro;
   }
 }
 
