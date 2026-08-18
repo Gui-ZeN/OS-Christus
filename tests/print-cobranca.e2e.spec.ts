@@ -12,9 +12,26 @@ test('print do quadro de cobrança', async ({ page }) => {
 
   const quadro = page.locator('div.bg-roman-surface').filter({ hasText: 'Cobrança de quem não apareceu' }).first();
   await quadro.scrollIntoViewIfNeeded();
-  await page.getByText('POR 100 VISITAS').waitFor();
+  await page.getByText('SEM RESPOSTA').waitFor();
   await page.waitForTimeout(500);
   await quadro.screenshot({ path: 'prints/quadro-cobranca.png' });
-  console.log('TEXTO:', (await quadro.innerText()).replace(/\n+/g, ' | '));
+  console.log('EQUIPE:', (await quadro.innerText()).replace(/\s*\n\s*/g, ' | '));
+
+  const seletor = page.getByLabel('Filtrar por quem cobrou');
+  await seletor.selectOption({ index: 1 });
+  await page.waitForTimeout(500);
+  await quadro.screenshot({ path: 'prints/quadro-cobranca-por-pessoa.png' });
+  console.log('PESSOA:', (await quadro.innerText()).replace(/\s*\n\s*/g, ' | '));
+
+  // O quadro obedece aos filtros do topo da tela? (era o defeito: não obedecia)
+  await seletor.selectOption({ index: 0 });
+  const sedes = page.getByLabel('Filtrar por sede');
+  for (const sede of ['PE', 'DL']) {
+    await sedes.selectOption(sede);
+    await page.waitForTimeout(400);
+    const texto = (await quadro.innerText()).split('\n').join(' ');
+    console.log(`SEDE ${sede}:`, texto.replace(/\s*\n\s*/g, ' | ').slice(0, 220));
+  }
+
   expect(true).toBe(true);
 });

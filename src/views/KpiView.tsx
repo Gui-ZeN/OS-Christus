@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList, ComposedChart, Area } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
@@ -10,7 +10,7 @@ import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { fetchProcurementData } from '../services/procurementApi';
-import type { ContractRecord, PaymentRecord } from '../types';
+import type { ContractRecord, PaymentRecord, Ticket } from '../types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { coerceDate } from '../utils/date';
@@ -343,8 +343,9 @@ export function KpiView() {
     }
   }, [selectedVendor, vendorOptions]);
 
-  const filteredTickets = useMemo(() => {
-    return periodTickets.filter(ticket => {
+  /** Os filtros de recorte, sem o período — que cada quadro aplica ao seu jeito. */
+  const passaNosFiltros = useCallback(
+    (ticket: Ticket) => {
       if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
       if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
       if (selectedStatus !== 'all' && ticket.status !== selectedStatus) return false;
@@ -355,8 +356,34 @@ export function KpiView() {
         if (vendor !== selectedVendor) return false;
       }
       return true;
-    });
-  }, [contractsByTicket, periodTickets, regions, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]);
+    },
+    [contractsByTicket, regions, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]
+  );
+
+  const filteredTickets = useMemo(() => periodTickets.filter(passaNosFiltros), [passaNosFiltros, periodTickets]);
+
+  /**
+   * As OS do recorte SEM o corte de período, para o quadro de cobrança.
+   *
+   * O período dele é a data da VISITA, não a da abertura da OS: uma visita de ontem
+   * numa OS aberta em março é trabalho deste mês. Reaproveitar `filteredTickets`
+   * apagaria justamente essas.
+   *
+   * `null` quando não há filtro nenhum — e não a lista inteira. Uma visita cuja OS o
+   * navegador ainda não carregou sumiria da lista, e o quadro mostraria menos
+   * trabalho do que houve sem nada na tela indicando filtro.
+   */
+  const idsDoRecorte = useMemo(() => {
+    const semFiltro =
+      selectedRegion === 'all' &&
+      selectedSite === 'all' &&
+      selectedStatus === 'all' &&
+      selectedPriority === 'all' &&
+      selectedTeam === 'all' &&
+      selectedVendor === 'all';
+    if (semFiltro) return null;
+    return tickets.filter(passaNosFiltros).map(ticket => ticket.id);
+  }, [passaNosFiltros, tickets, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor]);
 
   const statusOptions = useMemo(() => {
     const presentes = new Set<string>(periodTickets.map(ticket => etapaDe(String(ticket.status))).filter(Boolean));
@@ -1315,7 +1342,7 @@ export function KpiView() {
 
         {perspective === 'managerial' && (
           <>
-            <PainelDeCobranca inicio={periodRange.start} fim={periodRange.end} />
+            <PainelDeCobranca inicio={periodRange.start} fim={periodRange.end} ticketIds={idsDoRecorte} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">

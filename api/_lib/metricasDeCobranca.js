@@ -54,26 +54,40 @@ function dentroDoPeriodo(data, de, ate) {
  * totais faz o indicador mentir sozinho: um mês com metade das visitas tem metade
  * das cobranças sem nada ter melhorado.
  */
-export function metricasDeCobranca({ commitments = [], de, ate }) {
+export function metricasDeCobranca({ commitments = [], de, ate, ticketIds = null, porEmail = null }) {
   const inicio = paraData(de) || new Date(0);
   const fim = paraData(ate) || new Date();
 
-  const visitasDoPeriodo = (commitments || []).filter(c =>
-    dentroDoPeriodo(paraData(c?.startAt), inicio, fim)
-  );
+  /**
+   * O recorte de território vem de FORA, como lista de OS.
+   *
+   * Uma visita atende várias OS da mesma sede, então basta uma delas estar no
+   * recorte. E `null` quer dizer "sem filtro" — diferente de lista vazia, que quer
+   * dizer "nada passou". Confundir os dois faria o quadro esvaziar sozinho quando a
+   * tela ainda não carregou as OS.
+   */
+  const permitidos = ticketIds === null ? null : new Set(ticketIds);
+  const noRecorte = c =>
+    permitidos === null || (Array.isArray(c?.ticketIds) ? c.ticketIds : []).some(id => permitidos.has(id));
+
+  const doAutor = cob => !porEmail || String(cob?.por || '') === porEmail;
+
+  const daBase = (commitments || []).filter(noRecorte);
+
+  const visitasDoPeriodo = daBase.filter(c => dentroDoPeriodo(paraData(c?.startAt), inicio, fim));
 
   const tentativas = [];
-  for (const c of commitments || []) {
+  for (const c of daBase) {
     for (const cob of Array.isArray(c?.cobrancas) ? c.cobrancas : []) {
       const quando = paraData(cob?.em);
-      if (dentroDoPeriodo(quando, inicio, fim)) tentativas.push({ ...cob, em: quando, visita: c });
+      if (doAutor(cob) && dentroDoPeriodo(quando, inicio, fim)) tentativas.push({ ...cob, em: quando, visita: c });
     }
   }
 
-  const concluidas = (commitments || []).flatMap(c =>
+  const concluidas = daBase.flatMap(c =>
     cobrancasConcluidas(c)
       .map(cob => ({ ...cob, em: paraData(cob.em), desfechoEm: paraData(cob.desfechoEm), visita: c }))
-      .filter(cob => dentroDoPeriodo(cob.em, inicio, fim))
+      .filter(cob => doAutor(cob) && dentroDoPeriodo(cob.em, inicio, fim))
   );
 
   const respondeu = concluidas.filter(c => c.desfecho === 'respondeu' || c.desfecho === 'nova-data');
@@ -88,8 +102,11 @@ export function metricasDeCobranca({ commitments = [], de, ate }) {
   const medianaEmMinutos = esperas.length > 0 ? Math.round(esperas[Math.floor(esperas.length / 2)] / 60_000) : null;
 
   const faltas = visitasDoPeriodo.filter(c => String(c?.state || '') === 'faltou').length;
-  const visitasComMaisDeUma = (commitments || []).filter(
-    c => (Array.isArray(c?.cobrancas) ? c.cobrancas : []).filter(cob => dentroDoPeriodo(paraData(cob?.em), inicio, fim)).length > 1
+  const visitasComMaisDeUma = daBase.filter(
+    c =>
+      (Array.isArray(c?.cobrancas) ? c.cobrancas : []).filter(
+        cob => doAutor(cob) && dentroDoPeriodo(paraData(cob?.em), inicio, fim)
+      ).length > 1
   ).length;
 
   const taxa = (parte, total) => (total > 0 ? Math.round((parte / total) * 100) : null);
@@ -106,11 +123,38 @@ export function metricasDeCobranca({ commitments = [], de, ate }) {
     segundasTentativas: visitasComMaisDeUma,
 
     // As taxas, que é como se compara mês contra mês.
-    cobrancasPorCemVisitas: visitasDoPeriodo.length > 0
-      ? Math.round((tentativas.length / visitasDoPeriodo.length) * 100)
-      : null,
+    /**
+     * ⚠️ `null` QUANDO SE FILTRA POR PESSOA, e não o número dividido mesmo assim.
+     *
+     * A visita não tem dono: ninguém "recebe" a falta do fornecedor. Dividir as
+     * cobranças de uma pessoa por TODAS as visitas do recorte produziria um número
+     * que parece produtividade individual e não é — quanto mais gente cobrando, pior
+     * o número de cada uma. É a conta que transforma um indicador de operação em
+     * ranking de funcionário sem ninguém ter decidido isso.
+     */
+    cobrancasPorCemVisitas: porEmail
+      ? null
+      : visitasDoPeriodo.length > 0
+        ? Math.round((tentativas.length / visitasDoPeriodo.length) * 100)
+        : null,
     percentualSemResposta: taxa(concluidas.length - respondeu.length, concluidas.length),
     percentualComNovaData: taxa(comNovaData.length, concluidas.length),
     medianaAteODesfechoEmMinutos: medianaEmMinutos,
+
+    /**
+     * Quem aparece cobrando no recorte — para a tela montar o seletor com o que
+     * existe, em vez de listar a equipe inteira e oferecer nomes que voltam vazios.
+     * Ignora o filtro de pessoa, senão a lista encolheria para o próprio escolhido e
+     * não haveria como voltar.
+     */
+    quemCobrou: [
+      ...new Set(
+        daBase
+          .flatMap(c => (Array.isArray(c?.cobrancas) ? c.cobrancas : []))
+          .filter(cob => dentroDoPeriodo(paraData(cob?.em), inicio, fim))
+          .map(cob => String(cob?.por || '').trim())
+          .filter(Boolean)
+      ),
+    ].sort(),
   };
 }

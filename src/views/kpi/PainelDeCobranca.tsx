@@ -43,9 +43,19 @@ function Numero({ rotulo, valor, sufixo = '', ajuda }: { rotulo: string; valor: 
   );
 }
 
-export function PainelDeCobranca({ inicio, fim }: { inicio: Date; fim: Date }) {
+export function PainelDeCobranca({
+  inicio,
+  fim,
+  ticketIds,
+}: {
+  inicio: Date;
+  fim: Date;
+  /** As OS do recorte da tela, ou `null` quando nenhum filtro está ligado. */
+  ticketIds: string[] | null;
+}) {
   const [commitments, setCommitments] = useState<HydratedCommitment[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [quemCobrou, setQuemCobrou] = useState('');
 
   useEffect(() => {
     let ativo = true;
@@ -68,9 +78,22 @@ export function PainelDeCobranca({ inicio, fim }: { inicio: Date; fim: Date }) {
   }, [inicio, fim]);
 
   const m: Metricas | null = useMemo(
-    () => (commitments ? metricasDeCobranca({ commitments, de, ate }) : null),
-    [commitments, de, ate]
+    () =>
+      commitments
+        ? metricasDeCobranca({ commitments, de, ate, ticketIds, porEmail: quemCobrou || null })
+        : null,
+    [commitments, de, ate, ticketIds, quemCobrou]
   );
+
+  /**
+   * Quem some do recorte perde a seleção junto.
+   *
+   * Sem isto, trocar a sede deixaria o nome escolhido preso num quadro que ficou
+   * todo zero — e o zero pareceria resultado, não filtro fora de contexto.
+   */
+  useEffect(() => {
+    if (quemCobrou && m && !m.quemCobrou.includes(quemCobrou)) setQuemCobrou('');
+  }, [m, quemCobrou]);
 
   const dataCurta = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
@@ -78,9 +101,26 @@ export function PainelDeCobranca({ inicio, fim }: { inicio: Date; fim: Date }) {
     <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm mb-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-serif text-lg font-medium text-roman-text-main">Cobrança de quem não apareceu</h2>
-        <span className="text-xs text-roman-text-sub">
-          {recortado ? `só temos de ${dataCurta(de)} a ${dataCurta(ate)}` : `${dataCurta(de)} a ${dataCurta(ate)}`}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {m && m.quemCobrou.length > 0 && (
+            <select
+              aria-label="Filtrar por quem cobrou"
+              value={quemCobrou}
+              onChange={event => setQuemCobrou(event.target.value)}
+              className="rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-xs text-roman-text-main"
+            >
+              <option value="">Toda a equipe</option>
+              {m.quemCobrou.map(email => (
+                <option key={email} value={email}>
+                  {email}
+                </option>
+              ))}
+            </select>
+          )}
+          <span className="text-xs text-roman-text-sub">
+            {recortado ? `só temos de ${dataCurta(de)} a ${dataCurta(ate)}` : `${dataCurta(de)} a ${dataCurta(ate)}`}
+          </span>
+        </div>
       </div>
 
       {erro && <p className="mt-4 text-sm text-roman-danger">{erro}</p>}
@@ -88,14 +128,20 @@ export function PainelDeCobranca({ inicio, fim }: { inicio: Date; fim: Date }) {
 
       {m && m.visitas === 0 && (
         <p className="mt-4 text-sm text-roman-text-sub">
-          Nenhuma visita marcada neste recorte — não há o que cobrar.
+          {ticketIds && ticketIds.length === 0
+            ? 'Nenhuma OS passa nos filtros escolhidos.'
+            : 'Nenhuma visita marcada neste recorte — não há o que cobrar.'}
         </p>
       )}
 
       {m && m.visitas > 0 && (
         <>
           <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-            <Numero rotulo="Visitas" valor={m.visitas} ajuda={`${m.faltas} sem comparecimento`} />
+            <Numero
+              rotulo="Visitas"
+              valor={m.visitas}
+              ajuda={quemCobrou ? `${m.faltas} sem comparecimento (toda a equipe)` : `${m.faltas} sem comparecimento`}
+            />
             <Numero
               rotulo="Cobranças"
               valor={m.cobrancasConcluidas}
@@ -110,9 +156,13 @@ export function PainelDeCobranca({ inicio, fim }: { inicio: Date; fim: Date }) {
               }
             />
             <Numero
-              rotulo="Por 100 visitas"
-              valor={m.cobrancasPorCemVisitas}
-              ajuda="é esta taxa que se compara mês a mês"
+              rotulo={quemCobrou ? 'Tentativas' : 'Por 100 visitas'}
+              valor={quemCobrou ? m.tentativas : m.cobrancasPorCemVisitas}
+              ajuda={
+                quemCobrou
+                  ? 'a visita não tem dono: não dá para dividir por visita'
+                  : 'é esta taxa que se compara mês a mês'
+              }
             />
             <Numero rotulo="Sem resposta" valor={m.percentualSemResposta} sufixo="%" ajuda="não atendeu ou não retornou" />
             <Numero rotulo="Viraram nova data" valor={m.percentualComNovaData} sufixo="%" ajuda="a cobrança resolveu" />

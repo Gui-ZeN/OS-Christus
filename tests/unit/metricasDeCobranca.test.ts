@@ -140,3 +140,59 @@ describe('as datas atravessam o JSON da API sem virar zero', () => {
     expect(m.medianaAteODesfechoEmMinutos).toBe(60);
   });
 });
+
+describe('os filtros: por território e por quem cobrou', () => {
+  const base = [
+    {
+      id: 'a',
+      state: 'faltou',
+      startAt: dia(11),
+      ticketIds: ['OS-1', 'OS-2'],
+      cobrancas: [
+        { em: dia(11, 10), por: 'ana@x', desfecho: 'nao-respondeu', desfechoEm: dia(11, 11) },
+        { em: dia(11, 14), por: 'bruno@x', desfecho: 'nova-data', desfechoEm: dia(11, 15) },
+      ],
+    },
+    {
+      id: 'b',
+      state: 'faltou',
+      startAt: dia(12),
+      ticketIds: ['OS-9'],
+      cobrancas: [{ em: dia(12, 10), por: 'ana@x', desfecho: 'respondeu', desfechoEm: dia(12, 12) }],
+    },
+  ];
+
+  it('uma visita entra se QUALQUER OS dela está no recorte', () => {
+    // A visita atende várias OS da mesma sede. Exigir todas faria a sede filtrada
+    // perder justamente as visitas que resolvem mais de uma coisa por viagem.
+    const m = metricasDeCobranca({ commitments: base, de, ate, ticketIds: ['OS-2'] });
+    expect(m.visitas).toBe(1);
+    expect(m.cobrancasConcluidas).toBe(2);
+  });
+
+  it('lista vazia é "nada passou"; null é "sem filtro"', () => {
+    expect(metricasDeCobranca({ commitments: base, de, ate, ticketIds: [] }).visitas).toBe(0);
+    expect(metricasDeCobranca({ commitments: base, de, ate, ticketIds: null }).visitas).toBe(2);
+  });
+
+  it('filtrar por pessoa conta só as cobranças dela', () => {
+    const m = metricasDeCobranca({ commitments: base, de, ate, porEmail: 'ana@x' });
+    expect(m.cobrancasConcluidas).toBe(2);
+    expect(m.percentualSemResposta).toBe(50);
+    // Duas cobranças na mesma visita, mas só uma é da Ana: não é segunda tentativa dela.
+    expect(m.segundasTentativas).toBe(0);
+  });
+
+  it('por pessoa NÃO divide por visitas — a visita não tem dono', () => {
+    // Dividir as cobranças de uma pessoa por todas as visitas viraria ranking de
+    // funcionário: quanto mais gente cobrando, pior o número de cada uma.
+    const m = metricasDeCobranca({ commitments: base, de, ate, porEmail: 'ana@x' });
+    expect(m.cobrancasPorCemVisitas).toBeNull();
+    expect(metricasDeCobranca({ commitments: base, de, ate }).cobrancasPorCemVisitas).toBe(150);
+  });
+
+  it('a lista de quem cobrou não encolhe quando se filtra por uma pessoa', () => {
+    const m = metricasDeCobranca({ commitments: base, de, ate, porEmail: 'ana@x' });
+    expect(m.quemCobrou).toEqual(['ana@x', 'bruno@x']);
+  });
+});
