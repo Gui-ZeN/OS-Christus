@@ -4,25 +4,27 @@ import { ACAO, MODO, assuntoDaSombra, decidirEnvio, lerConfiguracao, tipoDoEnvio
 const cfg = (env: Record<string, string> = {}) => lerConfiguracao(env);
 const envio = (extra: Record<string, string> = {}) => ({ para: 'pablo@px.com.br', ticketId: 'agenda-sede-SUL3', ...extra });
 
-describe('o padrão FALHA FECHADO', () => {
-  it('sem variável nenhuma, cai em sombra — e sombra sem caixa não envia', () => {
-    // Correção da auditoria (consulta 13). O padrão era `aberto`; para um canal com
-    // ZERO entregas na história, variável faltando é ambiente que ninguém preparou.
-    expect(cfg().modo).toBe(MODO.SOMBRA);
-    expect(decidirEnvio(envio(), cfg()).acao).toBe(ACAO.SUPRIMIR);
+describe('a variável ausente NÃO pode parar o e-mail que já funciona', () => {
+  it('sem EMAIL_MODO, envia — como sempre enviou', () => {
+    // O interruptor mora dentro do `gmailSend` e alcança TODA saída, inclusive os
+    // 15 gatilhos de etapa que funcionam há meses. Falhar fechado pararia todos
+    // eles no primeiro deploy — regressão silenciosa, do tipo que ninguém liga a
+    // uma variável que ninguém configurou.
+    expect(cfg().modo).toBe(MODO.ABERTO);
+    expect(decidirEnvio(envio(), cfg()).acao).toBe(ACAO.ENVIAR);
   });
 
-  it('digitado errado NÃO abre a torneira', () => {
-    // `sombraa` com um "a" a mais mandaria para gente real.
+  it('digitado errado também envia, mas fica MARCADO no diagnóstico', () => {
+    // `sombraa` não deve silenciar a operação inteira. O engano aparece na rota de
+    // diagnóstico para alguém corrigir, em vez de virar telefone tocando.
     const c = cfg({ EMAIL_MODO: 'sombraa' });
-    expect(c.modo).toBe(MODO.SOMBRA);
+    expect(c.modo).toBe(MODO.ABERTO);
     expect(c.modoInvalido).toBe(true);
   });
 
-  it('aberto exige a palavra exata', () => {
-    expect(cfg({ EMAIL_MODO: 'aberto' }).modo).toBe(MODO.ABERTO);
-    expect(cfg({ EMAIL_MODO: 'aberto' }).modoInvalido).toBe(false);
-    expect(decidirEnvio(envio(), cfg({ EMAIL_MODO: 'aberto' })).acao).toBe(ACAO.ENVIAR);
+  it('sombra é desvio, e desvio se liga de propósito', () => {
+    const c = cfg({ EMAIL_MODO: 'sombra', EMAIL_SOMBRA_PARA: 'teste@px.com.br' });
+    expect(decidirEnvio(envio(), c).acao).toBe(ACAO.DESVIAR);
   });
 });
 

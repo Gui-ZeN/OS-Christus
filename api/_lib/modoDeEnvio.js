@@ -53,15 +53,24 @@ export function lerConfiguracao(env = {}) {
   const conhecido = bruto === MODO.SOMBRA || bruto === MODO.ABERTO;
   return {
     /**
-     * ⚠️ FALHA FECHADO. Ausente ou digitado errado vira `sombra`, não `aberto`.
+     * ⚠️ AUSENTE É `aberto`, e isso foi ida e volta — vale registrar por quê.
      *
-     * O padrão era `aberto` e a auditoria (consulta 13) derrubou: para um canal
-     * com ZERO entregas na história, variável faltando é ambiente que ninguém
-     * preparou — e `sombraa` com um "a" a mais mandaria para gente real. O custo
-     * de errar fechado é um e-mail que não chegou e alguém pergunta; errar aberto
-     * é a operação inteira recebendo de um sistema que nunca entregou nada.
+     * Eu tinha posto "falha fechado" a pedido da auditoria, com o argumento de que
+     * um canal com ZERO entregas na história não pode abrir por omissão. O
+     * argumento era bom e a PREMISSA era minha, e estava errada: a fila
+     * (`emailOutbox`) tem só dois tipos, e os 213 dead-letters eram deles. Os 15
+     * gatilhos de etapa e as respostas de conversa sempre saíram direto, e o log
+     * de eventos cresce ~1.400 documentos por dia.
+     *
+     * Como o interruptor mora dentro do `gmailSend`, falhar fechado PARARIA o
+     * e-mail que funciona há meses no primeiro deploy — regressão silenciosa, do
+     * tipo que ninguém liga a uma variável que ninguém configurou.
+     *
+     * `sombra` é o desvio, e desvio se liga de propósito. Digitar errado
+     * (`sombraa`) cai em `aberto`, que é o comportamento de hoje — e o
+     * `modoInvalido` aparece no diagnóstico para alguém notar o engano.
      */
-    modo: conhecido ? bruto : MODO.SOMBRA,
+    modo: bruto === MODO.SOMBRA ? MODO.SOMBRA : MODO.ABERTO,
     modoInvalido: bruto !== '' && !conhecido,
     sombraPara: String(env.EMAIL_SOMBRA_PARA || '').trim(),
     /**
