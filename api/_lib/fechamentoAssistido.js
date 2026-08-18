@@ -30,15 +30,43 @@ const JA_FECHADAS = new Set(['Encerrada', 'Cancelada']);
  * anexo, cotação. Sem ele, cai para a criação: OS que nasceu e nunca foi tocada é
  * exatamente o caso que este e-mail existe para achar.
  */
+function paraData(valor) {
+  if (!valor) return null;
+  if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? null : valor;
+  if (typeof valor.toDate === 'function') return valor.toDate();
+  if (typeof valor.seconds === 'number') return new Date(valor.seconds * 1000);
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * O pulso da OS — quando ela teve PROGRESSO pela última vez.
+ *
+ * ⚠️ Não é `updatedAt`. Adiar uma revisão é uma alteração real e move `updatedAt`
+ * (a auditoria foi explícita: esconder a escrita seria pior), mas adiar não é
+ * progresso — se contasse, bastaria empurrar a OS toda semana para ela nunca mais
+ * aparecer como parada. Era exatamente a maquiagem que o fechamento assistido
+ * existe para acabar.
+ *
+ * ⚠️ E `stalledSince` sozinho também não serve, porque NINGUÉM o escreve nas 16
+ * escritas de OS espalhadas pelo sistema: uma OS adiada e depois trabalhada de
+ * verdade continuaria eternamente "parada há 60 dias". Este defeito nasceu na
+ * primeira versão desta correção e foi pego na varredura seguinte.
+ *
+ * A regra que dispensa instrumentar 16 lugares: `stalledSince` só vale enquanto a
+ * ÚLTIMA escrita tiver sido o próprio adiamento. Qualquer escrita posterior move
+ * `updatedAt` para depois de `revisaoAdiadaEm`, e o relógio volta a ser o normal.
+ */
 export function ultimaAtividade(ticket) {
-  // `stalledSince` primeiro. Correção da auditoria (consulta 12): usar `updatedAt`
-  // como medida de estagnação faz qualquer toque administrativo — adiar uma
-  // revisão, corrigir um campo — zerar justamente o número que se quer enxergar.
-  // O progresso real e a última escrita são coisas diferentes.
-  const bruto = ticket?.stalledSince || ticket?.updatedAt || ticket?.createdAt || null;
-  if (!bruto) return null;
-  const data = bruto instanceof Date ? bruto : new Date(bruto);
-  return Number.isNaN(data.getTime()) ? null : data;
+  const atualizada = paraData(ticket?.updatedAt);
+  const adiadaEm = paraData(ticket?.revisaoAdiadaEm);
+  const parada = paraData(ticket?.stalledSince);
+
+  const ultimaEscritaFoiAdiamento =
+    parada && adiadaEm && atualizada && Math.abs(atualizada.getTime() - adiadaEm.getTime()) < 1000;
+
+  if (ultimaEscritaFoiAdiamento) return parada;
+  return atualizada || paraData(ticket?.createdAt);
 }
 
 export function diasParada(ticket, now = new Date()) {
@@ -101,13 +129,16 @@ export function efeitoDaResposta(resposta, { now = new Date(), statusAnterior = 
     case RESPOSTA.PENDENTE:
       // "Ainda pendente" é a gestora dizendo que olhou e a OS segue viva: isso É
       // progresso declarado, então o relógio da estagnação reinicia.
-      return { updatedAt: now, stalledSince: now, revisaoAdiadaAte: null };
+      // Progresso declarado: o relógio reinicia e a marca de adiamento sai, senão
+      // a regra acima continuaria olhando para a base velha.
+      return { updatedAt: now, stalledSince: now, revisaoAdiadaEm: null, revisaoAdiadaAte: null };
     case RESPOSTA.DEPOIS:
       return {
         // Adiar É uma alteração e mexe em `updatedAt` — esconder a escrita foi o
-        // erro apontado na auditoria. O que NÃO se mexe é em `stalledSince`: o
-        // tempo parado continua correndo, porque adiar a pergunta não é progresso.
+        // erro apontado na auditoria. O relógio da estagnação é preservado à parte:
+        // guarda-se a base ANTERIOR, para o adiamento não zerar o tempo parado.
         updatedAt: now,
+        stalledSince: ultimaAtividade(ticketAtual) || now,
         revisaoAdiadaAte: new Date(now.getTime() + DIAS_DE_ADIAMENTO * 86_400_000),
         revisaoAdiadaEm: now,
         // Sem o contador, adiamento repetido fica invisível — e some exatamente a
@@ -115,7 +146,7 @@ export function efeitoDaResposta(resposta, { now = new Date(), statusAnterior = 
         adiamentos: (Number(adiamentosDe(ticketAtual)) || 0) + 1,
       };
     case RESPOSTA.DESFAZER:
-      return { status: statusAnterior || 'Aberta', fechamentoAssistido: null, updatedAt: now, stalledSince: now };
+      return { status: statusAnterior || 'Aberta', fechamentoAssistido: null, updatedAt: now, stalledSince: now, revisaoAdiadaEm: null };
     default:
       return null;
   }

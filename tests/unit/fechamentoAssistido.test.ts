@@ -75,21 +75,15 @@ describe('as três respostas', () => {
     expect(e!.updatedAt).toEqual(agora);
     // Reinicia o relógio da estagnação: a gestora olhou e declarou que segue viva.
     expect(e!.stalledSince).toEqual(agora);
-    expect(entraNaRevisao(os({ stalledSince: agora }), agora)).toBe(false);
+    expect(entraNaRevisao(os({ updatedAt: agora }), agora)).toBe(false);
   });
 
   it('"ver depois" É uma alteração e mexe em updatedAt', () => {
-    // Correção da auditoria (consulta 12): esconder a escrita foi o erro. O que
-    // não se mexe é em `stalledSince` — adiar a pergunta não é progresso.
-    const e = efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora });
+    // Esconder a escrita seria pior. O relógio da estagnação é preservado à parte
+    // — o bloco no fim deste arquivo cobre isso em detalhe.
+    const e = efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora, ticketAtual: os() });
     expect(e!.updatedAt).toEqual(agora);
-    expect(e).not.toHaveProperty('stalledSince');
     expect(e!.revisaoAdiadaAte.getTime()).toBeGreaterThan(agora.getTime());
-  });
-
-  it('e o tempo parado continua correndo, porque vem de stalledSince', () => {
-    const parada = os({ stalledSince: diasAtras(45), updatedAt: agora });
-    expect(diasParada(parada, agora)).toBe(45);
   });
 
   it('adiamento repetido é CONTADO — senão a postergação fica invisível', () => {
@@ -166,5 +160,44 @@ describe('uma gestora só recebe o que é dela', () => {
     expect(r.lotes[0].ordens).toHaveLength(MAXIMO_POR_EMAIL);
     expect(r.lotes[0].total).toBe(MAXIMO_POR_EMAIL + 4);
     expect(r.lotes[0].excedente).toBe(4);
+  });
+});
+
+describe('o relógio da estagnação sobrevive ao adiamento — e ao trabalho depois dele', () => {
+  // Defeito da própria correção anterior, pego na varredura: `stalledSince` era
+  // preferido sempre, mas NINGUÉM o escreve nas 16 escritas de OS do sistema. Uma
+  // OS adiada e depois trabalhada de verdade ficaria eternamente "parada há 60
+  // dias" — e reapareceria toda semana na revisão, ensinando a gestora a ignorá-la.
+  const adiada = () => {
+    const antes = os({ updatedAt: diasAtras(60) });
+    const efeito = efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora, ticketAtual: antes })!;
+    return { ...antes, ...efeito };
+  };
+
+  it('adiar NÃO zera o tempo parado', () => {
+    expect(diasParada(adiada(), agora)).toBe(60);
+  });
+
+  it('adiar move updatedAt — a escrita não fica escondida', () => {
+    expect(adiada().updatedAt).toEqual(agora);
+  });
+
+  it('trabalho DEPOIS do adiamento reinicia o relógio, sem instrumentar 16 escritas', () => {
+    // Qualquer escrita posterior empurra `updatedAt` para depois de
+    // `revisaoAdiadaEm`, e a regra volta a olhar o normal.
+    const trabalhada = { ...adiada(), updatedAt: new Date(agora.getTime() + 3 * 86_400_000) };
+    expect(diasParada(trabalhada, new Date(agora.getTime() + 3 * 86_400_000))).toBe(0);
+  });
+
+  it('adiar duas vezes seguidas continua sem zerar', () => {
+    const primeira = adiada();
+    const segunda = { ...primeira, ...efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora, ticketAtual: primeira })! };
+    expect(diasParada(segunda, agora)).toBe(60);
+  });
+
+  it('"ainda pendente" limpa a marca de adiamento e reinicia de verdade', () => {
+    const retomada = { ...adiada(), ...efeitoDaResposta(RESPOSTA.PENDENTE, { now: agora })! };
+    expect(retomada.revisaoAdiadaEm).toBeNull();
+    expect(diasParada(retomada, agora)).toBe(0);
   });
 });
