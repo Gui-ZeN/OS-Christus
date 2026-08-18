@@ -12,11 +12,12 @@ import {
   serializeCommitmentForApi,
   validateConfirmation,
 } from './_lib/commitments.js';
+import { sedeDaVisita } from './_lib/visitaDaSede.js';
 import { montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
 import { concluirSeTemDesfecho, novaPendenciaDeDesfecho, temPendenciaAberta } from './_lib/desfechoPendente.js';
 import { donoDoAlertaDeFalta } from './_lib/checagemDaVisita.js';
 import { RESPOSTA, diasParada, efeitoDaResposta, podeDesfazer } from './_lib/fechamentoAssistido.js';
-import { EVENTO_DE_CONTATO, podeCobrar, tentativasDe, validarDesfecho } from './_lib/cobranca.js';
+import { EVENTO_DE_CONTATO, ehRepeticaoImediata, podeCobrar, tentativasDe, validarDesfecho } from './_lib/cobranca.js';
 import { collectMessageIds, recordDeletedTicket } from './_lib/deletedTickets.js';
 import { toDateOrNull } from './_lib/dates.js';
 import {
@@ -915,10 +916,26 @@ async function handleCommitments(req, res) {
     const agora = new Date();
 
     if (req.method === 'GET') {
-      // Sem índice composto (o projeto não usa nenhum): faixa num campo só, e o
-      // resto em memória. São poucas visitas por semana.
-      const desde = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const snap = await col.where('startAt', '>=', desde).orderBy('startAt', 'asc').limit(500).get();
+      /**
+       * Sem índice composto (o projeto não usa nenhum): faixa num campo só, e o
+       * resto em memória. São poucas visitas por semana.
+       *
+       * ⚠️ AS DUAS FRONTEIRAS SÃO DO MESMO CAMPO, então o índice simples dá conta.
+       * Antes só havia limite inferior: a consulta trazia todo o futuro junto e,
+       * ordenada por data crescente, o `limit` cortava as visitas MAIS RECENTES —
+       * as únicas que importam para a agenda e para a cobrança. O painel mostraria
+       * menos trabalho do que houve, sem nada na tela dizendo que faltava coisa.
+       */
+      const LIMITE = 500;
+      const janela = 30 * 24 * 60 * 60 * 1000;
+      const de = toDateOrNull(req.query?.de) || new Date(agora.getTime() - janela);
+      const ate = toDateOrNull(req.query?.ate) || new Date(agora.getTime() + janela);
+      const snap = await col
+        .where('startAt', '>=', de)
+        .where('startAt', '<=', ate)
+        .orderBy('startAt', 'asc')
+        .limit(LIMITE)
+        .get();
       const escopo = novoCacheDeEscopo();
       const commitments = [];
       for (const doc of snap.docs) {
@@ -926,7 +943,13 @@ async function handleCommitments(req, res) {
         if (!(await podeVerCompromisso(db, actor, data.ticketIds, escopo))) continue;
         commitments.push(serializeCommitmentForApi(data, agora));
       }
-      return sendJson(res, 200, { ok: true, commitments });
+      // A cobertura viaja com a resposta. Limite silencioso vira, na tela, um
+      // resultado completo — e é assim que um indicador mente sem ninguém mentir.
+      return sendJson(res, 200, {
+        ok: true,
+        commitments,
+        cobertura: { de: de.toISOString(), ate: ate.toISOString(), truncado: snap.size >= LIMITE },
+      });
     }
 
     if (req.method === 'POST') {
@@ -942,12 +965,33 @@ async function handleCommitments(req, res) {
         throw new HttpError(403, 'Sem acesso a esta OS.');
       }
 
+      /**
+       * A sede sai das OS, não do corpo da requisição — e todas precisam ser a mesma.
+       *
+       * Sem isto, misturar OS de sedes diferentes criava uma visita que aparece nos
+       * DOIS filtros de sede do painel, levando as mesmas cobranças para os dois. E
+       * como a autorização é "basta uma OS acessível", quem tem acesso só a PE podia
+       * montar a lista com uma OS de DL junto e passar a alterar o compromisso
+       * inteiro. A regra do "basta uma" existe para LER visita legítima, não para
+       * quem monta a lista fabricar o próprio acesso.
+       */
+      const territorio = await readTerritoryCatalog(db);
+      const osDaVisita = await Promise.all(
+        ticketIds.map(async alvoId => {
+          const doc = await db.collection('tickets').doc(alvoId).get();
+          return doc.exists ? { id: doc.id, ...doc.data() } : null;
+        })
+      );
+      if (osDaVisita.some(t => !t)) throw new HttpError(404, 'Alguma das OS informadas não existe.');
+      const local = sedeDaVisita(osDaVisita, territorio.sites);
+      if (!local.ok) throw new HttpError(400, local.erro);
+
       const id = `cmt-${randomUUID()}`;
       const commitment = normalizeCommitmentForStorage({
         kind: 'visita-fornecedor',
         ticketIds,
-        siteId: String(body?.siteId || '').trim() || null,
-        sede: String(body?.sede || '').trim() || null,
+        siteId: local.siteId,
+        sede: local.sede,
         vendorId: String(body?.vendorId || '').trim() || null,
         vendorName: String(body?.vendorName || '').trim() || null,
         startAt,
@@ -993,38 +1037,65 @@ async function handleCommitments(req, res) {
       if (body?.cobranca) {
         const acao = String(body.cobranca.acao || '').trim();
 
+        /**
+         * ⚠️ EM TRANSAÇÃO, e não leitura-modifica-escreve.
+         *
+         * As cobranças vivem num ARRAY dentro do compromisso, então gravar uma é
+         * reescrever a lista inteira. Duas gestoras cobrando o mesmo fornecedor ao
+         * mesmo tempo — que é o cenário normal quando o fornecedor falta numa sede
+         * grande — liam a mesma lista e a última escrita apagava a outra. O trabalho
+         * sumia sem erro, e é exatamente o registro que o indicador existe para
+         * proteger. O mesmo valia para tentativa concorrendo com desfecho.
+         */
         if (acao === 'tentativa') {
-          if (!podeCobrar(atual)) {
-            throw new HttpError(409, 'Só se cobra falta confirmada pela sede.');
-          }
-          const tentativa = {
-            em: agora,
-            por: String(actor?.email || '').trim() || null,
-            canal: String(body.cobranca.canal || 'whatsapp'),
-            // O nome diz o que o dado PROVA: a conversa foi aberta. Se a mensagem
-            // foi enviada, só quem registra o desfecho sabe.
-            evento: EVENTO_DE_CONTATO,
-            desfecho: null,
-          };
-          await ref.update({
-            cobrancas: [...(Array.isArray(atual.cobrancas) ? atual.cobrancas : []), tentativa],
-            updatedAt: agora,
+          const resultado = await db.runTransaction(async trx => {
+            const fresco = await trx.get(ref);
+            if (!fresco.exists) throw new HttpError(404, 'Compromisso não encontrado.');
+            const dados = { id, ...fresco.data() };
+            if (!podeCobrar(dados)) {
+              throw new HttpError(409, 'Só se cobra falta confirmada pela sede.');
+            }
+            // Clique duplo e retry de rede não viram dois acionamentos. Cobrar de
+            // novo dias depois vira, porque aí é segunda tentativa de verdade.
+            if (ehRepeticaoImediata(dados, agora)) {
+              return { jaAberta: true, tentativas: tentativasDe(dados) };
+            }
+            const tentativa = {
+              em: agora,
+              por: String(actor?.email || '').trim() || null,
+              canal: String(body.cobranca.canal || 'whatsapp'),
+              // O nome diz o que o dado PROVA: a conversa foi aberta. Se a mensagem
+              // foi enviada, só quem registra o desfecho sabe.
+              evento: EVENTO_DE_CONTATO,
+              desfecho: null,
+            };
+            trx.update(ref, {
+              cobrancas: [...(Array.isArray(dados.cobrancas) ? dados.cobrancas : []), tentativa],
+              updatedAt: agora,
+            });
+            return { jaAberta: false, tentativas: tentativasDe(dados) + 1 };
           });
-          return sendJson(res, 200, { ok: true, tentativas: tentativasDe(atual) + 1 });
+          return sendJson(res, 200, { ok: true, ...resultado });
         }
 
         if (acao === 'desfecho') {
-          const check = validarDesfecho(atual, body.cobranca.desfecho);
-          if (!check.ok) throw new HttpError(409, check.error);
-          const lista = [...atual.cobrancas];
-          lista[check.indice] = {
-            ...lista[check.indice],
-            desfecho: String(body.cobranca.desfecho),
-            desfechoEm: agora,
-            desfechoPor: String(actor?.email || '').trim() || null,
-          };
-          await ref.update({ cobrancas: lista, updatedAt: agora });
-          return sendJson(res, 200, { ok: true, concluidas: lista.filter(c => c.desfecho).length });
+          const concluidas = await db.runTransaction(async trx => {
+            const fresco = await trx.get(ref);
+            if (!fresco.exists) throw new HttpError(404, 'Compromisso não encontrado.');
+            const dados = { id, ...fresco.data() };
+            const check = validarDesfecho(dados, body.cobranca.desfecho);
+            if (!check.ok) throw new HttpError(409, check.error);
+            const lista = [...dados.cobrancas];
+            lista[check.indice] = {
+              ...lista[check.indice],
+              desfecho: String(body.cobranca.desfecho),
+              desfechoEm: agora,
+              desfechoPor: String(actor?.email || '').trim() || null,
+            };
+            trx.update(ref, { cobrancas: lista, updatedAt: agora });
+            return lista.filter(c => c.desfecho).length;
+          });
+          return sendJson(res, 200, { ok: true, concluidas });
         }
 
         throw new HttpError(400, 'Ação de cobrança desconhecida.');

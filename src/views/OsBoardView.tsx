@@ -7,7 +7,6 @@ import { getTicketSiteLabel } from '../utils/ticketTerritory';
 // Apelidado: `etapaDe` já é um estado local deste arquivo (o id da OS cuja etapa
 // está sendo trocada no modal).
 import { ORDEM_DAS_ETAPAS, etapaDe as etapaDoStatus } from '../../api/_lib/etapas.js';
-import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { coerceDate, formatDateTimeSafe, formatShortDate } from '../utils/date';

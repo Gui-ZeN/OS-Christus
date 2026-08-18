@@ -129,6 +129,30 @@ export function cobrancasConcluidas(commitment) {
   return lista.filter(c => Boolean(c?.desfecho));
 }
 
+/**
+ * O mesmo acionamento chegando duas vezes — clique duplo ou retry da rede.
+ *
+ * ⚠️ POR JANELA DE TEMPO, e não "existe pendente".
+ *
+ * Bloquear todo acionamento enquanto houver um sem desfecho matava o caso legítimo:
+ * cobrar de novo na quarta porque a segunda não teve resposta é uma segunda
+ * tentativa de verdade, e some do registro justamente o retrabalho que mais cansa.
+ * O que precisa morrer é a repetição de segundos, que grava dois e deixa um pendente
+ * para sempre — puxando para baixo a taxa de classificados que o painel destaca.
+ */
+export const JANELA_DE_REPETICAO_EM_MINUTOS = 10;
+
+export function ehRepeticaoImediata(commitment, agora = new Date(), minutos = JANELA_DE_REPETICAO_EM_MINUTOS) {
+  const pendente = cobrancaPendente(commitment);
+  if (!pendente) return false;
+  const em = pendente.cobranca?.em;
+  const quando = em instanceof Date ? em : em && typeof em.toDate === 'function' ? em.toDate() : null;
+  // Pendente sem hora é dado antigo: não dá para saber se é repetição, e recusar
+  // por precaução apagaria uma cobrança real.
+  if (!quando || Number.isNaN(quando.getTime())) return false;
+  return agora.getTime() - quando.getTime() < minutos * 60 * 1000;
+}
+
 /** O tipo do evento gravado quando alguém toca em Cobrar. Diz o que prova. */
 // O servidor grava ANTES do `window.open`, e o navegador pode bloquear o popup.
 // O dado prova que o link foi acionado — nem sequer que a conversa abriu.

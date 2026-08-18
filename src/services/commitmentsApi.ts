@@ -51,9 +51,34 @@ async function pedir<T>(init: RequestInit): Promise<T> {
   return json as T;
 }
 
+/**
+ * Até onde a resposta alcança. Vem do servidor porque só ele sabe se bateu no
+ * limite — e limite silencioso, na tela, vira resultado completo.
+ */
+export interface CoberturaDosCompromissos {
+  de: Date;
+  ate: Date;
+  truncado: boolean;
+}
+
 export async function fetchCommitments(): Promise<HydratedCommitment[]> {
-  const json = await pedir<{ commitments: ApiCommitment[] }>({ method: 'GET' });
-  return (json.commitments || []).map(hydrate);
+  return (await fetchCommitmentsComCobertura()).commitments;
+}
+
+export async function fetchCommitmentsComCobertura(): Promise<{
+  commitments: HydratedCommitment[];
+  cobertura: CoberturaDosCompromissos | null;
+}> {
+  const json = await pedir<{
+    commitments: ApiCommitment[];
+    cobertura?: { de: string; ate: string; truncado: boolean };
+  }>({ method: 'GET' });
+  return {
+    commitments: (json.commitments || []).map(hydrate),
+    cobertura: json.cobertura
+      ? { de: new Date(json.cobertura.de), ate: new Date(json.cobertura.ate), truncado: Boolean(json.cobertura.truncado) }
+      : null,
+  };
 }
 
 export async function createCommitment(input: {

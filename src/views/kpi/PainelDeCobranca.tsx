@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PhoneCall, TriangleAlert } from 'lucide-react';
-import { fetchCommitments, type HydratedCommitment } from '../../services/commitmentsApi';
+import {
+  fetchCommitmentsComCobertura,
+  type CoberturaDosCompromissos,
+  type HydratedCommitment,
+} from '../../services/commitmentsApi';
 import { metricasDeCobranca } from '../../../api/_lib/metricasDeCobranca.js';
 
 /**
@@ -72,13 +76,18 @@ export function PainelDeCobranca({
   ticketIds: string[] | null;
 }) {
   const [commitments, setCommitments] = useState<HydratedCommitment[] | null>(null);
+  const [cobertura, setCobertura] = useState<CoberturaDosCompromissos | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [quemCobrou, setQuemCobrou] = useState('');
 
   useEffect(() => {
     let ativo = true;
-    fetchCommitments()
-      .then(lista => ativo && setCommitments(lista))
+    fetchCommitmentsComCobertura()
+      .then(resposta => {
+        if (!ativo) return;
+        setCommitments(resposta.commitments);
+        setCobertura(resposta.cobertura);
+      })
       .catch(() => ativo && setErro('Não foi possível carregar as visitas.'));
     return () => {
       ativo = false;
@@ -189,21 +198,24 @@ export function PainelDeCobranca({
             <Numero
               rotulo="Com desfecho"
               valor={`${m.classificados} de ${m.acionamentos}`}
+              // Com zero acionamento, "todo acionamento tem desfecho" é elogio ao nada.
               ajuda={
-                m.semDesfecho > 0
-                  ? `${m.semDesfecho} ainda sem registrar como acabou`
-                  : 'todo acionamento tem desfecho'
+                m.acionamentos === 0
+                  ? 'ninguém foi cobrado no recorte'
+                  : m.semDesfecho > 0
+                    ? `${m.semDesfecho} ainda sem registrar como acabou`
+                    : 'todo acionamento tem desfecho'
               }
             />
             <Numero
               rotulo="Sem resposta"
               valor={porcento(m.percentualSemResposta, m.naoResponderam)}
-              ajuda={`${m.naoResponderam} de ${m.classificados} com desfecho`}
+              ajuda={m.classificados > 0 ? `${m.naoResponderam} de ${m.classificados} com desfecho` : 'nada classificado ainda'}
             />
             <Numero
               rotulo="Viraram nova data"
               valor={porcento(m.percentualComNovaData, m.novasDatas)}
-              ajuda={`${m.novasDatas} de ${m.classificados} com desfecho`}
+              ajuda={m.classificados > 0 ? `${m.novasDatas} de ${m.classificados} com desfecho` : 'nada classificado ainda'}
             />
           </div>
 
@@ -247,6 +259,17 @@ export function PainelDeCobranca({
             )}
           </div>
         </>
+      )}
+
+      {/* O servidor bateu no teto: faltam visitas aqui, e a tela precisa dizer. */}
+      {cobertura?.truncado && (
+        <p className="mt-4 flex items-start gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs leading-relaxed text-roman-text-main">
+          <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            Há mais visitas no período do que a consulta consegue trazer de uma vez. Os números abaixo são de uma parte
+            do período, não dele inteiro.
+          </span>
+        </p>
       )}
 
       <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-roman-text-sub">
