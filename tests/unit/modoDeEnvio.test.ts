@@ -4,18 +4,25 @@ import { ACAO, MODO, assuntoDaSombra, decidirEnvio, lerConfiguracao, tipoDoEnvio
 const cfg = (env: Record<string, string> = {}) => lerConfiguracao(env);
 const envio = (extra: Record<string, string> = {}) => ({ para: 'pablo@px.com.br', ticketId: 'agenda-sede-SUL3', ...extra });
 
-describe('o padrão é ABERTO — a torneira de volume é o conteúdo, não esta variável', () => {
-  it('sem variável nenhuma, envia normalmente', () => {
-    // Quem segura o ruído é o desenho: sede sem nada marcado não recebe, resumo
-    // vazio não vira e-mail, visita que atende 3 OS é 1 item. Esta variável existe
-    // para outra pergunta — a mensagem CHEGA? —, e por isso não fica no caminho.
-    expect(cfg().modo).toBe(MODO.ABERTO);
-    expect(decidirEnvio(envio(), cfg()).acao).toBe(ACAO.ENVIAR);
+describe('o padrão FALHA FECHADO', () => {
+  it('sem variável nenhuma, cai em sombra — e sombra sem caixa não envia', () => {
+    // Correção da auditoria (consulta 13). O padrão era `aberto`; para um canal com
+    // ZERO entregas na história, variável faltando é ambiente que ninguém preparou.
+    expect(cfg().modo).toBe(MODO.SOMBRA);
+    expect(decidirEnvio(envio(), cfg()).acao).toBe(ACAO.SUPRIMIR);
   });
 
-  it('qualquer valor que não seja "sombra" é aberto', () => {
+  it('digitado errado NÃO abre a torneira', () => {
+    // `sombraa` com um "a" a mais mandaria para gente real.
+    const c = cfg({ EMAIL_MODO: 'sombraa' });
+    expect(c.modo).toBe(MODO.SOMBRA);
+    expect(c.modoInvalido).toBe(true);
+  });
+
+  it('aberto exige a palavra exata', () => {
     expect(cfg({ EMAIL_MODO: 'aberto' }).modo).toBe(MODO.ABERTO);
-    expect(cfg({ EMAIL_MODO: 'qualquer-coisa' }).modo).toBe(MODO.ABERTO);
+    expect(cfg({ EMAIL_MODO: 'aberto' }).modoInvalido).toBe(false);
+    expect(decidirEnvio(envio(), cfg({ EMAIL_MODO: 'aberto' })).acao).toBe(ACAO.ENVIAR);
   });
 });
 
@@ -45,7 +52,7 @@ describe('o interruptor por tipo — a peça sem substituto', () => {
   it('cala UM disparo sem fechar os outros', () => {
     // Se a checagem incomodar as sedes numa terça de manhã, desliga só ela pela
     // Vercel. A alternativa seria reverter commit sob pressão.
-    const c = cfg({ EMAIL_TIPOS_DESLIGADOS: 'checagem' });
+    const c = cfg({ EMAIL_MODO: 'aberto', EMAIL_TIPOS_DESLIGADOS: 'checagem' });
     expect(decidirEnvio(envio({ ticketId: 'checagem-SUL3' }), c).acao).toBe(ACAO.SUPRIMIR);
     expect(decidirEnvio(envio({ ticketId: 'agenda-sede-SUL3' }), c).acao).toBe(ACAO.ENVIAR);
   });
@@ -67,7 +74,7 @@ describe('o interruptor por tipo — a peça sem substituto', () => {
 
 describe('nada some sem explicação', () => {
   it('toda decisão traz motivo e tipo', () => {
-    for (const env of [{}, { EMAIL_MODO: 'sombra', EMAIL_SOMBRA_PARA: 't@px.com.br' }]) {
+    for (const env of [{ EMAIL_MODO: 'aberto' }, { EMAIL_MODO: 'sombra', EMAIL_SOMBRA_PARA: 't@px.com.br' }]) {
       const d = decidirEnvio(envio(), cfg(env));
       expect(d.motivo).toBeTruthy();
       expect(d.tipo).toBe('agenda-sede');
@@ -75,7 +82,7 @@ describe('nada some sem explicação', () => {
   });
 
   it('envio sem destinatário é suprimido, não estoura', () => {
-    const d = decidirEnvio(envio({ para: '' }), cfg());
+    const d = decidirEnvio(envio({ para: '' }), cfg({ EMAIL_MODO: 'aberto' }));
     expect(d.acao).toBe(ACAO.SUPRIMIR);
     expect(d.motivo).toBe('sem destinatário');
   });

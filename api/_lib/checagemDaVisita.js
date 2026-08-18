@@ -1,4 +1,4 @@
-import { DEFAULT_TOLERANCE_MINUTES } from './commitments.js';
+import { DEFAULT_TOLERANCE_MINUTES, prazoDaResposta } from './commitments.js';
 
 /**
  * O LAÇO QUE FECHA A CONFIRMAÇÃO.
@@ -27,25 +27,12 @@ export function toleranciaEmMinutos(commitment) {
 /**
  * Quando a pergunta "chegou?" passa a valer.
  *
- * ⚠️ Conta do horário marcado OU de quando o aviso das 07h foi de fato processado,
- * o que for MAIS TARDE. Correção da auditoria (consulta 12): o agendador do GitHub
- * atrasa, e um job das 07h que roda às 08h40 mandava a agenda e a cobrança de
- * resposta quase juntas — o coordenador era acusado de não responder um e-mail que
- * tinha acabado de chegar. Silêncio de quem não teve tempo não é silêncio.
+ * ⚠️ Delega para `prazoDaResposta`, que é o relógio único do sistema. Ter uma
+ * cópia da regra aqui foi o defeito da consulta 13: o scanner esperava até 09h10 e
+ * a tela já dizia "sem confirmação" às 08h45.
  */
 export function momentoDaChecagem(commitment) {
-  const inicio = commitment?.startAt instanceof Date ? commitment.startAt : new Date(commitment?.startAt || NaN);
-  if (Number.isNaN(inicio.getTime())) return null;
-
-  const tolerancia = toleranciaEmMinutos(commitment) * 60_000;
-  const bruto = commitment?.agendaEnviadaEm;
-  const avisada = bruto instanceof Date ? bruto : bruto ? new Date(bruto) : null;
-  const base =
-    avisada && !Number.isNaN(avisada.getTime()) && avisada.getTime() > inicio.getTime()
-      ? avisada
-      : inicio;
-
-  return new Date(base.getTime() + tolerancia);
+  return prazoDaResposta(commitment);
 }
 
 /**

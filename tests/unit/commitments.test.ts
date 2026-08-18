@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { momentoDaChecagem } from '../../api/_lib/checagemDaVisita.js';
 import {
   COMMITMENT_OUTCOME,
   COMMITMENT_STATE,
@@ -117,5 +118,47 @@ describe('serializeCommitmentForApi', () => {
     const out = serializeCommitmentForApi(visita({ endAt: undefined, confirmedAt: null }), AGORA);
     expect(out.endAt).toBeNull();
     expect(out.confirmedAt).toBeNull();
+  });
+});
+
+describe('o relógio da resposta é único — scanner, tela e resumos', () => {
+  // Defeito da consulta 13: a correção da tolerância pós-processamento ficou só no
+  // scanner. A tela e os resumos usavam `startAt + tolerância`, então o sistema
+  // dizia "sem confirmação" às 08h45 enquanto o scanner ainda esperava até 09h10 —
+  // um lado acusando a sede de calada enquanto o outro nem tinha perguntado.
+  const oito = new Date('2026-08-17T11:00:00Z');
+  const min = (n: number) => new Date(oito.getTime() + n * 60_000);
+  const visita = (extra: Record<string, unknown> = {}) => ({
+    state: 'agendado',
+    startAt: oito,
+    toleranceMinutes: 30,
+    ...extra,
+  });
+
+  it('sem aviso atrasado, vale o horário marcado', () => {
+    expect(effectiveCommitmentState(visita(), min(20))).toBe('agendado');
+    expect(effectiveCommitmentState(visita(), min(40))).toBe('sem-confirmacao');
+  });
+
+  it('agenda processada às 08h40 empurra o prazo — e a tela concorda com o scanner', () => {
+    const avisadaTarde = visita({ agendaEnviadaEm: min(40) });
+    // 08h40 + 30 = 09h10. Às 08h45 ainda NÃO é "sem confirmação".
+    expect(effectiveCommitmentState(avisadaTarde, min(45))).toBe('agendado');
+    expect(effectiveCommitmentState(avisadaTarde, min(75))).toBe('sem-confirmacao');
+    expect(momentoDaChecagem(avisadaTarde)!.getTime()).toBe(min(70).getTime());
+  });
+
+  it('aviso ANTES do horário não encurta nem alonga', () => {
+    const cedo = visita({ agendaEnviadaEm: min(-60) });
+    expect(effectiveCommitmentState(cedo, min(40))).toBe('sem-confirmacao');
+  });
+
+  it('o scanner e o estado efetivo derivam do MESMO prazo', () => {
+    for (const extra of [{}, { agendaEnviadaEm: min(40) }, { toleranceMinutes: 15 }]) {
+      const v = visita(extra);
+      const prazo = momentoDaChecagem(v)!;
+      expect(effectiveCommitmentState(v, new Date(prazo.getTime() - 1000))).toBe('agendado');
+      expect(effectiveCommitmentState(v, new Date(prazo.getTime() + 1000))).toBe('sem-confirmacao');
+    }
   });
 });

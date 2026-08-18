@@ -329,9 +329,19 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
     return { enviado: false, suprimido: true, motivo: decisao.motivo, tipo: decisao.tipo, messageId: null, threadId: null };
   }
 
-  if (decisao.acao === ACAO.DESVIAR) {
-    // Sombra: destinatário trocado, CC cortado (senão o desvio vazaria para a
-    // conversa real) e assunto marcado.
+  /**
+   * Sombra: destinatário trocado, CC cortado (senão o desvio vazaria para a
+   * conversa real) e assunto marcado.
+   *
+   * ⚠️ E o resultado sai marcado como ENSAIO. A auditoria (consulta 13) pegou que
+   * o desvio seguia o fluxo normal e devolvia sucesso — então as rotas gravavam
+   * `agendaEnviadaEm`, `checagemEnviadaEm`, `faltaAvisadaEm` e consumiam as chaves
+   * de idempotência do dia. Rodar em sombra e abrir a torneira na mesma janela
+   * entregaria NADA para as pessoas reais, e o estado diria que já tinha entregue.
+   * O ensaio não pode deixar rastro de estreia.
+   */
+  const ensaio = decisao.acao === ACAO.DESVIAR;
+  if (ensaio) {
     toEmail = decisao.destino;
     ccEmail = '';
     subject = assuntoDaSombra(subject, decisao.destinoOriginal);
@@ -383,6 +393,10 @@ export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReply
     id: result.data.id || null,
     messageId: generatedMessageId,
     threadId: result.data.threadId || null,
+    // `ensaio` diz que a mensagem SAIU, mas para a caixa de teste. Quem grava
+    // estado ("já perguntei", "já avisei") tem que tratar isto como não-entrega:
+    // o destinatário real não recebeu nada.
+    ensaio,
   };
 }
 

@@ -144,3 +144,23 @@ describe('envio suprimido não envenena a chave do envio real', () => {
     expect(entregas).toHaveLength(1);
   });
 });
+
+describe('ensaio da sombra não deixa rastro de estreia', () => {
+  it('mensagem desviada para a caixa de teste NÃO consome a chave do dia', async () => {
+    // A auditoria (consulta 13) pegou: o desvio seguia o fluxo normal e devolvia
+    // sucesso, então as rotas gravavam "já perguntei" e queimavam a chave. Rodar em
+    // sombra e abrir a torneira na mesma janela entregaria NADA para as pessoas
+    // reais, e o estado diria que já tinha entregue.
+    const db = bancoFalso();
+    const chave = chaveDeEnvio(['checagem', 'SUL3', 'pablo@px.com.br', '999']);
+
+    const emSombra = await enviarUmaVez(db as never, chave, async () => ({ status: 200, ensaio: true }));
+    expect(emSombra).toBe(false);
+    expect(db.docs.has(chave)).toBe(false);
+
+    let entregue = false;
+    const real = await enviarUmaVez(db as never, chave, async () => { entregue = true; return { status: 200, ensaio: false }; });
+    expect(real).toBe(true);
+    expect(entregue).toBe(true);
+  });
+});

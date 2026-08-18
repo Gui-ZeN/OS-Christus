@@ -50,10 +50,19 @@ function lista(valor) {
 
 export function lerConfiguracao(env = {}) {
   const bruto = String(env.EMAIL_MODO || '').trim().toLowerCase();
+  const conhecido = bruto === MODO.SOMBRA || bruto === MODO.ABERTO;
   return {
-    // Ausente é `aberto`: a torneira de volume é o conteúdo, não esta variável.
-    // `sombra` é algo que se liga de propósito, no dia do push.
-    modo: bruto === MODO.SOMBRA ? MODO.SOMBRA : MODO.ABERTO,
+    /**
+     * ⚠️ FALHA FECHADO. Ausente ou digitado errado vira `sombra`, não `aberto`.
+     *
+     * O padrão era `aberto` e a auditoria (consulta 13) derrubou: para um canal
+     * com ZERO entregas na história, variável faltando é ambiente que ninguém
+     * preparou — e `sombraa` com um "a" a mais mandaria para gente real. O custo
+     * de errar fechado é um e-mail que não chegou e alguém pergunta; errar aberto
+     * é a operação inteira recebendo de um sistema que nunca entregou nada.
+     */
+    modo: conhecido ? bruto : MODO.SOMBRA,
+    modoInvalido: bruto !== '' && !conhecido,
     sombraPara: String(env.EMAIL_SOMBRA_PARA || '').trim(),
     /**
      * O interruptor por tipo, que é a peça sem substituto: se a checagem das 30

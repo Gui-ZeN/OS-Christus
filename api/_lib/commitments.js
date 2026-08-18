@@ -61,18 +61,41 @@ const FECHADOS = new Set([
  * ⚠️ `sem-confirmacao` NÃO é falta. A diferença importa: falta entra no histórico do
  * fornecedor, que decide quem continua atendendo.
  */
+/**
+ * O RELÓGIO ÚNICO de "a sede já deveria ter respondido".
+ *
+ * ⚠️ Conta do horário marcado OU de quando o aviso das 07h foi de fato processado,
+ * o que for MAIS TARDE. O agendador do GitHub atrasa, e um job das 07h que roda às
+ * 08h40 pediria resposta de um e-mail recém-chegado — silêncio de quem não teve
+ * tempo não é silêncio.
+ *
+ * ⚠️ ESTA FUNÇÃO É A ÚNICA VERDADE. A auditoria (consulta 13) pegou que a correção
+ * tinha sido aplicada só no scanner: a tela e os resumos continuavam em
+ * `startAt + tolerância`, e o sistema dizia "sem confirmação" às 08h45 enquanto o
+ * scanner ainda esperava até 09h10. Dois relógios discordando sobre o mesmo fato é
+ * como um lado acusa a sede de calada enquanto o outro nem perguntou.
+ */
 export function effectiveCommitmentState(commitment, now = new Date()) {
   const state = String(commitment?.state || COMMITMENT_STATE.SCHEDULED);
   if (!ABERTOS.has(state)) return state;
 
+  const limite = prazoDaResposta(commitment);
+  if (!limite) return state;
+  return now.getTime() > limite.getTime() ? COMMITMENT_STATE.UNCONFIRMED : state;
+}
+
+/** Até quando a sede tem para responder. `null` quando não há data marcada. */
+export function prazoDaResposta(commitment) {
   const startAt = toDateOrNull(commitment?.startAt);
-  if (!startAt) return state;
+  if (!startAt) return null;
 
   const tolerancia = Number.isFinite(Number(commitment?.toleranceMinutes))
     ? Number(commitment.toleranceMinutes)
     : DEFAULT_TOLERANCE_MINUTES;
-  const limite = startAt.getTime() + tolerancia * 60_000;
-  return now.getTime() > limite ? COMMITMENT_STATE.UNCONFIRMED : state;
+
+  const avisada = toDateOrNull(commitment?.agendaEnviadaEm);
+  const base = avisada && avisada.getTime() > startAt.getTime() ? avisada : startAt;
+  return new Date(base.getTime() + tolerancia * 60_000);
 }
 
 /** A sede ainda precisa responder por este compromisso? */

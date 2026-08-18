@@ -82,7 +82,10 @@ export async function enviarUmaVez(db, chave, enviar, agora = new Date()) {
     //
     // Foi um teste rodando dois modos em sequência que expôs isso. A chave existe
     // para impedir DUAS ENTREGAS, e nada foi entregue.
-    if (resultado && resultado.suprimido) {
+    // `suprimido` = não saiu. `ensaio` = saiu, mas para a caixa de teste, e o
+    // destinatário real continua sem receber. Os dois liberam a chave: ela existe
+    // para impedir DUAS ENTREGAS ao destinatário, e não houve nenhuma.
+    if (resultado && (resultado.suprimido || resultado.ensaio)) {
       await liberarEnvio(db, chave);
       return false;
     }
