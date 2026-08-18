@@ -1,41 +1,39 @@
 /**
- * O MODO DE ENVIO — o interruptor do deploy escuro.
+ * O MODO DE ENVIO — o ensaio antes da primeira entrega.
  *
- * ⚠️ POR QUE ISTO EXISTE. Sete e-mails e duas páginas foram construídos sobre um
- * canal que NUNCA entregou uma mensagem: 213 documentos na fila, 100% em
- * dead-letter, zero enviados. A auditoria (consulta 12) foi direta: subir tudo de
- * uma vez significa descobrir autenticação, domínio, spam e link quebrado com
- * usuário real na frente — e, pior, interpretar falha de entrega como silêncio da
- * sede, que é justamente o sinal que o sistema inteiro existe para ler.
+ * ⚠️ O QUE ISTO **NÃO** É. Não é controle de volume: isso o desenho já resolve
+ * sozinho, e melhor. Sede sem nada marcado não recebe nada; resumo vazio não vira
+ * e-mail; visita que atende três OS é um item; a checagem manda um e-mail por sede,
+ * não por visita. A regra "só dispara quando tem conteúdo" está construída e
+ * testada, e é ela que segura o ruído.
  *
- * A saída não é "lançar pela metade". É subir o código inteiro com a torneira
- * fechada, e abrir por etapa:
+ * Isto aqui responde outra pergunta, que nenhum teste responde: **a mensagem
+ * chega?** Este sistema tem 213 dead-letters e zero entregas na história. Cai em
+ * spam? O remetente aparece como quem? O link abre no celular do coordenador?
  *
- *   desligado -> nada sai. O sistema calcula tudo e registra o que TERIA mandado.
- *   sombra    -> tudo sai, mas para UMA caixa de teste, com o assunto marcado.
- *   piloto    -> só para as pessoas e sedes declaradas. O resto é suprimido.
- *   aberto    -> o normal.
+ * `?simular=1`, que toda rota já tem, não serve para isso — ele nem chega a
+ * enviar. O `sombra` manda pelo caminho REAL (Gmail, remetente, domínio, link) e
+ * desvia só o destinatário.
  *
- * As três primeiras produzem evidência sem produzir dano. Nenhuma exige mudar
- * código: é variável de ambiente, então voltar atrás é um toque na Vercel, não um
- * redeploy com pressa.
+ * Duas configurações, só:
  *
- * ⚠️ O PADRÃO É `sombra`, DE PROPÓSITO. Ambiente sem a variável configurada é
- * ambiente que ninguém preparou — e o custo de errar para o lado seguro é um
- * e-mail que não chegou; para o outro lado, é a operação inteira recebendo
- * mensagem de um sistema que nunca entregou nada.
+ *   EMAIL_MODO=sombra + EMAIL_SOMBRA_PARA=voce@...  -> tudo vai para você, marcado
+ *   EMAIL_MODO ausente ou "aberto"                  -> o normal
+ *
+ * ⚠️ Havia também `desligado` e `piloto`. Foram removidos por serem cerimônia:
+ * `desligado` duplicava o `?simular=1` que já existia nas sete rotas, e `piloto` se
+ * faz pelo CADASTRO — os destinatários saem de `siteIds`, então basta uma sede ter
+ * coordenador para só ela receber. Menos conceito para lembrar na hora do aperto.
  *
  * Sem I/O: quem lê `process.env` é o chamador.
  */
 
 export const MODO = {
-  DESLIGADO: 'desligado',
+  /** Tudo sai pelo caminho real, mas para uma caixa só. */
   SOMBRA: 'sombra',
-  PILOTO: 'piloto',
+  /** O normal. É o padrão. */
   ABERTO: 'aberto',
 };
-
-const MODOS_VALIDOS = new Set(Object.values(MODO));
 
 export const ACAO = {
   ENVIAR: 'enviar',
@@ -50,28 +48,26 @@ function lista(valor) {
     .filter(Boolean);
 }
 
-/** Lê a configuração do ambiente. Modo desconhecido cai em `sombra`, não em `aberto`. */
 export function lerConfiguracao(env = {}) {
   const bruto = String(env.EMAIL_MODO || '').trim().toLowerCase();
   return {
-    modo: MODOS_VALIDOS.has(bruto) ? bruto : MODO.SOMBRA,
-    // Modo desconhecido é erro de digitação, e erro de digitação não pode abrir a
-    // torneira. Fica registrado para aparecer no diagnóstico.
-    modoInvalido: bruto !== '' && !MODOS_VALIDOS.has(bruto),
+    // Ausente é `aberto`: a torneira de volume é o conteúdo, não esta variável.
+    // `sombra` é algo que se liga de propósito, no dia do push.
+    modo: bruto === MODO.SOMBRA ? MODO.SOMBRA : MODO.ABERTO,
     sombraPara: String(env.EMAIL_SOMBRA_PARA || '').trim(),
-    pessoas: lista(env.EMAIL_PILOTO_PESSOAS),
-    sedes: lista(env.EMAIL_PILOTO_SEDES),
-    // Interruptor por tipo, que vale em QUALQUER modo: serve para desligar um
-    // disparo que está se comportando mal sem derrubar os outros seis.
+    /**
+     * O interruptor por tipo, que é a peça sem substituto: se a checagem das 30
+     * min começar a incomodar as sedes numa terça de manhã, dá para calar SÓ ela
+     * pela Vercel, sem deploy e sem parar os outros seis. A alternativa seria
+     * reverter commit sob pressão.
+     */
     desligados: lista(env.EMAIL_TIPOS_DESLIGADOS),
   };
 }
 
 /**
- * O tipo do disparo, deduzido do `ticketId` quando não vem declarado.
- *
- * Existe para o interruptor alcançar os sete disparos sem tocar em sete arquivos —
- * o pedido era um toggle, não um refactor.
+ * O tipo do disparo, deduzido do `ticketId` quando não vem declarado — assim o
+ * interruptor alcança os sete sem tocar em sete arquivos.
  */
 export function tipoDoEnvio(ticketId, tipoDeclarado = '') {
   const declarado = String(tipoDeclarado || '').trim().toLowerCase();
@@ -88,13 +84,11 @@ export function tipoDoEnvio(ticketId, tipoDeclarado = '') {
 }
 
 /**
- * O que fazer com este envio.
- *
- * Devolve sempre um MOTIVO. Envio que some sem explicação é como se descobre, três
- * semanas depois, que a sede nunca recebeu nada — e é o que transformaria falha de
- * entrega em "a sede não respondeu".
+ * O que fazer com este envio. Devolve sempre um MOTIVO: envio que some sem
+ * explicação é como se descobre, três semanas depois, que a sede nunca recebeu
+ * nada — e é o que transformaria falha de entrega em "a sede não respondeu".
  */
-export function decidirEnvio({ para, ticketId = '', tipo = '', sede = '' }, config) {
+export function decidirEnvio({ para, ticketId = '', tipo = '' }, config) {
   const destino = String(para || '').trim();
   const oTipo = tipoDoEnvio(ticketId, tipo);
 
@@ -104,43 +98,28 @@ export function decidirEnvio({ para, ticketId = '', tipo = '', sede = '' }, conf
     return { acao: ACAO.SUPRIMIR, destino: null, tipo: oTipo, motivo: `tipo "${oTipo}" desligado` };
   }
 
-  switch (config.modo) {
-    case MODO.ABERTO:
-      return { acao: ACAO.ENVIAR, destino, tipo: oTipo, motivo: 'modo aberto' };
-
-    case MODO.DESLIGADO:
-      return { acao: ACAO.SUPRIMIR, destino: null, tipo: oTipo, motivo: 'envio desligado' };
-
-    case MODO.PILOTO: {
-      const pessoaLiberada = config.pessoas.includes(destino.toLowerCase());
-      const sedeLiberada = sede && config.sedes.includes(String(sede).toLowerCase());
-      if (pessoaLiberada || sedeLiberada) {
-        return { acao: ACAO.ENVIAR, destino, tipo: oTipo, motivo: 'no piloto' };
-      }
-      return { acao: ACAO.SUPRIMIR, destino: null, tipo: oTipo, motivo: 'fora do piloto' };
+  if (config.modo === MODO.SOMBRA) {
+    if (!config.sombraPara) {
+      // Sombra sem caixa configurada não pode virar envio real por omissão: quem
+      // pediu ensaio não pode receber estreia por causa de uma variável faltando.
+      return { acao: ACAO.SUPRIMIR, destino: null, tipo: oTipo, motivo: 'sombra sem EMAIL_SOMBRA_PARA' };
     }
-
-    case MODO.SOMBRA:
-    default:
-      if (!config.sombraPara) {
-        // Sombra sem caixa configurada não pode virar envio real por omissão.
-        return { acao: ACAO.SUPRIMIR, destino: null, tipo: oTipo, motivo: 'sombra sem EMAIL_SOMBRA_PARA' };
-      }
-      return {
-        acao: ACAO.DESVIAR,
-        destino: config.sombraPara,
-        tipo: oTipo,
-        motivo: `sombra (era para ${destino})`,
-        destinoOriginal: destino,
-      };
+    return {
+      acao: ACAO.DESVIAR,
+      destino: config.sombraPara,
+      tipo: oTipo,
+      motivo: `sombra (era para ${destino})`,
+      destinoOriginal: destino,
+    };
   }
+
+  return { acao: ACAO.ENVIAR, destino, tipo: oTipo, motivo: 'modo aberto' };
 }
 
 /**
- * O assunto marcado do modo sombra.
- *
- * Diz para quem ERA, no próprio assunto: uma caixa recebendo o tráfego de 16 sedes
- * sem isso vira uma pilha indistinguível, e o teste não prova nada.
+ * O assunto marcado do modo sombra. Diz para quem ERA, no próprio assunto: uma
+ * caixa recebendo o tráfego de 16 sedes sem isso vira pilha indistinguível, e o
+ * ensaio não prova nada.
  */
 export function assuntoDaSombra(assunto, destinoOriginal) {
   return `[SOMBRA -> ${destinoOriginal}] ${String(assunto || '')}`.slice(0, 250);

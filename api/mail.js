@@ -3389,10 +3389,7 @@ async function handleEmailDiagnose(req, res) {
       // tem causas demais para ser diagnosticado por dedução.
       modoDeEnvio: {
         modo: modo.modo,
-        modoInvalido: modo.modoInvalido,
         sombraConfigurada: Boolean(modo.sombraPara),
-        pessoasNoPiloto: modo.pessoas.length,
-        sedesNoPiloto: modo.sedes.length,
         tiposDesligados: modo.desligados,
       },
       envio: {

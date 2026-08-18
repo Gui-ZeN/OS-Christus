@@ -4,69 +4,55 @@ import { ACAO, MODO, assuntoDaSombra, decidirEnvio, lerConfiguracao, tipoDoEnvio
 const cfg = (env: Record<string, string> = {}) => lerConfiguracao(env);
 const envio = (extra: Record<string, string> = {}) => ({ para: 'pablo@px.com.br', ticketId: 'agenda-sede-SUL3', ...extra });
 
-describe('ambiente não configurado NÃO abre a torneira', () => {
-  it('sem variável nenhuma, o modo é sombra', () => {
-    // Ambiente sem configuração é ambiente que ninguém preparou. Errar para o lado
-    // seguro custa um e-mail que não chegou; para o outro lado, custa a operação
-    // inteira recebendo mensagem de um sistema que nunca entregou nada.
-    expect(cfg().modo).toBe(MODO.SOMBRA);
+describe('o padrão é ABERTO — a torneira de volume é o conteúdo, não esta variável', () => {
+  it('sem variável nenhuma, envia normalmente', () => {
+    // Quem segura o ruído é o desenho: sede sem nada marcado não recebe, resumo
+    // vazio não vira e-mail, visita que atende 3 OS é 1 item. Esta variável existe
+    // para outra pergunta — a mensagem CHEGA? —, e por isso não fica no caminho.
+    expect(cfg().modo).toBe(MODO.ABERTO);
+    expect(decidirEnvio(envio(), cfg()).acao).toBe(ACAO.ENVIAR);
   });
 
-  it('modo escrito errado cai em sombra e fica marcado', () => {
-    const c = cfg({ EMAIL_MODO: 'abertoo' });
-    expect(c.modo).toBe(MODO.SOMBRA);
-    expect(c.modoInvalido).toBe(true);
-  });
-
-  it('sombra SEM caixa configurada suprime — não vira envio real por omissão', () => {
-    const d = decidirEnvio(envio(), cfg({ EMAIL_MODO: 'sombra' }));
-    expect(d.acao).toBe(ACAO.SUPRIMIR);
-    expect(d.motivo).toContain('EMAIL_SOMBRA_PARA');
+  it('qualquer valor que não seja "sombra" é aberto', () => {
+    expect(cfg({ EMAIL_MODO: 'aberto' }).modo).toBe(MODO.ABERTO);
+    expect(cfg({ EMAIL_MODO: 'qualquer-coisa' }).modo).toBe(MODO.ABERTO);
   });
 });
 
-describe('os quatro modos', () => {
-  it('desligado: nada sai, e o motivo fica registrado', () => {
-    const d = decidirEnvio(envio(), cfg({ EMAIL_MODO: 'desligado' }));
-    expect(d.acao).toBe(ACAO.SUPRIMIR);
-    expect(d.motivo).toBe('envio desligado');
-  });
-
-  it('sombra: desvia para a caixa de teste e diz para quem era', () => {
+describe('sombra: caminho real, destinatário desviado', () => {
+  it('desvia para a caixa de ensaio e diz para quem era', () => {
     const d = decidirEnvio(envio(), cfg({ EMAIL_MODO: 'sombra', EMAIL_SOMBRA_PARA: 'teste@px.com.br' }));
     expect(d.acao).toBe(ACAO.DESVIAR);
     expect(d.destino).toBe('teste@px.com.br');
     expect(d.destinoOriginal).toBe('pablo@px.com.br');
   });
 
-  it('piloto: só quem foi declarado recebe', () => {
-    const c = cfg({ EMAIL_MODO: 'piloto', EMAIL_PILOTO_PESSOAS: 'pablo@px.com.br' });
-    expect(decidirEnvio(envio(), c).acao).toBe(ACAO.ENVIAR);
-
-    const outra = decidirEnvio(envio({ para: 'ana@px.com.br' }), c);
-    expect(outra.acao).toBe(ACAO.SUPRIMIR);
-    expect(outra.motivo).toBe('fora do piloto');
+  it('sombra SEM caixa suprime — quem pediu ensaio não recebe estreia por variável faltando', () => {
+    const d = decidirEnvio(envio(), cfg({ EMAIL_MODO: 'sombra' }));
+    expect(d.acao).toBe(ACAO.SUPRIMIR);
+    expect(d.motivo).toContain('EMAIL_SOMBRA_PARA');
   });
 
-  it('piloto também libera por sede — é a unidade do plano', () => {
-    const c = cfg({ EMAIL_MODO: 'piloto', EMAIL_PILOTO_SEDES: 'sul3' });
-    expect(decidirEnvio(envio({ para: 'ana@px.com.br', sede: 'SUL3' }), c).acao).toBe(ACAO.ENVIAR);
-    expect(decidirEnvio(envio({ para: 'ana@px.com.br', sede: 'BN' }), c).acao).toBe(ACAO.SUPRIMIR);
-  });
-
-  it('aberto: o normal', () => {
-    const d = decidirEnvio(envio(), cfg({ EMAIL_MODO: 'aberto' }));
-    expect(d.acao).toBe(ACAO.ENVIAR);
-    expect(d.destino).toBe('pablo@px.com.br');
+  it('o assunto diz para quem era', () => {
+    // Sem isto, uma caixa recebendo o tráfego de 16 sedes vira pilha
+    // indistinguível e o ensaio não prova nada.
+    expect(assuntoDaSombra('Hoje na SUL3', 'pablo@px.com.br')).toContain('pablo@px.com.br');
+    expect(assuntoDaSombra('x'.repeat(400), 'a@b.com').length).toBeLessThanOrEqual(250);
   });
 });
 
-describe('o interruptor por tipo vale em qualquer modo', () => {
-  it('desliga um disparo sem derrubar os outros', () => {
-    // Serve para calar um disparo que está se comportando mal sem fechar o canal.
-    const c = cfg({ EMAIL_MODO: 'aberto', EMAIL_TIPOS_DESLIGADOS: 'checagem' });
+describe('o interruptor por tipo — a peça sem substituto', () => {
+  it('cala UM disparo sem fechar os outros', () => {
+    // Se a checagem incomodar as sedes numa terça de manhã, desliga só ela pela
+    // Vercel. A alternativa seria reverter commit sob pressão.
+    const c = cfg({ EMAIL_TIPOS_DESLIGADOS: 'checagem' });
     expect(decidirEnvio(envio({ ticketId: 'checagem-SUL3' }), c).acao).toBe(ACAO.SUPRIMIR);
     expect(decidirEnvio(envio({ ticketId: 'agenda-sede-SUL3' }), c).acao).toBe(ACAO.ENVIAR);
+  });
+
+  it('vale também dentro da sombra', () => {
+    const c = cfg({ EMAIL_MODO: 'sombra', EMAIL_SOMBRA_PARA: 't@px.com.br', EMAIL_TIPOS_DESLIGADOS: 'falta' });
+    expect(decidirEnvio(envio({ ticketId: 'falta-c1' }), c).acao).toBe(ACAO.SUPRIMIR);
   });
 
   it('deduz o tipo do ticketId, para alcançar os sete sem tocar em sete arquivos', () => {
@@ -80,24 +66,17 @@ describe('o interruptor por tipo vale em qualquer modo', () => {
 });
 
 describe('nada some sem explicação', () => {
-  it('toda decisão traz motivo', () => {
-    for (const modo of ['desligado', 'sombra', 'piloto', 'aberto']) {
-      const d = decidirEnvio(envio(), cfg({ EMAIL_MODO: modo }));
-      expect(d.motivo, modo).toBeTruthy();
-      expect(d.tipo, modo).toBe('agenda-sede');
+  it('toda decisão traz motivo e tipo', () => {
+    for (const env of [{}, { EMAIL_MODO: 'sombra', EMAIL_SOMBRA_PARA: 't@px.com.br' }]) {
+      const d = decidirEnvio(envio(), cfg(env));
+      expect(d.motivo).toBeTruthy();
+      expect(d.tipo).toBe('agenda-sede');
     }
   });
 
   it('envio sem destinatário é suprimido, não estoura', () => {
-    const d = decidirEnvio(envio({ para: '' }), cfg({ EMAIL_MODO: 'aberto' }));
+    const d = decidirEnvio(envio({ para: '' }), cfg());
     expect(d.acao).toBe(ACAO.SUPRIMIR);
     expect(d.motivo).toBe('sem destinatário');
-  });
-
-  it('o assunto da sombra diz para quem era', () => {
-    // Sem isto, uma caixa recebendo o tráfego de 16 sedes vira pilha
-    // indistinguível e o teste não prova nada.
-    expect(assuntoDaSombra('Hoje na SUL3', 'pablo@px.com.br')).toContain('pablo@px.com.br');
-    expect(assuntoDaSombra('x'.repeat(400), 'a@b.com').length).toBeLessThanOrEqual(250);
   });
 });
