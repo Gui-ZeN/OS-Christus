@@ -2,6 +2,7 @@ import { ESTADO, estadoDaOs } from '../../api/_lib/estadoDaOs.js';
 import {
   ATTENTION_STATE,
   DEFAULT_TOLERANCE_MINUTES,
+  MAX_SEM_ACAO_NA_PAUTA,
   MAX_SEM_RESPONSAVEL_NA_PAUTA,
   type AttentionState,
 } from '../constants/agenda';
@@ -238,6 +239,22 @@ export function idleDays(ticket: Ticket, now: Date): number {
 
 export interface AgendaBuckets {
   groups: Record<AgendaGroup, Ticket[]>;
+  /**
+   * Os quatro números do topo da tela. No desenho do PDF, "Vencidas", "Hoje" e
+   * "Próximos 7 dias" são CONTADORES — o corpo agrupa por quem age, não por data.
+   */
+  /**
+   * "Sem próxima ação" acima da régua: vira número, como o sem-responsável já é.
+   */
+  semAcaoAgrupada: { total: number; agrupado: boolean; diasDaMaisAntiga: number };
+  contadores: {
+    hoje: number;
+    exigemAcaoAgora: number;
+    vencidas: number;
+    proximosSeteDias: number;
+    semProximaAcao: number;
+    diasDaMaisAntiga: number;
+  };
   /** O número que importa: OS viva que ninguém está tocando. */
   withoutNextAction: number;
   /** Quantas exigem ação hoje (hoje + vencidas). */
@@ -309,8 +326,39 @@ export function buildAgenda(
     }
   }
 
+  /**
+   * OS CONTADORES DO TOPO.
+   *
+   * ⚠️ No desenho do PDF, "Vencidas", "Hoje" e "Próximos 7 dias" são CONTADORES,
+   * não grupos do corpo. A diferença não é cosmética: agrupar por data devolve a
+   * lista por etapa com outro nome — que é exatamente o que o rework existe para
+   * substituir. O corpo agrupa por QUEM AGE; a data vira número no topo.
+   */
+  const paradas = groups[AGENDA_GROUP.NO_ACTION];
+  const maisAntiga = paradas.reduce((pior, t) => Math.max(pior, idleDays(t, now)), 0);
+
+  // Acima da régua, o passivo sai da pauta e vira número. É a mesma regra do
+  // sem-responsável, aplicada ao grupo que mais afoga a tela.
+  const semAcaoAgrupada = {
+    total: paradas.length,
+    agrupado: paradas.length > MAX_SEM_ACAO_NA_PAUTA,
+    diasDaMaisAntiga: paradas.length > 0 ? maisAntiga : 0,
+  };
+  if (semAcaoAgrupada.agrupado) groups[AGENDA_GROUP.NO_ACTION] = [];
+
   return {
     groups,
+    semAcaoAgrupada,
+  contadores: {
+      hoje: groups[AGENDA_GROUP.TODAY].length + groups[AGENDA_GROUP.COBRAR].length + groups[AGENDA_GROUP.WAITING_SITE].length,
+      exigemAcaoAgora: groups[AGENDA_GROUP.COBRAR].length + groups[AGENDA_GROUP.INTERNAL].length,
+      vencidas: groups[AGENDA_GROUP.OVERDUE].length,
+      proximosSeteDias: groups[AGENDA_GROUP.UPCOMING].length,
+      semProximaAcao: paradas.length,
+      // O número que o plano chama de o mais fácil de maquiar — por isso ele anda
+      // sempre junto do tempo parado da mais antiga.
+      diasDaMaisAntiga: paradas.length > 0 ? maisAntiga : 0,
+    },
     withoutNextAction: groups[AGENDA_GROUP.NO_ACTION].length,
     // Inclui cobrança e trabalho interno: são ações de HOJE tanto quanto visita
     // marcada, e sem elas o contador do topo diria menos do que a tela mostra.

@@ -12,6 +12,7 @@ import {
 } from '../../src/utils/agenda';
 import {
   ATTENTION_STATE,
+  MAX_SEM_ACAO_NA_PAUTA,
   MAX_SEM_RESPONSAVEL_NA_PAUTA,
   SUSPENSION_REASON,
 } from '../../src/constants/agenda';
@@ -311,5 +312,36 @@ describe('resolvedAttentionOf — as duas fontes', () => {
 
   it('sem nada, não há atenção', () => {
     expect(resolvedAttentionOf(os())).toBeNull();
+  });
+});
+
+describe('o passivo não afoga a agenda do dia', () => {
+  // No primeiro print da tela reestruturada eram DEZ cards de "definir a próxima
+  // ação" contra UM de trabalho do dia: a tela chamada "Hoje" abria como lista de
+  // backlog. Acima da régua, o passivo vira número.
+  const semAcao = (n: number) =>
+    Array.from({ length: n }, (_, i) => os({ id: `OS-P${i}`, updatedAt: new Date('2026-07-01T12:00:00Z') }));
+
+  it('acima da régua, sai da pauta e vira número', () => {
+    const agenda = buildAgenda(semAcao(MAX_SEM_ACAO_NA_PAUTA + 1), AGORA);
+    expect(agenda.semAcaoAgrupada.agrupado).toBe(true);
+    expect(agenda.semAcaoAgrupada.total).toBe(MAX_SEM_ACAO_NA_PAUTA + 1);
+    expect(agenda.groups[AGENDA_GROUP.NO_ACTION]).toHaveLength(0);
+  });
+
+  it('dentro da régua, continua item a item — é quando cabe agir uma a uma', () => {
+    const agenda = buildAgenda(semAcao(MAX_SEM_ACAO_NA_PAUTA), AGORA);
+    expect(agenda.semAcaoAgrupada.agrupado).toBe(false);
+    expect(agenda.groups[AGENDA_GROUP.NO_ACTION]).toHaveLength(MAX_SEM_ACAO_NA_PAUTA);
+  });
+
+  it('o número leva o tempo parado junto — sem ele, é fácil de maquiar', () => {
+    const agenda = buildAgenda(semAcao(MAX_SEM_ACAO_NA_PAUTA + 1), AGORA);
+    expect(agenda.semAcaoAgrupada.diasDaMaisAntiga).toBeGreaterThan(30);
+  });
+
+  it('sem passivo nenhum, o número não aparece', () => {
+    const agenda = buildAgenda([], AGORA);
+    expect(agenda.semAcaoAgrupada).toEqual({ total: 0, agrupado: false, diasDaMaisAntiga: 0 });
   });
 });

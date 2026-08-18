@@ -11,6 +11,7 @@ import {
   AGENDA_GROUP_LABEL,
   activeSuspension,
   buildAgenda,
+  isSameDay,
   idleDays,
   resolvedAttentionOf,
   type AgendaGroup,
@@ -58,13 +59,33 @@ import { mensagemDeErro } from '../utils/errorMessage';
  * agrupamento é pura e testada em `utils/agenda.ts`.
  */
 
+/**
+ * A ORDEM DO CORPO — por QUEM AGE, não por data.
+ *
+ * ⚠️ "Vencidas" e "Próximos 7 dias" saíram daqui e viraram contador no topo, como
+ * o PDF desenha. Agrupar por data é a lista por etapa com outro nome, e é
+ * exatamente o que o rework existe para substituir: a pergunta da tela deixou de
+ * ser "quando vence" e passou a ser "quem precisa fazer o quê agora".
+ *
+ * As OS que estavam nesses dois grupos não sumiram — elas se redistribuem sozinhas:
+ * falta confirmada vai para Cobrar agora, visita sem resposta vai para Aguardando a
+ * sede, e trabalho da equipe vai para Trabalho interno.
+ */
+
+/** O que já se sabe de cada visita do dia, em uma palavra. */
+const ESTADO_DA_VISITA: Record<string, string> = {
+  agendado: 'aguardando o horário',
+  'sem-confirmacao': 'sem confirmação',
+  compareceu: 'chegou',
+  faltou: 'não veio',
+  cancelado: 'cancelada',
+  remarcado: 'remarcada',
+};
+
 const GROUP_ORDER: AgendaGroup[] = [
-  AGENDA_GROUP.OVERDUE,
   AGENDA_GROUP.COBRAR,
-  AGENDA_GROUP.TODAY,
   AGENDA_GROUP.WAITING_SITE,
   AGENDA_GROUP.INTERNAL,
-  AGENDA_GROUP.UPCOMING,
   AGENDA_GROUP.BLOCKED,
   AGENDA_GROUP.WAITING,
   AGENDA_GROUP.NO_ACTION,
@@ -72,7 +93,7 @@ const GROUP_ORDER: AgendaGroup[] = [
 
 const GROUP_HINT: Record<AgendaGroup, string> = {
   vencidas: 'a data passou e ninguém registrou desfecho',
-  hoje: 'marcado para hoje',
+  hoje: 'visitas que ainda vão acontecer hoje',
   'cobrar-agora': 'a sede confirmou que o fornecedor não veio — há prazo correndo',
   'aguardando-sede': 'o horário passou — a pergunta já foi enviada, ninguém precisa ligar',
   'trabalho-interno': 'analisar orçamento, mandar contrato — não depende de fornecedor',
@@ -415,16 +436,113 @@ export function TodayView() {
         <TempoEmFortaleza aoFiltrarAgua={abrirAgua} osDeAgua={osDeAgua} />
       </header>
 
-      {/* A FILEIRA DE CONTADORES SAIU (13/08).
-          Medido a 1366×768: ela ocupava 117px — 15% da tela — e empurrava o primeiro
-          dado para 254px, ou seja, um TERÇO da altura gasto antes de aparecer
-          qualquer OS. Só 6 dos 13 cartões cabiam sem rolar.
-          E o que ela mostrava já estava logo abaixo: cada seção traz o próprio total
-          ao lado do título, a 30px de distância. Eram quatro números repetidos,
-          NENHUM clicável e dois deles zero — as duas regras que tiramos do Início
-          hoje (zero não aparece; número é porta) nunca tinham passado por aqui. */}
+      {/**
+        * A FILEIRA DE CONTADORES VOLTOU — mas não a de antes.
+        *
+        * Ela saiu em 13/08 por medição, e os três motivos eram bons: ocupava 117px
+        * a 1366x768 (15% da tela), empurrava o primeiro dado para 254px, e eram
+        * quatro números repetidos, nenhum clicável, dois deles zero.
+        *
+        * O PDF, porém, desenha a tela em DUAS camadas: contadores no topo, corpo
+        * agrupado por quem age. Sem os números, "sem próxima ação" — que é O
+        * indicador do rework — só existe se a pessoa rolar até o fim.
+        *
+        * Então ela volta consertando exatamente o que a medição apontou:
+        *   - uma linha só, tipografia do corpo, ~40px em vez de 117;
+        *   - ZERO NÃO APARECE: contador vazio some, em vez de ocupar espaço para
+        *     dizer que não há nada;
+        *   - NÚMERO É PORTA: cada um rola até o grupo correspondente. O da direita
+        *     leva o tempo parado da mais antiga junto, porque "sem próxima ação" é
+        *     o número mais fácil de maquiar e o que mais precisa de contexto.
+        */}
+      {(() => {
+        const cards = [
+          { chave: 'hoje', rotulo: 'Hoje', valor: agenda.contadores.hoje, nota: agenda.contadores.exigemAcaoAgora > 0 ? `${agenda.contadores.exigemAcaoAgora} exigem ação agora` : null, alvo: AGENDA_GROUP.COBRAR },
+          { chave: 'vencidas', rotulo: 'Vencidas', valor: agenda.contadores.vencidas, nota: 'sem desfecho registrado', alvo: AGENDA_GROUP.WAITING_SITE },
+          { chave: 'proximos', rotulo: 'Próximos 7 dias', valor: agenda.contadores.proximosSeteDias, nota: 'para se preparar', alvo: AGENDA_GROUP.TODAY },
+          { chave: 'paradas', rotulo: 'Sem próxima ação', valor: agenda.contadores.semProximaAcao, nota: agenda.contadores.diasDaMaisAntiga > 0 ? `a mais antiga há ${agenda.contadores.diasDaMaisAntiga} dias` : null, alvo: AGENDA_GROUP.NO_ACTION },
+        ].filter(c => c.valor > 0);
+
+        if (cards.length === 0) return null;
+
+        return (
+          <div className="flex flex-wrap gap-x-6 gap-y-2 border-b border-roman-border px-4 py-2 md:px-6">
+            {cards.map(card => (
+              <button
+                key={card.chave}
+                type="button"
+                onClick={() => {
+                  const alvo = document.getElementById(`grupo-${card.alvo}`);
+                  if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className="flex items-baseline gap-2 rounded-sm px-1 text-left transition-colors hover:text-roman-primary"
+              >
+                <span className="text-lg font-semibold tabular-nums text-roman-text-main">{card.valor}</span>
+                <span className="text-xs text-roman-text-sub">
+                  {card.rotulo}
+                  {card.nota ? ` · ${card.nota}` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       <div className="min-h-0 flex-1 overflow-auto px-4 pb-10 md:px-6">
+        {/**
+          * O DIA, POR HORA — o que a tela promete no nome.
+          *
+          * ⚠️ Ela não existia. A tela agrupava por urgência e prazo, e o primeiro
+          * print mostrou o resultado: dez cards de "definir próxima ação" contra um
+          * de trabalho do dia. Quem abria de manhã via backlog, não agenda.
+          *
+          * Aqui é a única leitura por HORÁRIO da tela, e vem antes de tudo porque é
+          * a pergunta que a gestora tem na cabeça às 07h: o que vai acontecer hoje.
+          *
+          * ⚠️ Dia vazio MOSTRA que está vazio. Sumir com a seção faria a tela abrir
+          * direto no passivo — e "não há nada marcado" é informação, não ausência
+          * dela: significa que ninguém prometeu vir hoje.
+          */}
+        {(() => {
+          const doDia = compromissos
+            .filter(c => c.startAt && isSameDay(c.startAt, agora))
+            .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+
+          return (
+            <section className="mt-4">
+              <div className="mb-2 flex items-baseline gap-2">
+                <span className="text-roman-text-sub"><CalendarClock size={14} /></span>
+                <h2 className="font-serif text-base font-medium text-roman-text-main">Marcado para hoje</h2>
+                {doDia.length > 0 && <span className="text-xs text-roman-text-sub">{doDia.length}</span>}
+              </div>
+
+              {doDia.length === 0 ? (
+                <p className="rounded-sm border border-dashed border-roman-border px-3 py-2 text-sm text-roman-text-sub">
+                  Nada marcado para hoje — ninguém prometeu vir.
+                </p>
+              ) : (
+                <ol className="divide-y divide-roman-border rounded-sm border border-roman-border">
+                  {doDia.map(c => (
+                    <li key={c.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2">
+                      <span className="w-14 shrink-0 font-medium tabular-nums text-roman-text-main">
+                        {horaCurta(c.startAt)}
+                      </span>
+                      <span className="font-medium text-roman-text-main">{c.vendorName || 'Fornecedor'}</span>
+                      <span className="text-xs text-roman-text-sub">
+                        {[c.sede, (c.ticketIds || []).join(', ')].filter(Boolean).join(' · ')}
+                      </span>
+                      <span className="ml-auto text-xs text-roman-text-sub">
+                        {ESTADO_DA_VISITA[c.effectiveState] || ''}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          );
+        })()}
+
+
         {/* O PASSIVO COMO NÚMERO, NÃO COMO LISTA.
             São 154 OS paradas sem responsável hoje. Item a item, elas cairiam quase
             todas em "Vencidas" e afogariam as atenções que são trabalho de verdade.
@@ -432,6 +550,44 @@ export function TodayView() {
             onde estão o filtro "Sem responsável" e a coluna clicável.
             Quando o passivo cair abaixo de MAX_SEM_RESPONSAVEL_NA_PAUTA, esta linha
             some sozinha e as OS voltam a aparecer uma a uma. */}
+        {/**
+          * O PASSIVO DE "SEM PRÓXIMA AÇÃO" COMO NÚMERO.
+          *
+          * ⚠️ Mesma regra que já valia para "sem responsável", agora aplicada ao
+          * grupo MAIOR de todos. No primeiro print da tela reestruturada eram DEZ
+          * cards de "definir a próxima ação" contra UM de trabalho do dia: a tela
+          * chamada "Hoje" abria como lista de backlog.
+          *
+          * Virar número não esconde — dá destaque. Item a item, ele afogava
+          * justamente o que a tela existe para mostrar; numa linha, ele fica legível
+          * e se resolve em lote na Gestão, que é onde se resolve passivo.
+          *
+          * Abaixo da régua ele volta a aparecer um a um, que é quando cabe agir
+          * individualmente.
+          */}
+        {agenda.semAcaoAgrupada.agrupado && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-sm border border-roman-border bg-roman-surface px-3 py-2">
+            <CircleAlert size={16} className="text-roman-text-sub" />
+            <div className="min-w-[14rem] flex-1">
+              <div className="font-medium text-roman-text-main">
+                {agenda.semAcaoAgrupada.total} OS sem próxima ação
+                {agenda.semAcaoAgrupada.diasDaMaisAntiga > 0 &&
+                  ` — a mais antiga há ${agenda.semAcaoAgrupada.diasDaMaisAntiga} dias`}
+              </div>
+              <p className="text-sm text-roman-text-sub">
+                Não estão na agenda de propósito: é passivo, e passivo se resolve em lote.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigateTo('os-board')}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-roman-border px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
+            >
+              Abrir na Gestão
+            </button>
+          </div>
+        )}
+
         {agenda.semResponsavel.agrupado && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-sm border border-roman-primary/35 bg-roman-primary/12 p-4">
             <UserRound size={16} className="text-roman-primary" />
@@ -461,7 +617,8 @@ export function TodayView() {
           const itens = filtra(agenda.groups[grupo]);
           if (itens.length === 0) return null;
           return (
-            <section key={grupo}>
+            // O `id` é o que faz o contador do topo ser porta, e não enfeite.
+            <section key={grupo} id={`grupo-${grupo}`}>
               <div className="mt-6 mb-2 flex items-baseline gap-2">
                 <span className="text-roman-text-sub">{GROUP_ICON[grupo]}</span>
                 <h2 className="font-serif text-base font-medium text-roman-text-main">

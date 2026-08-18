@@ -84,6 +84,20 @@ export const DEFAULT_SUSPENSION_DAYS = 7;
 export const MAX_SEM_RESPONSAVEL_NA_PAUTA = 10;
 
 /**
+ * A MESMA RÉGUA, agora para "sem próxima ação".
+ *
+ * Ela já existia para "sem responsável" e nunca tinha sido aplicada ao grupo MAIOR
+ * de todos. Com 163 de 270 OS paradas, "sem próxima ação" ocupa a tela inteira: no
+ * primeiro print da tela reestruturada eram DEZ cards de pendência de cadastro
+ * contra UM de trabalho do dia. A tela chamada "Hoje" virava lista de backlog.
+ *
+ * Acima da régua o passivo vira UM número com link — o que não é esconder: é dar
+ * destaque, porque hoje ele afoga justamente o que a tela existe para mostrar.
+ * Abaixo dela volta a aparecer item a item, que é quando cabe agir um a um.
+ */
+export const MAX_SEM_ACAO_NA_PAUTA = 6;
+
+/**
  * Tipo de compromisso. **A V1 tem UM só**, por decisão de escopo: é exatamente a dor
  * que o Diretor descreveu ("era pro terceiro ir em tal dia e não apareceu"), e um tipo
  * já obriga a acertar a estrutura inteira — política, responsabilidade, confirmação,
