@@ -86,6 +86,9 @@ export function montarAgendaDoDia({ commitments = [], users = [], now = new Date
     const visitas = lista.map(c => ({
       commitmentId: c.id,
       hora: horaEmFortaleza(c.startAt instanceof Date ? c.startAt : new Date(c.startAt)),
+      // A data crua também: o convite de calendário precisa do instante, não do
+      // rótulo em pt-BR.
+      startAt: c.startAt instanceof Date ? c.startAt : new Date(c.startAt),
       fornecedor: String(c.vendorName || 'Fornecedor'),
       // Uma visita que atende três OS é UM item — é este corte que segura o volume.
       ordens: Array.isArray(c.ticketIds) ? c.ticketIds.map(String) : [],

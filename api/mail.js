@@ -11,6 +11,7 @@ import { diaEmFortaleza, ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia
 import { cobreASede, donoDoAlertaDeFalta, precisaDeAlertaDeFalta, precisaDeChecagem } from './_lib/checagemDaVisita.js';
 import { montarRevisaoSemanal } from './_lib/fechamentoAssistido.js';
 import { chaveDeEnvio, enviarUmaVez } from './_lib/envioUnico.js';
+import { conviteDaVisita } from './_lib/convite.js';
 import { lerConfiguracao } from './_lib/modoDeEnvio.js';
 import { resumoDaAgenda, resumoDoFimDoDia, resumoSemConfirmacao } from './_lib/resumosDaOperacao.js';
 import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
@@ -2555,6 +2556,7 @@ async function handleAgendaDasSedes(req, res) {
     for (const sede of agenda.sedes) {
       for (const destinatario of sede.destinatarios) {
         const itens = [];
+        const anexos = [];
         for (const visita of sede.visitas) {
           // Um token por PESSOA e por visita: é o que faz a página saber quem
           // respondeu, e é o que o registro guarda quando o fornecedor contesta.
@@ -2578,6 +2580,32 @@ async function handleAgendaDasSedes(req, res) {
               { rotulo: 'Não chegou', url },
             ],
           });
+
+          /**
+           * O COMPROMISSO QUE ENTRA NO CALENDÁRIO.
+           *
+           * Ataca o furo mais provável do desenho: ler o e-mail das 07h e não
+           * voltar às 10h. Entre uma coisa e outra houve aula, obra e telefone — e
+           * o alarme do próprio celular resolve isso melhor que qualquer lembrete
+           * que a gente mande. Um clique, sem integrar com nada.
+           */
+          const convite = conviteDaVisita(
+            {
+              id: visita.commitmentId,
+              vendorName: visita.fornecedor,
+              sede: sede.sede,
+              startAt: visita.startAt,
+              ticketIds: visita.ordens,
+            },
+            url
+          );
+          if (convite) {
+            anexos.push({
+              filename: convite.filename,
+              mimeType: convite.mimeType,
+              buffer: Buffer.from(convite.content, 'utf8'),
+            });
+          }
         }
 
         const { html } = buildNoticeEmailTemplate({
@@ -2611,6 +2639,7 @@ async function handleAgendaDasSedes(req, res) {
               html,
               ticketId: `agenda-sede-${sede.siteId}`,
               references: [],
+              attachments: anexos,
             }), agora);
           // Modo escuro produz EVIDÊNCIA sem produzir dano: quem teria recebido
           // volta na resposta, senão a execução em sombra não prova nada.

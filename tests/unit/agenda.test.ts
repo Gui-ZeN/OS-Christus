@@ -148,8 +148,15 @@ describe('agendaGroupOf', () => {
     expect(agendaGroupOf(t, AGORA)).toBe(AGENDA_GROUP.WAITING);
   });
 
-  it('hoje, antes da hora → Hoje', () => {
-    expect(agendaGroupOf(comAcao(hoje(16)), AGORA)).toBe(AGENDA_GROUP.TODAY);
+  it('visita de fornecedor marcada para hoje → Hoje', () => {
+    const visita = comAcao(hoje(16), { nextAction: { what: 'Visita', dueAt: hoje(16), commitmentId: 'c1' } });
+    expect(agendaGroupOf(visita, AGORA)).toBe(AGENDA_GROUP.TODAY);
+  });
+
+  it('trabalho SEM fornecedor vai para Trabalho interno, não para Hoje', () => {
+    // O PDF separa os dois: misturado com visita, o trabalho interno some atrás de
+    // coisa que depende de terceiro — e é justamente o que a equipe destrava sozinha.
+    expect(agendaGroupOf(comAcao(hoje(16)), AGORA)).toBe(AGENDA_GROUP.INTERNAL);
   });
 
   it('compromisso de fornecedor que estourou a tolerância → Aguardando a sede', () => {
@@ -159,13 +166,24 @@ describe('agendaGroupOf', () => {
     expect(agendaGroupOf(t, AGORA)).toBe(AGENDA_GROUP.WAITING_SITE);
   });
 
-  it('ação INTERNA vencida no mesmo dia continua em Hoje, não vira "aguardando sede"', () => {
-    // Sem `commitmentId` não há sede para esperar — a bola é da gestora.
-    expect(agendaGroupOf(comAcao(hoje(8)), AGORA)).toBe(AGENDA_GROUP.TODAY);
+  it('ação INTERNA vencida não vira "aguardando sede" — não há sede para esperar', () => {
+    expect(agendaGroupOf(comAcao(hoje(8)), AGORA)).toBe(AGENDA_GROUP.INTERNAL);
   });
 
-  it('data passada → Vencidas', () => {
-    expect(agendaGroupOf(comAcao(new Date('2026-08-01T12:00:00Z')), AGORA)).toBe(AGENDA_GROUP.OVERDUE);
+  it('falta CONFIRMADA pela sede vai para o topo: Cobrar agora', () => {
+    // É o primeiro grupo do desenho do PDF. Antes a falta confirmada ficava diluída
+    // em "Vencidas", junto de coisa que não tem nada a ver.
+    const t = comAcao(hoje(8), { nextAction: { what: 'Visita', dueAt: hoje(8), commitmentId: 'c9' } });
+    expect(agendaGroupOf(t, AGORA, () => ({ state: 'faltou' }))).toBe(AGENDA_GROUP.COBRAR);
+    // Sem a consulta do compromisso, cai no grupo antigo — nada quebra.
+    expect(agendaGroupOf(t, AGORA)).toBe(AGENDA_GROUP.WAITING_SITE);
+  });
+
+  it('visita de fornecedor com data passada → Vencidas', () => {
+    const visita = comAcao(new Date('2026-08-01T12:00:00Z'), {
+      nextAction: { what: 'Visita', dueAt: new Date('2026-08-01T12:00:00Z'), commitmentId: 'c2' },
+    });
+    expect(agendaGroupOf(visita, AGORA)).toBe(AGENDA_GROUP.OVERDUE);
   });
 
   it('dentro de 7 dias → Próximos; depois disso, fora da tela', () => {
@@ -202,14 +220,14 @@ describe('buildAgenda — passivo sem responsável: número ou lista', () => {
   it('dentro da régua, cada uma aparece na pauta', () => {
     const agenda = buildAgenda(semDono(MAX_SEM_RESPONSAVEL_NA_PAUTA), AGORA);
     expect(agenda.semResponsavel.agrupado).toBe(false);
-    expect(agenda.groups.vencidas).toHaveLength(MAX_SEM_RESPONSAVEL_NA_PAUTA);
+    expect(agenda.groups['trabalho-interno']).toHaveLength(MAX_SEM_RESPONSAVEL_NA_PAUTA);
   });
 
   it('agrupar o passivo NÃO esconde as outras atenções — é o ponto da régua', () => {
     const lista = [...semDono(50), comAcao(hoje(9))];
     const agenda = buildAgenda(lista, AGORA);
     expect(agenda.semResponsavel.total).toBe(50);
-    expect(agenda.groups.hoje).toHaveLength(1);
+    expect(agenda.groups['trabalho-interno']).toHaveLength(1);
   });
 
   it('sem nenhuma parada, o contador some', () => {
@@ -230,13 +248,14 @@ describe('buildAgenda', () => {
   const agenda = buildAgenda(lista, AGORA);
 
   it('separa nos grupos e ignora encerrada', () => {
-    expect(agenda.groups[AGENDA_GROUP.TODAY].map(t => t.id)).toEqual(['OS-2', 'OS-1']);
-    expect(agenda.groups[AGENDA_GROUP.OVERDUE].map(t => t.id)).toEqual(['OS-3']);
+    // Estas ações não têm `commitmentId`: são trabalho da própria equipe, e o PDF
+    // as separa das visitas justamente para não sumirem atrás de terceiro.
+    expect(agenda.groups[AGENDA_GROUP.INTERNAL].map(t => t.id)).toEqual(['OS-3', 'OS-2', 'OS-1']);
     expect(agenda.groups[AGENDA_GROUP.NO_ACTION]).toHaveLength(2);
   });
 
-  it('ordena "Hoje" pela hora', () => {
-    expect(agenda.groups[AGENDA_GROUP.TODAY][0].id).toBe('OS-2'); // 11h antes de 16h
+  it('ordena o trabalho interno pela data', () => {
+    expect(agenda.groups[AGENDA_GROUP.INTERNAL][0].id).toBe('OS-3'); // a mais vencida
   });
 
   it('🔍 "sem próxima ação" ordena pelo TEMPO PARADO — a mais esquecida primeiro', () => {

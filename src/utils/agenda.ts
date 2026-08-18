@@ -22,9 +22,22 @@ import type { Ticket } from '../types';
  * baixo, do que exige ação agora ao que só precisa de decisão.
  */
 export const AGENDA_GROUP = {
+  /**
+   * O grupo do TOPO no desenho do PDF: a sede confirmou que o fornecedor não veio,
+   * e há prazo correndo. Não existia — a falta confirmada ficava diluída em
+   * "Vencidas", junto de coisa que não tem nada a ver, e o primeiro grupo que a
+   * gestora via ao entrar não era o que exige ação dela agora.
+   */
+  COBRAR: 'cobrar-agora',
   OVERDUE: 'vencidas',
   TODAY: 'hoje',
   WAITING_SITE: 'aguardando-sede',
+  /**
+   * Trabalho que NÃO depende de fornecedor: analisar orçamento, mandar contrato.
+   * Separado de propósito — misturado com visita, ele some atrás de coisa que
+   * depende de terceiro, e é justamente o que a própria equipe consegue destravar.
+   */
+  INTERNAL: 'trabalho-interno',
   UPCOMING: 'proximos-7-dias',
   // Os dois estados declarados do plano, no lugar do grupo único "Suspensas".
   // Não é campo novo: a suspensão sempre gravou MOTIVO em lista fechada, e é o
@@ -37,9 +50,11 @@ export const AGENDA_GROUP = {
 export type AgendaGroup = (typeof AGENDA_GROUP)[keyof typeof AGENDA_GROUP];
 
 export const AGENDA_GROUP_LABEL: Record<AgendaGroup, string> = {
+  'cobrar-agora': 'Cobrar agora',
   vencidas: 'Vencidas',
   hoje: 'Hoje',
   'aguardando-sede': 'Aguardando a sede confirmar',
+  'trabalho-interno': 'Trabalho interno',
   'proximos-7-dias': 'Próximos 7 dias',
   esperando: 'Esperando',
   impedidas: 'Impedidas',
@@ -102,8 +117,25 @@ export function isPastTolerance(
  *     rótulo derrotaria o propósito da tela;
  *  3. o resto é a data.
  */
-export function agendaGroupOf(ticket: Ticket, now: Date): AgendaGroup | null {
+/**
+ * `olharCompromisso` entra por parâmetro porque a agenda recebe OS, não visitas —
+ * e "Cobrar agora" depende do ESTADO da visita, não da data da ação. Sem ele o
+ * grupo do topo do PDF não teria como existir.
+ */
+export function agendaGroupOf(
+  ticket: Ticket,
+  now: Date,
+  olharCompromisso?: (id: string) => { state?: string } | null | undefined
+): AgendaGroup | null {
   if (!isAgendaEligible(ticket)) return null;
+
+  // COBRAR vem antes de tudo, inclusive de parada declarada: falta confirmada tem
+  // prazo correndo, e prazo correndo ganha de qualquer outra leitura da OS.
+  const acaoParaCobranca = resolvedAttentionOf(ticket);
+  if (acaoParaCobranca?.commitmentId && olharCompromisso) {
+    const visita = olharCompromisso(acaoParaCobranca.commitmentId);
+    if (String(visita?.state || '') === 'faltou') return AGENDA_GROUP.COBRAR;
+  }
 
   // A suspensão vem PRIMEIRO: é a única resposta legítima para "esta OS não tem
   // próxima ação". Ela só vale enquanto tiver motivo e revisão no futuro — vencida,
@@ -128,6 +160,13 @@ export function agendaGroupOf(ticket: Ticket, now: Date): AgendaGroup | null {
   if (!action) return AGENDA_GROUP.NO_ACTION;
 
   const due = action.dueAt;
+
+  // Trabalho interno: sem `commitmentId` não há fornecedor para esperar, e a bola
+  // é da própria equipe. Só o que já venceu ou vence hoje — o resto continua em
+  // "Próximos 7 dias", que é para se preparar, não para agir.
+  if (!action.commitmentId && due.getTime() <= now.getTime()) return AGENDA_GROUP.INTERNAL;
+  if (!action.commitmentId && isSameDay(due, now)) return AGENDA_GROUP.INTERNAL;
+
   if (isSameDay(due, now)) {
     // Passou da hora e é compromisso de fornecedor: quem responde agora é a sede,
     // não a gestora. Separar isto evita a ligação de verificação.
@@ -219,8 +258,14 @@ export interface AgendaBuckets {
  * Sem query nova e sem índice: com ~270 OS o filtro em memória é confortável. Se um
  * dia a lista crescer a ponto de doer, aí é decisão com número na mão — não agora.
  */
-export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
+export function buildAgenda(
+  tickets: Ticket[],
+  now: Date,
+  olharCompromisso?: (id: string) => { state?: string } | null | undefined
+): AgendaBuckets {
   const groups = {
+    [AGENDA_GROUP.COBRAR]: [] as Ticket[],
+    [AGENDA_GROUP.INTERNAL]: [] as Ticket[],
     [AGENDA_GROUP.OVERDUE]: [] as Ticket[],
     [AGENDA_GROUP.TODAY]: [] as Ticket[],
     [AGENDA_GROUP.WAITING_SITE]: [] as Ticket[],
@@ -243,7 +288,7 @@ export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
   const agrupado = semResponsavel.length > MAX_SEM_RESPONSAVEL_NA_PAUTA;
 
   for (const ticket of agrupado ? demais : [...demais, ...semResponsavel]) {
-    const group = agendaGroupOf(ticket, now);
+    const group = agendaGroupOf(ticket, now, olharCompromisso);
     if (group) groups[group].push(ticket);
   }
 
@@ -267,7 +312,13 @@ export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
   return {
     groups,
     withoutNextAction: groups[AGENDA_GROUP.NO_ACTION].length,
-    needingActionToday: groups[AGENDA_GROUP.TODAY].length + groups[AGENDA_GROUP.OVERDUE].length,
+    // Inclui cobrança e trabalho interno: são ações de HOJE tanto quanto visita
+    // marcada, e sem elas o contador do topo diria menos do que a tela mostra.
+    needingActionToday:
+      groups[AGENDA_GROUP.COBRAR].length +
+      groups[AGENDA_GROUP.TODAY].length +
+      groups[AGENDA_GROUP.OVERDUE].length +
+      groups[AGENDA_GROUP.INTERNAL].length,
     semResponsavel: { total: semResponsavel.length, agrupado },
   };
 }

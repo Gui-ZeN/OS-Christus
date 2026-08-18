@@ -60,8 +60,10 @@ import { mensagemDeErro } from '../utils/errorMessage';
 
 const GROUP_ORDER: AgendaGroup[] = [
   AGENDA_GROUP.OVERDUE,
+  AGENDA_GROUP.COBRAR,
   AGENDA_GROUP.TODAY,
   AGENDA_GROUP.WAITING_SITE,
+  AGENDA_GROUP.INTERNAL,
   AGENDA_GROUP.UPCOMING,
   AGENDA_GROUP.BLOCKED,
   AGENDA_GROUP.WAITING,
@@ -71,7 +73,9 @@ const GROUP_ORDER: AgendaGroup[] = [
 const GROUP_HINT: Record<AgendaGroup, string> = {
   vencidas: 'a data passou e ninguém registrou desfecho',
   hoje: 'marcado para hoje',
+  'cobrar-agora': 'a sede confirmou que o fornecedor não veio — há prazo correndo',
   'aguardando-sede': 'o horário passou — a pergunta já foi enviada, ninguém precisa ligar',
+  'trabalho-interno': 'analisar orçamento, mandar contrato — não depende de fornecedor',
   'proximos-7-dias': 'para se preparar, não para agir agora',
   impedidas: 'travadas por terceiro — continuam contando o tempo parado',
   esperando: 'espera legítima, com motivo e data para voltar — a revisão vence sozinha',
@@ -81,7 +85,9 @@ const GROUP_HINT: Record<AgendaGroup, string> = {
 const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
   vencidas: <CircleAlert size={14} />,
   hoje: <Clock size={14} />,
+  'cobrar-agora': <CircleAlert size={14} />,
   'aguardando-sede': <Hourglass size={14} />,
+  'trabalho-interno': <CalendarClock size={14} />,
   'proximos-7-dias': <CalendarClock size={14} />,
   impedidas: <PauseCircle size={14} />,
   esperando: <PauseCircle size={14} />,
@@ -111,7 +117,9 @@ const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
 const GROUP_TONE: Record<AgendaGroup, string> = {
   vencidas: 'border-l-roman-danger bg-roman-danger/12',
   hoje: 'border-l-roman-primary',
+  'cobrar-agora': 'border-l-roman-danger bg-roman-danger/12',
   'aguardando-sede': 'border-l-roman-border-control',
+  'trabalho-interno': 'border-l-roman-primary',
   'proximos-7-dias': 'border-l-roman-border',
   impedidas: 'border-l-roman-text-sub bg-roman-text-sub/10',
   esperando: 'border-l-roman-border',
@@ -199,7 +207,10 @@ export function TodayView() {
     return () => clearInterval(id);
   }, []);
 
-  const agenda = useMemo(() => buildAgenda(tickets, agora), [tickets, agora]);
+  const agenda = useMemo(
+    () => buildAgenda(tickets, agora, id => compromissoPorId.get(id) || null),
+    [tickets, agora, compromissoPorId]
+  );
 
   /**
    * A ponte entre o tempo e o trabalho: 26 das 178 OS da produção são problema de
