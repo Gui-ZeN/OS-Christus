@@ -1463,12 +1463,74 @@ async function handleRevisaoSemanal(req, res) {
         return sendJson(res, 200, { ok: true, ordens: await lerOrdens() });
       }
 
-      const efeito = efeitoDaResposta(resposta, { now: agora, statusAnterior: String(ticket.status || '') });
+      // ⚠️ `ticketAtual` NÃO é opcional. Sem ele, `efeitoDaResposta` não tem como
+      // preservar o tempo parado nem ler o contador, e o adiamento zerava os dois —
+      // a correção existia só no teste, que passava o objeto. (Consulta 13.)
+      const efeito = efeitoDaResposta(resposta, {
+        now: agora,
+        statusAnterior: String(ticket.status || ''),
+        ticketAtual: ticket,
+      });
       if (!efeito) throw new HttpError(400, 'Resposta desconhecida.');
+
+      /**
+       * ENCERRAR AQUI PASSA PELA MESMA TRANSIÇÃO DO RESTO DO SISTEMA.
+       *
+       * ⚠️ Antes esta rota mudava só o `status`. A auditoria (consulta 13) mostrou
+       * que isso repete um defeito histórico conhecido do projeto: sem `closedAt`,
+       * `stageEnteredAt` e `marcos`, a OS some do gráfico de encerramentos — foi
+       * exatamente assim que 92 de 92 OS fechadas apareceram como zero, por meses,
+       * sem ninguém notar. Uma limpeza que não aparece no indicador que ela existe
+       * para mover não serve para nada.
+       */
+      const extras = {};
+      if (efeito.status && efeito.status !== ticket.status) {
+        extras.stageEnteredAt = agora;
+        if (CLOSED_STATUSES.has(efeito.status)) extras.closedAt = agora;
+        else if (CLOSED_STATUSES.has(String(ticket.status || ''))) extras.closedAt = null;
+        const marcos = addStageMarco(ticket.marcos, efeito.status, agora);
+        if (marcos) extras.marcos = marcos;
+      }
 
       // Quem respondeu fica gravado em TODOS os casos: é o que faz a limpeza ter
       // autor, e sem autor ninguém consegue dizer depois o que foi fechado e por quem.
-      await ref.update({ ...efeito, revisaoRespondidaPor: String(dadosDoToken.email || '') || null });
+      const autor = String(dadosDoToken.email || '') || null;
+      await ref.update({ ...efeito, ...extras, revisaoRespondidaPor: autor });
+
+      /**
+       * OS encerrada não deixa visita marcada de pé.
+       *
+       * Sem isto o fornecedor apareceria para um serviço que já não existe — com
+       * deslocamento cobrado —, ou seria marcado como faltoso numa visita que a
+       * própria manutenção cancelou. É o mesmo motivo pelo qual "resolvido pela
+       * sede" cancela o compromisso.
+       */
+      if (efeito.status && CLOSED_STATUSES.has(efeito.status)) {
+        const visitas = await db
+          .collection('commitments')
+          .where('ticketIds', 'array-contains', ticketId)
+          .get();
+        for (const doc of visitas.docs) {
+          const estado = String(doc.data()?.state || '');
+          if (estado === 'agendado' || estado === 'sem-confirmacao') {
+            await doc.ref.update({
+              state: 'cancelado',
+              canceladaPor: 'os-encerrada-na-revisao',
+              updatedAt: agora,
+            });
+          }
+        }
+      }
+
+      if (autor) {
+        await writeAuditLog({
+          action: efeito.status === 'Encerrada' ? 'ticket.close.revisao-semanal' : 'ticket.revisao-semanal',
+          actorEmail: autor,
+          targetId: ticketId,
+          details: { resposta, statusAnterior: String(ticket.status || ''), via: 'link-da-revisao' },
+        }).catch(() => {});
+      }
+
       return sendJson(res, 200, { ok: true, ordens: await lerOrdens() });
     }
 

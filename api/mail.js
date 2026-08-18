@@ -2863,8 +2863,34 @@ async function handleChecagemDasVisitas(req, res) {
         plantao,
       });
 
-      if (semDono) faltasSemDono.push({ visita: visita.id, sede: visita.sede || siteId, origem });
-      if (!dono) continue;
+      /**
+       * FALTA SEM DONO NÃO PODE VIRAR SILÊNCIO.
+       *
+       * ⚠️ A auditoria (consulta 13) mostrou que eu tinha trocado um problema por
+       * outro: saiu o broadcast para todo Admin, entrou o silêncio operacional. A
+       * falta simplesmente não virava e-mail e voltava num campo que só o log do
+       * GitHub Actions via — e a mesma falta reaparecia na consulta a cada dez
+       * minutos, por 24 horas, sem nunca ser resolvida.
+       *
+       * Agora ela vira PENDÊNCIA PERSISTENTE no próprio compromisso: aparece na
+       * tela e nos resumos, e a marca impede a varredura de reprocessá-la em
+       * looping. Sede sem responsável configurado é falha de cadastro, e falha de
+       * cadastro tem que doer uma vez — não a cada dez minutos, para sempre.
+       */
+      if (semDono) {
+        faltasSemDono.push({ visita: visita.id, sede: visita.sede || siteId, origem });
+        if (!simular && !visita.faltaSemDonoEm) {
+          await db.collection('commitments').doc(visita.id).update({
+            faltaSemDonoEm: agora,
+            faltaSemDonoSede: visita.sede || siteId,
+          });
+        }
+      }
+      if (!dono) {
+        // Sem dono e sem plantão: a marca acima já registrou. Não marca
+        // `faltaAvisadaEm`, senão a falta ficaria como avisada sem ninguém saber.
+        continue;
+      }
 
       const fornecedor = String(visita.vendorName || 'O fornecedor');
       const { html } = buildNoticeEmailTemplate({
@@ -2905,7 +2931,11 @@ async function handleChecagemDasVisitas(req, res) {
           naoEntregues.push({ visita: visita.id, para: dono.email, motivo: modoAtual.modo });
           continue;
         }
-        await db.collection('commitments').doc(visita.id).update({ faltaAvisadaEm: agora });
+        await db.collection('commitments').doc(visita.id).update({
+          faltaAvisadaEm: agora,
+          // Achou dono: a pendência de cadastro deixa de valer.
+          ...(visita.faltaSemDonoEm ? { faltaSemDonoEm: null } : {}),
+        });
       }
       alertas.push({ visita: visita.id, para: dono.email, origem, fornecedor });
     }
@@ -3194,6 +3224,12 @@ async function handleResumoDaOperacao(req, res) {
               { label: 'Impedidas (prazo furado)', value: String(r.impedidas) },
               // Visita que aconteceu e ninguém disse o que saiu dela. É o oposto do
               // painel verde: presença registrada não é manutenção feita.
+              ...(r.faltasSemDono > 0
+                ? [{
+                    label: 'Faltas sem responsável configurado',
+                    value: `${r.faltasSemDono} — corrigir o cadastro da sede`,
+                  }]
+                : []),
               {
                 label: 'Desfecho não registrado',
                 value: r.desfechosVencidos > 0

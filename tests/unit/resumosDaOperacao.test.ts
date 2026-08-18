@@ -173,3 +173,45 @@ describe('cobranças no fim do dia — só o que teve desfecho', () => {
     expect(r.cobrancas).toBe(0);
   });
 });
+
+describe('o que estava invisível passou a contar', () => {
+  const visitaComPendencia = (extra: Record<string, unknown> = {}) => ({
+    id: 'c1',
+    state: 'compareceu',
+    startAt: hojeAs(8),
+    sede: 'BN',
+    vendorName: 'Alfa',
+    ticketIds: ['OS-1'],
+    desfechoPendente: { status: 'pendente', prazo: new Date(agora.getTime() + 3_600_000) },
+    ...extra,
+  });
+
+  it('visita que aconteceu e ninguém disse o que saiu dela', () => {
+    // Presença registrada não é manutenção feita. Sem esta linha o painel ficaria
+    // verde com serviço que talvez não tenha sido executado.
+    const r = resumoDoFimDoDia({ commitments: [visitaComPendencia()], now: agora });
+    expect(r.desfechosPendentes).toBe(1);
+    expect(r.vazio).toBe(false);
+  });
+
+  it('desfecho registrado tira a visita da conta', () => {
+    const r = resumoDoFimDoDia({ commitments: [visitaComPendencia({ outcome: 'concluiu' })], now: agora });
+    expect(r.desfechosPendentes).toBe(0);
+  });
+
+  it('marca as que passaram do prazo', () => {
+    const vencida = visitaComPendencia({
+      desfechoPendente: { status: 'pendente', prazo: new Date(agora.getTime() - 3_600_000) },
+    });
+    expect(resumoDoFimDoDia({ commitments: [vencida], now: agora }).desfechosVencidos).toBe(1);
+  });
+
+  it('falta sem responsável configurado é falha de CADASTRO e aparece', () => {
+    // Antes voltava num campo que só o log do GitHub Actions via, e a mesma falta
+    // reaparecia na consulta a cada dez minutos por 24h sem nunca ser resolvida.
+    const orfa = { id: 'c9', state: 'faltou', startAt: hojeAs(8), confirmedAt: agora, faltaSemDonoEm: agora };
+    const r = resumoDoFimDoDia({ commitments: [orfa], now: agora });
+    expect(r.faltasSemDono).toBe(1);
+    expect(r.vazio).toBe(false);
+  });
+});

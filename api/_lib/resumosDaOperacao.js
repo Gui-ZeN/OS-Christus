@@ -142,6 +142,11 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
   // verde com serviço que talvez não tenha sido feito.
   const desfechosPendentes = pendentesDeDesfecho(commitments, now);
 
+  // Falta que aconteceu e não tinha ninguém configurado para receber o alerta. É
+  // falha de CADASTRO, não de operação — mas fica invisível se não aparecer aqui, e
+  // uma sede pode passar meses sem que ninguém seja avisado das faltas dela.
+  const faltasSemDono = (commitments || []).filter(c => Boolean(c?.faltaSemDonoEm)).length;
+
   // O número que o rework existe para derrubar — e o mais fácil de maquiar, por
   // isso vem junto do tempo parado da mais antiga.
   //
@@ -171,6 +176,7 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
   return {
     faltas,
     desfechosPendentes: desfechosPendentes.length,
+    faltasSemDono,
     desfechosVencidos: desfechosPendentes.filter(p => p.vencida).length,
     cobrancas,
     // Tentativa aberta não some: cobrança sem desfecho é trabalho pela metade, e
@@ -188,6 +194,7 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
       semProximaAcao.length === 0 &&
       impedidas === 0 &&
       desfechosPendentes.length === 0 &&
+      faltasSemDono === 0 &&
       cobrancas === 0 &&
       cobrancasSemDesfecho === 0,
   };
