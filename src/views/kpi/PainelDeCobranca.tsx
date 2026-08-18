@@ -100,7 +100,14 @@ export function PainelDeCobranca({ inicio, fim }: { inicio: Date; fim: Date }) {
               rotulo="Cobranças"
               valor={m.cobrancasConcluidas}
               // Abrir o WhatsApp não é ter cobrado: só desfecho registrado conta.
-              ajuda={m.semDesfecho > 0 ? `${m.semDesfecho} sem desfecho` : 'todas com desfecho'}
+              // Com zero cobrança, "todas com desfecho" seria elogio ao nada.
+              ajuda={
+                m.semDesfecho > 0
+                  ? `${m.semDesfecho} sem desfecho`
+                  : m.cobrancasConcluidas > 0
+                    ? 'todas com desfecho'
+                    : 'ninguém foi cobrado no recorte'
+              }
             />
             <Numero
               rotulo="Por 100 visitas"

@@ -110,3 +110,33 @@ describe('o sistema mede o que a folha de papel mediria', () => {
     expect(m.tentativas).toBe(0);
   });
 });
+
+describe('as datas atravessam o JSON da API sem virar zero', () => {
+  it('entende o Timestamp do Firestore nas duas grafias', () => {
+    // O serializador copia o campo cru, e o `toJSON()` do Timestamp usa o nome
+    // PRIVADO: `{_seconds, _nanoseconds}`. Só entender `seconds` fazia o painel
+    // mostrar zero cobrança com visitas na tela — plausível e falso.
+    const m = metricasDeCobranca({
+      commitments: [
+        {
+          id: 'a',
+          state: 'faltou',
+          startAt: { _seconds: Math.floor(dia(12).getTime() / 1000), _nanoseconds: 0 },
+          cobrancas: [
+            {
+              em: { _seconds: Math.floor(dia(12, 11).getTime() / 1000), _nanoseconds: 0 },
+              desfecho: 'nao-respondeu',
+              desfechoEm: { _seconds: Math.floor(dia(12, 12).getTime() / 1000), _nanoseconds: 0 },
+            },
+          ],
+        },
+      ],
+      de,
+      ate,
+    });
+    expect(m.visitas).toBe(1);
+    expect(m.cobrancasConcluidas).toBe(1);
+    expect(m.percentualSemResposta).toBe(100);
+    expect(m.medianaAteODesfechoEmMinutos).toBe(60);
+  });
+});

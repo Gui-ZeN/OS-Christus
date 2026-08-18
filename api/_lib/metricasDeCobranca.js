@@ -22,11 +22,22 @@ import { cobrancasConcluidas } from './cobranca.js';
  * Sem I/O.
  */
 
+/**
+ * ⚠️ `_seconds` COM SUBLINHADO, e não só `seconds`.
+ *
+ * As cobranças chegam ao navegador dentro do compromisso, e o serializador da API
+ * copia o campo cru: um Timestamp do Firestore atravessa o JSON como
+ * `{_seconds, _nanoseconds}` — o `toJSON()` da biblioteca usa o nome privado.
+ * Sem esta linha toda data de cobrança viraria `null`, cairia fora do período, e o
+ * painel mostraria zero cobrança tendo visitas — que é exatamente o número
+ * plausível e falso que este módulo existe para não produzir.
+ */
 function paraData(valor) {
   if (!valor) return null;
   if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? null : valor;
   if (typeof valor.toDate === 'function') return valor.toDate();
   if (typeof valor.seconds === 'number') return new Date(valor.seconds * 1000);
+  if (typeof valor._seconds === 'number') return new Date(valor._seconds * 1000);
   const d = new Date(valor);
   return Number.isNaN(d.getTime()) ? null : d;
 }
