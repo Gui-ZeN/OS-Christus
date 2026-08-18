@@ -1,4 +1,5 @@
 import React from 'react';
+import { etapaDe } from '../../../api/_lib/etapas.js';
 import { repairMojibake } from '../../utils/text';
 
 interface StatusBadgeProps {
@@ -81,7 +82,7 @@ const TRATAMENTO: Record<Grupo, { fundo: string; texto: string; borda: string; p
  */
 function grupoDoStatus(normalizado: string): Grupo {
   if (normalizado.includes('cancelada') || normalizado.includes('reprovad')) return 'morta';
-  if (normalizado.includes('encerrada')) return 'encerrada';
+  if (normalizado.includes('encerrada') || normalizado.includes('concluida')) return 'encerrada';
   if (normalizado.includes('nova os')) return 'triagem';
   if (normalizado.includes('em andamento') || normalizado.includes('execucao')) return 'andando';
   if (normalizado.includes('aguardando')) return 'esperando';
@@ -89,7 +90,15 @@ function grupoDoStatus(normalizado: string): Grupo {
 }
 
 export function StatusBadge({ status, className = '', compact = false }: StatusBadgeProps) {
-  const normalizedStatusText = repairMojibake(status);
+  /**
+   * O QUE APARECE É A ETAPA, não o status cru do banco.
+   *
+   * São treze status gravados e seis etapas na boca da equipe. A tradução mora num
+   * lugar só (`api/_lib/etapas.js`) e o banco continua com os nomes antigos — se
+   * algum dos 34 lugares que comparam status por texto escapar, o erro aparece
+   * aqui, visível, em vez de virar dado torto que ninguém desfaz.
+   */
+  const normalizedStatusText = etapaDe(repairMojibake(status));
 
   const normalizedStatus = normalizedStatusText
     .toLowerCase()

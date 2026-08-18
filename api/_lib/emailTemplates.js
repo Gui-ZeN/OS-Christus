@@ -89,7 +89,10 @@ export function getStageMeta(trigger, status) {
     return { eyebrow: 'Financeiro', label: 'Pagamento pendente' };
   }
   if (token.includes('pagamento')) return { eyebrow: 'Financeiro', label: 'Aguardando pagamento' };
-  if (token.includes('encerrada')) return { eyebrow: 'Conclusão', label: 'OS encerrada' };
+  if (token.includes('encerrada') || token.includes('concluida')) {
+    // "Encerrada" virou "Concluída": o banco ainda grava o antigo, a pessoa lê o novo.
+    return { eyebrow: 'Conclusão', label: 'OS concluída' };
+  }
   if (token.includes('cancelada')) return { eyebrow: 'Atenção', label: 'OS cancelada' };
   if (token.includes('mensagem')) return { eyebrow: 'Comunicação', label: 'Nova mensagem registrada' };
 
