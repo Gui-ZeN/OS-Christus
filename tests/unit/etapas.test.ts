@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ETAPA, ORDEM_DAS_ETAPAS, etapaConhecida, etapaDe, etapaEmAberto } from '../../api/_lib/etapas.js';
+import { ETAPA, ORDEM_DAS_ETAPAS, etapaConhecida, etapaDe, etapaEmAberto, statusCanonicoDaEtapa } from '../../api/_lib/etapas.js';
 import { TICKET_STATUS } from '../../src/constants/ticketStatus';
 
 describe('as treze do banco viram seis na tela', () => {
@@ -67,5 +67,29 @@ describe('a leitura de "ainda exige trabalho" não muda de sentido', () => {
     expect(etapaEmAberto('Cancelada')).toBe(false);
     expect(etapaEmAberto('Nova OS')).toBe(true);
     expect(etapaEmAberto('Em andamento')).toBe(true);
+  });
+});
+
+describe('escolher uma etapa grava sempre o MESMO status', () => {
+  it('cada etapa tem um status canônico', () => {
+    // Sem isto, duas pessoas escolhendo "Em análise" produziriam status diferentes
+    // e o histórico ficaria impossível de ler.
+    for (const etapa of ORDEM_DAS_ETAPAS) {
+      expect(statusCanonicoDaEtapa(etapa), etapa).toBeTruthy();
+    }
+  });
+
+  it('o canônico volta para a mesma etapa — ida e volta fecha', () => {
+    for (const etapa of ORDEM_DAS_ETAPAS) {
+      expect(etapaDe(statusCanonicoDaEtapa(etapa)!), etapa).toBe(etapa);
+    }
+  });
+
+  it('"Concluída" grava "Encerrada" enquanto a migração não acontece', () => {
+    expect(statusCanonicoDaEtapa('Concluída')).toBe('Encerrada');
+  });
+
+  it('etapa desconhecida devolve null — palpite gravado é pior que recusa', () => {
+    expect(statusCanonicoDaEtapa('Etapa Inventada')).toBeNull();
   });
 });

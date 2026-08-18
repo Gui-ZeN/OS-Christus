@@ -10,6 +10,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord } from '../types';
+import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { coerceDate } from '../utils/date';
 import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
@@ -357,11 +358,11 @@ export function KpiView() {
   }, [contractsByTicket, periodTickets, regions, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]);
 
   const statusOptions = useMemo(() => {
-    const presentes = new Set<string>(periodTickets.map(ticket => String(ticket.status)).filter(Boolean));
+    const presentes = new Set<string>(periodTickets.map(ticket => etapaDe(String(ticket.status))).filter(Boolean));
     // Ordem do fluxo, não alfabética: quem lê procura a etapa onde a OS está. Etapas
     // aposentadas continuam na lista SE houver OS nelas — esconder o filtro não
     // esconde a OS, só impede de achá-la.
-    const conhecidas = (Object.values(TICKET_STATUS) as string[]).filter(status => presentes.has(status));
+    const conhecidas = (ORDEM_DAS_ETAPAS as string[]).filter(status => presentes.has(status));
     const outras = [...presentes].filter(status => !conhecidas.includes(status)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     return [...conhecidas, ...outras];
   }, [periodTickets]);

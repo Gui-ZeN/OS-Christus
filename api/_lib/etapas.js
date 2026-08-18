@@ -106,3 +106,64 @@ export function etapaEmAberto(status) {
   const etapa = etapaDe(status);
   return etapa !== ETAPA.CONCLUIDA && etapa !== ETAPA.CANCELADA;
 }
+
+/**
+ * O CAMINHO INVERSO: da etapa para os status que ela absorve.
+ *
+ * É o que faz o filtro funcionar sem mexer na lógica de filtragem. Escolher
+ * "Em análise" na Caixa passa a significar "Parecer Técnico OU Aprovação da
+ * Solução" — sem isto, o filtro acharia metade e a pessoa concluiria que a outra
+ * metade não existe, que é pior que não ter filtro.
+ */
+export function statusDaEtapa(etapa) {
+  const alvo = normalizar(etapa);
+  return Object.entries(DE_PARA)
+    .filter(([, nova]) => normalizar(nova) === alvo)
+    .map(([antigo]) => antigo);
+}
+
+/** As etapas presentes numa lista de OS, na ordem do fluxo, com a contagem. */
+export function etapasPresentes(tickets = []) {
+  const contagem = new Map();
+  for (const t of tickets) {
+    const etapa = etapaDe(t?.status);
+    if (!etapa) continue;
+    contagem.set(etapa, (contagem.get(etapa) || 0) + 1);
+  }
+  // Ordem do fluxo primeiro; o que a tradução não conhece vai para o fim, visível.
+  const conhecidas = ORDEM_DAS_ETAPAS.filter(e => contagem.has(e)).map(e => ({ etapa: e, total: contagem.get(e) }));
+  const estranhas = [...contagem.keys()]
+    .filter(e => !ORDEM_DAS_ETAPAS.includes(e))
+    .map(e => ({ etapa: e, total: contagem.get(e) }));
+  return [...conhecidas, ...estranhas];
+}
+
+/**
+ * O STATUS QUE O BANCO RECEBE quando alguém escolhe uma das seis etapas.
+ *
+ * Enquanto a migração não acontece, a tela fala em seis e o banco grava treze.
+ * Escolher "Em análise" precisa gravar UM valor concreto — e sempre o mesmo, senão
+ * duas pessoas escolhendo a mesma etapa produziriam status diferentes e o histórico
+ * ficaria impossível de ler.
+ *
+ * É o PRIMEIRO status de cada grupo, que é o degrau em que a etapa começa. Quem
+ * precisa do degrau fino (aprovação da solução, do orçamento) continua tendo o
+ * dado no histórico e nos marcos; o que sai é a obrigação de escolher entre dois
+ * nomes que a operação lê como um.
+ */
+const CANONICO = {
+  [ETAPA.NOVA]: 'Nova OS',
+  [ETAPA.ANALISE]: 'Aguardando Parecer Técnico',
+  [ETAPA.ORCAMENTO]: 'Aguardando Orçamento',
+  [ETAPA.CONTRATACAO]: 'Aguardando Anexo de Contrato',
+  [ETAPA.EXECUCAO]: 'Em andamento',
+  [ETAPA.CONCLUIDA]: 'Encerrada',
+  [ETAPA.CANCELADA]: 'Cancelada',
+};
+
+export function statusCanonicoDaEtapa(etapa) {
+  const alvo = normalizar(etapa);
+  const achado = Object.entries(CANONICO).find(([nome]) => normalizar(nome) === alvo);
+  // Etapa desconhecida devolve null: gravar um palpite seria pior que recusar.
+  return achado ? achado[1] : null;
+}

@@ -4,6 +4,9 @@ import { ArrowRightLeft, Droplets, MessageSquare, Search, TriangleAlert, UserRou
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
+// Apelidado: `etapaDe` já é um estado local deste arquivo (o id da OS cuja etapa
+// está sendo trocada no modal).
+import { ORDEM_DAS_ETAPAS, etapaDe as etapaDoStatus } from '../../api/_lib/etapas.js';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -19,7 +22,8 @@ import { repairMojibake } from '../utils/text';
 
 const ALL = 'all';
 const NONE = 'none';
-const STATUS_ORDER = Object.values(TICKET_STATUS) as string[];
+// Ordem de leitura pelas SEIS etapas, não pelos treze status do banco.
+const STATUS_ORDER = ORDEM_DAS_ETAPAS as string[];
 
 /**
  * Há quanto tempo a OS está NESTA etapa — não a idade dela.
@@ -116,8 +120,14 @@ export function OsBoardView() {
     return [...porEmail.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
   }, [decorated]);
   const statusOptions = useMemo(() => {
-    const present = new Set<string>(tickets.map(t => t.status));
-    return STATUS_ORDER.filter(s => present.has(s));
+    // Etapa, não status: com treze opções a lista tinha nomes que a equipe não usa,
+    // e duas delas apontavam para a mesma coisa na cabeça de quem lê.
+    const present = new Set<string>(tickets.map(t => etapaDoStatus(t.status)));
+    const conhecidas = STATUS_ORDER.filter(s => present.has(s));
+    // O que a tradução não conhece vai para o fim, visível: opção que desaparece em
+    // silêncio vira OS que ninguém consegue filtrar.
+    const estranhas = [...present].filter(s => !STATUS_ORDER.includes(s)).sort();
+    return [...conhecidas, ...estranhas];
   }, [tickets]);
 
   const filtered = useMemo(() => {
@@ -126,7 +136,7 @@ export function OsBoardView() {
       if (macroService !== ALL && entry.macro !== macroService) return false;
       if (service !== ALL && entry.service !== service) return false;
       if (team !== ALL && entry.team !== team) return false;
-      if (status !== ALL && entry.ticket.status !== status) return false;
+      if (status !== ALL && etapaDoStatus(entry.ticket.status) !== status) return false;
       // `none` é filtro de primeira classe: "quais OS ninguém assumiu" é a pergunta
       // que o campo existe para responder, e ela não cabe numa lista de e-mails.
       if (responsible === NONE && entry.ticket.responsible?.email) return false;

@@ -13,6 +13,13 @@ import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useToast } from '../hooks/useToast';
 import { HistoryItem, Ticket, TicketAttachment } from '../types';
+import {
+  ORDEM_DAS_ETAPAS,
+  etapaDe,
+  etapasPresentes,
+  statusCanonicoDaEtapa,
+  statusDaEtapa,
+} from '../../api/_lib/etapas.js';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { mergeEmails, normalizeForMatching, parseEmailTokens } from './inbox/recipients';
 import { isTicketOpen } from '../constants/ticketLifecycle';
@@ -347,6 +354,18 @@ export function InboxView() {
   const hasStageChangePending = Boolean(statusDraft) && statusDraft !== activeTicket.status;
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
   const actorRole = resolveActorRole(currentUser?.role);
+  /**
+   * Qual etapa está selecionada, a partir da lista de status guardada. Derivar em
+   * vez de guardar evita as duas verdades saírem de sincronia — e o filtro salvo
+   * de antes desta mudança continua funcionando.
+   */
+  const etapaSelecionada = useMemo(() => {
+    if (inboxFilter.status.length === 0) return '';
+    const etapas = new Set(inboxFilter.status.map(etapaDe));
+    return etapas.size === 1 ? [...etapas][0] : '';
+  }, [inboxFilter.status]);
+
+
   const statusOptions = useMemo(() => {
     const current = activeTicket.status;
     if (!current) return [...ALL_INBOX_STATUS_OPTIONS];
@@ -361,6 +380,16 @@ export function InboxView() {
     const ordered = [...ALL_INBOX_STATUS_OPTIONS].filter(status => next.has(status));
     return ordered.length > 0 ? ordered : [...ALL_INBOX_STATUS_OPTIONS];
   }, [activeTicket.status, actorRole]);
+
+  /**
+   * As ETAPAS que este papel pode escolher, derivadas das transições que já
+   * existiam. Derivar em vez de reescrever a regra: a permissão continua sendo a
+   * mesma, só o vocabulário mudou.
+   */
+  const etapasSelecionaveis = useMemo(() => {
+    const etapas = new Set(statusOptions.map(etapaDe));
+    return ORDEM_DAS_ETAPAS.filter(e => etapas.has(e));
+  }, [statusOptions]);
 
   // Reseta os campos ao trocar de ticket
   useEffect(() => {
@@ -1797,22 +1826,31 @@ export function InboxView() {
                 Status
               </label>
               <div className="relative">
+              {/**
+                * O FILTRO PASSA A SER POR ETAPA, não por status do banco.
+                *
+                * O valor guardado continua sendo a lista de status — a lógica de
+                * filtragem não mudou. O que mudou é que escolher "Em análise" expande
+                * para os DOIS status que ela absorve. Sem isso o filtro acharia
+                * metade, e quem olhasse concluiria que a outra metade não existe —
+                * pior que não ter filtro.
+                */}
               <select
-                value={inboxFilter.status.length === 1 ? inboxFilter.status[0] : ''}
+                value={etapaSelecionada}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const etapa = e.target.value;
                   setInboxFilter({
                     ...inboxFilter,
-                    status: value ? [value] : [],
+                    status: etapa ? statusDaEtapa(etapa) : [],
                   });
                 }}
                 aria-label="Filtrar por etapa"
                 className="w-full appearance-none rounded-sm border border-roman-border bg-roman-surface px-3 py-2 pr-9 text-sm text-roman-text-main outline-none transition-colors focus:border-roman-primary"
               >
                 <option value="">Todos</option>
-                {ALL_INBOX_STATUS_OPTIONS.map(status => (
-                  <option key={status} value={status}>
-                    {status} ({tickets.filter(ticket => ticket.status === status).length})
+                {etapasPresentes(tickets).map(({ etapa, total }) => (
+                  <option key={etapa} value={etapa}>
+                    {etapa} ({total})
                   </option>
                 ))}
               </select>
@@ -2292,13 +2330,26 @@ export function InboxView() {
                             /* Sem nome, este seletor era indistinguível dos filtros da
                                lista — para leitor de tela e para teste. */
                             aria-label="Nova etapa da OS"
-                            value={statusDraft}
-                            onChange={event => setStatusDraft(event.target.value)}
+                            /**
+                             * SEIS OPÇÕES, não treze. A pessoa escolhe a etapa e o
+                             * banco recebe o status canônico dela — enquanto a
+                             * migração não acontece, a tela fala em seis e o banco
+                             * grava treze. O degrau fino (aprovação da solução, do
+                             * orçamento) continua no histórico e nos marcos; o que
+                             * sai é a obrigação de escolher entre dois nomes que a
+                             * operação lê como um.
+                             */
+                            value={etapaDe(statusDraft)}
+                            onChange={event => {
+                              const canonico = statusCanonicoDaEtapa(event.target.value);
+                              // Etapa desconhecida não grava palpite.
+                              if (canonico) setStatusDraft(canonico);
+                            }}
                             className="w-full rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
                             disabled={stageLocked || isSending}
                           >
-                            {statusOptions.map(status => (
-                              <option key={status} value={status}>{status}</option>
+                            {etapasSelecionaveis.map(etapa => (
+                              <option key={etapa} value={etapa}>{etapa}</option>
                             ))}
                           </select>
                           {hasStageChange && (
