@@ -16,7 +16,7 @@ const os = { id: 'OS-1' } as Ticket;
  * Com as seis etapas, este é o contrato inteiro numa tabela só.
  */
 describe('o solicitante acompanha o CICLO, não os degraus internos', () => {
-  const avisa = (etapa: string, anterior = TICKET_STATUS.NEW) =>
+  const avisa = (etapa: string, anterior: string = TICKET_STATUS.NEW) =>
     shouldNotifyRequesterForStatus(os, statusCanonicoDaEtapa(etapa)!, anterior);
 
   it('avisa quando a análise começa, vindo de Nova OS', () => {

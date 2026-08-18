@@ -4,6 +4,7 @@ import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { PeriodPicker, type PeriodMode } from './kpi/PeriodPicker';
+import { PainelDeCobranca } from './kpi/PainelDeCobranca';
 import { usePaletaDeGraficos } from './kpi/paletaDeGraficos';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -1314,6 +1315,8 @@ export function KpiView() {
 
         {perspective === 'managerial' && (
           <>
+            <PainelDeCobranca inicio={periodRange.start} fim={periodRange.end} />
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
                 <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Backlog por etapa</h2>

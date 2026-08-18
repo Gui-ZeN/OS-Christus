@@ -76,12 +76,37 @@ morto, gente que já mudou de sede. Reenviar em massa é a maneira mais rápida 
 queimar a confiança no remetente no primeiro dia. Quarentena, inspeção, e
 reconstruir só o que ainda fizer sentido.
 
+## A linha de base, sem papel
+
+O plano pedia uma semana anotando à mão quantas cobranças a gestora faz por dia.
+Não é preciso: o botão **Cobrar** já grava tentativa, desfecho e horário — que são
+exatamente as colunas daquela folha. Pedir para alguém anotar o que o sistema
+registra sozinho é cobrar duas vezes pelo mesmo trabalho, e a segunda é a que
+ninguém cumpre até sexta.
+
+O que dá a linha de base é a ORDEM em que as coisas ligam:
+
+```
+EMAIL_TIPOS_DESLIGADOS=agenda-sede,checagem
+```
+
+Com isso o registro da cobrança funciona e os e-mails da sede ficam calados. A
+operação segue como hoje — telefone, corrida atrás de quem não veio —, mas cada
+cobrança fica gravada. **Duas semanas assim são o "antes".** Depois é só apagar a
+variável: os e-mails da sede entram, e a comparação existe sem ninguém ter escrito
+uma linha em papel.
+
+⚠️ O número é PISO, não total: cobrança feita fora do sistema (ligação do celular,
+conversa no corredor) não aparece. Enquanto o botão não for o caminho normal, ler
+como total faz a operação parecer mais leve do que é.
+
+`api/_lib/metricasDeCobranca.js` calcula o que a folha queria — tentativas,
+cobranças concluídas, % sem resposta, % com nova data, mediana até o desfecho,
+segundas tentativas — sempre em taxa além do total, porque o volume de OS muda de
+mês para mês e o total mente sozinho.
+
 ## O que isto não resolve
 
-- **A linha de base.** O plano pedia uma semana de papel medindo quantas ligações de
-  cobrança a gestora faz por dia, antes de qualquer código. Não foi feita. Sem ela,
-  daqui a 30 dias há sensação de melhora, não prova — e dá para fazer durante os
-  passos 2 e 3, que não produzem efeito nenhum na operação.
 - **A cota do Firestore.** O consumidor principal continua desconhecido. As
   varreduras novas custam ~288 leituras/dia, então não são elas.
 - **Dado de produção nos testes.** Os 918 testes usam fixtures escritos à mão. O
