@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PhoneCall } from 'lucide-react';
+import { PhoneCall, TriangleAlert } from 'lucide-react';
 import { fetchCommitments, type HydratedCommitment } from '../../services/commitmentsApi';
 import { metricasDeCobranca } from '../../../api/_lib/metricasDeCobranca.js';
 
@@ -10,13 +10,18 @@ import { metricasDeCobranca } from '../../../api/_lib/metricasDeCobranca.js';
  * sistema deveria dar isso fácil, ninguém merece papel". Está certo — o botão
  * Cobrar já grava tentativa, desfecho e horário, que são as colunas da folha.
  *
- * Duas decisões que este quadro carrega:
+ * Três decisões que este quadro carrega:
  *
  * 1. TUDO EM TAXA, além do total. O volume de OS muda de mês para mês; comparar
  *    totais faz o indicador mentir sozinho — um mês com metade das visitas tem
  *    metade das cobranças sem nada ter melhorado.
  *
- * 2. O NÚMERO É PISO, NÃO TOTAL, e o rodapé diz isso em voz alta. Cobrança feita
+ * 2. TODA PORCENTAGEM VEM COM A AMOSTRA que a formou. Dez acionamentos, um
+ *    respondido e nove sem desfecho davam "0% sem resposta", e a gestora leria
+ *    "ninguém deixou de responder" com noventa por cento desconhecidos. O número
+ *    não estava errado; estava respondendo sobre uma amostra que ninguém via.
+ *
+ * 3. O NÚMERO É PISO, NÃO TOTAL, e o rodapé diz isso em voz alta. Cobrança feita
  *    fora do sistema (ligação do celular, conversa no corredor) não aparece aqui.
  *    Um painel que finge medir tudo é pior que painel nenhum: faz a operação
  *    parecer mais leve do que é, justamente para quem decide o orçamento dela.
@@ -31,13 +36,26 @@ const JANELA_EM_DIAS = 30;
 
 type Metricas = ReturnType<typeof metricasDeCobranca>;
 
-function Numero({ rotulo, valor, sufixo = '', ajuda }: { rotulo: string; valor: number | null; sufixo?: string; ajuda?: string }) {
+/** "0%" com um caso em trezentos é zero falso. Menos de meio por cento se declara. */
+function porcento(valor: number | null, parte: number) {
+  if (valor === null) return '—';
+  if (valor === 0 && parte > 0) return '<1%';
+  return `${valor}%`;
+}
+
+function Numero({
+  rotulo,
+  valor,
+  ajuda,
+}: {
+  rotulo: string;
+  valor: string;
+  ajuda?: string;
+}) {
   return (
     <div className="min-w-0">
       <div className="text-xs font-serif uppercase tracking-widest text-roman-text-sub">{rotulo}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-roman-text-main">
-        {valor === null ? '—' : `${valor}${sufixo}`}
-      </div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums text-roman-text-main">{valor}</div>
       {ajuda && <p className="mt-1 text-xs text-roman-text-sub">{ajuda}</p>}
     </div>
   );
@@ -96,6 +114,7 @@ export function PainelDeCobranca({
   }, [m, quemCobrou]);
 
   const dataCurta = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const temNumeros = Boolean(m) && !m!.semCobertura && m!.visitas > 0;
 
   return (
     <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm mb-6">
@@ -117,16 +136,26 @@ export function PainelDeCobranca({
               ))}
             </select>
           )}
-          <span className="text-xs text-roman-text-sub">
-            {recortado ? `só temos de ${dataCurta(de)} a ${dataCurta(ate)}` : `${dataCurta(de)} a ${dataCurta(ate)}`}
-          </span>
+          {!m?.semCobertura && (
+            <span className="text-xs text-roman-text-sub">
+              {recortado ? `só temos de ${dataCurta(de)} a ${dataCurta(ate)}` : `${dataCurta(de)} a ${dataCurta(ate)}`}
+            </span>
+          )}
         </div>
       </div>
 
       {erro && <p className="mt-4 text-sm text-roman-danger">{erro}</p>}
       {!erro && !m && <p className="mt-4 text-sm text-roman-text-sub">Carregando as visitas…</p>}
 
-      {m && m.visitas === 0 && (
+      {/* Período inteiro fora da janela de dados: não é zero, é ausência de dado. */}
+      {m?.semCobertura && (
+        <p className="mt-4 text-sm text-roman-text-sub">
+          Este período está fora dos {JANELA_EM_DIAS} dias que ficam disponíveis — não há dado para mostrar, o que é
+          diferente de não ter havido cobrança.
+        </p>
+      )}
+
+      {m && !m.semCobertura && m.visitas === 0 && (
         <p className="mt-4 text-sm text-roman-text-sub">
           {ticketIds && ticketIds.length === 0
             ? 'Nenhuma OS passa nos filtros escolhidos.'
@@ -134,39 +163,67 @@ export function PainelDeCobranca({
         </p>
       )}
 
-      {m && m.visitas > 0 && (
+      {temNumeros && m && (
         <>
           <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
             <Numero
               rotulo="Visitas"
-              valor={m.visitas}
-              ajuda={quemCobrou ? `${m.faltas} sem comparecimento (toda a equipe)` : `${m.faltas} sem comparecimento`}
-            />
-            <Numero
-              rotulo="Cobranças"
-              valor={m.cobrancasConcluidas}
-              // Abrir o WhatsApp não é ter cobrado: só desfecho registrado conta.
-              // Com zero cobrança, "todas com desfecho" seria elogio ao nada.
+              valor={String(m.visitas)}
               ajuda={
-                m.semDesfecho > 0
-                  ? `${m.semDesfecho} sem desfecho`
-                  : m.cobrancasConcluidas > 0
-                    ? 'todas com desfecho'
-                    : 'ninguém foi cobrado no recorte'
+                quemCobrou ? `${m.faltas} sem comparecimento (toda a equipe)` : `${m.faltas} sem comparecimento`
               }
             />
             <Numero
-              rotulo={quemCobrou ? 'Tentativas' : 'Por 100 visitas'}
-              valor={quemCobrou ? m.tentativas : m.cobrancasPorCemVisitas}
+              rotulo="Acionamentos"
+              valor={String(m.acionamentos)}
+              // O nome diz o que o dado prova: o link foi tocado. O servidor grava
+              // antes do WhatsApp abrir, e o navegador pode bloquear o popup.
               ajuda={
                 quemCobrou
-                  ? 'a visita não tem dono: não dá para dividir por visita'
-                  : 'é esta taxa que se compara mês a mês'
+                  ? 'vezes que esta pessoa abriu a conversa'
+                  : m.acionamentosPorCemVisitas === null
+                    ? 'vezes que alguém abriu a conversa'
+                    : `${m.acionamentosPorCemVisitas} por 100 visitas`
               }
             />
-            <Numero rotulo="Sem resposta" valor={m.percentualSemResposta} sufixo="%" ajuda="não atendeu ou não retornou" />
-            <Numero rotulo="Viraram nova data" valor={m.percentualComNovaData} sufixo="%" ajuda="a cobrança resolveu" />
+            <Numero
+              rotulo="Com desfecho"
+              valor={`${m.classificados} de ${m.acionamentos}`}
+              ajuda={
+                m.semDesfecho > 0
+                  ? `${m.semDesfecho} ainda sem registrar como acabou`
+                  : 'todo acionamento tem desfecho'
+              }
+            />
+            <Numero
+              rotulo="Sem resposta"
+              valor={porcento(m.percentualSemResposta, m.naoResponderam)}
+              ajuda={`${m.naoResponderam} de ${m.classificados} com desfecho`}
+            />
+            <Numero
+              rotulo="Viraram nova data"
+              valor={porcento(m.percentualComNovaData, m.novasDatas)}
+              ajuda={`${m.novasDatas} de ${m.classificados} com desfecho`}
+            />
           </div>
+
+          {/**
+            * ⚠️ O AVISO QUE IMPEDE A LEITURA ERRADA das duas porcentagens acima.
+            *
+            * Elas falam só dos acionamentos COM desfecho. Nove sem desfecho e um
+            * respondido produzem "0% sem resposta" — número certo, conclusão
+            * desastrosa. Aparece quando menos de dois terços estão classificados,
+            * que é onde a amostra deixa de representar o período.
+            */}
+          {m.percentualClassificado !== null && m.percentualClassificado < 67 && (
+            <p className="mt-4 flex items-start gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs leading-relaxed text-roman-text-main">
+              <TriangleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+              <span>
+                Só {m.percentualClassificado}% dos acionamentos têm desfecho registrado. As duas porcentagens acima
+                falam desses {m.classificados} — os outros {m.semDesfecho} não são "responderam", são desconhecidos.
+              </span>
+            </p>
+          )}
 
           <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-roman-border pt-4 text-sm text-roman-text-sub">
             <span>
@@ -174,11 +231,20 @@ export function PainelDeCobranca({
               <strong className="tabular-nums font-medium text-roman-text-main">
                 {m.medianaAteODesfechoEmMinutos === null ? '—' : `${m.medianaAteODesfechoEmMinutos} min`}
               </strong>
+              {m.medianaSobre > 0 && m.medianaSobre < m.classificados && (
+                <span className="text-xs"> (sobre {m.medianaSobre} com hora registrada)</span>
+              )}
             </span>
             <span>
               Visitas que exigiram segunda tentativa:{' '}
               <strong className="tabular-nums font-medium text-roman-text-main">{m.segundasTentativas}</strong>
             </span>
+            {m.desfechosDesconhecidos > 0 && (
+              <span>
+                Desfechos não reconhecidos:{' '}
+                <strong className="tabular-nums font-medium text-roman-text-main">{m.desfechosDesconhecidos}</strong>
+              </span>
+            )}
           </div>
         </>
       )}
@@ -188,6 +254,7 @@ export function PainelDeCobranca({
         <span>
           Conta só o que passou pelo botão <strong className="font-medium">Cobrar</strong>. Ligação feita do celular não
           entra — o número aqui é piso, não total.
+          {quemCobrou && ' Por pessoa, isso mede uso do sistema, não esforço: quem cobra por telefone aparece pior.'}
         </span>
       </p>
     </div>

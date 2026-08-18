@@ -1,7 +1,7 @@
 import { cobrancasConcluidas } from './cobranca.js';
 
 /**
- * A LINHA DE BASE, MEDIDA PELO SISTEMA — no lugar da semana de papel.
+ * A LINHA DE BASE DA COBRANÇA, MEDIDA PELO SISTEMA — no lugar da semana de papel.
  *
  * O plano pedia cinco dias de anotação à mão: quantas cobranças por dia, em
  * quantas o fornecedor não atende, quanto tempo até conseguir nova data. O dono
@@ -17,7 +17,27 @@ import { cobrancasConcluidas } from './cobranca.js';
  * A saída para isso não é papel: é ligar o registro ANTES dos e-mails da sede
  * (`EMAIL_TIPOS_DESLIGADOS=agenda-sede,checagem`). A operação segue como hoje,
  * cobrando por telefone, mas cada cobrança fica registrada. Duas semanas assim são
- * a linha de base — e nenhuma delas custa uma folha.
+ * a linha de base — e nenhuma delas custa uma folha. (A gestora marca a falta
+ * direto na tela Hoje, então desligar a checagem não trava o botão Cobrar.)
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A COORTE É A VISITA. Esta é a decisão que estrutura o módulo inteiro.
+ *
+ * A primeira versão contava visitas por `startAt` e cobranças por `cobranca.em`.
+ * Parecia inofensivo e não era: uma visita de 31/julho cobrada em 1º de agosto
+ * dava, no recorte de agosto, "1 visita, 1 cobrança, 100 por 100" — e a cobrança
+ * não era daquela visita. Numerador e denominador de conjuntos diferentes produzem
+ * uma taxa que não é taxa de nada.
+ *
+ * Agora tudo pende da visita: entram as visitas do período, e as cobranças DELAS,
+ * tenham sido feitas quando tiverem. A pergunta que o quadro responde passa a ser
+ * "das visitas deste período, quantas deram trabalho de cobrança e como acabou" —
+ * que é a pergunta da linha de base.
+ *
+ * O preço, e ele é real: visita do fim do período pode ainda não ter sido cobrada,
+ * então o recorte mais recente subestima. Por isso `semDesfecho` sai junto e a tela
+ * é obrigada a mostrar.
+ * ═══════════════════════════════════════════════════════════════════════════
  *
  * Sem I/O.
  */
@@ -31,13 +51,20 @@ import { cobrancasConcluidas } from './cobranca.js';
  * Sem esta linha toda data de cobrança viraria `null`, cairia fora do período, e o
  * painel mostraria zero cobrança tendo visitas — que é exatamente o número
  * plausível e falso que este módulo existe para não produzir.
+ *
+ * Os nanossegundos entram na conta. Descartá-los joga o instante para trás do
+ * segundo cheio, e um registro em 00:00:00.900 com o período abrindo em
+ * 00:00:00.500 cairia fora por causa do arredondamento, não do calendário.
  */
 function paraData(valor) {
   if (!valor) return null;
   if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? null : valor;
   if (typeof valor.toDate === 'function') return valor.toDate();
-  if (typeof valor.seconds === 'number') return new Date(valor.seconds * 1000);
-  if (typeof valor._seconds === 'number') return new Date(valor._seconds * 1000);
+  const seg = typeof valor.seconds === 'number' ? valor.seconds : valor._seconds;
+  if (typeof seg === 'number') {
+    const nano = typeof valor.nanoseconds === 'number' ? valor.nanoseconds : valor._nanoseconds;
+    return new Date(seg * 1000 + Math.floor((typeof nano === 'number' ? nano : 0) / 1e6));
+  }
   const d = new Date(valor);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -47,16 +74,37 @@ function dentroDoPeriodo(data, de, ate) {
   return data.getTime() >= de.getTime() && data.getTime() <= ate.getTime();
 }
 
+const texto = valor => String(valor ?? '').trim();
+
+/** Estados que representam uma visita que de fato existiu na agenda. */
+const NAO_ACONTECEU = new Set(['cancelado', 'cancelada']);
+
 /**
  * Os números que a folha de papel queria, de um período.
  *
  * ⚠️ Tudo em TAXA, além do total. O volume de OS muda de mês para mês, e comparar
  * totais faz o indicador mentir sozinho: um mês com metade das visitas tem metade
  * das cobranças sem nada ter melhorado.
+ *
+ * E toda taxa sai acompanhada dos dois números que a formaram. Porcentagem sozinha
+ * esconde o tamanho da amostra, e "50%" de duas cobranças não é o mesmo fato que
+ * "50%" de duzentas.
  */
 export function metricasDeCobranca({ commitments = [], de, ate, ticketIds = null, porEmail = null }) {
   const inicio = paraData(de) || new Date(0);
   const fim = paraData(ate) || new Date();
+
+  /**
+   * PERÍODO SEM COBERTURA não é período vazio.
+   *
+   * A tela recorta o período escolhido contra a janela de dados que existe. Escolher
+   * janeiro em agosto produzia `de` depois de `ate` — um intervalo impossível, que
+   * atravessava tudo devolvendo zero com cara de resultado, ainda por cima rotulado
+   * "só temos de 19/07 a 31/01". Agora ele se declara.
+   */
+  if (inicio.getTime() > fim.getTime()) {
+    return { ...VAZIO, semCobertura: true };
+  }
 
   /**
    * O recorte de território vem de FORA, como lista de OS.
@@ -70,76 +118,125 @@ export function metricasDeCobranca({ commitments = [], de, ate, ticketIds = null
   const noRecorte = c =>
     permitidos === null || (Array.isArray(c?.ticketIds) ? c.ticketIds : []).some(id => permitidos.has(id));
 
-  const doAutor = cob => !porEmail || String(cob?.por || '') === porEmail;
+  const autor = texto(porEmail);
+  // Compara sempre normalizado dos DOIS lados: o seletor da tela oferece o valor
+  // aparado, e comparar contra o cru fazia um espaço sobrando no cadastro devolver
+  // zero sem erro nenhum.
+  const doAutor = cob => !autor || texto(cob?.por) === autor;
 
-  const daBase = (commitments || []).filter(noRecorte);
+  /**
+   * A COORTE: as visitas do período. Cancelada não entra — ela não aconteceu, e
+   * contá-la engorda o denominador de todas as taxas com trabalho que não houve.
+   */
+  const visitasDoPeriodo = (commitments || [])
+    .filter(noRecorte)
+    .filter(c => !NAO_ACONTECEU.has(texto(c?.state)))
+    .filter(c => dentroDoPeriodo(paraData(c?.startAt), inicio, fim));
 
-  const visitasDoPeriodo = daBase.filter(c => dentroDoPeriodo(paraData(c?.startAt), inicio, fim));
-
-  const tentativas = [];
-  for (const c of daBase) {
-    for (const cob of Array.isArray(c?.cobrancas) ? c.cobrancas : []) {
-      const quando = paraData(cob?.em);
-      if (doAutor(cob) && dentroDoPeriodo(quando, inicio, fim)) tentativas.push({ ...cob, em: quando, visita: c });
-    }
-  }
-
-  const concluidas = daBase.flatMap(c =>
-    cobrancasConcluidas(c)
-      .map(cob => ({ ...cob, em: paraData(cob.em), desfechoEm: paraData(cob.desfechoEm), visita: c }))
-      .filter(cob => doAutor(cob) && dentroDoPeriodo(cob.em, inicio, fim))
+  const cobrancasDaCoorte = visitasDoPeriodo.flatMap(c =>
+    (Array.isArray(c?.cobrancas) ? c.cobrancas : [])
+      .filter(doAutor)
+      .map(cob => ({ ...cob, em: paraData(cob?.em), visita: c }))
   );
 
-  const respondeu = concluidas.filter(c => c.desfecho === 'respondeu' || c.desfecho === 'nova-data');
-  const comNovaData = concluidas.filter(c => c.desfecho === 'nova-data');
+  const classificados = visitasDoPeriodo.flatMap(c =>
+    cobrancasConcluidas(c)
+      .filter(doAutor)
+      .map(cob => ({ ...cob, em: paraData(cob.em), desfechoEm: paraData(cob.desfechoEm), visita: c }))
+  );
+
+  const contaDesfecho = alvo => classificados.filter(c => texto(c.desfecho) === alvo).length;
+  const responderam = contaDesfecho('respondeu');
+  const novasDatas = contaDesfecho('nova-data');
+  const naoResponderam = contaDesfecho('nao-respondeu');
+  /**
+   * Desfecho fora dos três conhecidos ficava somado em "não respondeu", porque a
+   * conta era por subtração. Um valor novo no enum viraria 100% de silêncio do
+   * fornecedor sem ninguém ter mudado o cálculo.
+   */
+  const desconhecidos = classificados.length - responderam - novasDatas - naoResponderam;
 
   // Tempo entre acionar o link e registrar o desfecho. Não é "tempo de telefone" —
   // é quanto o assunto fica aberto na cabeça de quem cobra, que é o custo real.
-  const esperas = concluidas
+  const esperas = classificados
     .map(c => (c.desfechoEm && c.em ? c.desfechoEm.getTime() - c.em.getTime() : null))
     .filter(ms => ms !== null && ms >= 0)
     .sort((a, b) => a - b);
-  const medianaEmMinutos = esperas.length > 0 ? Math.round(esperas[Math.floor(esperas.length / 2)] / 60_000) : null;
+  // Com quantidade PAR, a mediana é a média dos dois centrais. Pegar o de cima
+  // devolvia 180 para [60, 180] — sempre para o lado que faz a operação parecer pior.
+  const medianaEmMinutos =
+    esperas.length === 0
+      ? null
+      : Math.round(
+          (esperas.length % 2
+            ? esperas[(esperas.length - 1) / 2]
+            : (esperas[esperas.length / 2 - 1] + esperas[esperas.length / 2]) / 2) / 60_000
+        );
 
-  const faltas = visitasDoPeriodo.filter(c => String(c?.state || '') === 'faltou').length;
-  const visitasComMaisDeUma = daBase.filter(
-    c =>
-      (Array.isArray(c?.cobrancas) ? c.cobrancas : []).filter(
-        cob => doAutor(cob) && dentroDoPeriodo(paraData(cob?.em), inicio, fim)
-      ).length > 1
+  const faltas = visitasDoPeriodo.filter(c => texto(c?.state) === 'faltou').length;
+  const segundasTentativas = visitasDoPeriodo.filter(
+    c => (Array.isArray(c?.cobrancas) ? c.cobrancas : []).filter(doAutor).length > 1
   ).length;
 
   const taxa = (parte, total) => (total > 0 ? Math.round((parte / total) * 100) : null);
 
   return {
+    semCobertura: false,
     visitas: visitasDoPeriodo.length,
     faltas,
-    tentativas: tentativas.length,
-    // Só desfecho conta como cobrança: abrir o WhatsApp não é ter cobrado.
-    cobrancasConcluidas: concluidas.length,
-    semDesfecho: tentativas.length - concluidas.length,
-    naoResponderam: concluidas.length - respondeu.length,
-    novasDatas: comNovaData.length,
-    segundasTentativas: visitasComMaisDeUma,
+
+    /**
+     * ACIONAMENTOS e CLASSIFICADOS, com nomes que dizem o que cada um prova.
+     *
+     * O servidor grava o acionamento ANTES do `window.open`, e o navegador pode
+     * bloquear o popup: o dado prova que o link foi tocado, nem que a conversa
+     * abriu. Só o desfecho prova que alguém cobrou de verdade.
+     *
+     * Antes os dois se chamavam "cobranças" em lugares diferentes da tela — o cartão
+     * mostrava os classificados e a taxa dividia os acionamentos, e os dois números
+     * apareciam lado a lado sem bater. Nome separado é o que impede isso de voltar.
+     */
+    acionamentos: cobrancasDaCoorte.length,
+    classificados: classificados.length,
+    semDesfecho: cobrancasDaCoorte.length - classificados.length,
+
+    responderam,
+    naoResponderam,
+    novasDatas,
+    desfechosDesconhecidos: desconhecidos,
+    segundasTentativas,
 
     // As taxas, que é como se compara mês contra mês.
     /**
      * ⚠️ `null` QUANDO SE FILTRA POR PESSOA, e não o número dividido mesmo assim.
      *
-     * A visita não tem dono: ninguém "recebe" a falta do fornecedor. Dividir as
-     * cobranças de uma pessoa por TODAS as visitas do recorte produziria um número
+     * A visita não tem dono: ninguém "recebe" a falta do fornecedor. Dividir os
+     * acionamentos de uma pessoa por TODAS as visitas do recorte produziria um número
      * que parece produtividade individual e não é — quanto mais gente cobrando, pior
      * o número de cada uma. É a conta que transforma um indicador de operação em
      * ranking de funcionário sem ninguém ter decidido isso.
      */
-    cobrancasPorCemVisitas: porEmail
+    acionamentosPorCemVisitas: autor
       ? null
       : visitasDoPeriodo.length > 0
-        ? Math.round((tentativas.length / visitasDoPeriodo.length) * 100)
+        ? Math.round((cobrancasDaCoorte.length / visitasDoPeriodo.length) * 100)
         : null,
-    percentualSemResposta: taxa(concluidas.length - respondeu.length, concluidas.length),
-    percentualComNovaData: taxa(comNovaData.length, concluidas.length),
+
+    /**
+     * As porcentagens de desfecho olham só os CLASSIFICADOS — e é por isso que
+     * `percentualClassificado` sai junto e a tela é obrigada a mostrar.
+     *
+     * Dez acionamentos, um respondido e nove sem desfecho davam "0% sem resposta":
+     * uma gestora leria "ninguém deixou de responder" com noventa por cento
+     * desconhecidos. A porcentagem não estava errada; estava respondendo sobre uma
+     * amostra que ninguém via.
+     */
+    percentualSemResposta: taxa(naoResponderam, classificados.length),
+    percentualComNovaData: taxa(novasDatas, classificados.length),
+    percentualClassificado: taxa(classificados.length, cobrancasDaCoorte.length),
+
     medianaAteODesfechoEmMinutos: medianaEmMinutos,
+    medianaSobre: esperas.length,
 
     /**
      * Quem aparece cobrando no recorte — para a tela montar o seletor com o que
@@ -149,12 +246,33 @@ export function metricasDeCobranca({ commitments = [], de, ate, ticketIds = null
      */
     quemCobrou: [
       ...new Set(
-        daBase
+        visitasDoPeriodo
           .flatMap(c => (Array.isArray(c?.cobrancas) ? c.cobrancas : []))
-          .filter(cob => dentroDoPeriodo(paraData(cob?.em), inicio, fim))
-          .map(cob => String(cob?.por || '').trim())
+          .map(cob => texto(cob?.por))
           .filter(Boolean)
       ),
     ].sort(),
   };
 }
+
+/** O que sai quando não há período para medir. Zero nenhum, para não parecer conta. */
+const VAZIO = {
+  semCobertura: false,
+  visitas: 0,
+  faltas: 0,
+  acionamentos: 0,
+  classificados: 0,
+  semDesfecho: 0,
+  responderam: 0,
+  naoResponderam: 0,
+  novasDatas: 0,
+  desfechosDesconhecidos: 0,
+  segundasTentativas: 0,
+  acionamentosPorCemVisitas: null,
+  percentualSemResposta: null,
+  percentualComNovaData: null,
+  percentualClassificado: null,
+  medianaAteODesfechoEmMinutos: null,
+  medianaSobre: 0,
+  quemCobrou: [],
+};
