@@ -11,6 +11,7 @@ import { diaEmFortaleza, ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia
 import { cobreASede, donoDoAlertaDeFalta, precisaDeAlertaDeFalta, precisaDeChecagem } from './_lib/checagemDaVisita.js';
 import { montarRevisaoSemanal } from './_lib/fechamentoAssistido.js';
 import { chaveDeEnvio, enviarUmaVez } from './_lib/envioUnico.js';
+import { lerConfiguracao } from './_lib/modoDeEnvio.js';
 import { resumoDaAgenda, resumoDoFimDoDia, resumoSemConfirmacao } from './_lib/resumosDaOperacao.js';
 import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
@@ -2548,7 +2549,9 @@ async function handleAgendaDasSedes(req, res) {
 
     const agenda = montarAgendaDoDia({ commitments, users: usuarios, now: agora });
 
+    const modoAtual = lerConfiguracao(process.env);
     const enviados = [];
+    const naoEntregues = [];
     for (const sede of agenda.sedes) {
       for (const destinatario of sede.destinatarios) {
         const itens = [];
@@ -2609,7 +2612,12 @@ async function handleAgendaDasSedes(req, res) {
               ticketId: `agenda-sede-${sede.siteId}`,
               references: [],
             }), agora);
-          if (!foi) continue;
+          // Modo escuro produz EVIDÊNCIA sem produzir dano: quem teria recebido
+          // volta na resposta, senão a execução em sombra não prova nada.
+          if (!foi) {
+            naoEntregues.push({ sede: sede.sede, para: destino, motivo: modoAtual.modo });
+            continue;
+          }
 
           // Marca QUANDO a agenda foi de fato processada. É o que impede a
           // checagem de +30min de cobrar resposta de um e-mail que acabou de
@@ -2626,7 +2634,9 @@ async function handleAgendaDasSedes(req, res) {
       ok: true,
       dia: agenda.dia,
       simulado: simular,
+      modoDeEnvio: modoAtual.modo,
       enviados,
+      naoEntregues,
       // Sede com visita e sem coordenador cadastrado não some em silêncio: é falha
       // de cadastro, e é assim que uma sede fica meses sem ninguém confirmando nada.
       semDestinatario: agenda.semDestinatario,
@@ -2727,6 +2737,8 @@ async function handleChecagemDasVisitas(req, res) {
       porSede.get(siteId).push(visita);
     }
 
+    const modoAtual = lerConfiguracao(process.env);
+    const naoEntregues = [];
     const checagens = [];
     for (const [siteId, visitasDaSede] of porSede) {
       const coordenadores = usuarios.filter(u => ehCoordenadorDaSede(u, siteId));
@@ -2799,7 +2811,10 @@ async function handleChecagemDasVisitas(req, res) {
               ticketId: `checagem-${siteId}`,
               references: [],
             }), agora);
-          if (!foi) continue;
+          if (!foi) {
+            naoEntregues.push({ sede: nomeDaSede, para: quem.email, motivo: modoAtual.modo });
+            continue;
+          }
         }
         checagens.push({ sede: nomeDaSede, para: quem.email, visitas: quantas });
       }
@@ -2871,13 +2886,16 @@ async function handleChecagemDasVisitas(req, res) {
             ticketId: `falta-${visita.id}`,
             references: [],
           }), agora);
-        if (!foi) continue;
+        if (!foi) {
+          naoEntregues.push({ visita: visita.id, para: dono.email, motivo: modoAtual.modo });
+          continue;
+        }
         await db.collection('commitments').doc(visita.id).update({ faltaAvisadaEm: agora });
       }
       alertas.push({ visita: visita.id, para: dono.email, origem, fornecedor });
     }
 
-    return sendJson(res, 200, { ok: true, simulado: simular, checagens, alertas, faltasSemDono });
+    return sendJson(res, 200, { ok: true, simulado: simular, modoDeEnvio: modoAtual.modo, checagens, alertas, faltasSemDono, naoEntregues });
   } catch (error) {
     console.error('[mail] falha na checagem das visitas', error);
     if (!(error instanceof HttpError)) {
@@ -3086,7 +3104,9 @@ async function handleResumoDaOperacao(req, res) {
       tipo === 'fim-do-dia' ? u.role === 'Diretor' || u.role === 'Admin' : u.role === 'Gestor' || u.role === 'Admin'
     );
 
+    const modoAtual = lerConfiguracao(process.env);
     const enviados = [];
+    const naoEntregues = [];
     for (const pessoa of destinatarios) {
       const minhasVisitas = commitments.filter(c => {
         // Com as OS carregadas, vale a regra fina do sistema. Sem elas (o caso do
@@ -3194,12 +3214,15 @@ async function handleResumoDaOperacao(req, res) {
             ticketId: `resumo-${tipo}`,
             references: [],
           }), agora);
-        if (!foi) continue;
+        if (!foi) {
+          naoEntregues.push({ para: pessoa.email, titulo, motivo: modoAtual.modo });
+          continue;
+        }
       }
       enviados.push({ para: pessoa.email, titulo });
     }
 
-    return sendJson(res, 200, { ok: true, tipo, simulado: simular, enviados });
+    return sendJson(res, 200, { ok: true, tipo, simulado: simular, modoDeEnvio: modoAtual.modo, enviados, naoEntregues });
   } catch (error) {
     console.error('[mail] falha no resumo da operação', error);
     if (!(error instanceof HttpError)) {
@@ -3356,9 +3379,22 @@ async function handleEmailDiagnose(req, res) {
       urlErro = erro?.message || 'indefinida';
     }
 
+    const modo = lerConfiguracao(process.env);
+
     return sendJson(res, 200, {
       ok: true,
       credencialDoGmail: credencial,
+      // A torneira do deploy escuro, em texto claro. Quem opera precisa VER em que
+      // modo o sistema está sem adivinhar pela ausência de e-mail — "não chegou"
+      // tem causas demais para ser diagnosticado por dedução.
+      modoDeEnvio: {
+        modo: modo.modo,
+        modoInvalido: modo.modoInvalido,
+        sombraConfigurada: Boolean(modo.sombraPara),
+        pessoasNoPiloto: modo.pessoas.length,
+        sedesNoPiloto: modo.sedes.length,
+        tiposDesligados: modo.desligados,
+      },
       envio: {
         urlInterna,
         urlErro,

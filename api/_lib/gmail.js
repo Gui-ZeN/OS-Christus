@@ -1,4 +1,5 @@
 ﻿import { google } from 'googleapis';
+import { ACAO, assuntoDaSombra, decidirEnvio, lerConfiguracao } from './modoDeEnvio.js';
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -303,7 +304,39 @@ async function gmailGetAttachment(gmail, messageId, attachmentId) {
   return Buffer.from(normalized, 'base64');
 }
 
-export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId, attachments = [] }) {
+/**
+ * O envio real.
+ *
+ * ⚠️ TODA saída de e-mail do sistema passa por aqui — inclusive a fila, o inbound e
+ * os sete disparos novos. Por isso o interruptor do deploy escuro mora NESTE ponto:
+ * um lugar só, em vez de sete chamadas espalhadas que alguém esquece de proteger.
+ *
+ * Em `sombra` a mensagem sai de verdade, mas para a caixa de teste e com o assunto
+ * dizendo para quem era. Em `desligado` e `piloto` fora da lista, nada sai e a rota
+ * recebe de volta o motivo — envio que some sem explicação é como se descobre três
+ * semanas depois que a sede nunca recebeu nada.
+ */
+export async function gmailSend({ toEmail, ccEmail, subject, text, html, inReplyTo, references, ticketId, trackingToken, threadId, tipoDeEnvio = '', sedeDoEnvio = '', attachments = [] }) {
+  const decisao = decidirEnvio(
+    { para: toEmail, ticketId, tipo: tipoDeEnvio, sede: sedeDoEnvio },
+    lerConfiguracao(process.env)
+  );
+
+  if (decisao.acao === ACAO.SUPRIMIR) {
+    console.warn(`[gmail] envio suprimido (${decisao.tipo}): ${decisao.motivo}`);
+    // Devolve a MESMA forma de um envio real, para nenhum chamador precisar saber
+    // que o modo existe — e um campo dizendo que não saiu, para quem quiser saber.
+    return { enviado: false, suprimido: true, motivo: decisao.motivo, tipo: decisao.tipo, messageId: null, threadId: null };
+  }
+
+  if (decisao.acao === ACAO.DESVIAR) {
+    // Sombra: destinatário trocado, CC cortado (senão o desvio vazaria para a
+    // conversa real) e assunto marcado.
+    toEmail = decisao.destino;
+    ccEmail = '';
+    subject = assuntoDaSombra(subject, decisao.destinoOriginal);
+  }
+
   const gmail = createGmailClient();
   const fromEmail = requiredEnv('GMAIL_FROM_EMAIL');
   // Reply-To global: quando o "De:" é um endereço diferente da caixa que o

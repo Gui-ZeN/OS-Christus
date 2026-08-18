@@ -73,7 +73,19 @@ export async function enviarUmaVez(db, chave, enviar, agora = new Date()) {
   const meu = await reivindicarEnvio(db, chave, agora);
   if (!meu) return false;
   try {
-    await enviar();
+    const resultado = await enviar();
+
+    // ⚠️ ENVIO SUPRIMIDO LIBERA A CHAVE. Sem isto, o deploy escuro se sabota: uma
+    // execução em `desligado` ou `sombra` reivindicaria a chave do dia, e ao abrir
+    // a torneira o envio real seria descartado como duplicata — a operação passaria
+    // o primeiro dia sem receber nada e ninguém saberia por quê.
+    //
+    // Foi um teste rodando dois modos em sequência que expôs isso. A chave existe
+    // para impedir DUAS ENTREGAS, e nada foi entregue.
+    if (resultado && resultado.suprimido) {
+      await liberarEnvio(db, chave);
+      return false;
+    }
     return true;
   } catch (erro) {
     await liberarEnvio(db, chave);

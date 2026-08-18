@@ -113,3 +113,34 @@ describe('envio que falha libera a vez para a próxima volta', () => {
     expect(await reivindicarEnvio(db as never, 'k')).toBe(true);
   });
 });
+
+describe('envio suprimido não envenena a chave do envio real', () => {
+  it('rodar em modo escuro e depois abrir a torneira ENVIA', async () => {
+    // Sem isto o deploy escuro se sabota: a execução em `desligado` reivindicaria a
+    // chave do dia, e ao abrir a torneira o envio real seria descartado como
+    // duplicata. A operação passaria o primeiro dia sem receber nada.
+    const db = bancoFalso();
+    const chave = chaveDeEnvio(['agenda', 'SUL3', 'pablo@px.com.br', '2026-08-17']);
+
+    const escuro = await enviarUmaVez(db as never, chave, async () => ({ suprimido: true, motivo: 'envio desligado' }));
+    expect(escuro).toBe(false);
+    expect(db.docs.has(chave)).toBe(false);
+
+    let entregue = false;
+    const real = await enviarUmaVez(db as never, chave, async () => { entregue = true; return { enviado: true }; });
+    expect(real).toBe(true);
+    expect(entregue).toBe(true);
+  });
+
+  it('mas duas entregas de verdade continuam impossíveis', async () => {
+    const db = bancoFalso();
+    const chave = chaveDeEnvio(['falta', 'c-9']);
+    const entregas: number[] = [];
+    await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        enviarUmaVez(db as never, chave, async () => { entregas.push(i); return { enviado: true }; })
+      )
+    );
+    expect(entregas).toHaveLength(1);
+  });
+});
