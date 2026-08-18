@@ -2,6 +2,7 @@ import { effectiveCommitmentState } from './commitments.js';
 import { diaEmFortaleza, horaEmFortaleza } from './agendaDoDia.js';
 import { esperaDeclarada, precisaDestravar } from './estadoDaOs.js';
 import { cobrancasConcluidas } from './cobranca.js';
+import { pendentesDeDesfecho } from './desfechoPendente.js';
 
 /**
  * OS TRÊS RESUMOS AGRUPADOS — o lado de dentro da operação.
@@ -127,7 +128,7 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
     }).length;
   }, 0);
 
-  const pendentesDeDesfecho = (commitments || []).reduce((total, c) => {
+  const cobrancasSemDesfecho = (commitments || []).reduce((total, c) => {
     const lista = Array.isArray(c?.cobrancas) ? c.cobrancas : [];
     return total + lista.filter(cob => !cob?.desfecho).length;
   }, 0);
@@ -135,6 +136,11 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
   const semConfirmacao = doDia(commitments, now).filter(
     c => effectiveCommitmentState(c, now) === 'sem-confirmacao'
   ).length;
+
+  // Visitas que aconteceram e ninguém disse o que saiu delas. Sem aparecer aqui,
+  // a pendência criada pelo "chegou" seria a próxima gaveta — e o painel ficaria
+  // verde com serviço que talvez não tenha sido feito.
+  const desfechosPendentes = pendentesDeDesfecho(commitments, now);
 
   // O número que o rework existe para derrubar — e o mais fácil de maquiar, por
   // isso vem junto do tempo parado da mais antiga.
@@ -164,10 +170,12 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
 
   return {
     faltas,
+    desfechosPendentes: desfechosPendentes.length,
+    desfechosVencidos: desfechosPendentes.filter(p => p.vencida).length,
     cobrancas,
     // Tentativa aberta não some: cobrança sem desfecho é trabalho pela metade, e
     // esconder isso devolveria a cegueira que o registro existe para tirar.
-    pendentesDeDesfecho,
+    pendentesDeDesfecho: cobrancasSemDesfecho,
     semConfirmacao,
     impedidas,
     semProximaAcao: semProximaAcao.length,
@@ -179,7 +187,8 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
       semConfirmacao === 0 &&
       semProximaAcao.length === 0 &&
       impedidas === 0 &&
+      desfechosPendentes.length === 0 &&
       cobrancas === 0 &&
-      pendentesDeDesfecho === 0,
+      cobrancasSemDesfecho === 0,
   };
 }

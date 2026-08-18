@@ -3192,6 +3192,14 @@ async function handleResumoDaOperacao(req, res) {
               // Prazo furado por terceiro é trabalho pendente: se sumisse daqui, o
               // número da diretoria cairia sem nada ter melhorado.
               { label: 'Impedidas (prazo furado)', value: String(r.impedidas) },
+              // Visita que aconteceu e ninguém disse o que saiu dela. É o oposto do
+              // painel verde: presença registrada não é manutenção feita.
+              {
+                label: 'Desfecho não registrado',
+                value: r.desfechosVencidos > 0
+                  ? `${r.desfechosPendentes} (${r.desfechosVencidos} fora do prazo)`
+                  : String(r.desfechosPendentes),
+              },
               {
                 label: 'OS sem próxima ação',
                 value: r.diasDaMaisAntiga !== null ? `${r.semProximaAcao} (a mais antiga há ${r.diasDaMaisAntiga} dias)` : String(r.semProximaAcao),

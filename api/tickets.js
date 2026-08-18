@@ -12,7 +12,8 @@ import {
   serializeCommitmentForApi,
   validateConfirmation,
 } from './_lib/commitments.js';
-import { acaoDeFecharDesfecho, montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
+import { montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
+import { concluirSeTemDesfecho, novaPendenciaDeDesfecho, temPendenciaAberta } from './_lib/desfechoPendente.js';
 import { donoDoAlertaDeFalta } from './_lib/checagemDaVisita.js';
 import { RESPOSTA, diasParada, efeitoDaResposta, podeDesfazer } from './_lib/fechamentoAssistido.js';
 import { EVENTO_DE_CONTATO, podeCobrar, tentativasDe, validarDesfecho } from './_lib/cobranca.js';
@@ -1040,12 +1041,18 @@ async function handleCommitments(req, res) {
       const check = validateConfirmation(atual, { state, outcome });
       if (!check.ok) throw new HttpError(409, check.error);
 
+      // A pendência de desfecho se conclui SOZINHA aqui. É o que separa esta de uma
+      // tarefa comum: ninguém precisa lembrar de marcá-la feita, e por isso ela não
+      // vira a próxima gaveta. (Consulta 13.)
+      const concluida = outcome ? concluirSeTemDesfecho({ ...atual, outcome }, agora) : null;
+
       await ref.update({
         state,
         outcome: outcome || null,
         confirmedBy: String(body?.confirmedBy || actor?.email || '').trim() || null,
         confirmedAt: agora,
         updatedAt: agora,
+        ...(concluida ? { desfechoPendente: concluida } : {}),
       });
       for (const alvoId of atual.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
 
@@ -1302,29 +1309,20 @@ async function handleConfirmVisit(req, res) {
       }
 
       /**
-       * "Chegou" NAO fecha a OS — cria a acao de fechar o desfecho.
+       * "Chegou" NÃO fecha a OS — abre a pendência de registrar o desfecho.
        *
-       * Sem isto a visita virava "compareceu" com desfecho nulo e ninguem
-       * encarregado de descobrir se o servico foi feito: o buraco silencioso que o
-       * rework existe para acabar. A acao nasce com dono unico e prazo no mesmo
-       * dia, e entra na fila central e nos resumos que ja existem — sem virar mais
-       * um e-mail.
+       * A pendência mora no COMPROMISSO, não em `ticket.nextAction`. A primeira
+       * versão criava uma ação por OS da visita: visita com três OS gerava três
+       * cartões idênticos, e a ação carregava `commitmentId`, que a agenda
+       * classifica como "Aguardando a sede" — a tarefa da gestora aparecia como
+       * silêncio da sede, acusando quem já tinha respondido. (Consulta 13.)
        *
-       * ⚠️ A AÇÃO É GRAVADA ANTES DA CONFIRMAÇÃO, e a ordem é a proteção. São
-       * documentos diferentes — compromisso e OS —, então não há escrita única. Se
-       * o processo morrer no meio:
-       *
-       *   ordem antiga (confirma -> ação): visita "compareceu", sem desfecho e sem
-       *     ninguém encarregado. É exatamente o buraco que esta ação existe para
-       *     fechar, e ele voltaria pela porta dos fundos.
-       *
-       *   ordem atual (ação -> confirma): existe uma ação de fechar desfecho para
-       *     uma visita que ainda consta como não respondida. A sede é perguntada de
-       *     novo, responde de novo, e a ação não é duplicada (não sobrescreve).
-       *
-       * Falha tem que cair para o lado que se conserta sozinho.
+       * ⚠️ ESCRITA ÚNICA. A pendência entra no MESMO `update` da confirmação. São
+       * o mesmo documento, então não há janela entre uma coisa e outra: ou a visita
+       * fica respondida COM dono do desfecho, ou não fica de jeito nenhum.
        */
-      if (check.efeito.state === COMMITMENT_STATE.ARRIVED && !check.efeito.outcome) {
+      let pendencia = null;
+      if (check.efeito.state === COMMITMENT_STATE.ARRIVED && !check.efeito.outcome && !temPendenciaAberta(commitment)) {
         const siteId = String(commitment.siteId || commitment.sede || '').trim();
         const territorio = await readTerritoryCatalog(db);
         const regiao = territorio?.sites?.find?.(t => String(t?.id || '') === siteId)?.regionId || null;
@@ -1335,19 +1333,10 @@ async function handleConfirmVisit(req, res) {
         const { dono } = donoDoAlertaDeFalta(ativos, {
           siteId,
           regiao,
+          responsavelDireto: commitment.alertOwnerEmail || null,
           plantao: String(process.env.ALERTA_FALTA_PLANTAO || '').trim() || null,
         });
-
-        const acao = acaoDeFecharDesfecho({ commitmentId: commitment.id, dono, now: agora });
-        for (const alvoId of commitment.ticketIds || []) {
-          const alvo = db.collection('tickets').doc(String(alvoId));
-          const snapAlvo = await alvo.get();
-          // Nao sobrescreve acao escrita a mao: a pessoa sendo explicita ganha do
-          // que o sistema propoe.
-          if (snapAlvo.exists && !snapAlvo.data()?.nextAction?.dueAt) {
-            await alvo.update({ nextAction: acao, updatedAt: agora });
-          }
-        }
+        pendencia = novaPendenciaDeDesfecho({ dono, now: agora });
       }
 
       const quem = String(dadosDoToken.email || '').trim() || null;
@@ -1364,6 +1353,7 @@ async function handleConfirmVisit(req, res) {
         // consulta 12). Por isso a origem e "link da sede": quem ler o registro
         // depois precisa saber que isto e relato, nao identificacao.
         confirmedVia: 'link-da-sede',
+        ...(pendencia ? { desfechoPendente: pendencia } : {}),
       });
 
       for (const alvoId of commitment.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
