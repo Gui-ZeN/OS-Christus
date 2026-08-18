@@ -124,3 +124,52 @@ describe('fim do dia — o que a diretoria vê', () => {
     expect(resumoDoFimDoDia({ commitments: [], tickets: [], now: agora }).vazio).toBe(true);
   });
 });
+
+describe('cobranças no fim do dia — só o que teve desfecho', () => {
+  const visitaFaltou = (cobrancas: unknown[]) => ({
+    id: 'c1',
+    state: 'faltou',
+    startAt: hojeAs(8),
+    confirmedAt: agora,
+    sede: 'BN',
+    vendorName: 'Elétrica Ceará',
+    ticketIds: ['OS-0184'],
+    cobrancas,
+  });
+
+  it('abrir o WhatsApp não é cobrar', () => {
+    const r = resumoDoFimDoDia({ commitments: [visitaFaltou([{ em: agora, desfecho: null }])], now: agora });
+    expect(r.cobrancas).toBe(0);
+    expect(r.pendentesDeDesfecho).toBe(1);
+  });
+
+  it('com desfecho, conta', () => {
+    const r = resumoDoFimDoDia({
+      commitments: [visitaFaltou([{ em: agora, desfecho: 'nao-respondeu', desfechoEm: agora }])],
+      now: agora,
+    });
+    expect(r.cobrancas).toBe(1);
+    expect(r.pendentesDeDesfecho).toBe(0);
+  });
+
+  it('Timestamp do Firestore não zera o contador em silêncio', () => {
+    // O `desfechoEm` mora dentro do array e escapa da conversão da rota. Sem
+    // tolerar o Timestamp, a métrica dizia ZERO cobranças num dia em que houve —
+    // e ninguém confere um número que parece plausível.
+    const timestamp = { seconds: Math.floor(agora.getTime() / 1000), nanoseconds: 0 };
+    const r = resumoDoFimDoDia({
+      commitments: [visitaFaltou([{ em: agora, desfecho: 'respondeu', desfechoEm: timestamp }])],
+      now: agora,
+    });
+    expect(r.cobrancas).toBe(1);
+  });
+
+  it('cobrança de ontem não entra no resumo de hoje', () => {
+    const ontem = new Date(agora.getTime() - 86_400_000);
+    const r = resumoDoFimDoDia({
+      commitments: [visitaFaltou([{ em: ontem, desfecho: 'respondeu', desfechoEm: ontem }])],
+      now: agora,
+    });
+    expect(r.cobrancas).toBe(0);
+  });
+});

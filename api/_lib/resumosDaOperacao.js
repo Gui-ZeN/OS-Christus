@@ -1,6 +1,7 @@
 import { effectiveCommitmentState } from './commitments.js';
 import { diaEmFortaleza, horaEmFortaleza } from './agendaDoDia.js';
 import { esperaDeclarada } from './estadoDaOs.js';
+import { cobrancasConcluidas } from './cobranca.js';
 
 /**
  * OS TRÊS RESUMOS AGRUPADOS — o lado de dentro da operação.
@@ -22,6 +23,25 @@ import { esperaDeclarada } from './estadoDaOs.js';
  *
  * Sem I/O e sem relógio próprio.
  */
+
+/**
+ * Data vinda de qualquer forma — Date, texto, ou Timestamp do Firestore.
+ *
+ * Existe porque o `desfechoEm` mora DENTRO do array `cobrancas`, e a conversão da
+ * rota só alcança os campos de primeiro nível. Sem isto o Timestamp virava
+ * `Invalid Date`, a comparação de dia falhava calada e o contador de cobranças
+ * ficava em ZERO — a métrica que existe para proteger quem cobrou dizendo que
+ * ninguém cobrou. Métrica que erra para baixo em silêncio é pior que métrica
+ * ausente: ninguém vai conferir um número que parece plausível.
+ */
+function paraData(valor) {
+  if (!valor) return null;
+  if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? null : valor;
+  if (typeof valor.toDate === 'function') return valor.toDate();
+  if (typeof valor.seconds === 'number') return new Date(valor.seconds * 1000);
+  const data = new Date(valor);
+  return Number.isNaN(data.getTime()) ? null : data;
+}
 
 const ABERTOS = new Set(['agendado', 'sem-confirmacao']);
 const FECHADAS = new Set(['Encerrada', 'Cancelada']);
@@ -82,8 +102,9 @@ export function resumoSemConfirmacao({ commitments = [], now = new Date() }) {
 /**
  * Fim do dia — o que a diretoria precisa ver.
  *
- * ⚠️ "Cobranças feitas" do plano NÃO entra ainda: o botão Cobrar não existe, e
- * inventar o número seria pior que omiti-lo. Fica declarado no e-mail.
+ * "Cobranças feitas" conta só o que tem DESFECHO. Abrir o WhatsApp não é cobrar —
+ * a tentativa sem desfecho ficaria contabilizando atuação que não houve, que é o
+ * defeito que a auditoria pegou no desenho original do botão.
  */
 export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Date() }) {
   const hoje = diaEmFortaleza(now);
@@ -95,6 +116,21 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
       return !Number.isNaN(quando.getTime()) && diaEmFortaleza(quando) === hoje;
     })
     .map(linhaDaVisita);
+
+  // Só desfecho conta. É a diferença entre "alguém foi cobrar" e "a cobrança
+  // aconteceu" — e essa métrica existe para proteger quem cobrou, então inflá-la a
+  // torna inútil justamente para quem ela deveria defender.
+  const cobrancas = (commitments || []).reduce((total, c) => {
+    return total + cobrancasConcluidas(c).filter(cob => {
+      const quando = paraData(cob?.desfechoEm);
+      return quando !== null && diaEmFortaleza(quando) === hoje;
+    }).length;
+  }, 0);
+
+  const pendentesDeDesfecho = (commitments || []).reduce((total, c) => {
+    const lista = Array.isArray(c?.cobrancas) ? c.cobrancas : [];
+    return total + lista.filter(cob => !cob?.desfecho).length;
+  }, 0);
 
   const semConfirmacao = doDia(commitments, now).filter(
     c => effectiveCommitmentState(c, now) === 'sem-confirmacao'
@@ -120,11 +156,20 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
 
   return {
     faltas,
+    cobrancas,
+    // Tentativa aberta não some: cobrança sem desfecho é trabalho pela metade, e
+    // esconder isso devolveria a cegueira que o registro existe para tirar.
+    pendentesDeDesfecho,
     semConfirmacao,
     semProximaAcao: semProximaAcao.length,
     diasDaMaisAntiga: maisAntiga ? Math.floor((now.getTime() - maisAntiga.getTime()) / 86_400_000) : null,
     // Dia sem falta, sem pendência e sem OS órfã não vira e-mail: silêncio é a
     // informação de que está tudo certo.
-    vazio: faltas.length === 0 && semConfirmacao === 0 && semProximaAcao.length === 0,
+    vazio:
+      faltas.length === 0 &&
+      semConfirmacao === 0 &&
+      semProximaAcao.length === 0 &&
+      cobrancas === 0 &&
+      pendentesDeDesfecho === 0,
   };
 }

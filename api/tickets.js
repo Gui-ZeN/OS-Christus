@@ -14,6 +14,7 @@ import {
 } from './_lib/commitments.js';
 import { montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
 import { RESPOSTA, diasParada, efeitoDaResposta, podeDesfazer } from './_lib/fechamentoAssistido.js';
+import { podeCobrar, tentativasDe, validarDesfecho } from './_lib/cobranca.js';
 import { collectMessageIds, recordDeletedTicket } from './_lib/deletedTickets.js';
 import { toDateOrNull } from './_lib/dates.js';
 import {
@@ -977,6 +978,51 @@ async function handleCommitments(req, res) {
       const atual = { id, ...snap.data() };
       if (!(await podeVerCompromisso(db, actor, atual.ticketIds, novoCacheDeEscopo()))) {
         throw new HttpError(403, 'Sem acesso a esta OS.');
+      }
+
+      /**
+       * COBRANÇA — duas ações num campo só.
+       *
+       * `tentativa` grava que alguém foi cobrar e abre a conversa. Ela NÃO conta
+       * como atuação: a auditoria pegou que registrar-antes-de-cobrar inflava
+       * justamente a métrica que existe para proteger quem cobrou. O que conta é o
+       * `desfecho`, que vem depois — respondeu, não respondeu, ou marcou nova data.
+       */
+      if (body?.cobranca) {
+        const acao = String(body.cobranca.acao || '').trim();
+
+        if (acao === 'tentativa') {
+          if (!podeCobrar(atual)) {
+            throw new HttpError(409, 'Só se cobra falta confirmada pela sede.');
+          }
+          const tentativa = {
+            em: agora,
+            por: String(actor?.email || '').trim() || null,
+            canal: String(body.cobranca.canal || 'whatsapp'),
+            desfecho: null,
+          };
+          await ref.update({
+            cobrancas: [...(Array.isArray(atual.cobrancas) ? atual.cobrancas : []), tentativa],
+            updatedAt: agora,
+          });
+          return sendJson(res, 200, { ok: true, tentativas: tentativasDe(atual) + 1 });
+        }
+
+        if (acao === 'desfecho') {
+          const check = validarDesfecho(atual, body.cobranca.desfecho);
+          if (!check.ok) throw new HttpError(409, check.error);
+          const lista = [...atual.cobrancas];
+          lista[check.indice] = {
+            ...lista[check.indice],
+            desfecho: String(body.cobranca.desfecho),
+            desfechoEm: agora,
+            desfechoPor: String(actor?.email || '').trim() || null,
+          };
+          await ref.update({ cobrancas: lista, updatedAt: agora });
+          return sendJson(res, 200, { ok: true, concluidas: lista.filter(c => c.desfecho).length });
+        }
+
+        throw new HttpError(400, 'Ação de cobrança desconhecida.');
       }
 
       if (body?.cancel) {

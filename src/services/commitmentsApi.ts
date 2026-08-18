@@ -87,3 +87,19 @@ export async function confirmCommitment(input: {
 export async function cancelCommitment(id: string): Promise<void> {
   await pedir({ method: 'PATCH', body: JSON.stringify({ id, cancel: true }) });
 }
+
+/**
+ * A TENTATIVA de cobrança — grava que alguém foi cobrar, e só isso.
+ *
+ * Ela NÃO conta como cobrança concluída. Quem conta é `registrarDesfechoDaCobranca`
+ * abaixo: a auditoria mostrou que gravar a cobrança antes de cobrar inflava
+ * justamente a métrica que existe para proteger quem cobrou.
+ */
+export async function registrarTentativaDeCobranca(id: string): Promise<void> {
+  await pedir({ method: 'PATCH', body: JSON.stringify({ id, cobranca: { acao: 'tentativa' } }) });
+}
+
+/** O desfecho — respondeu · não respondeu · marcou nova data. É o que conta. */
+export async function registrarDesfechoDaCobranca(id: string, desfecho: string): Promise<void> {
+  await pedir({ method: 'PATCH', body: JSON.stringify({ id, cobranca: { acao: 'desfecho', desfecho } }) });
+}

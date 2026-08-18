@@ -3065,12 +3065,17 @@ async function handleResumoDaOperacao(req, res) {
         if (r.vazio) continue;
         titulo = 'Como foi o dia';
         corpo =
-          'Cobranças feitas ainda não entram neste resumo: o registro de cobrança não existe no sistema, e inventar o número seria pior que omiti-lo.';
+          r.pendentesDeDesfecho > 0
+            ? `${r.pendentesDeDesfecho} cobrança(s) foram abertas e ainda não têm desfecho registrado.`
+            : 'Toda cobrança aberta hoje já tem desfecho registrado.';
         cartoes = [
           {
             title: 'O dia',
             rows: [
               { label: 'Faltas confirmadas', value: String(r.faltas.length) },
+              // Só cobrança com desfecho. Abrir o WhatsApp não é cobrar — inflar
+              // este número tornaria inútil a métrica que protege quem cobrou.
+              { label: 'Cobranças concluídas', value: String(r.cobrancas) },
               { label: 'Sem confirmação', value: String(r.semConfirmacao) },
               {
                 label: 'OS sem próxima ação',

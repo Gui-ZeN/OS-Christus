@@ -3,6 +3,9 @@ import { ArrowRight, CalendarClock, CircleAlert, Clock, Hourglass, PauseCircle, 
 import { useToast } from '../hooks/useToast';
 import { FloatingToast } from '../components/ui/FloatingToast';
 import { useApp } from '../context/AppContext';
+import CobrancaDaFalta from './today/CobrancaDaFalta';
+import { fetchDirectory, type DirectoryVendor } from '../services/directoryApi';
+import { registrarDesfechoDaCobranca, registrarTentativaDeCobranca } from '../services/commitmentsApi';
 import {
   AGENDA_GROUP,
   AGENDA_GROUP_LABEL,
@@ -314,6 +317,45 @@ export function TodayView() {
    * agenda usa para apontar fornecedor que falha. Cada cancelamento registrado como
    * falta sujava a métrica de quem realmente falhou.
    */
+  /**
+   * O cadastro do fornecedor é TEXTO LIVRE ("falar com o João 99999-8888"), então o
+   * contato é buscado no diretório e pode simplesmente não dar um telefone — e aí o
+   * botão de cobrar aparece apagado, em vez de abrir conversa com número inventado.
+   */
+  const [fornecedores, setFornecedores] = useState<DirectoryVendor[]>([]);
+
+  // O diretório entra uma vez: sem ele o botão de cobrar não tem para onde ligar.
+  // Falha silenciosa é aceitável aqui — o botão fica apagado, que é o mesmo estado
+  // de um fornecedor sem telefone, e a tela inteira não cai por causa disso.
+  useEffect(() => {
+    let ativo = true;
+    void fetchDirectory()
+      .then(d => { if (ativo) setFornecedores(d.vendors || []); })
+      .catch(() => {});
+    return () => { ativo = false; };
+  }, []);
+
+  const contatoDoFornecedor = (vendorId?: string | null, vendorName?: string | null) => {
+    const achado =
+      fornecedores.find(v => v.id === vendorId) ||
+      fornecedores.find(v => v.name === vendorName);
+    return achado?.contact || null;
+  };
+
+  const cobrarFornecedor = async (compromissoId: string) => {
+    await registrarTentativaDeCobranca(compromissoId);
+    await recarregarCompromissos();
+    // Não diz "cobrado": abrir a conversa não é ter cobrado, e o texto do aviso é
+    // o primeiro lugar onde essa confusão nasceria.
+    showToast('Tentativa registrada. Diga o desfecho quando souber.');
+  };
+
+  const registrarDesfecho = async (compromissoId: string, desfecho: string) => {
+    await registrarDesfechoDaCobranca(compromissoId, desfecho);
+    await recarregarCompromissos();
+    showToast('Cobrança registrada.');
+  };
+
   const cancelarCompromisso = async (compromissoId: string) => {
     await cancelCommitment(compromissoId);
     await recarregarCompromissos();
@@ -443,6 +485,9 @@ export function TodayView() {
                   }
                   onConfirmar={registrarConfirmacao}
                   onCancelar={cancelarCompromisso}
+                  onCobrar={cobrarFornecedor}
+                  onDesfechoDaCobranca={registrarDesfecho}
+                  contatoDoFornecedor={contatoDoFornecedor}
                   onCorrigir={(resolution, dueAt) => corrigirAtencao(ticket, resolution, dueAt)}
                   onVirarVisita={(acao, fornecedor) => marcarComoVisita(ticket, acao, fornecedor)}
                   autorEmail={currentUser?.email}
@@ -501,6 +546,9 @@ function Cartao({
   compromisso,
   onConfirmar,
   onCancelar,
+  onCobrar,
+  onDesfechoDaCobranca,
+  contatoDoFornecedor,
   onCorrigir,
   onVirarVisita,
   autorEmail,
@@ -517,6 +565,11 @@ function Cartao({
   compromisso: HydratedCommitment | null;
   onConfirmar: (id: string, state: CommitmentState, outcome: CommitmentOutcome | null) => Promise<void>;
   onCancelar: (id: string) => Promise<void>;
+  /** Cobrança: a tentativa abre a conversa; o desfecho é o que conta como atuação. */
+  onCobrar: (id: string) => Promise<void>;
+  onDesfechoDaCobranca: (id: string, desfecho: string) => Promise<void>;
+  /** O cadastro do fornecedor é texto livre — pode não render telefone utilizável. */
+  contatoDoFornecedor: (vendorId?: string | null, vendorName?: string | null) => string | null;
   onCorrigir: (resolution: 'feito' | 'adiado' | 'nao-se-aplica', dueAt?: Date) => Promise<boolean>;
   onVirarVisita: (acao: NextAction, fornecedor: string) => Promise<string>;
   autorEmail?: string;
@@ -665,11 +718,24 @@ function Cartao({
         <VisitaAgendada compromisso={compromisso} onCancelar={onCancelar} />
       )}
 
+      {/* Falta confirmada é o único lugar onde a cobrança aparece: cobrar quem
+          talvez tenha ido é o erro que o sistema foi desenhado para não cometer. */}
       {compromisso && compromisso.effectiveState === COMMITMENT_STATE.MISSED && (
-        <p className="mt-2 border-t border-roman-border pt-2 text-xs text-roman-danger">
-          {compromisso.vendorName || 'O fornecedor'} não compareceu
-          {compromisso.confirmedAt ? ` · registrado em ${dataCurta(compromisso.confirmedAt)}` : ''}
-        </p>
+        <CobrancaDaFalta
+          compromisso={{
+            id: compromisso.id,
+            vendorName: compromisso.vendorName,
+            vendorContact: contatoDoFornecedor(compromisso.vendorId, compromisso.vendorName),
+            startAtLabel: compromisso.startAt ? dataCurta(compromisso.startAt) : null,
+            ticketIds: compromisso.ticketIds,
+            assunto: ticket.subject,
+            local: ticket.sede || null,
+            cobrancas: (compromisso as { cobrancas?: { desfecho?: string | null }[] }).cobrancas,
+          }}
+          quemCobra={autorNome || ''}
+          onTentativa={onCobrar}
+          onDesfecho={onDesfechoDaCobranca}
+        />
       )}
 
       {compromisso && compromisso.effectiveState === COMMITMENT_STATE.ARRIVED && (
