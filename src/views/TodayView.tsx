@@ -60,7 +60,8 @@ const GROUP_ORDER: AgendaGroup[] = [
   AGENDA_GROUP.TODAY,
   AGENDA_GROUP.WAITING_SITE,
   AGENDA_GROUP.UPCOMING,
-  AGENDA_GROUP.SUSPENDED,
+  AGENDA_GROUP.BLOCKED,
+  AGENDA_GROUP.WAITING,
   AGENDA_GROUP.NO_ACTION,
 ];
 
@@ -69,7 +70,8 @@ const GROUP_HINT: Record<AgendaGroup, string> = {
   hoje: 'marcado para hoje',
   'aguardando-sede': 'o horário passou — a pergunta já foi enviada, ninguém precisa ligar',
   'proximos-7-dias': 'para se preparar, não para agir agora',
-  suspensas: 'paradas com motivo e data para voltar — a revisão vence sozinha',
+  impedidas: 'travadas por terceiro — continuam contando o tempo parado',
+  esperando: 'espera legítima, com motivo e data para voltar — a revisão vence sozinha',
   'sem-proxima-acao': 'ninguém definiu o que acontece — ordenadas pelo tempo parado',
 };
 
@@ -78,7 +80,8 @@ const GROUP_ICON: Record<AgendaGroup, React.ReactNode> = {
   hoje: <Clock size={14} />,
   'aguardando-sede': <Hourglass size={14} />,
   'proximos-7-dias': <CalendarClock size={14} />,
-  suspensas: <PauseCircle size={14} />,
+  impedidas: <PauseCircle size={14} />,
+  esperando: <PauseCircle size={14} />,
   'sem-proxima-acao': <CircleAlert size={14} />,
 };
 
@@ -107,7 +110,8 @@ const GROUP_TONE: Record<AgendaGroup, string> = {
   hoje: 'border-l-roman-primary',
   'aguardando-sede': 'border-l-roman-border-control',
   'proximos-7-dias': 'border-l-roman-border',
-  suspensas: 'border-l-roman-text-sub bg-roman-text-sub/10',
+  impedidas: 'border-l-roman-text-sub bg-roman-text-sub/10',
+  esperando: 'border-l-roman-border',
   'sem-proxima-acao': 'border-l-roman-border',
 };
 

@@ -1,5 +1,6 @@
 import { effectiveCommitmentState } from './commitments.js';
 import { diaEmFortaleza, horaEmFortaleza } from './agendaDoDia.js';
+import { esperaDeclarada } from './estadoDaOs.js';
 
 /**
  * OS TRÊS RESUMOS AGRUPADOS — o lado de dentro da operação.
@@ -101,8 +102,13 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
 
   // O número que o rework existe para derrubar — e o mais fácil de maquiar, por
   // isso vem junto do tempo parado da mais antiga.
+  //
+  // Espera DECLARADA não entra: OS esperando aprovação ou impedida por terceiro tem
+  // motivo e data de revisão gravados. Contá-la como buraco seria empurrar alguém a
+  // inventar "revisar em 30 dias" só para tirá-la da lista — exatamente a maquiagem
+  // que os três estados existem para acabar.
   const semProximaAcao = (tickets || []).filter(
-    t => !FECHADAS.has(String(t?.status || '')) && !t?.nextAction?.dueAt
+    t => !FECHADAS.has(String(t?.status || '')) && !t?.nextAction?.dueAt && !esperaDeclarada(t, now)
   );
 
   const maisAntiga = semProximaAcao.reduce((pior, t) => {

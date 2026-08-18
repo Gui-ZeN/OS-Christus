@@ -1,3 +1,4 @@
+import { ESTADO, estadoDaOs } from '../../api/_lib/estadoDaOs.js';
 import {
   ATTENTION_STATE,
   DEFAULT_TOLERANCE_MINUTES,
@@ -25,7 +26,11 @@ export const AGENDA_GROUP = {
   TODAY: 'hoje',
   WAITING_SITE: 'aguardando-sede',
   UPCOMING: 'proximos-7-dias',
-  SUSPENDED: 'suspensas',
+  // Os dois estados declarados do plano, no lugar do grupo único "Suspensas".
+  // Não é campo novo: a suspensão sempre gravou MOTIVO em lista fechada, e é o
+  // motivo que separa "estamos esperando" de "um terceiro travou".
+  WAITING: 'esperando',
+  BLOCKED: 'impedidas',
   NO_ACTION: 'sem-proxima-acao',
 } as const;
 
@@ -36,7 +41,8 @@ export const AGENDA_GROUP_LABEL: Record<AgendaGroup, string> = {
   hoje: 'Hoje',
   'aguardando-sede': 'Aguardando a sede confirmar',
   'proximos-7-dias': 'Próximos 7 dias',
-  suspensas: 'Suspensas',
+  esperando: 'Esperando',
+  impedidas: 'Impedidas',
   'sem-proxima-acao': 'Sem próxima ação',
 };
 
@@ -102,7 +108,12 @@ export function agendaGroupOf(ticket: Ticket, now: Date): AgendaGroup | null {
   // A suspensão vem PRIMEIRO: é a única resposta legítima para "esta OS não tem
   // próxima ação". Ela só vale enquanto tiver motivo e revisão no futuro — vencida,
   // cai adiante e a OS reaparece cobrando decisão.
-  if (activeSuspension(ticket, now)) return AGENDA_GROUP.SUSPENDED;
+  const parada = activeSuspension(ticket, now);
+  if (parada) {
+    // Impedida = travada por terceiro; o tempo parado continua contando, senão
+    // "impedida" viraria o lugar onde o tempo some.
+    return estadoDaOs(ticket, now) === ESTADO.IMPEDIDA ? AGENDA_GROUP.BLOCKED : AGENDA_GROUP.WAITING;
+  }
 
   const action = resolvedAttentionOf(ticket);
   if (!action) return AGENDA_GROUP.NO_ACTION;
@@ -205,7 +216,8 @@ export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
     [AGENDA_GROUP.TODAY]: [] as Ticket[],
     [AGENDA_GROUP.WAITING_SITE]: [] as Ticket[],
     [AGENDA_GROUP.UPCOMING]: [] as Ticket[],
-    [AGENDA_GROUP.SUSPENDED]: [] as Ticket[],
+    [AGENDA_GROUP.WAITING]: [] as Ticket[],
+    [AGENDA_GROUP.BLOCKED]: [] as Ticket[],
     [AGENDA_GROUP.NO_ACTION]: [] as Ticket[],
   };
 
@@ -233,7 +245,7 @@ export function buildAgenda(tickets: Ticket[], now: Date): AgendaBuckets {
     // a mais esquecida aparece primeiro, que é o oposto de esconder o passivo.
     if (key === AGENDA_GROUP.NO_ACTION) {
       groups[key].sort((a, b) => idleDays(b, now) - idleDays(a, now));
-    } else if (key === AGENDA_GROUP.SUSPENDED) {
+    } else if (key === AGENDA_GROUP.WAITING || key === AGENDA_GROUP.BLOCKED) {
       // Pela revisão: a que volta primeiro aparece no topo.
       groups[key].sort(
         (a, b) => (a.attention?.reviewAt?.getTime() ?? 0) - (b.attention?.reviewAt?.getTime() ?? 0)

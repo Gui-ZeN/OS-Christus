@@ -111,18 +111,33 @@ describe('agendaGroupOf', () => {
     );
   });
 
-  it('suspensa vigente sai do fluxo de urgência, mesmo sem próxima ação', () => {
+  it('parada vigente sai do fluxo de urgência, mesmo sem próxima ação', () => {
     // É a ÚNICA ausência de próxima ação que é legítima — porque tem motivo e data.
+    // O grupo depende do MOTIVO: material é terceiro travando, logo Impedidas.
     expect(agendaGroupOf(suspensa(new Date('2026-08-12T12:00:00Z')), AGORA)).toBe(
-      AGENDA_GROUP.SUSPENDED
+      AGENDA_GROUP.BLOCKED
     );
   });
 
-  it('suspensão vence a data da próxima ação enquanto estiver vigente', () => {
+  it('o motivo separa "estamos esperando" de "um terceiro travou"', () => {
+    // Os dois estados do plano saem do dado que a suspensão SEMPRE gravou — por isso
+    // esta mudança não teve migração nem backfill.
+    const revisao = new Date('2026-08-12T12:00:00Z');
+    const esperando = os({
+      attention: { state: ATTENTION_STATE.SUSPENDED, reason: SUSPENSION_REASON.WAITING_APPROVAL, reviewAt: revisao },
+    });
+    const impedida = os({
+      attention: { state: ATTENTION_STATE.SUSPENDED, reason: SUSPENSION_REASON.WAITING_VENDOR, reviewAt: revisao },
+    });
+    expect(agendaGroupOf(esperando, AGORA)).toBe(AGENDA_GROUP.WAITING);
+    expect(agendaGroupOf(impedida, AGORA)).toBe(AGENDA_GROUP.BLOCKED);
+  });
+
+  it('a parada vence a data da próxima ação enquanto estiver vigente', () => {
     const t = suspensa(new Date('2026-08-12T12:00:00Z'), {
       nextAction: { what: 'Cobrar', dueAt: hoje(10) },
     });
-    expect(agendaGroupOf(t, AGORA)).toBe(AGENDA_GROUP.SUSPENDED);
+    expect(agendaGroupOf(t, AGORA)).toBe(AGENDA_GROUP.BLOCKED);
   });
 
   it('hoje, antes da hora → Hoje', () => {
