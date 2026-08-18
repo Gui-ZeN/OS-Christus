@@ -7,9 +7,10 @@ import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
 import { buildNoticeEmailTemplate, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
-import { ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
-import { cobreASede, precisaDeAlertaDeFalta, precisaDeChecagem, responsaveisPelaCobranca } from './_lib/checagemDaVisita.js';
+import { diaEmFortaleza, ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
+import { cobreASede, donoDoAlertaDeFalta, precisaDeAlertaDeFalta, precisaDeChecagem } from './_lib/checagemDaVisita.js';
 import { montarRevisaoSemanal } from './_lib/fechamentoAssistido.js';
+import { chaveDeEnvio, enviarUmaVez } from './_lib/envioUnico.js';
 import { resumoDaAgenda, resumoDoFimDoDia, resumoSemConfirmacao } from './_lib/resumosDaOperacao.js';
 import { novoTokenDeConfirmacao } from './_lib/visitConfirm.js';
 import { DEFAULT_SETTINGS } from './_lib/settingsDefaults.js';
@@ -2596,14 +2597,26 @@ async function handleAgendaDasSedes(req, res) {
 
         const destino = paraDeTeste || destinatario.email;
         if (!simular) {
-          await gmailSend({
-            toEmail: destino,
-            subject: `Hoje na ${sede.sede} — ${sede.visitas.length} serviço(s)`,
-            text: texto,
-            html,
-            ticketId: `agenda-sede-${sede.siteId}`,
-            references: [],
-          });
+          // Chave por sede + pessoa + DIA: retry, disparo manual e execução
+          // agendada concorrente colidem na mesma chave e só um envia.
+          const chave = chaveDeEnvio(['agenda', sede.siteId, destino, agenda.dia]);
+          const foi = await enviarUmaVez(db, chave, () =>
+            gmailSend({
+              toEmail: destino,
+              subject: `Hoje na ${sede.sede} — ${sede.visitas.length} serviço(s)`,
+              text: texto,
+              html,
+              ticketId: `agenda-sede-${sede.siteId}`,
+              references: [],
+            }), agora);
+          if (!foi) continue;
+
+          // Marca QUANDO a agenda foi de fato processada. É o que impede a
+          // checagem de +30min de cobrar resposta de um e-mail que acabou de
+          // chegar, quando o agendador do GitHub atrasou o job das 07h.
+          for (const visita of sede.visitas) {
+            await db.collection('commitments').doc(visita.commitmentId).update({ agendaEnviadaEm: agora });
+          }
         }
         enviados.push({ sede: sede.sede, para: destino, visitas: sede.visitas.length });
       }
@@ -2695,77 +2708,142 @@ async function handleChecagemDasVisitas(req, res) {
     }));
     const territorio = paraAvisar.length > 0 ? await readTerritoryCatalog(db) : null;
 
-    const checagens = [];
+    /**
+     * UM E-MAIL POR SEDE, não por visita.
+     *
+     * A auditoria (consulta 12) pegou a contradição: o laço antigo enviava um
+     * e-mail para CADA visita atrasada, então uma sede com três visitas recebia
+     * três perguntas quase idênticas — exatamente o ruído que este desenho existe
+     * para evitar, e o mais rápido caminho para o coordenador arquivar o remetente.
+     *
+     * Agora as visitas atrasadas da mesma sede viram um e-mail com uma linha por
+     * visita, cada uma com o seu próprio link.
+     */
+    const porSede = new Map();
     for (const visita of paraChecar) {
       const siteId = String(visita.siteId || visita.sede || '').trim();
+      if (!siteId) continue;
+      if (!porSede.has(siteId)) porSede.set(siteId, []);
+      porSede.get(siteId).push(visita);
+    }
+
+    const checagens = [];
+    for (const [siteId, visitasDaSede] of porSede) {
       const coordenadores = usuarios.filter(u => ehCoordenadorDaSede(u, siteId));
       if (coordenadores.length === 0) continue;
 
+      visitasDaSede.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+      const nomeDaSede = visitasDaSede[0]?.sede || siteId;
+
       for (const quem of coordenadores) {
-        let url = `${baseUrl}/`;
-        if (!simular) {
-          const emitido = novoTokenDeConfirmacao({
-            commitmentId: visita.id,
-            email: quem.email,
-            nome: quem.name || '',
-            now: agora,
+        const itens = [];
+        for (const visita of visitasDaSede) {
+          let url = `${baseUrl}/`;
+          if (!simular) {
+            const emitido = novoTokenDeConfirmacao({
+              commitmentId: visita.id,
+              email: quem.email,
+              nome: quem.name || '',
+              now: agora,
+            });
+            await db.collection('visitConfirmTokens').doc(emitido.token).set(emitido.doc);
+            url = `${baseUrl}/?confirmar=${emitido.token}`;
+          }
+          itens.push({
+            quando: horaEmFortaleza(visita.startAt),
+            titulo: `${String(visita.vendorName || 'Fornecedor')} — ${(visita.ticketIds || []).join(', ')}`,
+            acoes: [
+              { rotulo: 'Chegou', url },
+              { rotulo: 'Não chegou', url },
+            ],
           });
-          await db.collection('visitConfirmTokens').doc(emitido.token).set(emitido.doc);
-          url = `${baseUrl}/?confirmar=${emitido.token}`;
         }
 
-        const fornecedor = String(visita.vendorName || 'O fornecedor');
+        const quantas = visitasDaSede.length;
+        const titulo =
+          quantas === 1
+            ? `${String(visitasDaSede[0].vendorName || 'O fornecedor')} chegou?`
+            : `${quantas} visitas sem confirmação na ${nomeDaSede}`;
+
         const { html } = buildNoticeEmailTemplate({
           eyebrow: 'Confirmação',
-          title: `${fornecedor} chegou?`,
-          subtitle: visita.sede ? `Sede ${visita.sede}` : '',
-          bodyText: `Estava marcado para ${horaEmFortaleza(visita.startAt)} e já passou do horário.`,
-          itens: [
-            {
-              quando: horaEmFortaleza(visita.startAt),
-              titulo: `${fornecedor} — ${(visita.ticketIds || []).join(', ')}`,
-              acoes: [
-                { rotulo: 'Chegou', url },
-                { rotulo: 'Não chegou', url },
-              ],
-            },
-          ],
-          rodape: 'Um toque basta. Sem resposta, avisamos a manutenção de que ficou sem confirmação.',
+          title: titulo,
+          subtitle: `Sede ${nomeDaSede}`,
+          bodyText:
+            quantas === 1
+              ? `Estava marcado para ${itens[0].quando} e já passou do horário.`
+              : 'Passou do horário e ainda não sabemos o que aconteceu:',
+          itens,
+          rodape: 'Um toque em cada uma. Sem resposta, avisamos a manutenção de que ficou sem confirmação.',
         });
 
         if (!simular) {
-          await gmailSend({
-            toEmail: quem.email,
-            subject: `${fornecedor} chegou na ${visita.sede || 'sede'}?`,
-            text: `Estava marcado para ${horaEmFortaleza(visita.startAt)} e já passou do horário. Confirme pelo link: ${url}`,
-            html,
-            ticketId: `checagem-${visita.id}`,
-            references: [],
-          });
+          // Janela de 30 min na chave: duas execuções da varredura dentro da mesma
+          // janela colidem, e a sede não recebe a mesma pergunta duas vezes.
+          const janela = Math.floor(agora.getTime() / (30 * 60_000));
+          const chave = chaveDeEnvio(['checagem', siteId, quem.email, janela]);
+          const foi = await enviarUmaVez(db, chave, () =>
+            gmailSend({
+              toEmail: quem.email,
+              subject: titulo,
+              text: [
+                titulo,
+                '',
+                ...visitasDaSede.map(v => `${horaEmFortaleza(v.startAt)} — ${v.vendorName || 'Fornecedor'} (${(v.ticketIds || []).join(', ')})`),
+                '',
+                'Confirme pelos links do e-mail.',
+              ].join('\n'),
+              html,
+            // Chave por SEDE e por hora: com `ticketId` por visita, o mesmo
+            // e-mail agrupado geraria uma thread diferente a cada volta.
+              ticketId: `checagem-${siteId}`,
+              references: [],
+            }), agora);
+          if (!foi) continue;
         }
-        checagens.push({ visita: visita.id, para: quem.email, sede: visita.sede || null });
+        checagens.push({ sede: nomeDaSede, para: quem.email, visitas: quantas });
       }
 
       // A marca vai DEPOIS do envio: se o envio falhar, a próxima volta tenta de
       // novo em vez de marcar como perguntado e deixar a visita morrer calada.
       if (!simular) {
-        await db.collection('commitments').doc(visita.id).update({ checagemEnviadaEm: agora });
+        for (const visita of visitasDaSede) {
+          await db.collection('commitments').doc(visita.id).update({ checagemEnviadaEm: agora });
+        }
       }
     }
 
+    /**
+     * UM DONO POR ALERTA. A cadeia está em `donoDoAlertaDeFalta`: responsável da
+     * OS -> gestora da sede -> gestora da região -> plantão declarado. Sede sem
+     * ninguém volta em `semDono`, para virar resumo administrativo em vez de
+     * e-mail para todo Admin.
+     */
     const alertas = [];
+    const faltasSemDono = [];
+    const plantao = String(process.env.ALERTA_FALTA_PLANTAO || '').trim() || null;
+
     for (const visita of paraAvisar) {
       const siteId = String(visita.siteId || visita.sede || '').trim();
       const regiao = territorio?.sites?.find?.(s => String(s?.id || s?.code || '') === siteId)?.regionId || null;
-      const cobradores = responsaveisPelaCobranca(usuarios, { siteId, regiao });
-      if (cobradores.length === 0) continue;
+      const { dono, origem, semDono } = donoDoAlertaDeFalta(usuarios, {
+        siteId,
+        regiao,
+        responsavelDireto: visita.responsavelEmail || null,
+        plantao,
+      });
+
+      if (semDono) faltasSemDono.push({ visita: visita.id, sede: visita.sede || siteId, origem });
+      if (!dono) continue;
 
       const fornecedor = String(visita.vendorName || 'O fornecedor');
       const { html } = buildNoticeEmailTemplate({
-        eyebrow: 'Falta confirmada',
+        eyebrow: 'Falta relatada',
         title: `${fornecedor} não apareceu na ${visita.sede || 'sede'}`,
         subtitle: `Estava marcado para ${horaEmFortaleza(visita.startAt)}`,
-        bodyText: 'A sede confirmou. Há prazo correndo para cobrar.',
+        // O texto não afirma mais do que o dado prova: veio de um link, e o link
+        // prova posse do token, não a identidade de quem tocou.
+        bodyText: 'Relatado pelo link da sede. Há prazo correndo para cobrar.',
         detailCards: [
           {
             title: 'A visita',
@@ -2773,7 +2851,7 @@ async function handleChecagemDasVisitas(req, res) {
               { label: 'Fornecedor', value: fornecedor },
               { label: 'Sede', value: String(visita.sede || '-') },
               { label: 'OS', value: (visita.ticketIds || []).join(', ') || '-' },
-              { label: 'Quem confirmou', value: String(visita.confirmedBy || '-') },
+              { label: 'Relatado por', value: String(visita.confirmedBy || 'link da sede') },
             ],
           },
         ],
@@ -2781,26 +2859,25 @@ async function handleChecagemDasVisitas(req, res) {
         ctaLabel: 'Abrir a agenda',
       });
 
-      for (const quem of cobradores) {
-        if (!simular) {
-          await gmailSend({
-            toEmail: quem.email,
+      if (!simular) {
+        // A falta é um evento único da visita: a chave não tem relógio dentro.
+        const chave = chaveDeEnvio(['falta', visita.id, dono.email]);
+        const foi = await enviarUmaVez(db, chave, () =>
+          gmailSend({
+            toEmail: dono.email,
             subject: `${fornecedor} não apareceu — ${visita.sede || 'sede'}`,
-            text: `A sede confirmou que ${fornecedor} não apareceu. Marcado para ${horaEmFortaleza(visita.startAt)}. OS: ${(visita.ticketIds || []).join(', ')}.`,
+            text: `Relatado pelo link da sede: ${fornecedor} não apareceu. Marcado para ${horaEmFortaleza(visita.startAt)}. OS: ${(visita.ticketIds || []).join(', ')}.`,
             html,
             ticketId: `falta-${visita.id}`,
             references: [],
-          });
-        }
-        alertas.push({ visita: visita.id, para: quem.email, fornecedor });
-      }
-
-      if (!simular) {
+          }), agora);
+        if (!foi) continue;
         await db.collection('commitments').doc(visita.id).update({ faltaAvisadaEm: agora });
       }
+      alertas.push({ visita: visita.id, para: dono.email, origem, fornecedor });
     }
 
-    return sendJson(res, 200, { ok: true, simulado: simular, checagens, alertas });
+    return sendJson(res, 200, { ok: true, simulado: simular, checagens, alertas, faltasSemDono });
   } catch (error) {
     console.error('[mail] falha na checagem das visitas', error);
     if (!(error instanceof HttpError)) {
@@ -3077,6 +3154,9 @@ async function handleResumoDaOperacao(req, res) {
               // este número tornaria inútil a métrica que protege quem cobrou.
               { label: 'Cobranças concluídas', value: String(r.cobrancas) },
               { label: 'Sem confirmação', value: String(r.semConfirmacao) },
+              // Prazo furado por terceiro é trabalho pendente: se sumisse daqui, o
+              // número da diretoria cairia sem nada ter melhorado.
+              { label: 'Impedidas (prazo furado)', value: String(r.impedidas) },
               {
                 label: 'OS sem próxima ação',
                 value: r.diasDaMaisAntiga !== null ? `${r.semProximaAcao} (a mais antiga há ${r.diasDaMaisAntiga} dias)` : String(r.semProximaAcao),
@@ -3101,14 +3181,20 @@ async function handleResumoDaOperacao(req, res) {
       });
 
       if (!simular) {
-        await gmailSend({
-          toEmail: pessoa.email,
-          subject: titulo,
-          text: `${titulo}\n\n${corpo}\n\n${baseUrl}/?view=home`,
-          html,
-          ticketId: `resumo-${tipo}`,
-          references: [],
-        });
+        // 11h30 e 16h30 são DUAS janelas do mesmo tipo no mesmo dia, então a hora
+        // entra na chave — senão o resumo da tarde seria engolido como duplicata.
+        const janela = tipo === 'sem-confirmacao' ? new Date(agora).getUTCHours() : 'dia';
+        const chave = chaveDeEnvio(['resumo', tipo, pessoa.email, diaEmFortaleza(agora), janela]);
+        const foi = await enviarUmaVez(db, chave, () =>
+          gmailSend({
+            toEmail: pessoa.email,
+            subject: titulo,
+            text: `${titulo}\n\n${corpo}\n\n${baseUrl}/?view=home`,
+            html,
+            ticketId: `resumo-${tipo}`,
+            references: [],
+          }), agora);
+        if (!foi) continue;
       }
       enviados.push({ para: pessoa.email, titulo });
     }

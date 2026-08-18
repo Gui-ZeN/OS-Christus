@@ -12,9 +12,10 @@ import {
   serializeCommitmentForApi,
   validateConfirmation,
 } from './_lib/commitments.js';
-import { montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
+import { acaoDeFecharDesfecho, montarPergunta, tokenExpirou, validarEscolhaDaSede } from './_lib/visitConfirm.js';
+import { donoDoAlertaDeFalta } from './_lib/checagemDaVisita.js';
 import { RESPOSTA, diasParada, efeitoDaResposta, podeDesfazer } from './_lib/fechamentoAssistido.js';
-import { podeCobrar, tentativasDe, validarDesfecho } from './_lib/cobranca.js';
+import { EVENTO_DE_CONTATO, podeCobrar, tentativasDe, validarDesfecho } from './_lib/cobranca.js';
 import { collectMessageIds, recordDeletedTicket } from './_lib/deletedTickets.js';
 import { toDateOrNull } from './_lib/dates.js';
 import {
@@ -999,6 +1000,9 @@ async function handleCommitments(req, res) {
             em: agora,
             por: String(actor?.email || '').trim() || null,
             canal: String(body.cobranca.canal || 'whatsapp'),
+            // O nome diz o que o dado PROVA: a conversa foi aberta. Se a mensagem
+            // foi enviada, só quem registra o desfecho sabe.
+            evento: EVENTO_DE_CONTATO,
             desfecho: null,
           };
           await ref.update({
@@ -1306,8 +1310,48 @@ async function handleConfirmVisit(req, res) {
         updatedAt: agora,
         // Fica registrado que veio da sede, e não de dentro do app: é o que permite
         // distinguir depois "a sede respondeu" de "o gestor preencheu por ela".
-        confirmedVia: 'sede-email',
+        //
+        // O link prova POSSE DO TOKEN, nao a identidade de quem tocou (auditoria
+        // consulta 12). Por isso a origem e "link da sede": quem ler o registro
+        // depois precisa saber que isto e relato, nao identificacao.
+        confirmedVia: 'link-da-sede',
       });
+
+      /**
+       * "Chegou" NAO fecha a OS — cria a acao de fechar o desfecho.
+       *
+       * Sem isto a visita virava "compareceu" com desfecho nulo e ninguem
+       * encarregado de descobrir se o servico foi feito: o buraco silencioso que o
+       * rework existe para acabar. A acao nasce com dono unico e prazo no mesmo
+       * dia, e entra na fila central e nos resumos que ja existem — sem virar mais
+       * um e-mail.
+       */
+      if (check.efeito.state === COMMITMENT_STATE.ARRIVED && !check.efeito.outcome) {
+        const siteId = String(commitment.siteId || commitment.sede || '').trim();
+        const territorio = await readTerritoryCatalog(db);
+        const regiao = territorio?.sites?.find?.(t => String(t?.id || '') === siteId)?.regionId || null;
+        const ativos = (await db.collection('users').where('status', '==', 'Ativo').get()).docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+        }));
+        const { dono } = donoDoAlertaDeFalta(ativos, {
+          siteId,
+          regiao,
+          plantao: String(process.env.ALERTA_FALTA_PLANTAO || '').trim() || null,
+        });
+
+        const acao = acaoDeFecharDesfecho({ commitmentId: commitment.id, dono, now: agora });
+        for (const alvoId of commitment.ticketIds || []) {
+          const alvo = db.collection('tickets').doc(String(alvoId));
+          const snapAlvo = await alvo.get();
+          // Nao sobrescreve acao escrita a mao: a pessoa sendo explicita ganha do
+          // que o sistema propoe.
+          if (snapAlvo.exists && !snapAlvo.data()?.nextAction?.dueAt) {
+            await alvo.update({ nextAction: acao, updatedAt: agora });
+          }
+        }
+      }
+
       for (const alvoId of commitment.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
 
       const atualizado = { ...commitment, ...check.efeito, confirmedBy: quem, confirmedAt: agora };

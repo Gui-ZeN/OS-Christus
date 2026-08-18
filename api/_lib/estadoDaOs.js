@@ -6,87 +6,93 @@
  * ganham data fabricada — "revisar em 30 dias" — e a decisão de prioridade some das
  * vistas: continua sendo tomada, só deixa de ser declarada e auditável.
  *
- * ⚠️ ISTO NÃO É CAMPO NOVO, E NÃO TEM MIGRAÇÃO. A auditoria avisou que este item
- * mexeria em estrutura de dados e por isso deveria vir cedo. Ao abrir o código, a
- * estrutura já estava lá: a suspensão sempre gravou MOTIVO em lista fechada, e o
- * motivo já separa "estamos esperando" de "um terceiro travou". Os dois estados são
- * DERIVADOS do que já está gravado — nenhum backfill nas 268 OS, nenhuma escrita.
+ * ⚠️ NÃO É CAMPO NOVO E NÃO TEM MIGRAÇÃO. A suspensão sempre gravou motivo em lista
+ * fechada e uma data de revisão. Os estados são DERIVADOS disso.
  *
- * O que muda é o que a tela declara e o que os resumos contam.
+ * ⚠️ O QUE DECIDE O ESTADO É O PRAZO, NÃO O MOTIVO. Esta é a correção da auditoria
+ * (consulta 12). A primeira versão classificava pelo motivo — "material" ia para
+ * impedida, "aprovação" para esperando — e as duas metades do plano se
+ * contradiziam sobre onde "material" caía. Nenhuma das duas estava certa:
  *
- * Sem eleição manual, sem carteira, sem limite de WIP — nada disso está no plano.
+ *   "aguardando fabricação até 28/08"  -> ESPERANDO  (prazo futuro e crível)
+ *   passou 28/08, ou nunca houve prazo -> IMPEDIDA   (a espera deixou de ser legítima)
+ *
+ * Classificar tudo que é material como impedida contamina a fila urgente com itens
+ * sobre os quais ninguém tem ação útil hoje. Classificar tudo como esperando
+ * esconde atraso. O prazo é o que separa os dois, e o motivo vira descrição.
  */
 
 export const ESTADO = {
   /** A organização está gastando capacidade nela agora. */
   ATIVA: 'ativa',
-  /** É legítimo esperar: aprovação, verba, período. A espera é da casa. */
+  /** Espera legítima: há prazo futuro e crível. Ninguém tem ação útil hoje. */
   ESPERANDO: 'esperando',
-  /** Travada por terceiro, com revisão marcada. O tempo parado continua contando. */
+  /** O prazo venceu, ou nunca houve. Alguém precisa remover o bloqueio. */
   IMPEDIDA: 'impedida',
 };
 
-/**
- * Quais motivos são "terceiro travou".
- *
- * ⚠️ O PDF se contradiz em UM ponto e a escolha aqui é explícita: a tabela dos
- * estados põe "material" em *esperando*, mas a prévia da tela mostra "aguardando
- * fabricação" dentro de *Impedidas* ("esperando peça, fabricação, terceiro").
- * Seguimos a tela, porque é o recorte operacionalmente útil: peça que não chega é
- * exatamente o que alguém precisa ir cobrar. Trocar de lado é mover uma linha
- * daqui — nada mais.
- */
-const MOTIVO_DE_TERCEIRO = new Set([
-  'aguardando-material',
-  'aguardando-terceiro',
-  'aguardando-orcamento',
-]);
-
 function paraData(valor) {
   if (!valor) return null;
-  const data = valor instanceof Date ? valor : new Date(valor);
+  if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? null : valor;
+  if (typeof valor.toDate === 'function') return valor.toDate();
+  if (typeof valor.seconds === 'number') return new Date(valor.seconds * 1000);
+  const data = new Date(valor);
   return Number.isNaN(data.getTime()) ? null : data;
 }
 
-/**
- * A suspensão VIGENTE, ou null. Mesma regra do app: revisão vencida não vale mais,
- * e é essa peça que impede a suspensão de virar gaveta — passada a data, a OS volta
- * sozinha a cobrar decisão, sem ninguém precisar lembrar de "dessuspender".
- */
-export function suspensaoVigente(ticket, now = new Date()) {
+/** A parada declarada, vencida ou não. Quem decide o estado é a data dela. */
+export function paradaDeclarada(ticket) {
   const atencao = ticket?.attention;
   if (!atencao || String(atencao.state || '') !== 'suspensa') return null;
-  const revisao = paraData(atencao.reviewAt);
-  if (!revisao) return null;
-  return revisao.getTime() > now.getTime() ? atencao : null;
+  return atencao;
 }
 
-/** ativa · esperando · impedida. OS sem suspensão vigente é ativa. */
+/**
+ * ativa · esperando · impedida.
+ *
+ * ⚠️ Revisão vencida NÃO devolve a OS para "ativa" em silêncio, como antes. Ela
+ * vira IMPEDIDA — que é um estado de ação, não de estacionamento. A diferença
+ * importa para quem lê a tela: "sem próxima ação" acusa a gestora de não ter
+ * definido nada; "impedida há 12 dias" diz que um terceiro travou e o prazo furou.
+ */
 export function estadoDaOs(ticket, now = new Date()) {
-  const suspensao = suspensaoVigente(ticket, now);
-  if (!suspensao) return ESTADO.ATIVA;
-  return MOTIVO_DE_TERCEIRO.has(String(suspensao.reason || '')) ? ESTADO.IMPEDIDA : ESTADO.ESPERANDO;
+  const parada = paradaDeclarada(ticket);
+  if (!parada) return ESTADO.ATIVA;
+
+  const revisao = paraData(parada.reviewAt);
+  if (!revisao) return ESTADO.IMPEDIDA;
+  return revisao.getTime() > now.getTime() ? ESTADO.ESPERANDO : ESTADO.IMPEDIDA;
 }
 
 /**
  * Esta OS pode ficar sem próxima ação sem que isso seja um buraco?
  *
- * É o furo que `esperando` resolve. Sem isto, uma OS legitimamente parada aparece
- * como "sem próxima ação", alguém marca "revisar em 30 dias" só para tirá-la da
- * lista, e o indicador que existe para mostrar o buraco passa a medir disciplina de
- * preenchimento. Contar espera declarada como buraco é o que ensina a maquiar.
+ * Vale para os dois estados parados — os dois foram DECLARADOS, com motivo e data.
+ * Contar espera declarada como buraco empurra alguém a inventar "revisar em 30
+ * dias" só para tirá-la da lista, e o indicador passa a medir disciplina de
+ * preenchimento.
+ *
+ * Impedida não some por isso: ela é contada à parte, porque exige ação.
  */
 export function esperaDeclarada(ticket, now = new Date()) {
   return estadoDaOs(ticket, now) !== ESTADO.ATIVA;
 }
 
+/** Precisa de alguém para remover o bloqueio agora. */
+export function precisaDestravar(ticket, now = new Date()) {
+  return estadoDaOs(ticket, now) === ESTADO.IMPEDIDA;
+}
+
 /**
- * Há quantos dias parada. Vale para os três estados de propósito: no plano, OS
- * impedida CONTINUA contando o tempo parado — senão "impedida" viraria o lugar onde
- * o tempo some, que é o defeito que a suspensão já teve uma vez.
+ * Há quantos dias parada.
+ *
+ * ⚠️ Usa `stalledSince` quando existe, não `updatedAt`. Segunda correção da
+ * auditoria: adiar uma revisão É uma alteração e deve mexer em `updatedAt` — o erro
+ * era usar `updatedAt` como medida de estagnação, o que fazia qualquer toque
+ * administrativo zerar o tempo parado que se quer enxergar.
  */
 export function diasParadaNoEstado(ticket, now = new Date()) {
-  const base = paraData(ticket?.updatedAt) || paraData(ticket?.createdAt);
+  const base = paraData(ticket?.stalledSince) || paraData(ticket?.updatedAt) || paraData(ticket?.createdAt);
   if (!base) return null;
   return Math.floor((now.getTime() - base.getTime()) / 86_400_000);
 }

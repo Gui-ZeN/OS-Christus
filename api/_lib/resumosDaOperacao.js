@@ -1,6 +1,6 @@
 import { effectiveCommitmentState } from './commitments.js';
 import { diaEmFortaleza, horaEmFortaleza } from './agendaDoDia.js';
-import { esperaDeclarada } from './estadoDaOs.js';
+import { esperaDeclarada, precisaDestravar } from './estadoDaOs.js';
 import { cobrancasConcluidas } from './cobranca.js';
 
 /**
@@ -147,6 +147,14 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
     t => !FECHADAS.has(String(t?.status || '')) && !t?.nextAction?.dueAt && !esperaDeclarada(t, now)
   );
 
+  // Impedidas contam à PARTE. Elas saem de "sem próxima ação" porque foram
+  // declaradas — mas some-las do resumo faria o número da diretoria cair sem nada
+  // ter melhorado, que é a maquiagem ao contrário. Prazo furado por terceiro é
+  // trabalho pendente, e precisa aparecer.
+  const impedidas = (tickets || []).filter(
+    t => !FECHADAS.has(String(t?.status || '')) && precisaDestravar(t, now)
+  ).length;
+
   const maisAntiga = semProximaAcao.reduce((pior, t) => {
     const base = t?.updatedAt || t?.createdAt;
     const data = base instanceof Date ? base : new Date(base || NaN);
@@ -161,6 +169,7 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
     // esconder isso devolveria a cegueira que o registro existe para tirar.
     pendentesDeDesfecho,
     semConfirmacao,
+    impedidas,
     semProximaAcao: semProximaAcao.length,
     diasDaMaisAntiga: maisAntiga ? Math.floor((now.getTime() - maisAntiga.getTime()) / 86_400_000) : null,
     // Dia sem falta, sem pendência e sem OS órfã não vira e-mail: silêncio é a
@@ -169,6 +178,7 @@ export function resumoDoFimDoDia({ commitments = [], tickets = [], now = new Dat
       faltas.length === 0 &&
       semConfirmacao === 0 &&
       semProximaAcao.length === 0 &&
+      impedidas === 0 &&
       cobrancas === 0 &&
       pendentesDeDesfecho === 0,
   };

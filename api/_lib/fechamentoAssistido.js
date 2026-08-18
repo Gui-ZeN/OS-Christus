@@ -31,7 +31,11 @@ const JA_FECHADAS = new Set(['Encerrada', 'Cancelada']);
  * exatamente o caso que este e-mail existe para achar.
  */
 export function ultimaAtividade(ticket) {
-  const bruto = ticket?.updatedAt || ticket?.createdAt || null;
+  // `stalledSince` primeiro. Correção da auditoria (consulta 12): usar `updatedAt`
+  // como medida de estagnação faz qualquer toque administrativo — adiar uma
+  // revisão, corrigir um campo — zerar justamente o número que se quer enxergar.
+  // O progresso real e a última escrita são coisas diferentes.
+  const bruto = ticket?.stalledSince || ticket?.updatedAt || ticket?.createdAt || null;
   if (!bruto) return null;
   const data = bruto instanceof Date ? bruto : new Date(bruto);
   return Number.isNaN(data.getTime()) ? null : data;
@@ -80,7 +84,13 @@ export const DIAS_DE_ADIAMENTO = 30;
  * lista da semana que vem. Sem isso a gestora responderia a mesma pergunta para
  * sempre, que é como um e-mail semanal morre.
  */
-export function efeitoDaResposta(resposta, { now = new Date(), statusAnterior = null } = {}) {
+/** Quantas vezes esta OS já foi empurrada para depois. */
+export function adiamentosDe(ticket) {
+  const n = Number(ticket?.adiamentos);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function efeitoDaResposta(resposta, { now = new Date(), statusAnterior = null, ticketAtual = null } = {}) {
   switch (resposta) {
     case RESPOSTA.ENCERRAR:
       return {
@@ -89,15 +99,23 @@ export function efeitoDaResposta(resposta, { now = new Date(), statusAnterior = 
         updatedAt: now,
       };
     case RESPOSTA.PENDENTE:
-      return { updatedAt: now, revisaoAdiadaAte: null };
+      // "Ainda pendente" é a gestora dizendo que olhou e a OS segue viva: isso É
+      // progresso declarado, então o relógio da estagnação reinicia.
+      return { updatedAt: now, stalledSince: now, revisaoAdiadaAte: null };
     case RESPOSTA.DEPOIS:
       return {
+        // Adiar É uma alteração e mexe em `updatedAt` — esconder a escrita foi o
+        // erro apontado na auditoria. O que NÃO se mexe é em `stalledSince`: o
+        // tempo parado continua correndo, porque adiar a pergunta não é progresso.
+        updatedAt: now,
         revisaoAdiadaAte: new Date(now.getTime() + DIAS_DE_ADIAMENTO * 86_400_000),
-        // Não mexe em `updatedAt`: adiar a pergunta não é atividade na OS, e fingir
-        // que é apagaria o tempo parado, que é o número que se quer enxergar.
+        revisaoAdiadaEm: now,
+        // Sem o contador, adiamento repetido fica invisível — e some exatamente a
+        // evidência de postergação que a revisão semanal existe para expor.
+        adiamentos: (Number(adiamentosDe(ticketAtual)) || 0) + 1,
       };
     case RESPOSTA.DESFAZER:
-      return { status: statusAnterior || 'Aberta', fechamentoAssistido: null, updatedAt: now };
+      return { status: statusAnterior || 'Aberta', fechamentoAssistido: null, updatedAt: now, stalledSince: now };
     default:
       return null;
   }
@@ -142,6 +160,7 @@ export function montarRevisaoSemanal({ tickets = [], gestoras = [], podeVer, now
         sede: String(t.sede || ''),
         status: String(t.status || ''),
         dias: diasParada(t, now),
+        adiamentos: adiamentosDe(t),
       }))
       .sort((a, b) => (b.dias || 0) - (a.dias || 0));
 

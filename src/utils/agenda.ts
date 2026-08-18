@@ -108,12 +108,21 @@ export function agendaGroupOf(ticket: Ticket, now: Date): AgendaGroup | null {
   // A suspensão vem PRIMEIRO: é a única resposta legítima para "esta OS não tem
   // próxima ação". Ela só vale enquanto tiver motivo e revisão no futuro — vencida,
   // cai adiante e a OS reaparece cobrando decisão.
-  const parada = activeSuspension(ticket, now);
-  if (parada) {
-    // Impedida = travada por terceiro; o tempo parado continua contando, senão
-    // "impedida" viraria o lugar onde o tempo some.
-    return estadoDaOs(ticket, now) === ESTADO.IMPEDIDA ? AGENDA_GROUP.BLOCKED : AGENDA_GROUP.WAITING;
-  }
+  // A parada DECLARADA decide, vencida ou não — e o que separa os dois grupos é o
+  // prazo, não o motivo (auditoria, consulta 12):
+  //
+  //   prazo no futuro  -> Esperando  (ninguém tem ação útil hoje)
+  //   prazo vencido    -> Impedidas  (alguém precisa remover o bloqueio)
+  //
+  // ⚠️ Revisão vencida NÃO cai mais em "sem próxima ação". A intenção antiga — não
+  // deixar a parada virar gaveta — continua valendo, e Impedidas cumpre ela melhor:
+  // fica no topo da tela, exige ação e continua contando o tempo parado. O que muda
+  // é a acusação. "Sem próxima ação" diz que a gestora não definiu nada; "impedida
+  // há 12 dias" diz que um terceiro furou o prazo. Misturar os dois destrói a única
+  // informação que separa negligência de bloqueio externo.
+  const estado = estadoDaOs(ticket, now);
+  if (estado === ESTADO.IMPEDIDA) return AGENDA_GROUP.BLOCKED;
+  if (estado === ESTADO.ESPERANDO) return AGENDA_GROUP.WAITING;
 
   const action = resolvedAttentionOf(ticket);
   if (!action) return AGENDA_GROUP.NO_ACTION;

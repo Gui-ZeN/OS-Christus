@@ -73,16 +73,31 @@ describe('as três respostas', () => {
     // e-mail semanal morre.
     const e = efeitoDaResposta(RESPOSTA.PENDENTE, { now: agora });
     expect(e!.updatedAt).toEqual(agora);
-    expect(entraNaRevisao(os({ updatedAt: agora }), agora)).toBe(false);
+    // Reinicia o relógio da estagnação: a gestora olhou e declarou que segue viva.
+    expect(e!.stalledSince).toEqual(agora);
+    expect(entraNaRevisao(os({ stalledSince: agora }), agora)).toBe(false);
   });
 
-  it('"ver depois" adia sem apagar o tempo parado', () => {
+  it('"ver depois" É uma alteração e mexe em updatedAt', () => {
+    // Correção da auditoria (consulta 12): esconder a escrita foi o erro. O que
+    // não se mexe é em `stalledSince` — adiar a pergunta não é progresso.
     const e = efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora });
+    expect(e!.updatedAt).toEqual(agora);
+    expect(e).not.toHaveProperty('stalledSince');
     expect(e!.revisaoAdiadaAte.getTime()).toBeGreaterThan(agora.getTime());
-    // Não mexe em updatedAt: adiar a pergunta não é atividade na OS, e fingir que é
-    // apagaria o número que se quer enxergar.
-    expect(e).not.toHaveProperty('updatedAt');
-    expect(diasParada(os({ ...os(), revisaoAdiadaAte: e!.revisaoAdiadaAte }), agora)).toBe(45);
+  });
+
+  it('e o tempo parado continua correndo, porque vem de stalledSince', () => {
+    const parada = os({ stalledSince: diasAtras(45), updatedAt: agora });
+    expect(diasParada(parada, agora)).toBe(45);
+  });
+
+  it('adiamento repetido é CONTADO — senão a postergação fica invisível', () => {
+    const primeira = efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora, ticketAtual: os() });
+    expect(primeira!.adiamentos).toBe(1);
+
+    const terceira = efeitoDaResposta(RESPOSTA.DEPOIS, { now: agora, ticketAtual: os({ adiamentos: 2 }) });
+    expect(terceira!.adiamentos).toBe(3);
   });
 
   it('OS adiada não volta enquanto a data não chega', () => {

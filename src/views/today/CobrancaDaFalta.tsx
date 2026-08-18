@@ -83,14 +83,14 @@ export default function CobrancaDaFalta({
     <div className="mt-2 border-t border-roman-border pt-2">
       <p className="text-xs text-roman-danger">
         {compromisso.vendorName || 'O fornecedor'} não compareceu
-        {tentativas > 0 && ` · ${tentativas}ª cobrança`}
+        {tentativas > 0 && ` · ${tentativas}ª tentativa de contato`}
       </p>
 
       {pendente ? (
         // Tentativa aberta: o que falta é o desfecho, e é ele que conta como
         // cobrança concluída.
         <div className="mt-2">
-          <p className="text-[11px] text-roman-text-sub">Cobrou pelo WhatsApp. O que aconteceu?</p>
+          <p className="text-[11px] text-roman-text-sub">Conversa aberta no WhatsApp. O que aconteceu?</p>
           <div className="mt-1 flex flex-wrap gap-1">
             {DESFECHOS.map(desfecho => (
               <button

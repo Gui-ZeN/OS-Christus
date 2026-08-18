@@ -24,11 +24,28 @@ export function toleranciaEmMinutos(commitment) {
   return Number.isFinite(valor) && valor > 0 ? valor : DEFAULT_TOLERANCE_MINUTES;
 }
 
-/** Quando a pergunta "chegou?" passa a valer. */
+/**
+ * Quando a pergunta "chegou?" passa a valer.
+ *
+ * ⚠️ Conta do horário marcado OU de quando o aviso das 07h foi de fato processado,
+ * o que for MAIS TARDE. Correção da auditoria (consulta 12): o agendador do GitHub
+ * atrasa, e um job das 07h que roda às 08h40 mandava a agenda e a cobrança de
+ * resposta quase juntas — o coordenador era acusado de não responder um e-mail que
+ * tinha acabado de chegar. Silêncio de quem não teve tempo não é silêncio.
+ */
 export function momentoDaChecagem(commitment) {
   const inicio = commitment?.startAt instanceof Date ? commitment.startAt : new Date(commitment?.startAt || NaN);
   if (Number.isNaN(inicio.getTime())) return null;
-  return new Date(inicio.getTime() + toleranciaEmMinutos(commitment) * 60_000);
+
+  const tolerancia = toleranciaEmMinutos(commitment) * 60_000;
+  const bruto = commitment?.agendaEnviadaEm;
+  const avisada = bruto instanceof Date ? bruto : bruto ? new Date(bruto) : null;
+  const base =
+    avisada && !Number.isNaN(avisada.getTime()) && avisada.getTime() > inicio.getTime()
+      ? avisada
+      : inicio;
+
+  return new Date(base.getTime() + tolerancia);
 }
 
 /**
@@ -59,20 +76,55 @@ export function precisaDeAlertaDeFalta(commitment) {
 }
 
 /**
- * Quem recebe o alerta de falta: quem cobra.
+ * QUEM RECEBE O ALERTA DE FALTA — uma pessoa, não uma lista.
  *
- * Vale escopo por sede OU por região — a gestora responde por uma operação
- * inteira, e prender o alerta a `siteIds` a deixaria de fora justamente de quem
- * vai ligar para o fornecedor.
+ * ⚠️ Reescrito pela auditoria (consulta 12). A versão anterior mandava para todo
+ * mundo com escopo na sede, e o fallback era "todo Admin sem escopo" — o que faz
+ * o Admin receber TODA falta de TODA sede. Admin é permissão de sistema, não papel
+ * operacional: mandar para todos dilui responsabilidade, cria destinatário que não
+ * pode agir, transforma o alerta mais urgente do desenho em ruído e esconde erro de
+ * configuração de escopo.
+ *
+ * A cadeia é determinística e para no primeiro que existir:
+ *
+ *   1. responsável explicitamente atribuído à visita ou à OS;
+ *   2. gestora com escopo na SEDE;
+ *   3. gestora com escopo na REGIÃO;
+ *   4. o plantão declarado (`ALERTA_FALTA_PLANTAO`) — e o uso do fallback fica
+ *      registrado, porque ele é sintoma de sede sem dono configurado.
+ *
+ * Devolve também `semDono`, para que sede sem responsável apareça num resumo
+ * administrativo em vez de virar e-mail para todo Admin.
  */
-export function responsaveisPelaCobranca(users, { siteId, regiao }) {
-  return (users || []).filter(u => {
-    if (String(u?.status || 'Ativo') !== 'Ativo') return false;
-    if (!String(u?.email || '').trim()) return false;
-    const papel = String(u?.role || '');
-    if (papel !== 'Gestor' && papel !== 'Admin') return false;
-    return cobreASede(u, { siteId, regiao });
-  });
+export function donoDoAlertaDeFalta(users, { siteId, regiao, responsavelDireto = null, plantao = null }) {
+  const ativos = (users || []).filter(
+    u => String(u?.status || 'Ativo') === 'Ativo' && String(u?.email || '').trim()
+  );
+  const acha = email => ativos.find(u => String(u.email).toLowerCase() === String(email || '').toLowerCase());
+
+  const direto = responsavelDireto ? acha(responsavelDireto) : null;
+  if (direto) return { dono: direto, origem: 'responsavel-da-os', semDono: false };
+
+  const gestoras = ativos.filter(u => String(u?.role || '') === 'Gestor');
+  const sede = String(siteId || '').trim();
+  const reg = String(regiao || '').trim();
+
+  const porSede = gestoras.find(
+    u => sede && (Array.isArray(u.siteIds) ? u.siteIds.map(String) : []).includes(sede)
+  );
+  if (porSede) return { dono: porSede, origem: 'escopo-de-sede', semDono: false };
+
+  const porRegiao = gestoras.find(
+    u => reg && (Array.isArray(u.regionIds) ? u.regionIds.map(String) : []).includes(reg)
+  );
+  if (porRegiao) return { dono: porRegiao, origem: 'escopo-de-regiao', semDono: false };
+
+  // Último recurso: falta órfã é pior que falta no lugar errado, mas isto é
+  // sintoma, não solução — por isso `semDono` volta verdadeiro mesmo com dono.
+  const dePlantao = plantao ? acha(plantao) : null;
+  if (dePlantao) return { dono: dePlantao, origem: 'plantao', semDono: true };
+
+  return { dono: null, origem: 'nenhum', semDono: true };
 }
 
 /**

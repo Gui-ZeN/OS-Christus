@@ -347,7 +347,7 @@ export function TodayView() {
     await recarregarCompromissos();
     // Não diz "cobrado": abrir a conversa não é ter cobrado, e o texto do aviso é
     // o primeiro lugar onde essa confusão nasceria.
-    showToast('Tentativa registrada. Diga o desfecho quando souber.');
+    showToast('Conversa aberta. Diga o desfecho quando souber.');
   };
 
   const registrarDesfecho = async (compromissoId: string, desfecho: string) => {

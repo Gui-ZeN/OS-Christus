@@ -14,6 +14,11 @@
  * Por isso: `Cobrar` grava sozinho a TENTATIVA e abre a conversa. O desfecho fica
  * pendente. **Clique não conta como cobrança concluída** — só o desfecho conta.
  *
+ * ⚠️ E o nome do evento diz o que ele PROVA. A auditoria (consulta 12) apontou que
+ * "tentativa de contato" afirma demais: o sistema não sabe se a mensagem foi
+ * enviada, só que a conversa foi ABERTA. O evento é `whatsappAberto`; "cobrou" só
+ * existe depois que alguém registra o desfecho.
+ *
  * Sem I/O.
  */
 
@@ -99,7 +104,7 @@ export function podeCobrar(commitment) {
   return String(commitment?.state || '') === 'faltou';
 }
 
-/** Quantas tentativas já houve, para a mensagem saber que é a segunda. */
+/** Quantas vezes a conversa já foi aberta, para a mensagem saber que é a segunda. */
 export function tentativasDe(commitment) {
   return Array.isArray(commitment?.cobrancas) ? commitment.cobrancas.length : 0;
 }
@@ -123,6 +128,9 @@ export function cobrancasConcluidas(commitment) {
   const lista = Array.isArray(commitment?.cobrancas) ? commitment.cobrancas : [];
   return lista.filter(c => Boolean(c?.desfecho));
 }
+
+/** O tipo do evento gravado quando alguém toca em Cobrar. Diz o que prova. */
+export const EVENTO_DE_CONTATO = 'whatsappAberto';
 
 export function validarDesfecho(commitment, desfecho) {
   if (!Object.values(DESFECHO).includes(String(desfecho || ''))) {

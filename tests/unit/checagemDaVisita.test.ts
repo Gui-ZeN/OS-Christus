@@ -4,7 +4,7 @@ import {
   momentoDaChecagem,
   precisaDeAlertaDeFalta,
   precisaDeChecagem,
-  responsaveisPelaCobranca,
+  donoDoAlertaDeFalta,
   toleranciaEmMinutos,
 } from '../../api/_lib/checagemDaVisita.js';
 
@@ -38,6 +38,28 @@ describe('a pergunta só vem depois da tolerância', () => {
     const critica = visita({ toleranceMinutes: 15 });
     expect(precisaDeChecagem(critica, minutos(16))).toBe(true);
     expect(precisaDeChecagem(critica, minutos(14))).toBe(false);
+  });
+});
+
+describe('a tolerância conta de quando o aviso foi PROCESSADO', () => {
+  // Correção da auditoria (consulta 12): o agendador do GitHub atrasa. Um job das
+  // 07h que roda às 08h40 mandava a agenda e a cobrança de resposta quase juntas —
+  // o coordenador era acusado de não responder um e-mail recém-chegado. Silêncio de
+  // quem não teve tempo não é silêncio.
+  it('agenda atrasada empurra a pergunta para frente', () => {
+    const avisadaTarde = visita({ agendaEnviadaEm: minutos(40) });
+    // 40 min depois do horário + 30 de tolerância = só a partir dos 70.
+    expect(precisaDeChecagem(avisadaTarde, minutos(65))).toBe(false);
+    expect(precisaDeChecagem(avisadaTarde, minutos(75))).toBe(true);
+  });
+
+  it('agenda enviada ANTES do horário não encurta nem alonga nada', () => {
+    const avisadaCedo = visita({ agendaEnviadaEm: minutos(-60) });
+    expect(precisaDeChecagem(avisadaCedo, minutos(31))).toBe(true);
+  });
+
+  it('sem marca de envio, vale o horário marcado — comportamento de sempre', () => {
+    expect(precisaDeChecagem(visita(), minutos(31))).toBe(true);
   });
 });
 
@@ -85,36 +107,69 @@ describe('o alerta de falta só sai quando a sede DISSE que faltou', () => {
   });
 });
 
-describe('quem recebe o alerta de falta é quem cobra', () => {
-  const larissa = { email: 'larissa@px.com.br', status: 'Ativo', role: 'Gestor', regionIds: ['Fortaleza'], siteIds: [] };
+describe('o alerta de falta tem UM dono, não uma lista', () => {
+  // Reescrito pela auditoria (consulta 12): a versão anterior mandava para todos os
+  // gestores com escopo, e caía em "todo Admin sem escopo" — o que faz o Admin
+  // receber TODA falta de TODA sede. Admin é permissão de sistema, não papel
+  // operacional: mandar para todos dilui responsabilidade, cria destinatário que
+  // não pode agir e transforma o alerta mais urgente do desenho em ruído.
+  const larissa = { email: 'larissa@px.com.br', status: 'Ativo', role: 'Gestor', regionIds: ['r-for'], siteIds: [] };
   const thais = { email: 'thais@px.com.br', status: 'Ativo', role: 'Gestor', regionIds: [], siteIds: ['SUL3'] };
   const pablo = { email: 'pablo.sul@px.com.br', status: 'Ativo', role: 'Usuario', siteIds: ['SUL3'] };
   const admin = { email: 'admin@px.com.br', status: 'Ativo', role: 'Admin', siteIds: [], regionIds: [] };
+  const plantonista = { email: 'plantao@px.com.br', status: 'Ativo', role: 'Gestor', siteIds: [], regionIds: [] };
+  const todos = [larissa, thais, pablo, admin, plantonista];
 
-  it('gestora por região e gestora por sede, as duas', () => {
-    const r = responsaveisPelaCobranca([larissa, thais], { siteId: 'SUL3', regiao: 'Fortaleza' });
-    expect(r.map(u => u.email).sort()).toEqual(['larissa@px.com.br', 'thais@px.com.br']);
+  it('a sede ganha da região — quem está mais perto responde', () => {
+    const r = donoDoAlertaDeFalta(todos, { siteId: 'SUL3', regiao: 'r-for' });
+    expect(r.dono?.email).toBe('thais@px.com.br');
+    expect(r.origem).toBe('escopo-de-sede');
+    expect(r.semDono).toBe(false);
   });
 
-  it('o coordenador da sede NÃO recebe — ele acabou de responder', () => {
-    const r = responsaveisPelaCobranca([pablo], { siteId: 'SUL3', regiao: 'Fortaleza' });
-    expect(r).toEqual([]);
+  it('sem gestora de sede, cai para a região', () => {
+    const r = donoDoAlertaDeFalta(todos, { siteId: 'PQL1', regiao: 'r-for' });
+    expect(r.dono?.email).toBe('larissa@px.com.br');
+    expect(r.origem).toBe('escopo-de-regiao');
   });
 
-  it('gestora de outra região fica de fora', () => {
-    const outra = { ...larissa, email: 'outra@px.com.br', regionIds: ['Sobral'] };
-    const r = responsaveisPelaCobranca([outra], { siteId: 'SUL3', regiao: 'Fortaleza' });
-    expect(r).toEqual([]);
+  it('responsável da OS ganha de tudo', () => {
+    const r = donoDoAlertaDeFalta(todos, {
+      siteId: 'SUL3',
+      regiao: 'r-for',
+      responsavelDireto: 'larissa@px.com.br',
+    });
+    expect(r.dono?.email).toBe('larissa@px.com.br');
+    expect(r.origem).toBe('responsavel-da-os');
   });
 
-  it('admin sem escopo responde por tudo', () => {
-    const r = responsaveisPelaCobranca([admin], { siteId: 'QUALQUER', regiao: 'QUALQUER' });
-    expect(r.map(u => u.email)).toEqual(['admin@px.com.br']);
+  it('ADMIN NÃO É MAIS FALLBACK — sede órfã não vira e-mail para todo Admin', () => {
+    const r = donoDoAlertaDeFalta([admin, pablo], { siteId: 'ORFA', regiao: 'r-nenhuma' });
+    expect(r.dono).toBeNull();
+    expect(r.semDono).toBe(true);
   });
 
-  it('inativo não recebe', () => {
-    const r = responsaveisPelaCobranca([{ ...larissa, status: 'Inativo' }], { siteId: 'SUL3', regiao: 'Fortaleza' });
-    expect(r).toEqual([]);
+  it('o plantão declarado atende, mas fica marcado como falha de cadastro', () => {
+    // Falta órfã é pior que falta no lugar errado — mas isto é sintoma, não
+    // solução, e por isso `semDono` continua verdadeiro mesmo com dono.
+    const r = donoDoAlertaDeFalta(todos, {
+      siteId: 'ORFA',
+      regiao: 'r-nenhuma',
+      plantao: 'plantao@px.com.br',
+    });
+    expect(r.dono?.email).toBe('plantao@px.com.br');
+    expect(r.origem).toBe('plantao');
+    expect(r.semDono).toBe(true);
+  });
+
+  it('o coordenador da sede nunca é o dono — ele acabou de relatar', () => {
+    const r = donoDoAlertaDeFalta([pablo], { siteId: 'SUL3', regiao: 'r-for' });
+    expect(r.dono).toBeNull();
+  });
+
+  it('inativo não vira dono', () => {
+    const r = donoDoAlertaDeFalta([{ ...thais, status: 'Inativo' }], { siteId: 'SUL3', regiao: 'r-for' });
+    expect(r.dono).toBeNull();
   });
 });
 
