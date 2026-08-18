@@ -88,6 +88,26 @@ async function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {
   };
 }
 
+/**
+ * QUAL E-MAIL SAI QUANDO A OS MUDA DE ETAPA.
+ *
+ * ⚠️ Com as seis etapas, o seletor grava sempre o status CANÔNICO de cada uma — e
+ * é por ele que este switch passa a ser lido. Um canônico sem `case` é uma etapa
+ * inteira em que o solicitante não recebe nada e fica achando que a OS parou.
+ *
+ * Os `case` dos status NÃO-canônicos continuam aqui de propósito. Eles deixaram de
+ * ser alcançáveis pelo seletor, mas a API aceita PATCH com qualquer status —
+ * importação, script, correção manual —, e o texto deles já existe e está
+ * revisado. Apagá-los seria perder trabalho por causa de uma troca de rótulo.
+ *
+ * ⚠️ ESTA FUNÇÃO SÓ ESCOLHE O TEXTO. Quem decide se o solicitante recebe alguma
+ * coisa é `shouldNotifyRequesterForStatus`, que bloqueia as fases administrativas
+ * — orçamento, contrato, pagamento. Duas etapas das seis (Em orçamento e
+ * Contratação) são silenciosas para o solicitante DE PROPÓSITO: ele não acompanha
+ * degrau interno, e o risco maior deste desenho é sobrar aviso, não faltar.
+ *
+ * Acrescentar `case` aqui para um status bloqueado não faz e-mail nenhum sair.
+ */
 function resolveStatusTrigger(status: string) {
   switch (status) {
     case TICKET_STATUS.WAITING_TECH_OPINION:
