@@ -1301,22 +1301,6 @@ async function handleConfirmVisit(req, res) {
         });
       }
 
-      const quem = String(dadosDoToken.email || '').trim() || null;
-      await ref.update({
-        state: check.efeito.state,
-        outcome: check.efeito.outcome,
-        confirmedBy: quem,
-        confirmedAt: agora,
-        updatedAt: agora,
-        // Fica registrado que veio da sede, e não de dentro do app: é o que permite
-        // distinguir depois "a sede respondeu" de "o gestor preencheu por ela".
-        //
-        // O link prova POSSE DO TOKEN, nao a identidade de quem tocou (auditoria
-        // consulta 12). Por isso a origem e "link da sede": quem ler o registro
-        // depois precisa saber que isto e relato, nao identificacao.
-        confirmedVia: 'link-da-sede',
-      });
-
       /**
        * "Chegou" NAO fecha a OS — cria a acao de fechar o desfecho.
        *
@@ -1325,6 +1309,20 @@ async function handleConfirmVisit(req, res) {
        * rework existe para acabar. A acao nasce com dono unico e prazo no mesmo
        * dia, e entra na fila central e nos resumos que ja existem — sem virar mais
        * um e-mail.
+       *
+       * ⚠️ A AÇÃO É GRAVADA ANTES DA CONFIRMAÇÃO, e a ordem é a proteção. São
+       * documentos diferentes — compromisso e OS —, então não há escrita única. Se
+       * o processo morrer no meio:
+       *
+       *   ordem antiga (confirma -> ação): visita "compareceu", sem desfecho e sem
+       *     ninguém encarregado. É exatamente o buraco que esta ação existe para
+       *     fechar, e ele voltaria pela porta dos fundos.
+       *
+       *   ordem atual (ação -> confirma): existe uma ação de fechar desfecho para
+       *     uma visita que ainda consta como não respondida. A sede é perguntada de
+       *     novo, responde de novo, e a ação não é duplicada (não sobrescreve).
+       *
+       * Falha tem que cair para o lado que se conserta sozinho.
        */
       if (check.efeito.state === COMMITMENT_STATE.ARRIVED && !check.efeito.outcome) {
         const siteId = String(commitment.siteId || commitment.sede || '').trim();
@@ -1351,6 +1349,22 @@ async function handleConfirmVisit(req, res) {
           }
         }
       }
+
+      const quem = String(dadosDoToken.email || '').trim() || null;
+      await ref.update({
+        state: check.efeito.state,
+        outcome: check.efeito.outcome,
+        confirmedBy: quem,
+        confirmedAt: agora,
+        updatedAt: agora,
+        // Fica registrado que veio da sede, e não de dentro do app: é o que permite
+        // distinguir depois "a sede respondeu" de "o gestor preencheu por ela".
+        //
+        // O link prova POSSE DO TOKEN, nao a identidade de quem tocou (auditoria
+        // consulta 12). Por isso a origem e "link da sede": quem ler o registro
+        // depois precisa saber que isto e relato, nao identificacao.
+        confirmedVia: 'link-da-sede',
+      });
 
       for (const alvoId of commitment.ticketIds || []) await recomputeOperationalAttention(db, alvoId);
 

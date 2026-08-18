@@ -2746,6 +2746,7 @@ async function handleChecagemDasVisitas(req, res) {
 
       visitasDaSede.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
       const nomeDaSede = visitasDaSede[0]?.sede || siteId;
+      let perguntadas = false;
 
       for (const quem of coordenadores) {
         const itens = [];
@@ -2816,12 +2817,26 @@ async function handleChecagemDasVisitas(req, res) {
             continue;
           }
         }
+        // Só a partir daqui as visitas deste lote foram REALMENTE perguntadas.
+        perguntadas = true;
         checagens.push({ sede: nomeDaSede, para: quem.email, visitas: quantas });
       }
 
-      // A marca vai DEPOIS do envio: se o envio falhar, a próxima volta tenta de
-      // novo em vez de marcar como perguntado e deixar a visita morrer calada.
-      if (!simular) {
+      /**
+       * A marca só vale se ALGUÉM RECEBEU.
+       *
+       * ⚠️ Aqui morava um defeito achado na auditoria (consulta 13): a marca era
+       * gravada fora do laço de envio, então acontecia mesmo quando nenhum e-mail
+       * saía. O caso real: uma visita que vence dentro da MESMA janela de 30 min de
+       * uma execução anterior colide na chave de idempotência, não entra em e-mail
+       * nenhum — e era marcada como perguntada assim mesmo. A sede nunca seria
+       * questionada sobre ela, e a visita morreria em "sem confirmação", que o
+       * resumo depois leria como silêncio da sede.
+       *
+       * Marcar sem ter perguntado é a pior falha possível neste circuito: ela
+       * fabrica exatamente o sinal que o sistema existe para medir.
+       */
+      if (!simular && perguntadas) {
         for (const visita of visitasDaSede) {
           await db.collection('commitments').doc(visita.id).update({ checagemEnviadaEm: agora });
         }
