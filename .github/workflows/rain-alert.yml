@@ -22,9 +22,14 @@ name: Aviso de chuva
 # exigia as quatro credenciais do Gmail num segundo lugar, num repositório público e
 # com rotação em dobro. O estado ("estava chovendo?") saiu do cache do Actions para o
 # Firestore pelo mesmo motivo: cache pode ser despejado, e levaria a memória junto.
+# ⚠️ SEM `schedule` DESDE 19/08. O agendamento dos quatro jobs de alta frequência
+# vive em `ciclo-operacional.yml`, que os chama em sequência numa execução só — o
+# GitHub limita agendamentos POR REPOSITÓRIO, e quatro disputando a mesma cota
+# recebiam ~7 execuções por hora somadas contra 36 pedidas.
+#
+# Este arquivo fica pelo `workflow_dispatch`: é a ferramenta de teste desta rota, com
+# as opções que só fazem sentido aqui. Rodar à mão continua igual.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       simular:
