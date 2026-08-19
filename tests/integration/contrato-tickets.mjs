@@ -71,6 +71,10 @@ async function semear() {
       stageEnteredAt: dias(-5),
       lastInboundAt: dias(-2),
       lastOutboundAt: dias(-3),
+      // `closedAt` na semente de propósito: ele só existe em OS encerrada, e sem
+      // isto o teste dependia de outro script ter fechado alguma antes — passava ou
+      // falhava conforme a ordem da cadeia.
+      closedAt: dias(-1),
       // MAPA de datas — uma por etapa.
       marcos: { 'Nova OS': dias(-10), 'Aguardando Orçamento': dias(-5) },
       // ARRAY de objetos com data dentro.

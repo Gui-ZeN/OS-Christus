@@ -253,6 +253,11 @@ export function serializeTicketForApi(ticket) {
       : null,
     lastInboundAt: serializeDate(ticket.lastInboundAt),
     lastOutboundAt: serializeDate(ticket.lastOutboundAt),
+    // Terceiro achado pelo teste de contrato — e este só aparecia com a OS já
+    // encerrada, que é por que passou despercebido nas duas primeiras rodadas. O
+    // tipo do cliente já DECLARAVA `closedAt?: string`; o servidor é que não
+    // cumpria, e funcionava por acaso porque o `coerceDate` entende Timestamp cru.
+    closedAt: serializeDate(ticket.closedAt),
     viewingBy: ticket.viewingBy
       ? { ...ticket.viewingBy, at: serializeDate(ticket.viewingBy.at) }
       : null,
