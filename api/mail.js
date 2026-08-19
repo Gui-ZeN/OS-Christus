@@ -77,6 +77,7 @@ import { fetchCemaden } from './_lib/cemaden.js';
 import { fetchMetar } from './_lib/metar.js';
 import { detectRainTransition, stateToPersist } from './_lib/rainWatch.js';
 import { avaliarChuva, montarEmail, sinalSimulado } from './_lib/rainAlert.js';
+import { destinatariosDoAviso } from './_lib/avisoDeChuva.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
@@ -3356,14 +3357,6 @@ async function handleRainAlert(req, res) {
       return sendJson(res, 400, { ok: false, error: 'O parâmetro `para` não é um e-mail válido.' });
     }
 
-    const destino = paraDeTeste || String(process.env.RAIN_ALERT_TO || '').trim();
-    if (!destino) {
-      // 200, não erro: enquanto o destinatário não existir, cada execução viraria uma
-      // falha vermelha a cada 5 minutos — ~288 por dia. Ruído nesse volume ensina todo
-      // mundo a ignorar o vermelho, inclusive quando ele for de verdade.
-      return sendJson(res, 200, { ok: true, enviado: false, motivo: 'RAIN_ALERT_TO não configurado' });
-    }
-
     // Uma fonte fora do ar não pode derrubar a outra: cada uma cai para vazio e o
     // `avaliarChuva` resolve com o que sobrou.
     const [lista, metar] = await Promise.all([
@@ -3384,20 +3377,66 @@ async function handleRainAlert(req, res) {
     const transicao = detectRainTransition(anterior, sinal.state);
 
     let enviado = false;
+    let origemDosDestinos = 'nao-consultado';
+    let destinos = [];
     if (transicao === 'comecou' || forcar) {
+      /**
+       * A LISTA SÓ É LIDA QUANDO VAI SAIR E-MAIL.
+       *
+       * A rota roda o dia inteiro e, em 99% dos ciclos, não há transição. Ler o
+       * diretório em todos custaria centenas de leituras por dia na cota do Spark
+       * para responder uma pergunta que não foi feita.
+       *
+       * O preço: destinatário mal configurado só aparece no dia em que chove. É o
+       * mesmo dia em que ele importa, e o log da execução diz o motivo por extenso.
+       */
+      if (paraDeTeste) {
+        destinos = [paraDeTeste];
+        origemDosDestinos = 'teste';
+      } else {
+        const pessoas = await db.collection('users').get();
+        const escolha = destinatariosDoAviso(
+          pessoas.docs.map(doc => doc.data() || {}),
+          process.env.RAIN_ALERT_TO
+        );
+        destinos = escolha.destinos;
+        origemDosDestinos = escolha.origem;
+      }
+
+      if (destinos.length === 0) {
+        // 200, não erro: a rota roda o dia inteiro, e transformar isto em falha
+        // vermelha ensinaria todo mundo a ignorar o vermelho.
+        return sendJson(res, 200, {
+          ok: true,
+          enviado: false,
+          motivo: 'ninguém marcado para receber o aviso de chuva (e RAIN_ALERT_TO vazio)',
+          estado: { anterior, agora: sinal.state, transicao },
+        });
+      }
+
       const quando = now.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
       const email = montarEmail(sinal, quando, sede);
       // A chuva também: a transição já protege contra repetir, mas duas execuções
       // simultâneas do cron de 5 em 5 minutos leriam o mesmo estado anterior.
-      const chave = chaveDeEnvio(['chuva', destino, sede || 'cidade', quando]);
-      enviado = await enviarUmaVez(db, chave, () => gmailSend({
-        toEmail: destino,
-        subject: email.subject,
-        text: email.text,
-        html: email.html,
-        ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
-        references: [],
-      }), now);
+      /**
+       * UMA CHAVE POR DESTINATÁRIO, e um envio por vez.
+       *
+       * A chave já incluía o destino, então cada pessoa tem a sua idempotência: se o
+       * Gmail recusar a caixa de uma, as outras continuam recebendo, e a repetição da
+       * execução seguinte não duplica para quem já recebeu.
+       */
+      for (const destino of destinos) {
+        const chave = chaveDeEnvio(['chuva', destino, sede || 'cidade', quando]);
+        const saiu = await enviarUmaVez(db, chave, () => gmailSend({
+          toEmail: destino,
+          subject: email.subject,
+          text: email.text,
+          html: email.html,
+          ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
+          references: [],
+        }), now);
+        if (saiu) enviado = true;
+      }
     }
 
     // Grava DEPOIS de enviar: se o envio falhar, o estado não avança e a próxima
@@ -3411,8 +3450,11 @@ async function handleRainAlert(req, res) {
       ok: true,
       enviado,
       // Sem isto, um teste que "deu certo" não dizia PARA ONDE foi — e o `?para=`
-      // existe justamente para desviar o destino.
-      destino: enviado ? destino : null,
+      // existe justamente para desviar o destino. Agora diz também DE ONDE saiu a
+      // lista: `cadastro` é o normal, `ambiente` avisa que ninguém marcou a caixinha
+      // e a rede de segurança está segurando o aviso sozinha.
+      destino: enviado ? destinos.join(', ') : null,
+      origemDosDestinos,
       estado: { anterior, agora: sinal.state, transicao },
       fontes: sinal.fontes,
       simulado: Boolean(sinal.simulado),

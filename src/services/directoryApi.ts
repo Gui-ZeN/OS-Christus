@@ -11,6 +11,12 @@ export interface DirectoryUser {
   siteIds?: string[];
   authUid?: string | null;
   active?: boolean;
+  /**
+   * Recebe o aviso de chuva. Mora no cadastro, e não numa variável de ambiente,
+   * porque quem decide isso é quem administra o sistema — trocar o destinatário
+   * exigia editar `RAIN_ALERT_TO` na Vercel e um redeploy.
+   */
+  avisoDeChuva?: boolean;
 }
 
 export interface DirectoryTeam {

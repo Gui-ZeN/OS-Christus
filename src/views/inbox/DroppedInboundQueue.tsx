@@ -116,8 +116,19 @@ export function DroppedInboundQueue({
         <ChevronDown size={14} className={`ml-auto shrink-0 transition-transform ${aberto ? 'rotate-180' : ''}`} />
       </button>
 
+      {/**
+        * ROLAGEM PRÓPRIA, e não o fluxo da página.
+        *
+        * Este bloco mora ACIMA do container que rola a lista de OS, e o pai é
+        * `overflow-hidden`. Com 17 mensagens abertas, da décima em diante ficavam
+        * cortadas sem barra nenhuma — a fila existe justamente para nada se perder, e
+        * ela mesma escondia dois terços do que tinha.
+        *
+        * O teto é em `vh` para caber em telas baixas sem empurrar a lista de OS para
+        * fora: acima disso, rola aqui dentro.
+        */}
       {aberto && (
-        <div className="space-y-2 px-2 pb-2">
+        <div className="max-h-[55vh] space-y-2 overflow-y-auto px-2 pb-2">
           {erro && <p className="px-1 text-[11px] text-roman-danger">{erro}</p>}
           {itens.map(item => (
             <div key={item.id} className="rounded-sm border border-roman-primary/35 bg-roman-surface p-2">

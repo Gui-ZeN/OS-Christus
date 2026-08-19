@@ -18,6 +18,7 @@ type UserForm = {
   regionIds: string[];
   siteIds: string[];
   password: string;
+  avisoDeChuva: boolean;
 };
 
 const ROLE_OPTIONS: Array<{ value: UserRole; label: string; description: string }> = [
@@ -35,6 +36,7 @@ const EMPTY_FORM: UserForm = {
   regionIds: [],
   siteIds: [],
   password: '',
+  avisoDeChuva: false,
 };
 
 function isDeliverableEmail(value: string) {
@@ -51,6 +53,7 @@ function normalizeUserForm(user: DirectoryUser): UserForm {
     regionIds: user.regionIds || [],
     siteIds: user.siteIds || [],
     password: '',
+    avisoDeChuva: user.avisoDeChuva === true,
   };
 }
 
@@ -163,6 +166,7 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
       regionIds: form.regionIds,
       siteIds: form.siteIds,
       active: form.status === 'Ativo',
+      avisoDeChuva: form.avisoDeChuva,
     };
 
     setSaving(true);
@@ -457,6 +461,26 @@ export function UsersView({ embedded = false }: { embedded?: boolean }) {
                   </select>
                 </div>
               </div>
+
+              {/* O AVISO DE CHUVA SAIU DA VARIÁVEL DE AMBIENTE.
+                  Antes o destinatário era `RAIN_ALERT_TO` na Vercel: trocar quem
+                  recebe exigia mexer em configuração de deploy e publicar de novo —
+                  quem administra o sistema não tinha como fazer sozinho. */}
+              <label className="flex cursor-pointer items-start gap-3 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 transition-colors hover:border-roman-primary/50">
+                <input
+                  type="checkbox"
+                  checked={form.avisoDeChuva}
+                  onChange={event => setForm(current => ({ ...current, avisoDeChuva: event.target.checked }))}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-roman-primary"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-roman-text-main">Recebe o aviso de chuva</span>
+                  <span className="block text-xs text-roman-text-sub">
+                    Um e-mail quando começa a chover em Fortaleza, para conferir goteiras. Chega a qualquer hora,
+                    inclusive de madrugada — só marque para quem quer ser avisado assim.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">Regiões</label>

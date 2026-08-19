@@ -27,6 +27,9 @@ function normalizeUser(input) {
     regionIds,
     siteIds,
     active: input?.active !== false,
+    // `=== true` e não `!== false`: quem não marcou não recebe. O padrão de um
+    // aviso que chega de madrugada tem que ser o silêncio.
+    avisoDeChuva: input?.avisoDeChuva === true,
   };
 }
 
