@@ -12,46 +12,15 @@ import {
   fetchCatalog,
 } from '../services/catalogApi';
 import { mensagemDeErro } from '../utils/errorMessage';
+import {
+  getPublicFormSubmitError,
+  parseEmailList,
+  selecionarImagens,
+} from './publicForm/regras';
 interface PublicFormViewProps {
   onBack: () => void;
 }
 
-const MAX_PUBLIC_FILES = 10;
-const MAX_PUBLIC_FILE_BYTES = 10 * 1024 * 1024;
-const MAX_PUBLIC_TOTAL_BYTES = 25 * 1024 * 1024;
-const PUBLIC_IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|heic|heif)$/i;
-
-function isSupportedPublicImage(file: File) {
-  return PUBLIC_IMAGE_EXTENSION.test(file.name) && file.type !== 'image/gif';
-}
-
-function parseEmailList(input: string) {
-  const values = input
-    .split(/[;,\s]+/)
-    .map(value => value.trim().toLowerCase())
-    .filter(Boolean);
-  const valid: string[] = [];
-  const invalid: string[] = [];
-
-  values.forEach(value => {
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      if (!valid.includes(value)) valid.push(value);
-    } else {
-      invalid.push(value);
-    }
-  });
-
-  return { valid, invalid };
-}
-
-function getPublicFormSubmitError(error: unknown) {
-  const message = mensagemDeErro(error, '');
-  if (!message) return 'Não foi possível registrar a OS agora. Tente novamente em alguns minutos.';
-  if (message === 'Falha ao criar ticket na API.') {
-    return 'Não foi possível registrar a solicitação. Se houver foto anexada, tente enviar uma imagem menor ou registre sem foto e envie a imagem depois.';
-  }
-  return message;
-}
 
 export function PublicFormView({ onBack }: PublicFormViewProps) {
   const { addTicket } = useApp();
@@ -236,7 +205,7 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
       });
       setFiles([]);
     } catch (error) {
-      setSubmitError(getPublicFormSubmitError(error));
+      setSubmitError(getPublicFormSubmitError(mensagemDeErro(error, '')));
       setIsSubmitting(false);
     }
   };
@@ -262,34 +231,10 @@ export function PublicFormView({ onBack }: PublicFormViewProps) {
   };
 
   const addFiles = (incoming: File[]) => {
-    const accepted: File[] = [];
-    let totalBytes = files.reduce((total, file) => total + file.size, 0);
-    let fileError = '';
-
-    for (const file of incoming) {
-      if (files.length + accepted.length >= MAX_PUBLIC_FILES) {
-        fileError = `Você pode anexar no máximo ${MAX_PUBLIC_FILES} imagens.`;
-        break;
-      }
-      if (!isSupportedPublicImage(file)) {
-        fileError = 'Use imagens JPG, PNG, WebP, HEIC ou HEIF. Arquivos GIF não são aceitos.';
-        continue;
-      }
-      if (file.size > MAX_PUBLIC_FILE_BYTES) {
-        fileError = `A imagem ${file.name} ultrapassa o limite de 10 MB.`;
-        continue;
-      }
-      if (totalBytes + file.size > MAX_PUBLIC_TOTAL_BYTES) {
-        fileError = 'Os anexos juntos não podem ultrapassar 25 MB.';
-        break;
-      }
-      const duplicate = [...files, ...accepted].some(
-        current => current.name === file.name && current.size === file.size && current.lastModified === file.lastModified
-      );
-      if (duplicate) continue;
-      accepted.push(file);
-      totalBytes += file.size;
-    }
+    // A regra mora em `publicForm/regras`: dentro daqui ela só era alcançável
+    // clicando na tela, e por isso as cinco condições dela não tinham teste.
+    const { aceitas, erro: fileError } = selecionarImagens(files, incoming);
+    const accepted = aceitas as File[];
 
     if (accepted.length > 0) setFiles(current => [...current, ...accepted]);
     setErrors(current => {

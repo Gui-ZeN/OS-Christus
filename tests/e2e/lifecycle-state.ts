@@ -42,6 +42,18 @@ export async function apagarOsPorAssunto(assunto: string) {
   return snap.size;
 }
 
+/**
+ * O número da última OS emitida.
+ *
+ * Serve para afirmar que NADA foi criado: contar documentos é frágil (outro spec
+ * pode apagar em paralelo), enquanto o contador só anda para a frente e só anda
+ * quando uma OS nasce.
+ */
+export async function lerContadorDeOs() {
+  const snap = await getLifecycleDb().collection('config').doc('ticketSequence').get();
+  return Number(snap.data()?.lastNumber || 0);
+}
+
 export async function resetLifecycleFixtures() {
   const db = getLifecycleDb();
   await seedLifecycleFixtures(db);
