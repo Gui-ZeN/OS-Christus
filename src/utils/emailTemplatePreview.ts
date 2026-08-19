@@ -4,26 +4,18 @@ import type { EmailTemplateSettings } from '../services/settingsApi';
 // envio real não tem. Quem ajustava um modelo aqui aprovava uma coisa e o
 // destinatário recebia outra. Agora a prévia só traduz o modelo em parâmetros; quem
 // desenha é o mesmo módulo do envio.
-import { buildTicketEmailTemplate, getStageMeta } from '../../api/_lib/emailTemplates.js';
+import {
+  buildTicketEmailTemplate,
+  getStageMeta,
+  renderTemplateString,
+} from '../../api/_lib/emailTemplates.js';
 
-function readPathValue(source: Record<string, unknown>, path: string) {
-  return String(path || '')
-    .split('.')
-    .filter(Boolean)
-    .reduce<unknown>((current, key) => {
-      if (current && typeof current === 'object') {
-        return (current as Record<string, unknown>)[key];
-      }
-      return undefined;
-    }, source);
-}
-
-export function renderTemplateString(template: string, variables: Record<string, unknown>) {
-  return String(template || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
-    const value = readPathValue(variables, path);
-    return value == null ? '' : String(value);
-  });
-}
+/**
+ * A substituição vem do MESMO módulo que o envio usa. Ela morava aqui e em
+ * `api/mail.js`, idênticas — e duas cópias idênticas são só uma divergência que
+ * ainda não aconteceu. Reexportada porque a tela de Configurações a consome.
+ */
+export { renderTemplateString };
 
 export function getTemplateTriggerLabel(trigger: string) {
   return getStageMeta(trigger, '').label;

@@ -6,7 +6,7 @@ import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.j
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
-import { buildNoticeEmailTemplate, buildTicketEmailTemplate } from './_lib/emailTemplates.js';
+import { buildNoticeEmailTemplate, buildTicketEmailTemplate, renderTemplateString } from './_lib/emailTemplates.js';
 import { diaEmFortaleza, ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
 import { cobreASede, donoDoAlertaDeFalta, precisaDeAlertaDeFalta, precisaDeChecagem } from './_lib/checagemDaVisita.js';
 import { montarRevisaoSemanal } from './_lib/fechamentoAssistido.js';
@@ -224,19 +224,6 @@ function safeJsonParse(value) {
   }
 }
 
-function readPathValue(source, path) {
-  return String(path || '')
-    .split('.')
-    .filter(Boolean)
-    .reduce((current, key) => (current && typeof current === 'object' ? current[key] : undefined), source);
-}
-
-function renderTemplateString(template, variables) {
-  return String(template || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
-    const value = readPathValue(variables, path);
-    return value == null ? '' : String(value);
-  });
-}
 
 function normalizeResolvedTemplate(template) {
   if (!template || typeof template !== 'object') return null;

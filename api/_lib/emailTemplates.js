@@ -27,6 +27,41 @@ const COR = {
   link: '#7a4f18',
 };
 
+/**
+ * A SUBSTITUIÇÃO DE `{{variavel}}` NO MODELO — uma só, para os dois lados.
+ *
+ * Ela existia duas vezes: uma em `api/mail.js`, que monta o e-mail que sai, e outra
+ * em `src/utils/emailTemplatePreview.ts`, que monta a prévia das Configurações.
+ * Idênticas quando conferi, e é justamente por isso que valia unificar: enquanto
+ * forem duas, a próxima correção entra numa e não na outra.
+ *
+ * O custo da divergência já foi pago uma vez e está escrito no topo da prévia —
+ * "quem ajustava um modelo aqui aprovava uma coisa e o destinatário recebia outra".
+ * Aquilo era o DESENHO estando em dois lugares; isto aqui é a mesma armadilha um
+ * degrau abaixo.
+ *
+ * ⚠️ VARIÁVEL QUE NÃO EXISTE VIRA VAZIO, e não `{{ela mesma}}`. Deixar a chave
+ * aparecer mandaria "Prezado {{requester.name}}" para a sede — pior que um espaço,
+ * porque denuncia o modelo em vez de omitir o dado.
+ *
+ * Não escapa HTML de propósito: quem escapa é `buildTicketEmailTemplate`, no
+ * momento de montar a página. Escapar aqui escaparia duas vezes e o e-mail sairia
+ * com `&amp;lt;`.
+ */
+function readPathValue(source, path) {
+  return String(path || '')
+    .split('.')
+    .filter(Boolean)
+    .reduce((current, key) => (current && typeof current === 'object' ? current[key] : undefined), source);
+}
+
+export function renderTemplateString(template, variables) {
+  return String(template || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+    const value = readPathValue(variables, path);
+    return value == null ? '' : String(value);
+  });
+}
+
 function esc(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
