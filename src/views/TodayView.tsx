@@ -747,6 +747,15 @@ function Cartao({
   const manual = ticket.nextAction;
   const parado = idleDays(ticket, agora);
   const suspensao = activeSuspension(ticket, agora);
+  /** O que fazer, numa expressão só — serve à linha de contexto e vira título de
+   *  reserva quando a OS não tem assunto, para nenhum cartão abrir em branco. */
+  // `|| 'Suspensa'` porque motivo ausente existe: a suspensão pode ter sido gravada
+  // antes de o campo existir, e o rótulo saía VAZIO — o cartão mostrava "OS-0009 ·
+  // SUL3 ·" e nada depois. Enquanto era título passava por descuido de layout; na
+  // linha de contexto vira um ponto solto que não se explica.
+  const rotuloDaAcao = suspensao
+    ? SUSPENSION_REASON_LABEL[suspensao.reason] || 'Suspensa'
+    : acao?.what || (acao?.kind && ATTENTION_KIND_LABEL[acao.kind]) || 'Definir a próxima ação';
 
   return (
     <div
@@ -765,16 +774,20 @@ function Cartao({
         }}
         className="min-w-0 cursor-pointer rounded-sm focus:outline-none focus:ring-1 focus:ring-roman-primary"
       >
-        {/* A AÇÃO é o título, não o assunto da OS: a tela responde "o que fazer",
-            e o assunto vira contexto embaixo.
-
-            O peso passou de 500 para 600 porque o código contradizia este comentário:
-            medido, o número da OS — que é contexto, na linha de baixo — vinha em 600 e
-            o título em 500. O item mais pesado do cartão era o menos importante. */}
+        {/* O ASSUNTO DA OS é o título — e já foi a ação, até o dono ver a tela cheia.
+         *
+         * A regra anterior era defensável no papel: "a tela responde o que fazer,
+         * então a ação é o título". Na tela real ela desaba. Os rótulos de sugestão
+         * são seis, então trinta e cinco cartões abrem com dois títulos repetidos —
+         * "Sem andamento", "Mensagem sem resposta" — e o que distingue um cartão do
+         * outro fica na linha cinza de 12px. O pedaço mais pesado do cartão era o
+         * único que não ajudava a achar nada.
+         *
+         * A ação não sumiu: desceu para a linha de contexto, em cor principal. Quem
+         * varre a lista procura a OS; quem parou num cartão lê o resto.
+         */}
         <div className="font-semibold text-roman-text-main">
-          {suspensao
-            ? SUSPENSION_REASON_LABEL[suspensao.reason]
-            : acao?.what || (acao?.kind && ATTENTION_KIND_LABEL[acao.kind]) || 'Definir a próxima ação'}
+          {repairMojibake(ticket.subject) || rotuloDaAcao}
         </div>
         {/* Toda proposta sabe se explicar. Foi o critério para abrir a tela: sem o
             "apareci por causa disto", a pessoa não sabe se a sugestão faz sentido e
@@ -790,7 +803,9 @@ function Cartao({
               mesmo fim, e ele roubava a ênfase do título. */}
           <span className="font-mono font-medium text-roman-text-main">{ticket.id}</span>
           <span>· {ticket.sede || 'sem sede'}</span>
-          <span className="truncate">· {repairMojibake(ticket.subject)}</span>
+          {/* A ação vem em cor principal para não virar sussurro na linha cinza: ela
+              deixou de ser o título, não deixou de importar. */}
+          <span className="truncate text-roman-text-main">· {rotuloDaAcao}</span>
           {suspensao?.note && <span className="truncate">· {suspensao.note}</span>}
         </div>
         {manual?.ownerName && (

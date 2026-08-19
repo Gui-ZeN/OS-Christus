@@ -37,7 +37,7 @@ export function TempoEmFortaleza({ osDeAgua, aoFiltrarAgua }: Props) {
 
   if (!tempo) return null;
 
-  const chuvaImporta = tempo.chovendoAgora || tempo.chanceDeChuva >= CHANCE_RELEVANTE;
+  const chuvaImporta = tempo.chanceDeChuva >= CHANCE_RELEVANTE;
   const quandoPico =
     tempo.horasAteOPico === 0 ? 'nesta hora' : `em ${tempo.horasAteOPico}h`;
 
@@ -72,18 +72,18 @@ export function TempoEmFortaleza({ osDeAgua, aoFiltrarAgua }: Props) {
       <CloudRain size={20} className="shrink-0 text-roman-primary" />
 
       <div className="leading-tight">
+        {/* PREVISÃO, e nunca "chovendo agora".
+         *
+         * O bloco já afirmou observação — e a fonte é um modelo de grade larga, que
+         * errou nos dois sentidos no mesmo dia. Quem sabe se está chovendo é o
+         * pluviômetro do bairro e o aeroporto, que alimentam o aviso por e-mail.
+         * Aqui a pergunta é outra: vale marcar a visita no telhado hoje?
+         */}
         <div className="font-serif text-lg text-roman-text-main">
-          {tempo.chovendoAgora ? (
-            'Chovendo agora'
-          ) : (
-            <>
-              <span className="tabular-nums">{tempo.chanceDeChuva}%</span> de chuva
-            </>
-          )}
+          <span className="tabular-nums">{tempo.chanceDeChuva}%</span> de chuva
         </div>
         <div className="text-xs text-roman-text-sub tabular-nums">
-          {Math.round(tempo.temperatura)}°
-          {!tempo.chovendoAgora && ` · pico ${quandoPico}`}
+          {Math.round(tempo.temperatura)}° · pico {quandoPico}
         </div>
       </div>
 

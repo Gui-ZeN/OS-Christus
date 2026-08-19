@@ -197,7 +197,9 @@ for (const t of tickets) {
     // Suspensão vigente (revisão no FUTURO) → cai em "Suspensas". Com a revisão
     // vencida ela voltaria sozinha para o grupo que cobra decisão.
     ...(t.agenda === 'suspensa'
-      ? { attention: { state: 'suspensa', note: 'Aguardando liberação de verba', reviewAt: new Date(now.getTime() + 12 * DIA), setAt: now } }
+      // `reason` junto com `note`: sem ele o cartão renderiza o rótulo vazio, e o
+      // dado de teste deixaria de reproduzir o que a tela recebe de verdade.
+      ? { attention: { state: 'suspensa', reason: 'sem-verba', note: 'Aguardando liberação de verba', reviewAt: new Date(now.getTime() + 12 * DIA), setAt: now } }
       : {}),
   });
 }
