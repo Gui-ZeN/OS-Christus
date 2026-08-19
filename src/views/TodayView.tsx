@@ -73,6 +73,9 @@ import { mensagemDeErro } from '../utils/errorMessage';
  */
 
 /** O que já se sabe de cada visita do dia, em uma palavra. */
+/** O rótulo do vazio. Constante porque a tela precisa RECONHECÊ-LO para não repeti-lo. */
+const SEM_ACAO = 'Definir a próxima ação';
+
 const ESTADO_DA_VISITA: Record<string, string> = {
   agendado: 'aguardando o horário',
   'sem-confirmacao': 'sem confirmação',
@@ -180,6 +183,16 @@ export function TodayView() {
   const { tickets, navigateTo, setActiveTicketId, updateTicket, currentUser, osBoardFilter, setOsBoardFilter } = useApp();
   const { toast, showToast } = useToast();
   const [busca, setBusca] = useState('');
+  /**
+   * A SEDE ESTREITA A TELA INTEIRA; a busca só filtra as listas.
+   *
+   * São coisas diferentes de propósito. A busca é "acha esta OS" — momentânea, e
+   * mexer nos contadores por causa dela faria o número piscar a cada tecla. A sede é
+   * "meu dia é esta unidade": ela entra ANTES da montagem, então os quatro
+   * contadores, os grupos e o passivo passam todos a falar da mesma sede. Filtro de
+   * sede que não muda o número de cima é filtro que engana.
+   */
+  const [sede, setSede] = useState('');
   const [editando, setEditando] = useState<string | null>(null);
   // Compromissos vivem fora do `tickets` (uma visita atende várias OS) e por isso não
   // entram no polling global — esta tela busca os seus e pronto.
@@ -228,9 +241,50 @@ export function TodayView() {
     return () => clearInterval(id);
   }, []);
 
-  const agenda = useMemo(
+  /**
+   * A agenda INTEIRA — só para saber quais sedes têm algo hoje.
+   *
+   * A lista de opções não pode sair da agenda já filtrada: ela encolheria para a sede
+   * escolhida e não haveria como voltar. Mesmo motivo do seletor de quem cobrou no
+   * painel de indicadores.
+   */
+  const agendaCompleta = useMemo(
     () => buildAgenda(tickets, agora, id => compromissoPorId.get(id) || null),
     [tickets, agora, compromissoPorId]
+  );
+
+  /**
+   * As sedes que APARECEM na agenda, não as dezesseis do cadastro.
+   *
+   * Oferecer todas faria a maioria devolver tela vazia, e tela vazia é indistinguível
+   * de defeito — a mesma regra que faz o bloco de água só mostrar o número quando
+   * existe OS de água.
+   */
+  const sedesNaAgenda = useMemo(() => {
+    const nomes = new Set<string>();
+    for (const lista of Object.values(agendaCompleta.groups)) {
+      for (const ticket of lista) if (ticket.sede) nomes.add(ticket.sede);
+    }
+    return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [agendaCompleta]);
+
+  /** Sede que sumiu do dia perde a seleção, senão a tela fica vazia parecendo defeito. */
+  useEffect(() => {
+    if (sede && !sedesNaAgenda.includes(sede)) setSede('');
+  }, [sede, sedesNaAgenda]);
+
+  const ticketsDoRecorte = useMemo(
+    () => (sede ? tickets.filter(ticket => ticket.sede === sede) : tickets),
+    [tickets, sede]
+  );
+
+  // Sem filtro, reaproveita a agenda inteira em vez de montar a mesma coisa duas vezes.
+  const agenda = useMemo(
+    () =>
+      sede
+        ? buildAgenda(ticketsDoRecorte, agora, id => compromissoPorId.get(id) || null)
+        : agendaCompleta,
+    [sede, ticketsDoRecorte, agora, compromissoPorId, agendaCompleta]
   );
 
   /**
@@ -239,8 +293,10 @@ export function TodayView() {
    * numa tela de agenda é o mesmo enfeite que saiu do Início hoje.
    */
   const osDeAgua = useMemo(
-    () => tickets.filter(t => t.waterIssue && isTicketOpen(t.status)).length,
-    [tickets]
+    // Segue o recorte: com uma sede escolhida, o número ao lado do clima precisa ser
+    // o dela — senão o bloco promete uma lista que o filtro não vai devolver.
+    () => ticketsDoRecorte.filter(t => t.waterIssue && isTicketOpen(t.status)).length,
+    [ticketsDoRecorte]
   );
 
   /** Abre a Gestão só com as de água. O filtro é de primeira classe lá, senão a
@@ -415,7 +471,28 @@ export function TodayView() {
           <h1 className="font-serif text-xl font-medium text-roman-text-main">Hoje</h1>
           <p className="font-serif italic text-roman-text-sub">{dataDeHoje}</p>
         </div>
-        <div className="relative ml-auto">
+        {/* Só aparece com mais de uma sede no dia: seletor de uma opção é enfeite — e
+            para a gestora regional, que enxerga uma sede só, seria enfeite sempre. */}
+        {sedesNaAgenda.length > 1 && (
+          <select
+            aria-label="Filtrar a agenda por sede"
+            value={sede}
+            onChange={event => setSede(event.target.value)}
+            className={`ml-auto rounded-sm border bg-roman-bg py-1.5 pl-2.5 pr-2 text-sm outline-none focus:border-roman-primary ${
+              sede
+                ? 'border-roman-primary font-medium text-roman-text-main'
+                : 'border-roman-border text-roman-text-sub'
+            }`}
+          >
+            <option value="">Todas as sedes</option>
+            {sedesNaAgenda.map(nome => (
+              <option key={nome} value={nome}>
+                {nome}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className={`relative ${sedesNaAgenda.length > 1 ? '' : 'ml-auto'}`}>
           <Search
             size={14}
             className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-roman-text-sub"
@@ -681,17 +758,24 @@ export function TodayView() {
           <p className="p-10 text-center text-roman-text-sub">Nenhuma OS carregada.</p>
         ) : GROUP_ORDER.every(grupo => filtra(agenda.groups[grupo]).length === 0) ? (
           <div className="p-10 text-center">
+            {/* Diz QUAL filtro esvaziou. Com dois ativos, "nada na agenda" mandaria a
+                pessoa procurar defeito onde há só recorte. */}
             <p className="text-roman-text-sub">
               {busca.trim()
-                ? `Nenhuma OS da agenda corresponde a “${busca.trim()}”.`
-                : 'Nada na agenda — nenhuma OS pede ação hoje.'}
+                ? `Nenhuma OS da agenda corresponde a “${busca.trim()}”${sede ? ` em ${sede}` : ''}.`
+                : sede
+                  ? `Nada na agenda de ${sede} — nenhuma OS dessa sede pede ação hoje.`
+                  : 'Nada na agenda — nenhuma OS pede ação hoje.'}
             </p>
-            {busca.trim() && (
+            {(busca.trim() || sede) && (
               <button
-                onClick={() => setBusca('')}
+                onClick={() => {
+                  setBusca('');
+                  setSede('');
+                }}
                 className="mt-3 inline-flex min-h-6 items-center text-sm font-medium text-roman-primary hover:underline"
               >
-                Limpar a busca
+                {busca.trim() && sede ? 'Limpar busca e sede' : busca.trim() ? 'Limpar a busca' : 'Ver todas as sedes'}
               </button>
             )}
           </div>
@@ -755,7 +839,7 @@ function Cartao({
   // linha de contexto vira um ponto solto que não se explica.
   const rotuloDaAcao = suspensao
     ? SUSPENSION_REASON_LABEL[suspensao.reason] || 'Suspensa'
-    : acao?.what || (acao?.kind && ATTENTION_KIND_LABEL[acao.kind]) || 'Definir a próxima ação';
+    : acao?.what || (acao?.kind && ATTENTION_KIND_LABEL[acao.kind]) || SEM_ACAO;
 
   return (
     <div
@@ -804,8 +888,14 @@ function Cartao({
           <span className="font-mono font-medium text-roman-text-main">{ticket.id}</span>
           <span>· {ticket.sede || 'sem sede'}</span>
           {/* A ação vem em cor principal para não virar sussurro na linha cinza: ela
-              deixou de ser o título, não deixou de importar. */}
-          <span className="truncate text-roman-text-main">· {rotuloDaAcao}</span>
+              deixou de ser o título, não deixou de importar.
+
+              Menos quando ela é o VAZIO. "Definir a próxima ação" já está no título do
+              grupo e escrito dentro do botão; uma terceira vez na linha de contexto só
+              gasta a atenção que o assunto da OS deveria receber. */}
+          {rotuloDaAcao !== SEM_ACAO && (
+            <span className="truncate text-roman-text-main">· {rotuloDaAcao}</span>
+          )}
           {suspensao?.note && <span className="truncate">· {suspensao.note}</span>}
         </div>
         {manual?.ownerName && (
