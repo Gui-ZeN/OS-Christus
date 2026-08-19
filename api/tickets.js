@@ -1340,7 +1340,15 @@ async function handleConfirmVisit(req, res) {
       throw new HttpError(410, 'Este link não vale mais. Peça um novo à equipe de manutenção.');
     }
 
-    const ref = db.collection('commitments').doc(String(dadosDoToken.commitmentId || ''));
+    // Token gravado torto (versão antiga, migração pela metade) não pode virar 500
+    // numa rota pública: `doc('')` levanta exceção do Firestore e a pessoa recebe
+    // "falha interna" em vez de "peça um link novo". A resposta é a mesma do token
+    // inexistente, pelo mesmo motivo de sempre: não contar nada a quem varre.
+    const idDaVisita = String(dadosDoToken.commitmentId || '').trim();
+    if (!idDaVisita) {
+      throw new HttpError(410, 'Este link não vale mais. Peça um novo à equipe de manutenção.');
+    }
+    const ref = db.collection('commitments').doc(idDaVisita);
     const snap = await ref.get();
     if (!snap.exists) throw new HttpError(404, 'Visita não encontrada.');
     const commitment = { id: snap.id, ...snap.data(), startAt: toDateOrNull(snap.data()?.startAt) };
