@@ -6,9 +6,26 @@ export default defineConfig({
   // para não voltar por engano num `playwright test` sem argumentos. Ele continua
   // disponível pelo script dedicado `test:e2e:lifecycle-legacy`.
   testIgnore: ['lifecycle.e2e.spec.ts'],
-  fullyParallel: !process.env.CI,
+  /**
+   * SERIAL SEMPRE — no CI e aqui. Paralelo não é otimização, é ruído.
+   *
+   * A suíte inteira compartilha UM emulador, UM servidor e um banco: os specs
+   * escrevem no mesmo lugar, e dois deles (`foco-visivel`, `alvo-de-clique`) medem
+   * A TELA — onde o Tab para, que tamanho tem cada controle. Rodar em paralelo faz
+   * cada um enxergar um estado diferente.
+   *
+   * Medido em 19/08, mesma máquina, mesma suíte:
+   *   paralelo (como estava)  → 1, 2, 3 e 10 falhas em quatro rodadas
+   *   serial                  → 20/20 em três rodadas, ~1,3 min cada
+   *
+   * O CI já era serial, então ele nunca sofreu disso. Quem sofria era quem roda
+   * localmente: falha aleatória ensina a ignorar o vermelho, e foi assim que eu
+   * publiquei um E2E quebrado hoje sem perceber. Um minuto a mais vale um sinal em
+   * que dá para confiar.
+   */
+  fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: process.env.CI
     ? [
         ['list'],

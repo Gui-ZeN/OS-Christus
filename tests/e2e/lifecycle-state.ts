@@ -19,6 +19,29 @@ function getLifecycleDb() {
   return getFirestore(app);
 }
 
+/**
+ * Apaga as OS que um spec criou de verdade, pelo assunto.
+ *
+ * ⚠️ SPEC QUE CRIA E NÃO LIMPA CONTAMINA OS SEGUINTES. Medido em 19/08: o
+ * `public-form` registra uma OS por execução pelo formulário público e nunca a
+ * removia — havia seis acumuladas no emulador local (OS-0013 a OS-0018), e o
+ * contador de sequência em 18.
+ *
+ * O estrago não é o espaço: é que `foco-visivel` e `alvo-de-clique` medem A TELA —
+ * onde o Tab para, que tamanho tem cada controle. Eles não mutam nada e mesmo assim
+ * falham, porque a lista que eles varrem depende do que os specs anteriores
+ * deixaram. Teste que mede tela precisa de tela previsível.
+ *
+ * Não usa `resetLifecycleFixtures` porque aquele SEMEIA as fixtures conhecidas;
+ * este remove o que não deveria ter ficado.
+ */
+export async function apagarOsPorAssunto(assunto: string) {
+  const db = getLifecycleDb();
+  const snap = await db.collection('tickets').where('subject', '==', assunto).get();
+  await Promise.all(snap.docs.map(doc => doc.ref.delete()));
+  return snap.size;
+}
+
 export async function resetLifecycleFixtures() {
   const db = getLifecycleDb();
   await seedLifecycleFixtures(db);
