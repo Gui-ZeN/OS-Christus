@@ -193,6 +193,17 @@ export function serializeTicketForApi(ticket) {
     time: serializeDate(ticket.time),
     updatedAt: serializeDate(ticket.updatedAt),
     stageEnteredAt: serializeDate(ticket.stageEnteredAt),
+    /**
+     * Estes dois escapavam CRUS — achados pelo teste de contrato, que varre o
+     * documento inteiro procurando `{_seconds}` sobrevivente.
+     *
+     * Nenhum cliente os lê hoje, então não havia defeito ativo. O que havia era uma
+     * mina: dois campos do mesmo documento com formatos diferentes, esperando a
+     * primeira pessoa que escrevesse `new Date(ticket.createdAt)` e recebesse
+     * Invalid Date sem entender por quê. Uniformizar custa duas linhas.
+     */
+    createdAt: serializeDate(ticket.createdAt),
+    historySubcollectionUpdatedAt: serializeDate(ticket.historySubcollectionUpdatedAt),
     // A linha do tempo (uma data por etapa). O spread acima já traria o campo, mas
     // com Timestamp do Firestore dentro — e a tela compararia objeto com data, que é
     // a mesma armadilha descrita logo abaixo para `nextAction.dueAt`.
