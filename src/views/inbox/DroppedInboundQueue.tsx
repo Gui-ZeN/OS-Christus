@@ -34,6 +34,8 @@ export function DroppedInboundQueue({
   const [aberto, setAberto] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState('');
+  /** Aviso NEUTRO, não erro: 'levei três junto' é informação, não falha. */
+  const [aviso, setAviso] = useState('');
   const [alvo, setAlvo] = useState<Record<string, string>>({});
   const [sedeNova, setSedeNova] = useState<Record<string, string>>({});
 
@@ -54,15 +56,31 @@ export function DroppedInboundQueue({
 
   if (itens.length === 0 && !erro) return null;
 
+  /**
+   * O QUE SAIU DA FILA ALÉM DO QUE FOI CLICADO.
+   *
+   * O servidor leva junto as outras mensagens da MESMA conversa — uma thread é um
+   * assunto, e resolver uma deixando as irmãs fazia nascerem três OS para o mesmo
+   * problema. Mas a fila encolhendo sozinha, sem explicação, parece defeito: daí
+   * este aviso, e a releitura da lista em vez de tirar só o item clicado.
+   */
+  const concluir = async (resultado: { ticketId: string; irmasVinculadas: number }) => {
+    setItens(await fetchDroppedInbound().catch(() => []));
+    setErro('');
+    setAviso(
+      resultado.irmasVinculadas > 0
+        ? `${resultado.irmasVinculadas + 1} mensagens da mesma conversa foram para a ${resultado.ticketId}.`
+        : ''
+    );
+    onLinked?.(resultado.ticketId);
+  };
+
   const vincular = async (item: DroppedInboundItem) => {
     const ticketId = (alvo[item.id] || '').trim().toUpperCase();
     if (!ticketId) return setErro('Informe a OS de destino.');
     setOcupado(item.id);
     try {
-      await linkDroppedInbound(item.id, ticketId);
-      setItens(atual => atual.filter(i => i.id !== item.id));
-      onLinked?.(ticketId);
-      setErro('');
+      await concluir(await linkDroppedInbound(item.id, ticketId));
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível vincular.'));
     } finally {
@@ -79,10 +97,7 @@ export function DroppedInboundQueue({
     if (!sede) return setErro('Escolha a sede da nova OS.');
     setOcupado(item.id);
     try {
-      const ticketId = await createTicketFromDropped(item.id, sede);
-      setItens(atual => atual.filter(i => i.id !== item.id));
-      onLinked?.(ticketId);
-      setErro('');
+      await concluir(await createTicketFromDropped(item.id, sede));
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível criar a OS.'));
     } finally {
@@ -130,6 +145,7 @@ export function DroppedInboundQueue({
       {aberto && (
         <div className="max-h-[55vh] space-y-2 overflow-y-auto px-2 pb-2">
           {erro && <p className="px-1 text-[11px] text-roman-danger">{erro}</p>}
+          {aviso && <p className="px-1 text-[11px] text-roman-text-main">{aviso}</p>}
           {itens.map(item => (
             <div key={item.id} className="rounded-sm border border-roman-primary/35 bg-roman-surface p-2">
               <div className="text-[11px] text-roman-text-sub">{item.fromEmail || 'remetente desconhecido'}</div>

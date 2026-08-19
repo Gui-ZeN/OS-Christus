@@ -36,9 +36,25 @@ export async function fetchDroppedInbound(): Promise<DroppedInboundItem[]> {
   return json.items || [];
 }
 
-/** Anexa a mensagem ao histórico de uma OS existente e tira da fila. */
-export async function linkDroppedInbound(id: string, ticketId: string): Promise<void> {
-  await pedir({ method: 'POST', body: JSON.stringify({ id, action: 'vincular', ticketId }) });
+/**
+ * O que o servidor varreu junto com a mensagem escolhida.
+ *
+ * `irmasVinculadas` é quantas OUTRAS mensagens da mesma conversa foram para a mesma
+ * OS. A tela precisa deste número: sem ele, a fila encolhe mais do que o clique
+ * explica e parece defeito.
+ */
+export interface ResultadoDaFila {
+  ticketId: string;
+  irmasVinculadas: number;
+}
+
+/** Anexa a mensagem — e as irmãs da mesma conversa — ao histórico de uma OS. */
+export async function linkDroppedInbound(id: string, ticketId: string): Promise<ResultadoDaFila> {
+  const json = await pedir<{ ticketId: string; irmasVinculadas?: number }>({
+    method: 'POST',
+    body: JSON.stringify({ id, action: 'vincular', ticketId }),
+  });
+  return { ticketId: json.ticketId || ticketId, irmasVinculadas: Number(json.irmasVinculadas || 0) };
 }
 
 /**
@@ -48,12 +64,12 @@ export async function linkDroppedInbound(id: string, ticketId: string): Promise<
  * O resto (número, token, anexos, cópia, detecção de água, e-mail de confirmação)
  * passa pelo mesmo caminho de sempre — segundo botão não é segundo fluxo.
  */
-export async function createTicketFromDropped(id: string, sede: string): Promise<string> {
-  const json = await pedir<{ ticketId: string }>({
+export async function createTicketFromDropped(id: string, sede: string): Promise<ResultadoDaFila> {
+  const json = await pedir<{ ticketId: string; irmasVinculadas?: number }>({
     method: 'POST',
     body: JSON.stringify({ id, action: 'criar', sede }),
   });
-  return json.ticketId;
+  return { ticketId: json.ticketId, irmasVinculadas: Number(json.irmasVinculadas || 0) };
 }
 
 /**

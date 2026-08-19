@@ -2128,6 +2128,119 @@ async function handleSend(req, res) {
  * sabe montar OS com sede, histórico e e-mail de confirmação. Duplicar isso aqui
  * criaria um segundo jeito de nascer OS — e o primeiro já é complicado o bastante.
  */
+/**
+ * Anexa UMA mensagem da fila a uma OS: histórico, anexos, carimbo de entrada,
+ * resolução e log de e-mail.
+ *
+ * Virou função porque agora roda mais de uma vez por clique — para a mensagem
+ * escolhida e para as irmãs da mesma conversa. NÃO recalcula a atenção: quem chama
+ * faz isso uma vez no fim, senão a mesma OS seria recalculada a cada irmã.
+ */
+async function anexarMensagemDaFila(db, { dropRef, dropId, item, ticketRef, ticketId, user, porThread = false }) {
+  const quem = displayNameFromEmail(item.fromEmail) || item.fromEmail || 'Remetente desconhecido';
+  const corpo = String(item.text || '').trim() || 'Mensagem recebida por e-mail.';
+  // O aviso só vale para mensagem que entrou ANTES de a fila guardar anexos.
+  const guardou = Array.isArray(item.attachments) && item.attachments.length > 0;
+  const aviso = !guardou && Number(item.attachmentCount || 0) > 0
+    ? `\n\n(Esta mensagem tinha ${item.attachmentCount} anexo(s) que não foram preservados — abra o e-mail original.)`
+    : '';
+
+  const anexosDaFila = await copiarAnexosDaFila(dropId, ticketId, item.attachments);
+  await appendTicketHistory(db, ticketRef, [{
+    id: `dropped-${dropId}`,
+    type: 'customer',
+    sender: quem,
+    time: toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date(),
+    text: `${corpo}${aviso}`,
+    visibility: 'internal',
+    ...(anexosDaFila.length > 0 ? { attachments: anexosDaFila } : {}),
+  }, {
+    id: `dropped-sys-${dropId}`,
+    type: 'system',
+    sender: 'Sistema',
+    time: new Date(),
+    // O texto diz se foi escolha ou varredura: quem ler o histórico daqui a seis
+    // meses precisa saber que ninguém olhou esta mensagem uma a uma.
+    text: porThread
+      ? `Mensagem anexada automaticamente por ser da MESMA conversa de e-mail que a escolhida por ${user?.name || user?.email || 'painel'}. Assunto original: "${String(item.subject || '').slice(0, 120)}".`
+      : `Mensagem que havia entrado sem vínculo foi anexada a esta OS por ${user?.name || user?.email || 'painel'}. Assunto original: "${String(item.subject || '').slice(0, 120)}".`,
+    visibility: 'internal',
+  }]);
+
+  // O carimbo só ANDA PARA A FRENTE. Vincular hoje um e-mail de junho não pode
+  // apagar uma conversa de ontem — a atenção voltaria a apontar para a mensagem
+  // errada e a OS pareceria sem resposta quando já foi respondida.
+  const chegada = toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date();
+  const atual = await ticketRef.get();
+  const inboundAtual = toDateOrNull(atual.data()?.lastInboundAt);
+  if (!inboundAtual || chegada.getTime() > inboundAtual.getTime()) {
+    await ticketRef.set({
+      lastInboundAt: chegada,
+      lastInboundMessageId: `dropped-${dropId}`,
+    }, { merge: true });
+  }
+
+  await dropRef.set({
+    status: 'resolvido',
+    resolution: porThread ? 'vinculada-pela-thread' : 'vinculada',
+    resolvedTicketId: ticketId,
+    resolvedBy: user?.email || null,
+    resolvedAt: new Date(),
+  }, { merge: true });
+
+  await logEmailEvent({
+    type: 'inbound',
+    status: 'success',
+    provider: 'gmail',
+    ticketId,
+    fromEmail: item.fromEmail || null,
+    subject: item.subject || '',
+    messageId: item.messageId || null,
+  });
+}
+
+/**
+ * AS IRMÃS DA MESMA CONVERSA VÃO JUNTO.
+ *
+ * Uma thread é UM assunto. Resolver uma mensagem e deixar as outras na fila fazia a
+ * pessoa apertar "Criar OS" três vezes na mesma conversa e nascerem três OS para o
+ * mesmo problema — a fila mostrava três cartões com o mesmo "Re:" e nada dizia que
+ * eram a mesma coisa.
+ *
+ * ⚠️ THREAD VAZIA NÃO VARRE NADA. Sem o `threadId`, `null` casaria com `null` e uma
+ * mensagem sem conversa arrastaria todas as outras sem conversa — o inverso exato
+ * do que se quer.
+ *
+ * ⚠️ E O TETO EXISTE. Conversa de sede com trinta respostas viraria trinta escritas
+ * num clique; acima do teto o resto fica na fila para o clique seguinte, em vez de
+ * o pedido estourar no meio.
+ */
+const MAX_IRMAS_POR_VEZ = 20;
+
+async function varrerIrmasDaThread(db, col, { item, exceto, ticketId, user }) {
+  const thread = String(item?.threadId || '').trim();
+  if (!thread) return 0;
+
+  const snap = await col.where('threadId', '==', thread).limit(MAX_IRMAS_POR_VEZ + 10).get();
+  const pendentes = snap.docs
+    .filter(doc => doc.id !== exceto && (doc.data() || {}).status !== 'resolvido')
+    .slice(0, MAX_IRMAS_POR_VEZ);
+
+  const ticketRef = db.collection('tickets').doc(ticketId);
+  for (const doc of pendentes) {
+    await anexarMensagemDaFila(db, {
+      dropRef: doc.ref,
+      dropId: doc.id,
+      item: doc.data() || {},
+      ticketRef,
+      ticketId,
+      user,
+      porThread: true,
+    });
+  }
+  return pendentes.length;
+}
+
 async function handleDroppedInbound(req, res) {
   try {
     const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
@@ -2221,8 +2334,14 @@ async function handleDroppedInbound(req, res) {
         resolvedAt: new Date(),
       }, { merge: true });
 
+      const irmasDaNova = await varrerIrmasDaThread(db, col, {
+        item,
+        exceto: id,
+        ticketId: criada.id,
+        user,
+      });
       await recomputeOperationalAttention(db, criada.id);
-      return sendJson(res, 201, { ok: true, ticketId: criada.id });
+      return sendJson(res, 201, { ok: true, ticketId: criada.id, irmasVinculadas: irmasDaNova });
     }
 
     if (acao !== 'vincular') {
@@ -2243,64 +2362,11 @@ async function handleDroppedInbound(req, res) {
       return sendJson(res, 403, { ok: false, error: 'Sem acesso a esta OS.' });
     }
 
-    const quem = displayNameFromEmail(item.fromEmail) || item.fromEmail || 'Remetente desconhecido';
-    const corpo = String(item.text || '').trim() || 'Mensagem recebida por e-mail.';
-    // O aviso só vale para mensagem que entrou ANTES de a fila guardar anexos.
-    const guardou = Array.isArray(item.attachments) && item.attachments.length > 0;
-    const aviso = !guardou && Number(item.attachmentCount || 0) > 0
-      ? `\n\n(Esta mensagem tinha ${item.attachmentCount} anexo(s) que não foram preservados — abra o e-mail original.)`
-      : '';
-
-    const anexosDaFila = await copiarAnexosDaFila(id, ticketId, item.attachments);
-    await appendTicketHistory(db, ticketRef, [{
-      id: `dropped-${id}`,
-      type: 'customer',
-      sender: quem,
-      time: toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date(),
-      text: `${corpo}${aviso}`,
-      visibility: 'internal',
-      ...(anexosDaFila.length > 0 ? { attachments: anexosDaFila } : {}),
-    }, {
-      id: `dropped-sys-${id}`,
-      type: 'system',
-      sender: 'Sistema',
-      time: new Date(),
-      text: `Mensagem que havia entrado sem vínculo foi anexada a esta OS por ${user?.name || user?.email || 'painel'}. Assunto original: "${String(item.subject || '').slice(0, 120)}".`,
-      visibility: 'internal',
-    }]);
-
-    // O carimbo só ANDA PARA A FRENTE. Vincular hoje um e-mail de junho não pode
-    // apagar uma conversa de ontem — a atenção voltaria a apontar para a mensagem
-    // errada e a OS pareceria sem resposta quando já foi respondida.
-    const chegadaDaFila = toDateOrNull(item.receivedAt) || toDateOrNull(item.createdAt) || new Date();
-    const inboundAtual = toDateOrNull(ticketSnap.data()?.lastInboundAt);
-    if (!inboundAtual || chegadaDaFila.getTime() > inboundAtual.getTime()) {
-      await ticketRef.set({
-        lastInboundAt: chegadaDaFila,
-        lastInboundMessageId: `dropped-${id}`,
-      }, { merge: true });
-    }
+    await anexarMensagemDaFila(db, { dropRef: ref, dropId: id, item, ticketRef, ticketId, user });
+    const irmas = await varrerIrmasDaThread(db, col, { item, exceto: id, ticketId, user });
     await recomputeOperationalAttention(db, ticketId);
 
-    await ref.set({
-      status: 'resolvido',
-      resolution: 'vinculada',
-      resolvedTicketId: ticketId,
-      resolvedBy: user?.email || null,
-      resolvedAt: new Date(),
-    }, { merge: true });
-
-    await logEmailEvent({
-      type: 'inbound',
-      status: 'success',
-      provider: 'gmail',
-      ticketId,
-      fromEmail: item.fromEmail || null,
-      subject: item.subject || '',
-      messageId: item.messageId || null,
-    });
-
-    return sendJson(res, 200, { ok: true, ticketId });
+    return sendJson(res, 200, { ok: true, ticketId, irmasVinculadas: irmas });
   } catch (error) {
     sendError(res, error);
   }
