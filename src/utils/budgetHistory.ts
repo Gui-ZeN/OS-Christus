@@ -1,3 +1,7 @@
+// A regra de dinheiro e o preço unitário moram em `api/_lib/currency.js`: eram
+// quatro cópias com três comportamentos, e a mesma entrada virava um número aqui e
+// outro no servidor.
+import { getItemUnitPrice, parseCurrencyOrNull as parseCurrency } from '../../api/_lib/currency.js';
 import { subMonths } from 'date-fns';
 import type { Quote, QuoteItem, Ticket } from '../types';
 import { coerceDate } from './date';
@@ -115,11 +119,6 @@ function buildBasisTerms(ticket: Ticket, quotesByTicket: QuoteMap) {
   return dedupeTerms(structuredTerms).slice(0, 8);
 }
 
-function parseCurrency(value: string) {
-  const normalized = value.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 function formatCurrency(value: number | null) {
   if (value === null) return null;
@@ -136,18 +135,7 @@ function getItemReferenceLabel(item: QuoteItem) {
   return String(item.materialName || item.description || fallbackLabel).trim();
 }
 
-function getItemUnitPrice(item: QuoteItem) {
-  const explicitUnitPrice = parseCurrency(item.unitPrice || '');
-  if (explicitUnitPrice !== null) return explicitUnitPrice;
 
-  const quantity = item.quantity ?? null;
-  const totalPrice = parseCurrency(item.totalPrice || '');
-  if (quantity && quantity > 0 && totalPrice !== null) {
-    return totalPrice / quantity;
-  }
-
-  return null;
-}
 
 function selectRepresentativeQuote(quotes: Quote[]) {
   const approved = quotes.find(quote => quote.status === 'approved');

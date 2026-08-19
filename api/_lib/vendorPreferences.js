@@ -1,23 +1,8 @@
 import { slugify } from './text.js';
 
-function parseCurrency(value) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\.(?=\d{3}(\D|$))/g, '')
-    .replace(',', '.');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function getItemUnitPrice(item) {
-  const explicit = parseCurrency(item?.unitPrice);
-  if (explicit !== null) return explicit;
-
-  const quantity = item?.quantity != null ? Number(item.quantity) : null;
-  const total = parseCurrency(item?.totalPrice);
-  if (quantity && quantity > 0 && total !== null) return total / quantity;
-  return null;
-}
+// A regra de dinheiro mora em `currency.js`. Aqui a ausência continua sendo
+// `null` — preço não informado e preço zero levam a decisões opostas.
+import { getItemUnitPrice, parseCurrencyOrNull as parseCurrency } from './currency.js';
 
 function buildPreferenceEvents(ticketId, approvedQuote, classification) {
   const vendor = String(approvedQuote?.vendor || '').trim();

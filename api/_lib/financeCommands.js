@@ -4,6 +4,9 @@ import { HttpError } from './http.js';
 
 import { boundEmbeddedHistory, mergeTicketHistory, writeTicketHistoryEntries } from './tickets.js';
 import { TICKET_STATUS } from './statusFlow.js';
+// Uma implementação para os dois lados: ela existia aqui, em `vendorPreferences`,
+// em `src/utils/currency` e em `src/utils/budgetHistory` — com TRÊS comportamentos.
+import { parseCurrency } from './currency.js';
 
 /**
  * Chave de idempotência dos comandos financeiros.
@@ -20,15 +23,6 @@ export function normalizeIdempotencyKey(value) {
     throw new HttpError(400, 'idempotencyKey inválida.');
   }
   return key;
-}
-
-function parseCurrency(value) {
-  const normalized = String(value || '')
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\.(?=\d{3}(\D|$))/g, '')
-    .replace(',', '.');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatCurrency(value) {
