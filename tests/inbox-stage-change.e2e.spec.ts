@@ -74,23 +74,28 @@ test.describe('troca de etapa pela Inbox', () => {
   });
 
   /**
-   * O TESTE QUE TERIA PEGO O 409 DE 07/08.
+   * O TESTE QUE TERIA PEGO O 409 DE 07/08 — reescrito para as SEIS ETAPAS.
    *
-   * Ao aposentar a aprovação da diretoria, tirei junto o ESTADO: o servidor passou a
-   * recusar a entrada em "Aguardando Aprovação da Solução", e a OS ficou sem a casa
-   * seguinte à visita técnica. Medido depois: das 85 saídas de "Aguardando Parecer
-   * Técnico", 64 foram direto para Encerrada e só 4 para Orçamento — não havia para
-   * onde ir. A planilha que a coordenação mantém em paralelo tem 226 datas desse
-   * marco e 49 solicitações paradas nele.
+   * A versão anterior escolhia "Aguardando Aprovação da Solução" no seletor. Em
+   * 19/08 o seletor passou a oferecer SEIS etapas em vez de treze, e essa deixou de
+   * ser escolhível: ela é um degrau interno de "Em análise". O teste quebrou, e
+   * quebrou CERTO — ele afirmava algo que a decisão de produto removeu de propósito.
    *
-   * Nenhum teste pegou porque a recusa é do SERVIDOR: o mapa de transições do front
-   * podia estar coerente consigo mesmo e a gravação falhar mesmo assim.
+   * O que ele guarda continua valendo, porque a recusa que causou o 409 era do
+   * SERVIDOR: o mapa de transições do front podia estar coerente consigo mesmo e a
+   * gravação falhar mesmo assim. Medido na época: das 85 saídas de "Aguardando
+   * Parecer Técnico", 64 foram direto para Encerrada e só 4 para Orçamento — não
+   * havia para onde ir.
+   *
+   * Então a asserção passa a ser a que o desenho novo promete: escolher uma etapa no
+   * seletor grava o STATUS CANÔNICO dela, e o servidor aceita. "Em orçamento" grava
+   * "Aguardando Orçamento".
    */
-  test('a OS pode registrar que está esperando aprovação da solução', async ({ page }) => {
+  test('escolher uma etapa no seletor grava o status canônico dela', async ({ page }) => {
     await loginWithPassword(page, managerEmail, password);
     await abrirSeletorDeEtapa(page, LIFECYCLE_TICKET_IDS.parecer);
 
-    await escolherEtapa(page, 'Aguardando Aprovação da Solução', 'Solução enviada para aprovação.');
+    await escolherEtapa(page, 'Em orçamento', 'Parecer concluído, liberando orçamento.');
     // A transição pode ou não ser voltada para fora; se o diálogo aparecer, seguimos
     // sem e-mail — o que este teste afirma é a ETAPA, não o aviso.
     const semAvisar = page.getByRole('button', { name: /alterar sem avisar/i });
@@ -98,7 +103,7 @@ test.describe('troca de etapa pela Inbox', () => {
 
     await expect
       .poll(async () => (await readTicketState(LIFECYCLE_TICKET_IDS.parecer))?.status, { timeout: 15000 })
-      .toBe('Aguardando Aprovação da Solução');
+      .toBe('Aguardando Orçamento');
   });
 
   // DEFEITO 2: o seletor vinha `disabled` em OS encerrada, embora o código montasse
@@ -108,7 +113,9 @@ test.describe('troca de etapa pela Inbox', () => {
     await loginWithPassword(page, managerEmail, password);
     await abrirSeletorDeEtapa(page, LIFECYCLE_TICKET_IDS.encerrada);
 
-    await escolherEtapa(page, 'Em andamento', 'Reabertura: encerrada por engano.');
+    // 'Em execução' é o nome no seletor desde as seis etapas; o banco continua
+    // recebendo 'Em andamento', e é isso que a asserção confere.
+    await escolherEtapa(page, 'Em execução', 'Reabertura: encerrada por engano.');
     await page.getByRole('button', { name: /alterar sem avisar/i }).click();
 
     await expect
@@ -123,7 +130,7 @@ test.describe('troca de etapa pela Inbox', () => {
     await loginWithPassword(page, managerEmail, password);
     await abrirSeletorDeEtapa(page, LIFECYCLE_TICKET_IDS.desistir);
 
-    await escolherEtapa(page, 'Encerrada', 'Teste de desistência.');
+    await escolherEtapa(page, 'Concluída', 'Teste de desistência.');
     await page.getByRole('button', { name: /não alterar a etapa/i }).click();
 
     // O aviso é a metade que importa: sem ele, a pessoa conclui que o sistema quebrou.
@@ -137,7 +144,7 @@ test.describe('troca de etapa pela Inbox', () => {
     await loginWithPassword(page, managerEmail, password);
     await abrirSeletorDeEtapa(page, LIFECYCLE_TICKET_IDS.desistir);
 
-    await escolherEtapa(page, 'Encerrada', 'Serviço concluído e conferido.');
+    await escolherEtapa(page, 'Concluída', 'Serviço concluído e conferido.');
     await page.getByRole('button', { name: /alterar sem avisar/i }).click();
 
     await expect

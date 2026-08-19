@@ -105,7 +105,16 @@ export interface TrackingTicketPayload {
   procurement: TrackingProcurementSummary;
 }
 
-function hydrateTicket(ticket: ApiTicket): Ticket {
+/**
+ * ⚠️ EXPORTADO PARA SER TESTADO, e não porque outra tela o chame.
+ *
+ * Ele é peça estrutural: entre a resposta da API (onde toda data é string ISO) e a
+ * tela Hoje existe esta função, e três consumidores LEVANTAM EXCEÇÃO se ela deixar
+ * um campo de fora — `idleDays`, `agendaGroupOf` e `activeSuspension`. Um campo
+ * esquecido aqui não dá número errado: dá tela branca. `tests/unit/contratoDoCliente`
+ * prende isso.
+ */
+export function hydrateTicket(ticket: ApiTicket): Ticket {
   const primaryInfrastructureApproval =
     ticket.closureChecklist?.infrastructureApprovalPrimary ??
     ticket.closureChecklist?.infrastructureApprovedByRafael ??
@@ -141,21 +150,40 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     location: repairMojibake(ticket.location || ''),
     priority: repairMojibake(ticket.priority),
     time: coerceDate(ticket.time),
-    // `dueAt` ordena a agenda inteira: se chegar como string, toda comparação de
-    // data vira comparação de texto e a tela ordena errado sem avisar.
+    /**
+     * `dueAt` ordena a agenda inteira: se chegar como string, toda comparação de
+     * data vira comparação de texto e a tela ordena errado sem avisar.
+     *
+     * ⚠️ MAS AUSENTE TEM QUE CONTINUAR AUSENTE. `coerceDate(undefined)` devolve
+     * AGORA — o fallback dele existe para campo que sempre tem valor. Aqui não:
+     * ação sem prazo virava ação vencendo neste instante, e a OS aparecia em
+     * "Hoje" por causa de um campo que ninguém preencheu. `resolvedAttentionOf`
+     * já sabe tratar `dueAt` vazio como "sem ação" — o hidratador é que nunca
+     * deixava chegar vazio.
+     *
+     * É a mesma lição que `marcos.ts` já carrega escrita: o vazio é o dado.
+     */
     nextAction: ticket.nextAction
       ? {
           ...ticket.nextAction,
-          dueAt: coerceDate(ticket.nextAction.dueAt),
+          dueAt: ticket.nextAction.dueAt ? coerceDate(ticket.nextAction.dueAt) : null,
           createdAt: ticket.nextAction.createdAt ? coerceDate(ticket.nextAction.createdAt) : undefined,
         }
       : null,
-    // Sem hidratar `reviewAt`, a comparação "a suspensão já venceu?" viraria
-    // comparação de texto e a OS ficaria suspensa para sempre.
+    /**
+     * Sem hidratar `reviewAt`, a comparação "a suspensão já venceu?" viraria
+     * comparação de texto e a OS ficaria suspensa para sempre.
+     *
+     * ⚠️ E sem a guarda, o contrário: suspensão SEM data de revisão ganhava
+     * `new Date()` e passava a vencer no instante da leitura — o estado da OS
+     * oscilava entre "esperando" e "impedida" conforme o microssegundo em que a
+     * tela renderizou. Sem data para voltar, a resposta certa é IMPEDIDA: alguém
+     * precisa decidir.
+     */
     attention: ticket.attention
       ? {
           ...ticket.attention,
-          reviewAt: coerceDate(ticket.attention.reviewAt),
+          reviewAt: ticket.attention.reviewAt ? coerceDate(ticket.attention.reviewAt) : null,
           setAt: ticket.attention.setAt ? coerceDate(ticket.attention.setAt) : undefined,
         }
       : null,
@@ -164,7 +192,8 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     operationalAttention: ticket.operationalAttention
       ? {
           ...ticket.operationalAttention,
-          dueAt: coerceDate(ticket.operationalAttention.dueAt),
+          // Mesma regra: `resolvedAttentionOf` só usa a proposta se ela TEM prazo.
+          dueAt: ticket.operationalAttention.dueAt ? coerceDate(ticket.operationalAttention.dueAt) : null,
           computedAt: ticket.operationalAttention.computedAt
             ? coerceDate(ticket.operationalAttention.computedAt)
             : null,
@@ -183,7 +212,16 @@ function hydrateTicket(ticket: ApiTicket): Ticket {
     lastOutboundAt: ticket.lastOutboundAt ? coerceDate(ticket.lastOutboundAt) : null,
     closedAt: ticket.closedAt ? coerceDate(ticket.closedAt) : null,
     viewingBy: ticket.viewingBy ? { ...ticket.viewingBy, at: coerceDate(ticket.viewingBy.at) } : null,
-    history: ticket.history.map(item => ({
+    /**
+     * `Array.isArray` como em todo array vizinho — este era o único sem guarda.
+     *
+     * Os quatro caminhos do servidor garantem uma lista hoje, então não havia
+     * defeito ativo. Mas `hydrateTicket` roda em TODA OS de TODA tela: se um dia
+     * `history` chegar ausente, não é uma OS que some, é o app inteiro que não
+     * abre. Custo da guarda: uma linha. Custo da falta dela: tela branca para as
+     * oito pessoas.
+     */
+    history: (Array.isArray(ticket.history) ? ticket.history : []).map(item => ({
       ...item,
       sender: item.sender ? repairMojibake(item.sender) : item.sender,
       text: item.text ? repairMojibake(item.text) : item.text,
