@@ -394,6 +394,70 @@ export function tidyInboundText(value) {
 // Ordem deliberada: encaminhamento primeiro (o corpo util esta DEPOIS do marcador),
 // depois citacao/assinatura. Cada candidato (texto puro, depois HTML) so e
 // descartado se a limpeza nao sobrar nada — melhor devolver sujo que vazio.
+/**
+ * CORTA O QUE A OS JÁ SABE — a citação sem marcador.
+ *
+ * `stripQuotedReply` procura marcas: "Em … escreveu:", "-----Original Message-----",
+ * "De:". Elas cobrem a maioria, e não cobrem o Outlook corporativo quando a pessoa
+ * responde por cima sem deixar cabeçalho: o texto citado começa colado no novo, sem
+ * nada assinalando onde um acaba e o outro começa. Reproduzido com a OS-0332 — o
+ * mesmo parágrafo aparecia duas vezes na conversa, e cada resposta seguinte
+ * carregaria todas as anteriores.
+ *
+ * ⚠️ A REGRA NÃO É HEURÍSTICA DE FORMATO, É IDENTIDADE. Só corta um trecho FINAL que
+ * bate linha a linha com o COMEÇO de uma mensagem que já está nesta OS. Texto novo
+ * nunca casa com nada e nunca é tocado — a função é segura por construção, e é por
+ * isso que ela vale mais que mais um marcador.
+ *
+ * Os dois mínimos existem para o mesmo fim: "Ciente." repetido de uma resposta para
+ * a outra não é citação, é educação. Sem eles, uma linha curta coincidente cortaria
+ * conteúdo de verdade — que é o único jeito de esta função causar dano.
+ */
+export function cortarTrechoJaConhecido(novo, anteriores = [], opcoes = {}) {
+  const minimoDeCaracteres = Number(opcoes.minimoDeCaracteres ?? 60);
+  const minimoDeLinhas = Number(opcoes.minimoDeLinhas ?? 2);
+
+  const texto = String(novo || '').replace(/\r\n/g, '\n');
+  if (!texto.trim()) return texto;
+
+  const chave = linha => linha.trim().replace(/\s+/g, ' ').toLowerCase();
+  const linhas = texto.split('\n');
+  // Guarda o índice ORIGINAL de cada linha com conteúdo: o corte acontece no texto
+  // cru, para não reescrever espaçamento que não é problema nosso.
+  const cheias = linhas
+    .map((linha, indice) => ({ indice, valor: chave(linha) }))
+    .filter(item => item.valor);
+  if (cheias.length === 0) return texto;
+
+  const conhecidos = (Array.isArray(anteriores) ? anteriores : [])
+    .map(item => String(item || '').replace(/\r\n/g, '\n').split('\n').map(chave).filter(Boolean))
+    .filter(lista => lista.length >= minimoDeLinhas);
+  if (conhecidos.length === 0) return texto;
+
+  // Começa em 1: a primeira linha nunca é cortada. Uma resposta que fosse SÓ a
+  // citação viraria mensagem vazia, e vazio some da tela — perder é pior que repetir.
+  for (let inicio = 1; inicio < cheias.length; inicio += 1) {
+    const restante = cheias.slice(inicio);
+    for (const anterior of conhecidos) {
+      let casadas = 0;
+      let tamanho = 0;
+      while (
+        casadas < anterior.length &&
+        casadas < restante.length &&
+        restante[casadas].valor === anterior[casadas]
+      ) {
+        tamanho += anterior[casadas].length;
+        casadas += 1;
+      }
+      if (casadas >= minimoDeLinhas && tamanho >= minimoDeCaracteres) {
+        return linhas.slice(0, cheias[inicio].indice).join('\n').trimEnd();
+      }
+    }
+  }
+
+  return texto;
+}
+
 export function extractInboundMessageBody(textValue, htmlValue) {
   const candidates = [String(textValue || '').trim(), stripHtml(htmlValue)].filter(Boolean);
   for (const raw of candidates) {

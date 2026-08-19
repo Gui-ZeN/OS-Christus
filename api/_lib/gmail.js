@@ -273,6 +273,33 @@ function extractHtml(payload) {
   return '';
 }
 
+/**
+ * A imagem está EMBUTIDA no corpo (assinatura, logo, print colado) ou é anexo de
+ * verdade?
+ *
+ * O Gmail responde isso em dois cabeçalhos da parte: `Content-ID`, que existe para
+ * a imagem ser referenciada por `cid:` no HTML, e `Content-Disposition: inline`.
+ * Eles vinham na resposta e eram descartados aqui — daí o banner de assinatura
+ * aparecer na OS com o mesmo peso da foto do portão quebrado.
+ *
+ * ⚠️ MARCA, NÃO DESCARTA. Quem manda a OS por e-mail cola foto no corpo o tempo
+ * todo, e essa foto chega EXATAMENTE com os mesmos dois cabeçalhos da assinatura.
+ * Jogar fora tudo que é inline apagaria a única evidência do problema em boa parte
+ * das OS. O que dá para fazer sem errar é dizer qual é qual e deixar a tela ordenar.
+ */
+function ehEmbutida(payload) {
+  const headers = Array.isArray(payload?.headers) ? payload.headers : [];
+  let temContentId = false;
+  let disposicaoInline = false;
+  for (const header of headers) {
+    const nome = String(header?.name || '').toLowerCase();
+    const valor = String(header?.value || '');
+    if (nome === 'content-id' && valor.trim()) temContentId = true;
+    if (nome === 'content-disposition' && /^\s*inline\b/i.test(valor)) disposicaoInline = true;
+  }
+  return temContentId || disposicaoInline;
+}
+
 function collectAttachments(payload, items = []) {
   if (!payload) return items;
 
@@ -282,6 +309,7 @@ function collectAttachments(payload, items = []) {
       mimeType: payload.mimeType || 'application/octet-stream',
       attachmentId: payload.body.attachmentId,
       size: Number(payload.body.size || 0),
+      inline: ehEmbutida(payload),
     });
   }
 
@@ -433,6 +461,7 @@ export async function gmailGetMessage(messageId) {
       filename: item.filename,
       mimeType: item.mimeType,
       size: item.size || buffer.length,
+      inline: item.inline === true,
       buffer,
     });
   }

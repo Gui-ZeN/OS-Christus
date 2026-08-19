@@ -46,6 +46,7 @@ import {
 // Limpeza pura do conteudo recebido (assinatura/citacao/encaminhamento).
 import {
   displayNameFromEmail,
+  cortarTrechoJaConhecido,
   extractInboundMessageBody,
   hasWaterIssueSignal,
 } from './_lib/inboundBody.js';
@@ -535,7 +536,11 @@ async function resolveTicketIdByRequesterSubject(db, fromEmail, subject) {
 
 function buildInboundHistoryEntry(message, options = {}) {
   const sender = displayNameFromEmail(message.from) || options.sender || 'Solicitante';
-  const text = extractInboundMessageBody(message.text, message.html) || 'Resposta recebida por e-mail.';
+  // A citação sem marcador só é reconhecível contra o que a OS já tem — por isso o
+  // corte acontece AQUI, e não dentro de `extractInboundMessageBody`, que é puro e
+  // não conhece a OS.
+  const bruto = extractInboundMessageBody(message.text, message.html);
+  const text = cortarTrechoJaConhecido(bruto, options.textosAnteriores || []) || 'Resposta recebida por e-mail.';
   const attachments = Array.isArray(message.attachments)
     ? message.attachments.filter(item => item?.path || item?.driveFileId || item?.url)
     : [];
@@ -596,10 +601,23 @@ async function appendInboundMessageToTicketHistory(db, ticketId, message) {
     }
   }
 
+  /**
+    * As mensagens que esta OS já tem, para reconhecer a citação sem marcador.
+    *
+    * Sai do `history` embutido, que é uma JANELA das últimas — e é de graça, porque
+    * o documento já foi lido acima. Citação repete a mensagem imediatamente anterior;
+    * varrer a subcoleção inteira gastaria leitura para cobrir um caso que não existe.
+    */
+  const textosAnteriores = (Array.isArray(ticket.history) ? ticket.history : [])
+    .slice(-12)
+    .map(entrada => String(entrada?.text || ''))
+    .filter(Boolean);
+
   const nextEntry = buildInboundHistoryEntry(message, {
     sender,
     type,
     visibility,
+    textosAnteriores,
   });
 
   // Atômico (dedup por id, preserva entradas concorrentes — ex.: edição no painel).
@@ -1340,6 +1358,7 @@ async function uploadInboundAttachments(ticketId, attachments, escopo = 'inbound
     if (!isAttachmentContentCompatible(attachment.buffer, attachment.mimeType)) continue;
     const contentType = normalizeMimeType(attachment.mimeType);
 
+    const embutida = attachment.inline === true;
     const filename = slugFilename(attachment.filename || `anexo-${index + 1}`);
     const path =
       escopo === 'dropped'
@@ -1363,6 +1382,11 @@ async function uploadInboundAttachments(ticketId, attachments, escopo = 'inbound
       contentType,
       size: Number(attachment.size || attachment.buffer.length || 0),
       uploadedAt,
+      // Imagem embutida no corpo (assinatura, logo, print colado) fica marcada para a
+      // tela poder separá-la da foto do problema. Guardar do mesmo jeito é decisão:
+      // a mesma marca vale para a foto que a sede cola no corpo, e apagar por ela
+      // jogaria fora a evidência.
+      ...(embutida ? { inline: true } : {}),
       category: 'attachment',
     });
   }

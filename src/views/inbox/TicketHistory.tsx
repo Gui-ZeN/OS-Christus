@@ -122,6 +122,18 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
           const isExternalMessage = item.type === 'customer';
           const isInternalNote = item.visibility === 'internal' || item.type === 'internal';
           const senderInitial = item.sender?.trim().charAt(0).toUpperCase() || 'U';
+          /**
+           * IMAGEM EMBUTIDA VAI POR ÚLTIMO — e discreta.
+           *
+           * O banner da assinatura chega como anexo, com o mesmo peso da foto do
+           * problema: numa OS de portão quebrado, o primeiro arquivo da lista era um
+           * '1080x1350px_IDV UNIVERSITARIO.jpg' e a foto do portão vinha depois.
+           *
+           * Não dá para APAGAR as embutidas: a sede cola foto no corpo o tempo todo e
+           * ela chega com exatamente os mesmos cabeçalhos da assinatura. O que dá para
+           * fazer sem errar é ordenar e tirar a ênfase — nada se perde, e quem procura
+           * a evidência olha primeiro para ela.
+           */
           const messageAttachmentItems = (Array.isArray(item.attachments) ? item.attachments : [])
             .filter(attachment => attachment?.path || attachment?.driveFileId || attachment?.url)
             .map(attachment => ({
@@ -131,7 +143,9 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
               ticketId,
               path: attachment.path,
               driveFileId: attachment.driveFileId,
-            }));
+              embutida: (attachment as { inline?: boolean }).inline === true,
+            }))
+            .sort((a, b) => Number(a.embutida) - Number(b.embutida));
 
           return (
             <div key={`${item.id || 'message'}-${originalIndex}`} className={`flex gap-3 ${isExternalMessage ? 'justify-end' : 'justify-start'}`}>
@@ -188,7 +202,12 @@ function TicketHistoryComponent({ ticketId, history, canManageStatus, isSending,
                               driveFileId: attachment.driveFileId,
                               items: messageAttachmentItems,
                             })}
-                            className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface/78 px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
+                            title={attachment.embutida ? 'Imagem embutida no corpo do e-mail — costuma ser assinatura ou logo' : attachment.title}
+                            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-[11px] transition-colors hover:border-roman-primary ${
+                              attachment.embutida
+                                ? 'border-roman-border/60 bg-roman-surface/50 text-roman-text-sub'
+                                : 'border-roman-border bg-roman-surface/78 text-roman-text-main'
+                            }`}
                           >
                             <FileText size={14} />
                             <span className="max-w-[180px] truncate">{attachment.title}</span>
