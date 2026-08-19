@@ -1,0 +1,4 @@
+# Script de shell roda no runner Linux do Actions: CRLF vira `$'': command
+# not found` na primeira linha e o job falha com uma mensagem que não diz o
+# motivo. Editar no Windows não deve poder reintroduzir isso.
+*.sh text eol=lf
