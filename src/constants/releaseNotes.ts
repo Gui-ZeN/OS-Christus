@@ -1,12 +1,12 @@
 import type { ComponentType } from 'react';
 import {
-  ArrowRightLeft,
-  Hourglass,
-  Inbox,
-  Search,
+  BarChart3,
+  CalendarClock,
+  ClipboardCheck,
+  Layers,
+  MailCheck,
+  PhoneCall,
   Sparkles,
-  TriangleAlert,
-  UserRound,
 } from 'lucide-react';
 
 export interface ReleaseNoteItem {
@@ -34,79 +34,79 @@ export interface ReleaseNote {
  * Para anunciar uma nova leva: troque `version` e atualize `items`.
  */
 export const CURRENT_RELEASE: ReleaseNote = {
-  version: '2026.08.2',
+  version: '2026.08.3',
   title: 'O Serv3 está mudando',
-  subtitle: 'O que mudou nesta semana — e o que o sistema passou a fazer por você',
+  subtitle: 'A visita marcada virou o centro do sistema — e as 13 etapas viraram 6',
   highlight: {
     title: 'Leia antes de continuar',
     body:
-      'O Serv3 está deixando de ser um sistema de ETAPAS para virar um sistema de ' +
-      'ACOMPANHAMENTO. Ele responde "o que está parado e sem resposta", não "em que ' +
-      'fase está esta OS". E ele REGISTRA — não cobra ninguém, não fala com ' +
-      'fornecedor, não decide por você. A ideia é ajudar a tocar o dia, e nada além ' +
-      'disso. Se algo parecer errado ou atrapalhar, avise: é para isso que está sendo ' +
-      'feito em etapas.',
+      'Duas mudanças grandes. As ETAPAS caíram de treze para seis, com os nomes que a ' +
+      'operação já usa. E o Serv3 passou a FALAR COM AS SEDES por e-mail: manda a agenda ' +
+      'do dia, pergunta se o fornecedor apareceu e avisa quando ele falta. Ele registra e ' +
+      'pergunta — quem cobra fornecedor continua sendo você, do jeito que já faz. Se algo ' +
+      'parecer errado ou atrapalhar, avise: é para isso que está indo aos poucos.',
   },
   items: [
     {
-      Icon: ArrowRightLeft,
-      title: 'A Gestão virou o lugar de trabalho',
+      Icon: Layers,
+      title: 'Treze etapas viraram seis',
       body:
-        'Ver a conversa, responder, trocar a etapa e definir o responsável agora acontecem na ' +
-        'própria tela de Gestão, sem abrir a OS inteira. Trocar etapa é 85% do que se faz por ' +
-        'aqui, e para isso ninguém precisa atravessar a tela toda. A OS completa continua a um ' +
-        'clique, para quando ela for mesmo necessária.',
+        'Nova OS · Em análise · Em orçamento · Contratação · Em execução · Concluída (mais ' +
+        'Cancelada). Sumiu a escolha entre dois nomes que a operação lia como um — "parecer ' +
+        'técnico" e "aprovação da solução" viraram "Em análise". Nada foi perdido: o degrau ' +
+        'fino continua no histórico e na linha do tempo da OS. E "Encerrada" agora se chama ' +
+        '"Concluída".',
     },
     {
-      Icon: UserRound,
-      title: 'Cada OS pode ter um responsável',
+      Icon: CalendarClock,
+      title: 'A tela Hoje virou uma agenda',
       body:
-        'Não é quem executa — para isso já existe a equipe, preenchida em quase todas. É quem ' +
-        'responde por ela não parar. A diferença apareceu no número: 180 OS tinham equipe e ' +
-        'mesmo assim 155 estavam paradas há mais de um mês. Dá para filtrar por "sem ' +
-        'responsável" e ver o que ninguém assumiu.',
+        'Ela abre com o que está marcado para hoje, hora a hora — quem prometeu vir, em que ' +
+        'sede, para quais OS. Antes ela abria com dez cartões de "definir a próxima ação", ' +
+        'que é backlog, não agenda. O passivo continua lá, numa linha só, e se resolve em ' +
+        'lote na Gestão.',
+    },
+    {
+      Icon: MailCheck,
+      title: 'A sede confirma a visita em um clique',
+      body:
+        'Marcou visita, a sede recebe às 07h a agenda do dia dela. Passados 30 minutos do ' +
+        'horário sem notícia, o sistema pergunta — e o e-mail traz os botões: chegou, não ' +
+        'apareceu, resolvemos por aqui. Um clique responde e a aba fecha sozinha. Ninguém ' +
+        'precisa entrar no sistema para responder.',
+    },
+    {
+      Icon: PhoneCall,
+      title: 'O botão Cobrar',
+      body:
+        'Sede disse que o fornecedor não veio? O botão abre a conversa no WhatsApp com a ' +
+        'mensagem já escrita — você manda. Depois registra como acabou: respondeu, não ' +
+        'respondeu, marcou nova data. É esse registro, e só ele, que vira número no painel.',
+    },
+    {
+      Icon: BarChart3,
+      title: 'Indicadores: quanto custa correr atrás',
+      body:
+        'Um quadro novo mostra, das visitas do período, quantas deram trabalho de cobrança e ' +
+        'como acabou — sempre com a amostra do lado ("3 de 6"), porque porcentagem sozinha ' +
+        'esconde o tamanho. Ele conta só o que passou pelo botão: ligação feita do celular ' +
+        'não entra, e o número é piso, não total.',
+    },
+    {
+      Icon: ClipboardCheck,
+      title: 'A revisão de segunda-feira',
+      body:
+        'Uma vez por semana chega uma lista das OS paradas há mais de 30 dias, com três ' +
+        'respostas por linha: encerrar, ainda pendente, ver depois. Nada é encerrado sem ' +
+        'você dizer, e o que você encerrar ali pode ser desfeito.',
     },
     {
       Icon: Sparkles,
-      title: 'O sistema mostra o que parou — e só isso',
+      title: 'Os e-mails ficaram limpos',
       body:
-        'Ele aponta o que está sem resposta, sem responsável ou sem andamento, e diz por que ' +
-        'apareceu. São constatações, não ordens: quem decide o que fazer, e quem cobra quem, ' +
-        'continua sendo você. Se a proposta não fizer sentido, um clique ajusta ou dispensa.',
-    },
-    {
-      Icon: TriangleAlert,
-      title: 'O que trava uma OS ficou visível',
-      body:
-        'Havia 88 OS que não avançavam por falta da classificação do serviço — e o aviso só ' +
-        'aparecia para quem tentasse avançar, então ninguém sabia. Agora o bloqueio aparece na ' +
-        'lista, e dá para classificar e avançar na mesma ação.',
-    },
-    {
-      Icon: Hourglass,
-      title: 'Aguardando retorno',
-      body:
-        'Pediu algo a alguém e está esperando? Registre na conversa da OS. O sistema guarda a ' +
-        'data e devolve a OS para você em três dias úteis. Ele não manda e-mail nem cobra ' +
-        'ninguém: quem faz isso é você, do jeito que já faz.',
-    },
-    {
-      Icon: Inbox,
-      title: 'Nenhum e-mail se perde mais',
-      body:
-        'Mensagens que chegavam e não casavam com nenhuma OS sumiam em silêncio — 23 delas, ' +
-        'sobre goteira e portão, com quem escreveu achando que tinha avisado. Agora ficam numa ' +
-        'fila na Inbox, para vincular a uma OS ou abrir uma nova. E o assunto com a sede fora ' +
-        'do começo (“…COMPRA [BS]”) deixou de ser descartado.',
-    },
-    {
-      Icon: Search,
-      title: 'Buscar colando o título do e-mail funciona',
-      body:
-        'Antes não achava: o sistema remove o “Re:” e o “[SEDE]” ao criar a OS, então o texto ' +
-        'colado nunca batia. Agora a busca entende palavras soltas, ignora acento e procura ' +
-        'também pela sede. E as mensagens de erro que apareciam em inglês passaram a explicar ' +
-        'em português o que houve.',
+        'Todos foram refeitos: um quadro só, sem caixas dentro de caixas, com o que importa ' +
+        'em cima e o botão logo abaixo. Dá para ler no celular sem apertar os olhos, e o que ' +
+        'você vê nas Configurações é o mesmo e-mail que a pessoa recebe.',
     },
   ],
 };

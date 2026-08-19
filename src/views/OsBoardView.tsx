@@ -45,12 +45,19 @@ function diasNaEtapa(ticket: Ticket): string {
  * Seis quadrados coloridos são inúteis para quem não os vê, e quase inúteis para quem
  * vê: "3 de 6" não diz QUAIS três. Aqui cada marco sai com a data, e o que falta sai
  * como "—" em vez de sumir, senão a ausência vira invisível.
+ *
+ * ⚠️ "COM DATA", e não "de 6 marcos". A fração se lê como degrau — "está no 5 de 6" —
+ * e não é: o número conta quantas das seis datas o sistema conhece, não onde a OS
+ * está. Obra em execução com 3/6 é normal e não significa atraso: 45% das linhas da
+ * planilha pulam etapa, e das 235 concluídas 45% nunca registraram início de
+ * execução. Quem lê "5 de 6" como posição conclui que falta um passo quando pode não
+ * faltar nenhum.
  */
 function resumoDaLinhaDoTempo(ticket: Ticket): string {
   const partes = lerMarcos(ticket).map(
     marco => `${marco.rotulo}: ${marco.data ? formatShortDate(marco.data) : '—'}`
   );
-  return `${contarMarcos(ticket)} de 6 marcos · ${partes.join(' · ')}`;
+  return `${contarMarcos(ticket)} dos 6 marcos com data (não é degrau: marco vazio é "não aconteceu") · ${partes.join(' · ')}`;
 }
 
 /**
