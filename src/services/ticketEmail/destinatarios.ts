@@ -57,6 +57,7 @@ export function temDiretorEnvolvido(ticket: Pick<Ticket, 'directorIds' | 'direct
 }
 
 export interface PessoaDoDiretorio {
+  id?: string | null;
   email?: string | null;
   role?: string | null;
   status?: string | null;
@@ -79,18 +80,59 @@ export interface PessoaDoDiretorio {
  * ⚠️ INATIVO NÃO RECEBE, pelas DUAS marcas. `active: false` e `status: 'Inativo'`
  * convivem no cadastro, e checar só uma delas manda e-mail para quem já saiu.
  */
-export function diretoresAtivos(pessoas: PessoaDoDiretorio[] = []): string[] {
-  const semAcento = (valor: unknown) =>
-    normalizar(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const semAcento = (valor: unknown) =>
+  normalizar(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+/**
+ * Ativo por AUSENCIA: o cadastro antigo nao tinha o campo, e tratar ausencia como
+ * inativo silenciaria a diretoria inteira de uma vez.
+ *
+ * Mora aqui, e nao dentro de uma funcao so, porque a regra de quem esta fora tem
+ * que ser a MESMA nos dois caminhos -- o da rede e o da designacao por id.
+ */
+const ehAtivo = (status: unknown) => {
+  const situacao = semAcento(status ?? 'Ativo');
+  return situacao === 'ativo' || situacao === 'active';
+};
+
+export function diretoresAtivos(pessoas: PessoaDoDiretorio[] = []): string[] {
   const encontrados = (Array.isArray(pessoas) ? pessoas : [])
     .filter(pessoa => {
       const papel = semAcento(pessoa?.role);
-      const situacao = semAcento(pessoa?.status ?? 'Ativo');
       const ehDiretor = papel === 'diretor' || papel === 'director';
-      const estaAtivo = pessoa?.active !== false && (situacao === 'ativo' || situacao === 'active');
-      return ehDiretor && estaAtivo;
+      return ehDiretor && pessoa?.active !== false && ehAtivo(pessoa?.status);
     })
+    .map(pessoa => normalizar(pessoa?.email))
+    .filter(Boolean);
+
+  return [...new Set(encontrados)];
+}
+
+/**
+ * OS DIRETORES DESIGNADOS, resolvidos pelo ID.
+ *
+ * Existe porque a OS pode guardar `directorIds` sem `directorEmails` -- e a OS
+ * antiga costuma guardar so o id. Sem esta traducao o pedido de aprovacao era
+ * montado inteiro e descartado por falta de destinatario: nenhum e-mail, nenhum
+ * log, e a OS parada em "aguardando aprovacao" com o diretor sem saber que havia
+ * algo esperando por ele.
+ *
+ * Inativo fica de fora -- quem saiu da empresa nao aprova nada. Quando isso zera a
+ * lista, quem chama precisa RECLAMAR em vez de desistir calado: foi o silencio, e
+ * nao a lista vazia, que fez o defeito durar.
+ */
+export function emailsDosDiretoresPorId(
+  ids: unknown,
+  pessoas: PessoaDoDiretorio[] = []
+): string[] {
+  const procurados = new Set(
+    (Array.isArray(ids) ? ids : []).map(valor => String(valor ?? '').trim()).filter(Boolean)
+  );
+  if (procurados.size === 0) return [];
+
+  const encontrados = (Array.isArray(pessoas) ? pessoas : [])
+    .filter(pessoa => procurados.has(String(pessoa?.id ?? '').trim()))
+    .filter(pessoa => pessoa?.active !== false && ehAtivo(pessoa?.status))
     .map(pessoa => normalizar(pessoa?.email))
     .filter(Boolean);
 

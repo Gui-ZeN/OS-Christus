@@ -11,6 +11,7 @@ import {
   copiaParaDiretoria,
   destinoDaDiretoria,
   diretoresAtivos,
+  emailsDosDiretoresPorId,
   enderecoDoSolicitante,
   temDiretorEnvolvido,
 } from './ticketEmail/destinatarios';
@@ -556,7 +557,42 @@ async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) 
   }
 
   if (trigger.startsWith('EMAIL-DIRETORIA-') && skipDirectorFallback && !String(enrichedPayload?.toEmail || '').trim()) {
-    return false;
+    /**
+     * ⚠️ AQUI O PEDIDO DE APROVAÇÃO SUMIA.
+     *
+     * `skipDirectorFallback` existe para que um pedido de aprovação de UMA OS não
+     * caia na caixa da diretoria inteira — isso está certo. O errado era o que vinha
+     * depois: sem `toEmail`, o e-mail montado inteiro era descartado com um `return
+     * false` que ninguém lê. Nenhum envio, nenhum log. A OS ficava em "aguardando
+     * aprovação" e o diretor nunca soube que havia algo esperando por ele.
+     *
+     * E a OS chega aqui sem `toEmail` num caso nada raro: diretor designado por id,
+     * sem e-mail no cadastro da própria OS — o formato que a OS antiga usa.
+     *
+     * Agora o id é traduzido pelo diretório antes de desistir.
+     */
+    const directorIds = Array.isArray(payload?.directorIds) ? payload.directorIds : [];
+    if (directorIds.length > 0) {
+      try {
+        const directory = await fetchDirectory();
+        const porId = emailsDosDiretoresPorId(directorIds, directory.users || []);
+        if (porId.length > 0) {
+          enrichedPayload = { ...enrichedPayload, toEmail: porId.join(', ') };
+        }
+      } catch (error) {
+        console.error('[ticketEmail] falha ao resolver diretor pelo id', error);
+      }
+    }
+
+    if (!String(enrichedPayload?.toEmail || '').trim()) {
+      // Desistir é aceitável; desistir CALADO não. Sem esta linha o sintoma é uma
+      // OS parada, e a causa é invisível.
+      console.error(
+        '[ticketEmail] aviso à diretoria DESCARTADO por falta de destinatário',
+        { ticketId: payload?.ticketId, trigger, directorIds }
+      );
+      return false;
+    }
   }
 
   const sentToConfiguredRecipients = await postEmail({
@@ -711,6 +747,9 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       trigger: isApprovalStatus ? 'EMAIL-DIRETORIA-APROVACAO' : 'EMAIL-DIRETORIA-SOLUCAO',
       toEmail: resolveDirectorToEmail(ticket) || undefined,
       ccEmail: resolveDirectorCcEmail(ticket),
+      // Os ids seguem junto: sem e-mail no cadastro da OS, é por eles que o
+      // destinatário é encontrado no diretório.
+      directorIds: Array.isArray(ticket.directorIds) ? ticket.directorIds : [],
       skipDirectorFallback: true,
       attachments: directorAttachments,
       variables,

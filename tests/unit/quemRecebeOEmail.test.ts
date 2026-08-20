@@ -157,23 +157,46 @@ describe('a diretoria', () => {
     expect(enviados.filter(e => String(e.trigger || '').startsWith('EMAIL-DIRETORIA-'))).toHaveLength(0);
   });
 
-  it('⚠️ diretor designado SÓ por ID: o pedido de aprovação some, calado', async () => {
+  it('diretor designado SÓ por ID recebe — o e-mail vem do cadastro', async () => {
+      /**
+       * DEFEITO CORRIGIDO. Antes o pedido de aprovação era montado inteiro e
+       * descartado aqui: sem `toEmail` no cadastro da OS, um `return false` que
+       * ninguém lê. Nenhum envio, nenhum log — a OS ficava em "aguardando
+       * aprovação" e o diretor nunca soube.
+       *
+       * Designar por id, sem e-mail na OS, é o formato que a OS antiga usa.
+       */
+      diretorioSimulado = [
+        { id: 'dir-x', email: 'dir-x@px.com.br', role: 'Diretor', status: 'Ativo', active: true },
+        { id: 'outro', email: 'outro@px.com.br', role: 'Diretor', status: 'Ativo', active: true },
+      ];
+
+      await notifyTicketStatusChange(
+        os({ status: TICKET_STATUS.WAITING_BUDGET_APPROVAL, directorEmails: [], directorIds: ['dir-x'] }),
+        TICKET_STATUS.WAITING_BUDGET
+      );
+
+      const paraDiretoria = enviados.filter(e => String(e.trigger || '').startsWith('EMAIL-DIRETORIA-'));
+      expect(paraDiretoria).toHaveLength(1);
+      expect(paraDiretoria[0].toEmail).toBe('dir-x@px.com.br');
+      expect(paraDiretoria[0].toEmail, 'só o designado, não a diretoria toda').not.toContain(
+        'outro@px.com.br'
+      );
+  });
+
+  it('diretor designado que saiu da empresa não recebe — e o descarte fica registrado', async () => {
     /**
-     * DEFEITO CARACTERIZADO — este teste fixa o comportamento ATUAL, que está errado.
-     *
-     * `temDiretorEnvolvido` aceita id OU e-mail (a OS antiga guarda só id). Com id e
-     * sem e-mail, o código entra no bloco da diretoria, monta o e-mail inteiro e
-     * então desiste no `skipDirectorFallback`: devolve `false`, e quem chamou
-     * descarta o retorno. Nenhum e-mail, nenhum log, nenhum aviso na tela.
-     *
-     * Na prática: a OS fica parada em "aguardando aprovação" e o diretor nunca soube
-     * que havia algo esperando por ele.
-     *
-     * O conserto é resolver o e-mail pelo id no cadastro — a decisão é de produto,
-     * então está relatada, não aplicada. Quando for corrigido, este teste falha de
-     * propósito: é o lembrete.
+     * Desistir é aceitável aqui: quem saiu não aprova nada. Desistir CALADO não era
+     * — sem o registro, o sintoma é uma OS parada e a causa é invisível.
      */
-    diretorioSimulado = [{ email: 'dir-x@px.com.br', role: 'Diretor', status: 'Ativo', active: true }];
+    const reclamacoes: unknown[][] = [];
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      reclamacoes.push(args);
+    });
+
+    diretorioSimulado = [
+      { id: 'dir-x', email: 'dir-x@px.com.br', role: 'Diretor', status: 'Inativo', active: false },
+    ];
 
     await notifyTicketStatusChange(
       os({ status: TICKET_STATUS.WAITING_BUDGET_APPROVAL, directorEmails: [], directorIds: ['dir-x'] }),
@@ -181,7 +204,12 @@ describe('a diretoria', () => {
     );
 
     expect(enviados.filter(e => String(e.trigger || '').startsWith('EMAIL-DIRETORIA-'))).toHaveLength(0);
+    const registrou = reclamacoes.some(args =>
+      String(args[0] || '').includes('DESCARTADO por falta de destinatário')
+    );
+    expect(registrou, 'o descarte precisa aparecer no log').toBe(true);
   });
+
 });
 
 describe('o que sai é sempre identificável', () => {
