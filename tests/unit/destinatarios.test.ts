@@ -138,3 +138,42 @@ describe('a REDE: sem destinatário explícito, vai para todos os diretores ativ
     expect(diretoresAtivos(null as unknown as [])).toEqual([]);
   });
 });
+
+describe('o que o teste de mutacao encontrou', () => {
+  /**
+   * Este modulo tinha 100% de cobertura de linha e 83,5% de mutacao. A diferenca sao
+   * regras que o codigo aplica e nenhum teste observava.
+   */
+
+  it('OS ausente devolve ausencia, nao explode', () => {
+    // Os `?.` do modulo sobreviveram a mutacao: nenhum teste chamava sem a OS. Sao
+    // funcoes de e-mail, chamadas de varios pontos do fluxo -- a defesa existe por
+    // um motivo, e agora esta afirmada.
+    expect(enderecoDoSolicitante(null as never)).toBeNull();
+    expect(copiaParaDiretoria(null as never)).toBe('');
+    expect(destinoDaDiretoria(undefined as never)).toBe('');
+    expect(temDiretorEnvolvido(null as never)).toBe(false);
+  });
+
+  it('endereco em branco no meio da lista nao vira destinatario vazio', () => {
+    /**
+     * O `.filter(Boolean)` da montagem da lista sobrevivia a mutacao: os testes
+     * passavam listas SO com vazios, e ai tanto faz. So uma lista MISTA distingue.
+     *
+     * Sem o filtro, `['ana@x.com', '']` viraria o cabecalho "ana@x.com, " -- com
+     * virgula sobrando e um destinatario em branco no fim.
+     */
+    expect(destinoDaDiretoria(os({ directorEmails: ['ana@x.com', '', '  '] }))).toBe('ana@x.com');
+    expect(copiaParaDiretoria(os({ directorCcEmails: ['', 'bia@x.com', null] }))).toBe('bia@x.com');
+  });
+
+  it('diretor ativo no meio de inativos continua sendo achado', () => {
+    // Mesma armadilha do lado da rede: lista so-de-inativos nao distingue nada.
+    const lista = diretoresAtivos([
+      { email: 'saiu@x.com', role: 'Diretor', status: 'Inativo' },
+      { email: 'fica@x.com', role: 'Diretor', status: 'Ativo' },
+      { email: 'tambem-saiu@x.com', role: 'Diretor', active: false },
+    ]);
+    expect(lista).toEqual(['fica@x.com']);
+  });
+});
