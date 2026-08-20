@@ -1581,7 +1581,31 @@ async function handleRevisaoSemanal(req, res) {
           throw new HttpError(409, 'Esta OS não pode mais ser reaberta por este link.');
         }
         const efeito = efeitoDaResposta(RESPOSTA.DESFAZER, { now: agora, statusAnterior: normalizada?.statusAnterior });
-        await ref.update({ ...efeito, revisaoRespondidaPor: String(dadosDoToken.email || '') || null });
+        /**
+         * ⚠️ REABRIR LIMPA O `closedAt` — e este ramo não limpava.
+         *
+         * O resto do sistema já segue a regra, e ela está escrita no teste de
+         * integração dos marcos: o `closedAt` responde "está fechada AGORA", então
+         * reabertura o zera enquanto o MARCO de encerramento permanece (o histórico
+         * é do que aconteceu, não do que está valendo).
+         *
+         * Aqui a OS voltava para a etapa anterior carregando o `closedAt` da
+         * limpeza: aberta na tela e fechada no gráfico de encerramentos. É o mesmo
+         * defeito que o comentário logo abaixo descreve, ao contrário — e o
+         * `stageEnteredAt` precisa andar pelo mesmo motivo, porque a OS entrou numa
+         * etapa nova.
+         */
+        const extrasDoDesfazer = {};
+        if (efeito.status && efeito.status !== ticket.status) {
+          extrasDoDesfazer.stageEnteredAt = agora;
+          if (CLOSED_STATUSES.has(efeito.status)) extrasDoDesfazer.closedAt = agora;
+          else if (CLOSED_STATUSES.has(String(ticket.status || ''))) extrasDoDesfazer.closedAt = null;
+        }
+        await ref.update({
+          ...efeito,
+          ...extrasDoDesfazer,
+          revisaoRespondidaPor: String(dadosDoToken.email || '') || null,
+        });
         return sendJson(res, 200, { ok: true, ordens: await lerOrdens() });
       }
 
