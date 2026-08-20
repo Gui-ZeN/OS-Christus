@@ -156,6 +156,24 @@ function selectInitialRoundQuotes(quotes: Quote[]) {
   return initial.length > 0 ? initial : list;
 }
 
+/**
+ * Dois nomes so sao "o mesmo" quando os DOIS existem.
+ *
+ * Antes a comparacao era `normalizeText(a || '') === normalizeText(b || '')`, e com
+ * as duas OS sem nome preenchido isso dava `'' === ''` -> verdadeiro. O efeito: duas
+ * OS de macroservicos e servicos DIFERENTES tiravam nota 11 de 11 -- o maximo -- e
+ * apareciam rotuladas como compartilhando "servico" e "macroservico".
+ *
+ * E OS sem nome preenchido nao e caso raro: e o estado normal de toda OS que entra
+ * por e-mail antes de alguem classificar. Na pratica, o preco de referencia mostrado
+ * na avaliacao de cotacao saia da media de OS sem relacao nenhuma com a atual.
+ */
+function mesmoNome(a: string | null | undefined, b: string | null | undefined) {
+  const primeiro = normalizeText(a || '');
+  const segundo = normalizeText(b || '');
+  return Boolean(primeiro && segundo && primeiro === segundo);
+}
+
 export function buildBudgetHistorySummary(
   currentTicket: Ticket | null | undefined,
   tickets: Ticket[],
@@ -201,11 +219,11 @@ export function buildBudgetHistorySummary(
         currentQuotedVendors.some(current => normalizeText(current) === normalizeText(vendor))
       );
       const sameMacroService =
-        (ticket.macroServiceId && currentTicket.macroServiceId && ticket.macroServiceId === currentTicket.macroServiceId) ||
-        normalizeText(ticket.macroServiceName || '') === normalizeText(currentTicket.macroServiceName || '');
+        Boolean(ticket.macroServiceId && currentTicket.macroServiceId && ticket.macroServiceId === currentTicket.macroServiceId) ||
+        mesmoNome(ticket.macroServiceName, currentTicket.macroServiceName);
       const sameService =
-        (ticket.serviceCatalogId && currentTicket.serviceCatalogId && ticket.serviceCatalogId === currentTicket.serviceCatalogId) ||
-        normalizeText(ticket.serviceCatalogName || '') === normalizeText(currentTicket.serviceCatalogName || '');
+        Boolean(ticket.serviceCatalogId && currentTicket.serviceCatalogId && ticket.serviceCatalogId === currentTicket.serviceCatalogId) ||
+        mesmoNome(ticket.serviceCatalogName, currentTicket.serviceCatalogName);
 
       const sharedTerms = [
         ...(sameService ? ['serviço'] : []),

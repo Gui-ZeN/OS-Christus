@@ -2,6 +2,20 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  /**
+   * SO os specs de E2E.
+   *
+   * Sem isto vale o glob padrao do Playwright, que casa tambem `.test.ts` -- ou
+   * seja, os ~80 testes unitarios em `tests/unit`. Cada um importa `vitest`, e com
+   * `workers: 1` todos carregam no MESMO processo: o segundo arquivo tenta redefinir
+   * o simbolo de matchers do vitest e a execucao morre antes de rodar um unico teste
+   * de tela.
+   *
+   *   TypeError: Cannot redefine property: Symbol($$jest-matchers-object)
+   *
+   * A convencao de nome ja existia; faltava o Playwright saber dela.
+   */
+  testMatch: '**/*.e2e.spec.ts',
   // O spec legado tem skip condicional e IDs fixos (OS-0050): fora do glob padrão
   // para não voltar por engano num `playwright test` sem argumentos. Ele continua
   // disponível pelo script dedicado `test:e2e:lifecycle-legacy`.
