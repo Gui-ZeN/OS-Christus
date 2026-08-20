@@ -74,4 +74,23 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/**
+ * ENCERRAMENTO LIMPO POR IPC — existe para a MEDIÇÃO DE COBERTURA.
+ *
+ * `NODE_V8_COVERAGE` só grava o arquivo quando o processo termina normalmente. No
+ * Windows, `child.kill('SIGTERM')` é TerminateProcess: mata sem aviso, e a
+ * cobertura das 9.334 linhas de rota — exercitadas SÓ por integração e E2E — some
+ * junto. Era por isso que o número nunca existiu.
+ *
+ * IPC e não uma rota HTTP: rota de desligar, mesmo em arquivo de desenvolvimento,
+ * é superfície que um dia alguém copia para produção.
+ */
+process.on('message', mensagem => {
+  if (mensagem === 'encerrar') {
+    server.close(() => process.exit(0));
+    // Rede: conexão pendurada não pode segurar o processo para sempre.
+    setTimeout(() => process.exit(0), 2000).unref();
+  }
+});
+
 server.listen(PORT, () => console.log(`[api-adapter] serving api/*.js on http://localhost:${PORT}`));

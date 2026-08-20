@@ -21,3 +21,4 @@ _*_backups/
 # Configuração local do Claude Code (launch.json de preview, etc.)
 .claude/
 prints/
+coverage-rotas/

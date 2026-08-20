@@ -74,6 +74,17 @@ async function waitForApi(child, timeoutMs = 30_000) {
 
 async function stopChild(child) {
   if (child.exitCode !== null) return;
+  // Pede para encerrar antes de matar: sem saída limpa, o arquivo de cobertura do
+  // adaptador não é gravado e as rotas ficam de fora da medição.
+  if (child.connected) {
+    try {
+      child.send('encerrar');
+      await Promise.race([once(child, 'exit'), new Promise(r => setTimeout(r, 5_000))]);
+      if (child.exitCode !== null) return;
+    } catch {
+      /* segue para o kill */
+    }
+  }
   child.kill('SIGTERM');
   await Promise.race([
     once(child, 'exit'),
@@ -82,10 +93,31 @@ async function stopChild(child) {
   if (child.exitCode === null) child.kill('SIGKILL');
 }
 
+/**
+ * ⚠️ PORTA OCUPADA É ERRO, NÃO "TUDO BEM".
+ *
+ * Se já houver um adaptador em `3001` — o que quem desenvolve deixa rodando o dia
+ * inteiro —, o adaptador desta execução morre com EADDRINUSE e os testes batem no
+ * OUTRO processo. A suíte passa, porque o servidor está lá; mas o que ela mediu não
+ * é o que ela pensa que mediu.
+ *
+ * Descobri isso medindo cobertura: a primeira leitura deu 8% com `api/mail.js` em
+ * zero, e as rotas tinham acabado de responder 200. Falha silenciosa que produz
+ * VERDE é a pior categoria — a suíte confirmando algo sobre um processo que ela nem
+ * lançou. Aqui ela para e diz o que fazer.
+ */
+if (await canConnect()) {
+  throw new Error(
+    `Já existe algo escutando em ${API_HOST}:${API_PORT}. ` +
+      'Pare o `npm run dev:api` antes — senão os testes batem no processo errado e o resultado não vale.'
+  );
+}
+
 const api = spawn(process.execPath, ['scripts/dev/api-adapter.mjs'], {
   cwd: ROOT,
   env,
-  stdio: 'inherit',
+  // O quarto descritor é o canal de IPC, usado só para pedir o encerramento limpo.
+  stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
   shell: false,
 });
 
