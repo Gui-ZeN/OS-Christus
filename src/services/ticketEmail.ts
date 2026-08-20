@@ -7,30 +7,22 @@ import { fetchProcurementData } from './procurementApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
 import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
 import { UserFacingError } from '../utils/errorMessage';
-function resolveTicketEmail(ticket: Ticket): string | null {
-  if (ticket.requesterEmail?.trim()) return ticket.requesterEmail.trim();
-  return null;
-}
-
-function resolveDirectorCcEmail(ticket: Ticket): string {
-  return Array.isArray(ticket.directorCcEmails)
-    ? [...new Set(ticket.directorCcEmails.map(email => String(email || '').trim().toLowerCase()).filter(Boolean))].join(', ')
-    : '';
-}
-
-function resolveDirectorToEmail(ticket: Ticket): string {
-  return Array.isArray(ticket.directorEmails)
-    ? [...new Set(ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()).filter(Boolean))].join(', ')
-    : '';
-}
-
-function hasInvolvedDirectors(ticket: Ticket): boolean {
-  const directorIds = Array.isArray(ticket.directorIds) ? ticket.directorIds.filter(Boolean) : [];
-  const directorEmails = Array.isArray(ticket.directorEmails)
-    ? ticket.directorEmails.map(email => String(email || '').trim().toLowerCase()).filter(Boolean)
-    : [];
-  return directorIds.length > 0 || directorEmails.length > 0;
-}
+import {
+  copiaParaDiretoria,
+  destinoDaDiretoria,
+  diretoresAtivos,
+  enderecoDoSolicitante,
+  temDiretorEnvolvido,
+} from './ticketEmail/destinatarios';
+/**
+ * As regras de DESTINATÁRIO moram em `ticketEmail/destinatarios`. Aqui elas só eram
+ * alcançáveis disparando um envio de verdade — daí este arquivo, com 870 linhas,
+ * ter 3,7% de cobertura justamente na parte que decide quem recebe informação de OS.
+ */
+const resolveTicketEmail = enderecoDoSolicitante;
+const resolveDirectorCcEmail = copiaParaDiretoria;
+const resolveDirectorToEmail = destinoDaDiretoria;
+const hasInvolvedDirectors = temDiretorEnvolvido;
 
 function buildTrackingUrl(ticket: Ticket) {
   return `${window.location.origin}/?tracking=${encodeURIComponent(ticket.trackingToken)}`;
@@ -547,22 +539,10 @@ async function sendToConfiguredFlowRecipients(payload: Record<string, unknown>) 
   if (!payload?.toEmail && trigger.startsWith('EMAIL-DIRETORIA-') && !skipDirectorFallback) {
     try {
       const directory = await fetchDirectory();
-      const directorRecipients = (directory.users || [])
-        .filter(user => {
-          const role = String(user.role || '')
-            .trim()
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '');
-          const status = String(user.status || 'Ativo')
-            .trim()
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '');
-          return (role === 'diretor' || role === 'director') && user.active !== false && (status === 'ativo' || status === 'active');
-        })
-        .map(user => String(user.email || '').trim().toLowerCase())
-        .filter(Boolean);
+      // A regra saiu para `destinatarios.ts` e ganhou teste: é a decisão de maior
+      // alcance do módulo — sem destinatário explícito, o aviso vai para TODOS os
+      // diretores ativos do cadastro.
+      const directorRecipients = diretoresAtivos(directory.users || []);
 
       if (directorRecipients.length > 0) {
         enrichedPayload = {
