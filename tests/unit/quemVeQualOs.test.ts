@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildAllowedScope,
   canUserAccessTicket,
   resolveTicketRegionIds,
   resolveTicketSiteIds,
@@ -195,5 +196,136 @@ describe('a região da OS', () => {
   it('sem repetir quando as duas apontam para a mesma', () => {
     const ids = resolveTicketRegionIds({ siteId: 'sede-dl', regionId: 'reg-aldeota' }, REGIOES, SEDES);
     expect(ids.filter(id => id === 'reg-aldeota')).toHaveLength(1);
+  });
+});
+
+describe('mais de uma sede, mais de uma regiao', () => {
+  /**
+   * O teste de mutacao apontou: trocar `some` por `every` na resolucao das sedes do
+   * usuario SOBREVIVIA. Com uma sede so as duas se comportam igual, e todos os
+   * testes tinham uma sede so.
+   *
+   * Mas gestora com duas sedes e o caso comum aqui -- sao ~16 sedes para 8 pessoas.
+   * Com `every`, quem cuida de duas sedes nao enxergaria NENHUMA: uma sede do
+   * catalogo nunca e igual a duas coisas ao mesmo tempo.
+   */
+
+  it('quem cuida de duas sedes ve as OS das DUAS', () => {
+    const gestora = { role: 'Gestor', siteIds: ['sede-dl', 'sede-eq'], regionIds: [] };
+    expect(pode(gestora, { siteId: 'sede-dl' })).toBe(true);
+    expect(pode(gestora, { siteId: 'sede-eq' })).toBe(true);
+  });
+
+  it('e continua sem ver a terceira', () => {
+    // A soma de sedes nao pode virar acesso geral.
+    const gestora = { role: 'Gestor', siteIds: ['sede-dl', 'sede-eq'], regionIds: [] };
+    expect(pode(gestora, { siteId: 'sede-ald' })).toBe(false);
+  });
+
+  it('duas sedes misturando id e sigla', () => {
+    // O cadastro tem as duas formas, vindas de epocas diferentes.
+    const gestora = { role: 'Gestor', siteIds: ['sede-dl', 'EQ'], regionIds: [] };
+    expect(pode(gestora, { siteId: 'sede-dl' })).toBe(true);
+    expect(pode(gestora, { siteId: 'sede-eq' })).toBe(true);
+  });
+
+  it('quem cuida de duas regioes ve as OS das duas', () => {
+    const regional = { role: 'Gestor', siteIds: [], regionIds: ['reg-aldeota', 'reg-universidade'] };
+    expect(pode(regional, { siteId: 'sede-dl' })).toBe(true);
+    expect(pode(regional, { siteId: 'sede-eq' })).toBe(true);
+  });
+
+  it('uma sede que existe e outra que nao, ainda da acesso a que existe', () => {
+    // Cadastro com uma sede escrita errada nao pode apagar o acesso legitimo a outra.
+    const gestora = { role: 'Gestor', siteIds: ['sede-dl', 'sede-fantasma'], regionIds: [] };
+    expect(pode(gestora, { siteId: 'sede-dl' })).toBe(true);
+    expect(pode(gestora, { siteId: 'sede-eq' })).toBe(false);
+  });
+});
+
+describe('o escopo da BUSCA concorda com o acesso a UMA OS', () => {
+  /**
+   * Duas regras diferentes decidem a mesma coisa por caminhos diferentes:
+   * `buildAllowedScope` monta a query que traz a lista, e `canUserAccessTicket`
+   * decide uma OS por vez.
+   *
+   * Quando divergem, o sintoma e cruel de depurar: a pessoa ve na lista uma OS que
+   * nao consegue abrir, ou abre pelo link uma que a lista dela nunca mostrou.
+   */
+  const escopo = (user: unknown) => buildAllowedScope(user, REGIOES, SEDES);
+
+  it('sede vinculada limita a busca aquela sede', () => {
+    const s = escopo({ role: 'Gestor', siteIds: ['sede-dl'], regionIds: [] });
+    expect(s.hasExplicitSiteScope).toBe(true);
+    expect(s.allowedSiteIds).toEqual(['sede-dl']);
+  });
+
+  it('regiao vinculada expande a busca para as sedes da regiao', () => {
+    const s = escopo({ role: 'Gestor', siteIds: [], regionIds: ['reg-aldeota'] });
+    expect(s.hasExplicitSiteScope).toBe(false);
+    expect(s.allowedSiteIds.sort()).toEqual(['sede-ald', 'sede-dl']);
+  });
+
+  it('a busca casa sede por id, sigla e nome — como o assunto do e-mail escreve', () => {
+    // A OS guarda 'DL' ou 'Dom Luís' no campo `sede`; a query precisa dos tres.
+    const s = escopo({ role: 'Gestor', siteIds: ['sede-dl'], regionIds: [] });
+    expect(s.siteMatchers).toContain('sede-dl');
+    expect(s.siteMatchers.length).toBeGreaterThan(1);
+  });
+
+  it('a regiao da sede vinculada entra no escopo, mesmo sem estar vinculada', () => {
+    // Quem cuida de uma sede precisa enxergar a OS que so foi classificada por regiao.
+    const s = escopo({ role: 'Gestor', siteIds: ['sede-eq'], regionIds: [] });
+    expect(s.allowedRegionIds).toContain('reg-universidade');
+  });
+
+  it('SEDE FANTASMA: a busca fica vazia, e nao vira a regiao inteira', () => {
+    /**
+     * O ramo que parece redundante em `allowedSiteIds` e justamente este. Com sede
+     * vinculada que nao existe no catalogo, `userSiteIds` fica vazio -- e sem esse
+     * ramo a expressao cairia no ramo da regiao. Um cadastro com sede errada viraria
+     * acesso a regiao inteira em vez de acesso nenhum.
+     */
+    const comFantasma = { role: 'Gestor', siteIds: ['sede-inexistente'], regionIds: ['reg-aldeota'] };
+    const s = escopo(comFantasma);
+    expect(s.allowedSiteIds).toEqual([]);
+    expect(s.hasExplicitSiteScope, 'e a busca por regiao fica suprimida').toBe(true);
+
+    // E a decisao por OS diz o mesmo -- que e o ponto.
+    expect(pode(comFantasma, { siteId: 'sede-dl' })).toBe(false);
+    expect(pode(comFantasma, { siteId: 'sede-ald' })).toBe(false);
+  });
+
+  it('sem escopo nenhum, a busca nao traz nada', () => {
+    const semEscopo = { role: 'Usuario', siteIds: [], regionIds: [] };
+    const s = escopo(semEscopo);
+    expect(s.allowedSiteIds).toEqual([]);
+    expect(s.allowedRegionIds).toEqual([]);
+    expect(pode(semEscopo, { siteId: 'sede-dl' })).toBe(false);
+  });
+
+  it('as duas regras concordam sede a sede', () => {
+    // A propriedade, verificada de verdade em vez de assumida: para cada perfil e
+    // cada sede, estar no escopo da busca e poder abrir a OS tem que dar o mesmo.
+    const perfis = [
+      { role: 'Gestor', siteIds: ['sede-dl'], regionIds: [] },
+      { role: 'Gestor', siteIds: ['sede-dl', 'sede-eq'], regionIds: [] },
+      { role: 'Gestor', siteIds: [], regionIds: ['reg-aldeota'] },
+      { role: 'Gestor', siteIds: [], regionIds: ['reg-universidade'] },
+      { role: 'Usuario', siteIds: [], regionIds: [] },
+      { role: 'Gestor', siteIds: ['sede-inexistente'], regionIds: ['reg-aldeota'] },
+    ];
+
+    for (const perfil of perfis) {
+      const s = escopo(perfil);
+      for (const sede of SEDES) {
+        const naBusca = s.allowedSiteIds.includes(sede.id);
+        const abreAOs = pode(perfil, { siteId: sede.id });
+        expect(
+          naBusca,
+          `perfil ${JSON.stringify(perfil)} x ${sede.id}: busca=${naBusca} acesso=${abreAOs}`
+        ).toBe(abreAOs);
+      }
+    }
   });
 });

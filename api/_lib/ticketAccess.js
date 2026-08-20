@@ -129,6 +129,21 @@ async function readTerritoryCatalog(db) {
   return { regions, sites };
 }
 
+/**
+ * O ESCOPO DA BUSCA: quais sedes e regiões entram na query de tickets.
+ *
+ * Precisa concordar com `canUserAccessTicket`, que decide uma OS por vez. Se os dois
+ * divergirem, a pessoa vê na lista uma OS que não consegue abrir — ou pior, o
+ * contrário.
+ *
+ * ⚠️ Os dois primeiros ramos de `allowedSiteIds` são iguais, e isso NÃO é
+ * redundância: o primeiro cobre o caso em que a pessoa tem sede vinculada que não
+ * existe no catálogo. Ali `userSiteIds` fica vazio, e sem esse ramo a expressão
+ * cairia no ramo da região — um cadastro com sede errada viraria acesso à região
+ * inteira em vez de acesso nenhum. Com ele, o escopo fica vazio E
+ * `hasExplicitSiteScope` suprime a busca por região em `queryTicketsByScope`.
+ * Fail-closed nos dois lugares.
+ */
 function buildAllowedScope(user, regions, sites) {
   const hasExplicitSiteScope = Array.isArray(user?.siteIds) && user.siteIds.some(value => String(value || '').trim());
   const userSiteIds = resolveUserSiteIds(user, sites);
@@ -275,6 +290,9 @@ export {
   resolveTicketRegionIds,
   isDirectorAssignedToTicket,
   canUserAccessTicket,
+  // Exportado para teste: decide QUAIS OS a busca traz, e tem que concordar com
+  // `canUserAccessTicket`. Sem alcance, a regra so era observavel indo ao Firestore.
+  buildAllowedScope,
   readTerritoryCatalog,
   readAccessibleTickets,
   readTicketsChangedSince,

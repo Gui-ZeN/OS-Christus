@@ -3,6 +3,7 @@ import {
   copiaParaDiretoria,
   destinoDaDiretoria,
   diretoresAtivos,
+  emailsDosDiretoresPorId,
   enderecoDoSolicitante,
   temDiretorEnvolvido,
 } from '../../src/services/ticketEmail/destinatarios';
@@ -175,5 +176,85 @@ describe('o que o teste de mutacao encontrou', () => {
       { email: 'tambem-saiu@x.com', role: 'Diretor', active: false },
     ]);
     expect(lista).toEqual(['fica@x.com']);
+  });
+});
+
+describe('traduzir o ID do diretor em endereco', () => {
+  /**
+   * A traducao que faltava. A OS pode guardar `directorIds` sem `directorEmails` --
+   * e a OS antiga costuma guardar so o id. Sem isto, o pedido de aprovacao era
+   * montado inteiro e descartado por falta de destinatario, calado.
+   */
+  const pessoa = (extra = {}) => ({
+    id: 'dir-1',
+    email: 'dir1@x.com',
+    role: 'Diretor',
+    status: 'Ativo',
+    active: true,
+    ...extra,
+  });
+
+  const CADASTRO = [
+    pessoa(),
+    pessoa({ id: 'dir-2', email: 'dir2@x.com' }),
+    pessoa({ id: 'dir-3', email: 'dir3@x.com' }),
+  ];
+
+  it('acha o endereco do designado', () => {
+    expect(emailsDosDiretoresPorId(['dir-2'], CADASTRO)).toEqual(['dir2@x.com']);
+  });
+
+  it('dois designados, dois enderecos', () => {
+    // Com um id so, um `some` e um `every` se comportam igual -- e a OS com dois
+    // diretores designados e o caso que distingue.
+    expect(emailsDosDiretoresPorId(['dir-1', 'dir-3'], CADASTRO)).toEqual([
+      'dir1@x.com',
+      'dir3@x.com',
+    ]);
+  });
+
+  it('so os designados -- nao a diretoria inteira', () => {
+    // A diferenca entre esta funcao e a rede: aqui o pedido tem dono.
+    const lista = emailsDosDiretoresPorId(['dir-1'], CADASTRO);
+    expect(lista).not.toContain('dir2@x.com');
+    expect(lista).not.toContain('dir3@x.com');
+  });
+
+  it('id que nao esta no cadastro nao vira endereco', () => {
+    expect(emailsDosDiretoresPorId(['dir-fantasma'], CADASTRO)).toEqual([]);
+  });
+
+  it('designado que saiu da empresa nao recebe -- pelas DUAS marcas', () => {
+    // Mesma regra da rede: `active: false` e `status: 'Inativo'` convivem no
+    // cadastro, e checar so uma manda pedido de aprovacao para quem ja saiu.
+    const cadastro = [
+      pessoa({ id: 'saiu-1', email: 'saiu1@x.com', active: false }),
+      pessoa({ id: 'saiu-2', email: 'saiu2@x.com', status: 'Inativo' }),
+    ];
+    expect(emailsDosDiretoresPorId(['saiu-1', 'saiu-2'], cadastro)).toEqual([]);
+  });
+
+  it('id com espaco em volta ainda casa', () => {
+    expect(emailsDosDiretoresPorId(['  dir-1  '], CADASTRO)).toEqual(['dir1@x.com']);
+  });
+
+  it('lista vazia, ausente ou nao-lista devolve vazio', () => {
+    expect(emailsDosDiretoresPorId([], CADASTRO)).toEqual([]);
+    expect(emailsDosDiretoresPorId(null, CADASTRO)).toEqual([]);
+    expect(emailsDosDiretoresPorId('dir-1', CADASTRO)).toEqual([]);
+    expect(emailsDosDiretoresPorId(['dir-1'])).toEqual([]);
+  });
+
+  it('ids vazios nao contam', () => {
+    expect(emailsDosDiretoresPorId(['', '   ', null], CADASTRO)).toEqual([]);
+  });
+
+  it('o mesmo diretor listado duas vezes vira um destinatario so', () => {
+    expect(emailsDosDiretoresPorId(['dir-1', 'dir-1'], CADASTRO)).toEqual(['dir1@x.com']);
+  });
+
+  it('designado sem e-mail no cadastro nao vira destinatario vazio', () => {
+    const cadastro = [pessoa({ id: 'dir-9', email: '' })];
+    expect(emailsDosDiretoresPorId(['dir-9'], cadastro)).toEqual([]);
   });
 });

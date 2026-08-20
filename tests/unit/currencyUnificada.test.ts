@@ -105,3 +105,45 @@ describe('preço unitário', () => {
     expect(getItemUnitPrice(null)).toBeNull();
   });
 });
+
+describe('o preco unitario deduzido: o que o teste de mutacao encontrou', () => {
+  /**
+   * Tres mutantes sobreviveram no mesmo `if` de `getItemUnitPrice`. Dois eram
+   * buracos reais: a guarda existia, e nenhum teste observava que ela existia.
+   */
+
+  it('quantidade preenchida e total VAZIO nao vira preco zero', () => {
+    /**
+     * Item com quantidade digitada e total ainda em branco e o estado normal de uma
+     * cotacao em preenchimento. Sem a guarda `total !== null`, a divisao seria
+     * `null / 3` -- que em JS da 0, nao erro. A tela mostraria "R$ 0,00" como se o
+     * fornecedor tivesse cotado de graca, e a media do historico levaria esse zero
+     * junto.
+     */
+    expect(getItemUnitPrice({ quantity: 3 })).toBeNull();
+    expect(getItemUnitPrice({ quantity: 3, totalPrice: '' })).toBeNull();
+    expect(getItemUnitPrice({ quantity: 3, totalPrice: 'a combinar' })).toBeNull();
+  });
+
+  it('quantidade negativa nao vira preco negativo', () => {
+    // Quantidade negativa e dado corrompido; a guarda `> 0` existe para isso. Sem
+    // ela, `R$ 300,00 / -3` chegaria a tela como -R$ 100,00.
+    expect(getItemUnitPrice({ quantity: -3, totalPrice: 'R$ 300,00' })).toBeNull();
+  });
+
+  it('quantidade zero nao divide', () => {
+    // Dividir por zero devolve Infinity, que passa por `Number.isFinite` como numero
+    // e chega a tela como preco.
+    expect(getItemUnitPrice({ quantity: 0, totalPrice: 'R$ 300,00' })).toBeNull();
+  });
+
+  it('quantidade ilegivel nao divide', () => {
+    expect(getItemUnitPrice({ quantity: 'tres', totalPrice: 'R$ 300,00' })).toBeNull();
+  });
+
+  it('total zero com quantidade valida devolve zero, e isso e um preco', () => {
+    // Diferente dos casos acima: aqui o zero foi DECLARADO. Brinde e cortesia
+    // existem, e null ("nao sabemos") mentiria sobre um dado que foi informado.
+    expect(getItemUnitPrice({ quantity: 3, totalPrice: 'R$ 0,00' })).toBe(0);
+  });
+});
