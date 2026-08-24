@@ -4096,6 +4096,125 @@ async function handleGmailPush(req, res) {
 }
 
 
+/**
+ * COLETOR DE RESPOSTA — um `res` de mentira, para chamar um handler sem rede.
+ *
+ * Os handlers escrevem direto no `res` (`sendJson` mexe em `statusCode`,
+ * `setHeader` e `end`). Para encadear quatro deles numa execução só, cada um
+ * precisa do seu próprio destino de escrita.
+ */
+function coletorDeResposta() {
+  let corpo = '';
+  return {
+    statusCode: 200,
+    setHeader() {},
+    end(texto) {
+      corpo = String(texto ?? '');
+    },
+    lerCorpo() {
+      if (!corpo) return {};
+      try {
+        return JSON.parse(corpo);
+      } catch {
+        return { bruto: corpo.slice(0, 200) };
+      }
+    },
+  };
+}
+
+/**
+ * O CICLO OPERACIONAL NUMA CHAMADA SÓ.
+ *
+ * Existe para um agendador EXTERNO poder disparar tudo com UMA url. O agendador do
+ * GitHub é best-effort: medido em 24/08, pedindo uma a cada 5 minutos ele entregou
+ * uma a cada ~40 minutos (11:40, 12:21, 12:59, 13:40). Quatro jobs separados no
+ * pinger resolveriam a frequência mas perderiam a ORDEM, que era o ganho de ter
+ * unificado: a checagem CRIA o e-mail e a fila o ENVIA logo atrás, na mesma
+ * execução, em vez de meia hora depois.
+ *
+ * A ordem aqui é a mesma do workflow, e pelos mesmos motivos:
+ *   1. chuva     — a única em que o minuto conta, e a mais barata;
+ *   2. gmail     — a entrada: e-mail que chegou vira OS;
+ *   3. checagem  — o que GERA mensagem (pergunta à sede, alerta de falta);
+ *   4. outbox    — a fila, que leva junto o que a checagem acabou de criar.
+ *
+ * ⚠️ CADA ETAPA É ISOLADA. Uma falha não derruba as seguintes — mesma escolha do
+ * `continue-on-error` do workflow. Sem isso, o Gmail fora do ar levaria o aviso de
+ * chuva e a fila junto, e o remédio ficaria pior que a doença.
+ *
+ * ⚠️ PRAZO. A Vercel corta a função em 60s (`maxDuration`). O orçamento de 45s é
+ * conferido ANTES de começar cada etapa: o que não couber fica para a volta
+ * seguinte, declarado na resposta em vez de morrer no meio. Não protege contra UMA
+ * etapa que sozinha estoure os 60s — para isso não há como cancelar no meio.
+ *
+ * ⚠️ RESPONDE 500 SE ALGUMA ETAPA FALHOU, mesmo tendo feito o resto. É o pinger que
+ * lê isso: 2xx para ele é "está tudo bem", e um alerta que não dispara é pior que
+ * não ter alerta. O corpo diz o que passou e o que não.
+ */
+const ETAPAS_DO_CICLO = [
+  ['chuva', handleRainAlert],
+  ['gmail-sync', handleGmailSync],
+  ['checagem-visitas', handleChecagemDasVisitas],
+  ['outbox-worker', handleEmailOutboxWorker],
+];
+
+const ORCAMENTO_DO_CICLO_MS = 45_000;
+
+async function handleCicloOperacional(req, res) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
+  }
+
+  try {
+    await authorizeEmailOutboxWorker(req);
+  } catch (error) {
+    return sendError(res, error, 'Falha ao autorizar o ciclo.');
+  }
+
+  const inicio = Date.now();
+  const etapas = [];
+
+  for (const [nome, executar] of ETAPAS_DO_CICLO) {
+    const decorrido = Date.now() - inicio;
+    if (decorrido > ORCAMENTO_DO_CICLO_MS) {
+      etapas.push({ etapa: nome, pulada: true, motivo: 'orcamento-de-tempo' });
+      continue;
+    }
+
+    const comecou = Date.now();
+    const coletor = coletorDeResposta();
+    try {
+      await executar(req, coletor);
+      etapas.push({
+        etapa: nome,
+        status: coletor.statusCode,
+        ms: Date.now() - comecou,
+        resposta: coletor.lerCorpo(),
+      });
+    } catch (error) {
+      // O handler estourou antes de escrever no `res`. Registra e segue.
+      etapas.push({
+        etapa: nome,
+        status: error?.statusCode || 500,
+        ms: Date.now() - comecou,
+        erro: String(error?.message || error).slice(0, 300),
+      });
+    }
+  }
+
+  const falharam = etapas
+    .filter(e => e.erro || (typeof e.status === 'number' && (e.status < 200 || e.status >= 300)))
+    .map(e => e.etapa);
+
+  return sendJson(res, falharam.length > 0 ? 500 : 200, {
+    ok: falharam.length === 0,
+    falharam,
+    ms: Date.now() - inicio,
+    etapas,
+  });
+}
+
 export default async function handler(req, res) {
   const route = String(req.query?.route || '').trim().toLowerCase();
 
@@ -4103,6 +4222,9 @@ export default async function handler(req, res) {
   if (route === 'health') return handleHealth(req, res);
   if (route === 'dropped-inbound') return handleDroppedInbound(req, res);
   if (route === 'outbox-worker') return handleEmailOutboxWorker(req, res);
+  // O ciclo inteiro numa chamada so, para agendador externo. Ver o comentario
+  // de `handleCicloOperacional`.
+  if (route === 'ciclo') return handleCicloOperacional(req, res);
   if (route === 'rain-alert') return handleRainAlert(req, res);
   if (route === 'agenda-sedes') return handleAgendaDasSedes(req, res);
   if (route === 'checagem-visitas') return handleChecagemDasVisitas(req, res);
