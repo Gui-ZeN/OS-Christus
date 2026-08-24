@@ -4171,6 +4171,35 @@ const ETAPAS_DO_CICLO = [
 
 const ORCAMENTO_DO_CICLO_MS = 25_000;
 
+/**
+ * A ETAPA FALHOU? — e status HTTP NÃO BASTA para responder isso.
+ *
+ * ⚠️ A primeira versão olhava só o código HTTP, e o primeiro disparo em produção
+ * mostrou o furo: a outbox devolveu **200** com `failed: 1` no corpo — um e-mail
+ * não entregue ("HTTP 401: Protected deployment") — e o ciclo respondeu
+ * `ok: true`. O pinger via verde enquanto e-mail deixava de sair.
+ *
+ * A rota da fila responde 200 porque ELA funcionou: varreu, tentou, registrou. Quem
+ * falhou foi um item. Está certo do ponto de vista dela, e por isso quem agrega
+ * precisa ler o corpo, não só o envelope.
+ *
+ * Os três sinais que contam como falha, e o motivo de cada um:
+ *   `ok: false`        — a própria etapa se declarou malsucedida;
+ *   `failed > 0`       — item da fila que não entregou (e vai ser retentado);
+ *   `deadLettered > 0` — item que esgotou as tentativas: ninguém mais tenta por ele.
+ */
+function etapaFalhou(etapa) {
+  if (etapa.erro) return true;
+  if (typeof etapa.status === 'number' && (etapa.status < 200 || etapa.status >= 300)) return true;
+
+  const resposta = etapa.resposta;
+  if (!resposta || typeof resposta !== 'object') return false;
+  if (resposta.ok === false) return true;
+  if (Number(resposta.failed) > 0) return true;
+  if (Number(resposta.deadLettered) > 0) return true;
+  return false;
+}
+
 async function handleCicloOperacional(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -4214,9 +4243,7 @@ async function handleCicloOperacional(req, res) {
     }
   }
 
-  const falharam = etapas
-    .filter(e => e.erro || (typeof e.status === 'number' && (e.status < 200 || e.status >= 300)))
-    .map(e => e.etapa);
+  const falharam = etapas.filter(etapaFalhou).map(e => e.etapa);
 
   return sendJson(res, falharam.length > 0 ? 500 : 200, {
     ok: falharam.length === 0,
