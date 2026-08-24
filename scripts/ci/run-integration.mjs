@@ -19,6 +19,10 @@ const env = {
   VITE_FIREBASE_APP_ID: process.env.VITE_FIREBASE_APP_ID || '1:000000000000:web:demo',
   VITE_USE_FIREBASE_EMULATOR: 'true',
   VITE_API_PROXY: process.env.VITE_API_PROXY || 'http://127.0.0.1:3001',
+  // Sem isto o admin fala com o Storage DE VERDADE (ou com nenhum) e a remocao de
+  // anexo vira um aviso no log que nenhum teste le.
+  FIREBASE_STORAGE_EMULATOR_HOST:
+    process.env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199',
   E2E_LOGIN_EMAIL: process.env.E2E_LOGIN_EMAIL || 'admin@test.local',
   E2E_LOGIN_PASSWORD: process.env.E2E_LOGIN_PASSWORD || 'Test@123456',
   E2E_TERRITORY_USER_EMAIL: process.env.E2E_TERRITORY_USER_EMAIL || 'usuario.pe@test.local',

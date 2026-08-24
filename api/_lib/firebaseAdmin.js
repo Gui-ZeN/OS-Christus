@@ -24,7 +24,22 @@ export function getAdminDb() {
     // Dev local: com FIRESTORE_EMULATOR_HOST setado, o firebase-admin fala só
     // com o emulador e dispensa service account real. Inócuo em produção.
     if (process.env.FIRESTORE_EMULATOR_HOST) {
-      initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'os-christus' });
+      const projectId = process.env.FIREBASE_PROJECT_ID || 'os-christus';
+      // ⚠️ O BUCKET TAMBÉM NO EMULADOR.
+      //
+      // Sem `storageBucket` aqui, toda chamada ao Storage falhava com "Bucket name
+      // not specified or invalid" — dez vezes numa execução do CI. E os testes
+      // PASSAVAM: eles afirmam que a referência saiu do Firestore, e a remoção do
+      // arquivo no bucket só virava um aviso no log ("referência removida, mas o
+      // objeto permaneceu no bucket").
+      //
+      // Ou seja, a cascata para o Storage — a parte que de fato apaga o anexo —
+      // nunca era exercitada. Se ela quebrasse em produção, um anexo "excluído"
+      // continuaria baixável e nenhum teste reclamaria.
+      initializeApp({
+        projectId,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`,
+      });
     } else {
       const serviceAccount = parseServiceAccountFromEnv();
       const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id;
