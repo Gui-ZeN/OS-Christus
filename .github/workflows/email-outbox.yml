@@ -24,7 +24,7 @@ jobs:
           # linha 1, o worker nunca é chamado, e o vermelho de 5 em 5 minutos vira
           # paisagem. O `gmail-sync`, com a mesma estrutura, roda — então o
           # `CRON_SECRET` existe e a diferença está aqui.
-          OUTBOX_URL: ${{ secrets.OUTBOX_URL || 'https://serv3.vercel.app/api/email/outbox-worker' }}
+          OUTBOX_URL: ${{ secrets.OUTBOX_URL || format('{0}/api/mail?route=outbox-worker', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           echo "Chamando: $OUTBOX_URL"

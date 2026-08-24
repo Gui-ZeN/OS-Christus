@@ -40,7 +40,7 @@ jobs:
       - name: Montar e enviar a revisão semanal
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          REVISAO_URL: ${{ secrets.REVISAO_SEMANAL_URL || 'https://serv3.vercel.app/api/mail?route=revisao-semanal' }}
+          REVISAO_URL: ${{ secrets.REVISAO_SEMANAL_URL || format('{0}/api/mail?route=revisao-semanal', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           SIMULAR: ${{ inputs.simular }}
         run: |
           if [ -z "$CRON_SECRET" ]; then

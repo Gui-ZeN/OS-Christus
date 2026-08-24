@@ -56,7 +56,7 @@ jobs:
       - name: Perguntar às sedes e avisar as faltas
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          CHECAGEM_URL: ${{ secrets.CHECAGEM_VISITAS_URL || 'https://serv3.vercel.app/api/mail?route=checagem-visitas' }}
+          CHECAGEM_URL: ${{ secrets.CHECAGEM_VISITAS_URL || format('{0}/api/mail?route=checagem-visitas', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           SIMULAR: ${{ inputs.simular }}
         run: |
           if [ -z "$CRON_SECRET" ]; then

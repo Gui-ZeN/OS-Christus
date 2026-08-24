@@ -52,7 +52,7 @@ jobs:
       - name: Montar e enviar o resumo
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          RESUMO_URL: ${{ secrets.RESUMO_OPERACAO_URL || 'https://serv3.vercel.app/api/mail?route=resumo-operacao' }}
+          RESUMO_URL: ${{ secrets.RESUMO_OPERACAO_URL || format('{0}/api/mail?route=resumo-operacao', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           # `github.event.schedule` traz o cron que disparou — é assim que um
           # workflow só atende quatro horários com três conteúdos diferentes.
           AGENDADO: ${{ github.event.schedule }}

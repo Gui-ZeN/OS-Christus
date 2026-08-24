@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Call Gmail watch renew endpoint
         env:
-          WATCH_URL: ${{ secrets.GMAIL_WATCH_URL }}
+          WATCH_URL: ${{ secrets.GMAIL_WATCH_URL || format('{0}/api/mail?route=gmail-watch', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "$WATCH_URL" ] || [ -z "$CRON_SECRET" ]; then

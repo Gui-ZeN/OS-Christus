@@ -44,7 +44,7 @@ jobs:
           # Padrão em vez de secret obrigatório, pela mesma razão do outbox: a URL
           # está no `.env.example` deste repositório público, e transformá-la em
           # segredo já desligou uma funcionalidade inteira em silêncio.
-          ATTENTION_URL: ${{ secrets.ATTENTION_URL || 'https://serv3.vercel.app/api/tickets?route=rebuild-attention' }}
+          ATTENTION_URL: ${{ secrets.ATTENTION_URL || format('{0}/api/tickets?route=rebuild-attention', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           ENSAIO: ${{ inputs.ensaio }}
         run: |
           if [ -z "$CRON_SECRET" ]; then

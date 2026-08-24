@@ -61,9 +61,18 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           # A URL do app não é segredo — está no `.env.example` deste repositório
-          # público. O secret existe só para o caso de o domínio mudar; sem ele, o
-          # padrão vale e nada precisa ser cadastrado.
-          RAIN_ALERT_URL: ${{ secrets.RAIN_ALERT_URL || 'https://serv3.vercel.app/api/rain/alert' }}
+          # público. Sem nada cadastrado, o padrão vale e tudo funciona.
+          #
+          # Se o domínio mudar, o lugar de mexer é a VARIÁVEL de repositório
+          # `APP_BASE_URL` (Settings > Variables), que vale para os dez workflows de
+          # uma vez. O host estava escrito em 11 pontos de 8 arquivos: trocar de
+          # domínio era caçar um por um, e esquecer um significava um cron chamando
+          # o endereço antigo sem ninguém notar.
+          #
+          # O secret por rota continua valendo e ganha do resto — serve para
+          # apontar UMA rota para outro lugar (um ambiente de teste, por exemplo)
+          # sem mexer nas outras.
+          RAIN_ALERT_URL: ${{ secrets.RAIN_ALERT_URL || format('{0}/api/mail?route=rain-alert', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           SIMULAR: ${{ inputs.simular }}
           FORCAR: ${{ inputs.forcar }}
         run: |

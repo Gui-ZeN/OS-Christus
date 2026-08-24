@@ -44,7 +44,7 @@ jobs:
       - name: Montar e enviar a agenda do dia
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          AGENDA_URL: ${{ secrets.AGENDA_SEDES_URL || 'https://serv3.vercel.app/api/mail?route=agenda-sedes' }}
+          AGENDA_URL: ${{ secrets.AGENDA_SEDES_URL || format('{0}/api/mail?route=agenda-sedes', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           SIMULAR: ${{ inputs.simular }}
         run: |
           if [ -z "$CRON_SECRET" ]; then

@@ -65,25 +65,25 @@ jobs:
       - name: Aviso de chuva
         id: chuva
         continue-on-error: true
-        run: bash scripts/ci/chamar-rota.sh "Aviso de chuva" "${{ secrets.RAIN_ALERT_URL || 'https://serv3.vercel.app/api/rain/alert' }}"
+        run: bash scripts/ci/chamar-rota.sh "Aviso de chuva" "${{ secrets.RAIN_ALERT_URL || format('{0}/api/mail?route=rain-alert', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}"
 
       # Depois a entrada: e-mail que chegou vira OS.
       - name: Gmail Sync
         id: gmail
         continue-on-error: true
-        run: bash scripts/ci/chamar-rota.sh "Gmail Sync" "${{ secrets.SYNC_URL }}"
+        run: bash scripts/ci/chamar-rota.sh "Gmail Sync" "${{ secrets.SYNC_URL || format('{0}/api/mail?route=gmail-sync', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}"
 
       # Então o que GERA mensagem: pergunta à sede e alerta de falta.
       - name: Checagem das visitas
         id: checagem
         continue-on-error: true
-        run: bash scripts/ci/chamar-rota.sh "Checagem das visitas" "${{ secrets.CHECAGEM_VISITAS_URL || 'https://serv3.vercel.app/api/mail?route=checagem-visitas' }}"
+        run: bash scripts/ci/chamar-rota.sh "Checagem das visitas" "${{ secrets.CHECAGEM_VISITAS_URL || format('{0}/api/mail?route=checagem-visitas', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}"
 
       # E por último a fila — que agora leva junto o que a checagem acabou de criar.
       - name: Email Outbox
         id: outbox
         continue-on-error: true
-        run: bash scripts/ci/chamar-rota.sh "Email Outbox" "${{ secrets.OUTBOX_URL || 'https://serv3.vercel.app/api/email/outbox-worker' }}"
+        run: bash scripts/ci/chamar-rota.sh "Email Outbox" "${{ secrets.OUTBOX_URL || format('{0}/api/mail?route=outbox-worker', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}"
 
       # Quem falhou aparece aqui, e só aqui o job fica vermelho.
       #
