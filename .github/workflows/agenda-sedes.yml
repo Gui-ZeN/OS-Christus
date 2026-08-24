@@ -64,6 +64,7 @@ jobs:
 
           echo "Chamando a agenda das sedes..."
           CODIGO=$(curl -sS -o resposta.json -w "%{http_code}" -X POST "$URL" \
+            --connect-timeout 15 --max-time 75 \
             -H "Authorization: Bearer $CRON_SECRET")
 
           cat resposta.json

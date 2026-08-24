@@ -27,16 +27,41 @@ RESPOSTA="$(mktemp)"
 # viraria 308 e nenhuma rota rodaria. E `|| CODIGO=000` porque falha de rede faz o
 # curl sair diferente de zero sem imprimir código — sem isto, `set -u` não protege
 # e a comparação abaixo receberia string vazia.
+#
+# ⚠️ `--max-time`, e por quê. Uma execução do ciclo levou 5m27s contra 12–26s das
+# vizinhas, e NÃO DEU PARA SABER QUAL ROTA demorou: o log trazia o corpo e o código,
+# nunca o tempo. Sem prazo no cliente, uma rota pendurada segura até o
+# `timeout-minutes` do job, e as três rotas atrás dela esperam junto.
+#
+# 75s fica logo acima do teto de 60s da Vercel (`maxDuration` no `vercel.json`):
+# rota que estoura o teto continua devolvendo o 504 dela, que é informação útil, em
+# vez de ser cortada pelo curl. Quatro rotas no pior caso somam 5 min, dentro dos
+# 10 min do job.
+#
+# O relógio é do SHELL, não do curl: quando o curl falha (prazo estourado, rede
+# fora) ele não imprime o `-w` nenhum, e o tempo viria zerado justamente no caso
+# em que ele mais importa. Inteiro em segundos basta — o log é para ler, não para
+# cronometrar.
+INICIO=$(date +%s)
 CODIGO=$(curl -L -sS -o "$RESPOSTA" -w "%{http_code}" -X POST "$URL" \
+  --connect-timeout 15 --max-time 75 \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json") || CODIGO=000
+SEGUNDOS=$(( $(date +%s) - INICIO ))
 
 cat "$RESPOSTA"
 echo ""
-echo "HTTP $CODIGO"
+echo "HTTP $CODIGO em ${SEGUNDOS}s"
 rm -f "$RESPOSTA"
 
+if [ "$CODIGO" = "000" ]; then
+  # Diferente de um HTTP ruim: aqui não houve resposta. Quase sempre é o prazo
+  # estourando, e dizer isso poupa a caçada de quem for ler o log.
+  echo "A rota ${NOME} não respondeu em ${SEGUNDOS}s (prazo de 75s ou falha de rede)."
+  exit 1
+fi
+
 if [ "$CODIGO" -lt 200 ] || [ "$CODIGO" -ge 300 ]; then
-  echo "A rota ${NOME} respondeu ${CODIGO}."
+  echo "A rota ${NOME} respondeu ${CODIGO} em ${SEGUNDOS}s."
   exit 1
 fi

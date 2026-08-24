@@ -29,6 +29,7 @@ jobs:
           fi
 
           HTTP_CODE=$(curl -L -sS -o /tmp/sync-response.txt -w "%{http_code}" -X POST "$SYNC_URL" \
+            --connect-timeout 15 --max-time 75 \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json")
 
