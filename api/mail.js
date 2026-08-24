@@ -4142,10 +4142,21 @@ function coletorDeResposta() {
  * `continue-on-error` do workflow. Sem isso, o Gmail fora do ar levaria o aviso de
  * chuva e a fila junto, e o remédio ficaria pior que a doença.
  *
- * ⚠️ PRAZO. A Vercel corta a função em 60s (`maxDuration`). O orçamento de 45s é
- * conferido ANTES de começar cada etapa: o que não couber fica para a volta
- * seguinte, declarado na resposta em vez de morrer no meio. Não protege contra UMA
- * etapa que sozinha estoure os 60s — para isso não há como cancelar no meio.
+ * ⚠️ PRAZO, e quem manda nele é O PINGER, não a Vercel.
+ *
+ * A Vercel corta a função em 60s (`maxDuration`), mas o agendador externo desiste
+ * antes: no cron-job.org o teto do plano gratuito é 30s. Se o ciclo passar disso,
+ * ele marca FALHA mesmo com o trabalho tendo sido feito — e, com "desabilitar após
+ * muitas falhas" ligado, o job se desliga sozinho. Um alerta falso que derruba o
+ * agendador é pior que a lentidão que ele estaria denunciando.
+ *
+ * Por isso 25s, e não os 45 que caberiam na Vercel. O orçamento é conferido ANTES de
+ * começar cada etapa: o que não couber fica para a volta seguinte — declarado na
+ * resposta (`pulada: true`) em vez de morrer no meio. Com o ciclo a cada 5 minutos,
+ * adiar uma etapa custa pouco; ver o agendador se desligar custa caro.
+ *
+ * Não protege contra UMA etapa que sozinha estoure o prazo: não há como cancelar no
+ * meio. A medição local dá folga — a chuva, a mais lenta, levou 11s.
  *
  * ⚠️ RESPONDE 500 SE ALGUMA ETAPA FALHOU, mesmo tendo feito o resto. É o pinger que
  * lê isso: 2xx para ele é "está tudo bem", e um alerta que não dispara é pior que
@@ -4158,7 +4169,7 @@ const ETAPAS_DO_CICLO = [
   ['outbox-worker', handleEmailOutboxWorker],
 ];
 
-const ORCAMENTO_DO_CICLO_MS = 45_000;
+const ORCAMENTO_DO_CICLO_MS = 25_000;
 
 async function handleCicloOperacional(req, res) {
   if (req.method !== 'POST') {

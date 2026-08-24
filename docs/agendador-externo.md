@@ -70,10 +70,19 @@ que não ter alerta. O corpo diz o que passou e o que não:
 }
 ```
 
-**Orçamento de 45s.** A Vercel corta a função em 60s (`maxDuration` no
-`vercel.json`). O orçamento é conferido *antes* de começar cada etapa: o que não
-couber fica para a volta seguinte, declarado na resposta (`"pulada": true`) em vez
-de morrer no meio. Não protege contra uma etapa que sozinha estoure os 60s.
+**Orçamento de 25s, e quem manda nele é o pinger.** A Vercel corta a função em 60s
+(`maxDuration` no `vercel.json`), mas o agendador externo desiste antes — no
+cron-job.org o teto do plano gratuito é **30s**. Se o ciclo passar disso, ele marca
+falha *mesmo com o trabalho tendo sido feito*, e com "desabilitar após muitas
+falhas" ligado o job se desliga sozinho. Alerta falso que derruba o agendador é pior
+que a lentidão que ele denunciaria.
+
+O orçamento é conferido *antes* de começar cada etapa: o que não couber fica para a
+volta seguinte, declarado na resposta (`"pulada": true`) em vez de morrer no meio.
+Com o ciclo a cada 5 minutos, adiar uma etapa custa pouco.
+
+Medição local: ciclo completo em 2,9s, e a etapa mais lenta (chuva) em 11s no pior
+caso observado.
 
 `?simular=1` propaga para as quatro — útil para testar sem mandar e-mail.
 
@@ -103,8 +112,20 @@ EasyCron). O que ele precisa:
 | Cabeçalho | `Authorization: Bearer <o CRON_SECRET novo>` |
 | Cabeçalho | `Content-Type: application/json` |
 | Intervalo | 5 minutos |
-| Tempo limite | 60s ou mais |
-| Alerta | quando a resposta **não** for 2xx |
+| Tempo limite | 30s (o teto do plano gratuito — a rota cabe nele) |
+| Salvar respostas no histórico | **ligado** |
+| Alerta ao falhar | **ligado**, após 2 ou 3 falhas |
+
+⚠️ **Salvar as respostas no histórico não é opcional na prática.** É no corpo que
+mora o `falharam` e o `ms` de cada etapa. Sem isso, um ciclo vermelho diz apenas
+"falhou", e descobrir QUAL das quatro etapas caiu vira advinhação.
+
+⚠️ **Alertar após 2–3 falhas, não após 1.** Com o ciclo a cada 5 minutos, alertar na
+primeira manda um e-mail a cada 5 minutos durante qualquer indisponibilidade — e
+alerta que vira ruído é alerta que se aprende a ignorar.
+
+⚠️ **"Tratar 3xx como sucesso" deve ficar DESLIGADO.** Um 308 significa que o POST
+não rodou; contar como sucesso esconderia justamente o defeito.
 
 ⚠️ O segredo vai no **cabeçalho**, nunca na URL. URL aparece em log de servidor, em
 histórico e no painel do próprio pinger.
