@@ -38,7 +38,34 @@ interface Achado {
   gravidade: string;
   quantos: number;
   medida: string;
+  regiao: string;
   exemplo: string;
+}
+
+/**
+ * EM QUE PARTE DA TELA o problema está — a chave estável.
+ *
+ * ⚠️ A primeira versão usava o seletor CSS que o axe gera. Não serve de chave: a
+ * ORDEM DAS CLASSES muda entre execuções, e a mesma violação aparecia ora como
+ * `.text-[9px].leading-none...`, ora como `.text-center.tracking-tight...`. A lista
+ * de pendências parava de casar e a suíte reprovava sem nada ter mudado no app —
+ * exatamente o vermelho aleatório que ensina o time a ignorar o vermelho.
+ *
+ * A região é semântica e não depende de classe: barra lateral, cabeçalho, conteúdo.
+ * E ainda lê melhor num relatório do que um seletor truncado.
+ */
+async function regiaoDe(page: Page, seletor: string): Promise<string> {
+  return page
+    .evaluate(alvo => {
+      const el = document.querySelector(alvo);
+      if (!el) return 'desconhecida';
+      if (el.closest('aside')) return 'barra lateral';
+      if (el.closest('header')) return 'cabeçalho';
+      if (el.closest('nav')) return 'navegação';
+      if (el.closest('main')) return 'conteúdo';
+      return 'fora das regiões';
+    }, seletor)
+    .catch(() => 'desconhecida');
 }
 
 /**
@@ -61,16 +88,22 @@ function medidaDe(no: { any?: Array<{ data?: unknown }> }): string {
 
 async function varrer(page: Page, tela: string): Promise<Achado[]> {
   const resultado = await new AxeBuilder({ page }).withTags(NORMAS).analyze();
-  return resultado.violations
-    .filter(v => GRAVIDADES.has(String(v.impact)))
-    .map(v => ({
+  const graves = resultado.violations.filter(v => GRAVIDADES.has(String(v.impact)));
+
+  const achados: Achado[] = [];
+  for (const v of graves) {
+    const seletor = String(v.nodes[0]?.target?.[0] ?? '');
+    achados.push({
       tela,
       regra: v.id,
       gravidade: String(v.impact),
       quantos: v.nodes.length,
       medida: medidaDe(v.nodes[0] as { any?: Array<{ data?: unknown }> }),
-      exemplo: String(v.nodes[0]?.target?.[0] ?? '').slice(0, 60),
-    }));
+      regiao: await regiaoDe(page, seletor),
+      exemplo: seletor.slice(0, 50),
+    });
+  }
+  return achados;
 }
 
 /**
@@ -87,7 +120,7 @@ async function varrer(page: Page, tela: string): Promise<Achado[]> {
 const PENDENCIAS = [
   {
     regra: 'color-contrast',
-    seletor: 'text-\\[9px\\]',
+    regiao: 'barra lateral',
     medida: '2,37:1 a 2,94:1 (norma 4,5:1)',
     motivo:
       'rotulo do item ATIVO da barra lateral: `text-roman-primary` (o dourado da marca) ' +
@@ -100,7 +133,7 @@ const PENDENCIAS = [
 ];
 
 function ehPendenciaConhecida(achado: Achado) {
-  return PENDENCIAS.some(p => achado.regra === p.regra && achado.exemplo.includes(p.seletor));
+  return PENDENCIAS.some(p => achado.regra === p.regra && achado.regiao === p.regiao);
 }
 
 function relatar(achados: Achado[]) {

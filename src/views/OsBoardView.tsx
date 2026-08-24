@@ -66,7 +66,7 @@ function resumoDaLinhaDoTempo(ticket: Ticket): string {
  * na Caixa de Entrada. Para Admin/Gestor (ver canAccess no App).
  */
 export function OsBoardView() {
-  const { tickets, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser } = useApp();
+  const { tickets, ticketsLoading, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser } = useApp();
   // As duas ações que dispensam abrir a OS inteira. Guardam o ID, não a OS: os
   // modais resolvem a versão viva do contexto, senão o que eles mostram congela no
   // instante em que abriram — a resposta enviada não aparecia na própria conversa.
@@ -328,7 +328,19 @@ export function OsBoardView() {
       <div className="min-h-0 flex-1 overflow-auto">
         {filtered.length === 0 ? (
           <div className="flex h-full items-center justify-center p-10 text-center text-roman-text-sub">
-            {tickets.length === 0 ? 'Nenhuma OS carregada.' : 'Nenhuma OS corresponde aos filtros.'}
+          {/* ⚠️ ENQUANTO CARREGA, A TELA NÃO PODE AFIRMAR AUSÊNCIA.
+              Antes daqui saía "Nenhuma OS carregada." desde o primeiro instante,
+              sem nenhum sinal de carregamento — medido: zero spinner, zero
+              `role="status"`, zero `aria-busy`. Numa sede com link ruim, a gestora
+              via por segundos uma tela idêntica a "não há trabalho".
+              É a mesma mentira que motivou `ui-truthfulness`: a interface afirmando
+              o que ainda não sabe. `ticketsLoading` já existia no contexto e só não
+              estava sendo consultado. */}
+            {ticketsLoading && tickets.length === 0
+              ? 'Carregando as OS…'
+              : tickets.length === 0
+                ? 'Nenhuma OS carregada.'
+                : 'Nenhuma OS corresponde aos filtros.'}
           </div>
         ) : (
           <table className="w-full border-collapse text-sm">

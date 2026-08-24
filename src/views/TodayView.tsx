@@ -180,7 +180,7 @@ function emDias(base: Date, dias: number, hora: number): Date {
 }
 
 export function TodayView() {
-  const { tickets, navigateTo, setActiveTicketId, updateTicket, currentUser, osBoardFilter, setOsBoardFilter } = useApp();
+  const { tickets, ticketsLoading, navigateTo, setActiveTicketId, updateTicket, currentUser, osBoardFilter, setOsBoardFilter } = useApp();
   const { toast, showToast } = useToast();
   const [busca, setBusca] = useState('');
   /**
@@ -754,8 +754,18 @@ export function TodayView() {
             Tela em branco é indistinguível de defeito, e esta é a porta de entrada
             de quem opera. A Gestão já dizia "Nenhuma OS corresponde aos filtros";
             aqui não dizia nada. */}
+        {/* ⚠️ ENQUANTO CARREGA, A TELA NÃO PODE AFIRMAR AUSÊNCIA.
+            Antes daqui saía "Nenhuma OS carregada." desde o primeiro instante,
+            sem nenhum sinal de carregamento — medido: zero spinner, zero
+            `role="status"`, zero `aria-busy`. Numa sede com link ruim, a gestora
+            via por segundos uma tela idêntica a "não há trabalho".
+            É a mesma mentira que motivou `ui-truthfulness`: a interface afirmando
+            o que ainda não sabe. `ticketsLoading` já existia no contexto e só não
+            estava sendo consultado. */}
         {tickets.length === 0 ? (
-          <p className="p-10 text-center text-roman-text-sub">Nenhuma OS carregada.</p>
+          <p className="p-10 text-center text-roman-text-sub">
+            {ticketsLoading ? 'Carregando as OS…' : 'Nenhuma OS carregada.'}
+          </p>
         ) : GROUP_ORDER.every(grupo => filtra(agenda.groups[grupo]).length === 0) ? (
           <div className="p-10 text-center">
             {/* Diz QUAL filtro esvaziou. Com dois ativos, "nada na agenda" mandaria a
