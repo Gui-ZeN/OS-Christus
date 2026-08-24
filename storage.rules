@@ -3,57 +3,26 @@ rules_version = '2';
 //
 // Downloads diretos pelo SDK são bloqueados. A leitura passa por
 // `/api/attachments`, que revalida papel, território, OS e a referência do arquivo
-// antes de fazer streaming pelo Firebase Admin. Uploads tambem passam pela API,
-// que valida acesso a OS e a assinatura real do arquivo antes de persistir.
+// antes de fazer streaming pelo Firebase Admin. Uploads também passam pela API,
+// que valida acesso à OS e a assinatura real do arquivo antes de persistir.
+//
+// ⚠️ POR ISSO TODA REGRA AQUI É `if false`, E NÃO HÁ FUNÇÕES AUXILIARES.
+//
+// O arquivo já teve seis (`isManager`, `canAttachMessage`, `isValidImage`,
+// `isValidPdf`, `isValidAttachmentDocument`, `isAuthenticated`) — 40 das 102 linhas,
+// e NENHUMA era chamada, porque não há um único `allow` que dependa de condição. O
+// compilador reclamava das seis por estarem sem uso e, em cascata, de cada `request`
+// dentro delas ("Invalid variable name"), já que fora de um `match` não há o que
+// ligar. Eram ~30 avisos em toda compilação, todos sem defeito por trás — o tipo de
+// ruído que ensina a ignorar aviso.
+//
+// Se um dia o acesso direto pelo SDK for habilitado, as regras de validação moram
+// hoje em `api/_lib/attachmentAccess.js` e `api/_lib/attachments.js`, que é onde
+// elas de fato rodam. Reescrevê-las aqui a partir dali é mais honesto do que manter
+// uma cópia morta que ninguém compara com a viva.
 service firebase.storage {
   match /b/{bucket}/o {
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isManager() {
-      return isAuthenticated() && request.auth.token.role in ['admin', 'gestor'];
-    }
-
-    // Diretor participa do canal de mensagens (responde com anexo na OS), mas
-    // não dos uploads de orçamento/contrato/pagamento (esses ficam com manager).
-    function canAttachMessage() {
-      return isAuthenticated() && request.auth.token.role in ['admin', 'gestor', 'diretor'];
-    }
-
-    function isValidImage() {
-      return request.resource != null
-        && request.resource.size < 8 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
-        // SVG pode carregar script — bloqueado (risco de XSS armazenado).
-        && request.resource.contentType != 'image/svg+xml';
-    }
-
-    function isValidPdf() {
-      return request.resource != null
-        && request.resource.size < 20 * 1024 * 1024
-        && request.resource.contentType == 'application/pdf';
-    }
-
-    function isValidAttachmentDocument() {
-      return request.resource != null
-        && request.resource.size < 25 * 1024 * 1024
-        && request.resource.contentType != 'image/svg+xml'
-        && (
-          request.resource.contentType.matches('image/.*')
-          || request.resource.contentType == 'application/pdf'
-          || request.resource.contentType == 'application/msword'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          || request.resource.contentType == 'application/vnd.ms-excel'
-          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          || request.resource.contentType == 'application/xml'
-          || request.resource.contentType == 'text/xml'
-          || request.resource.contentType == 'text/csv'
-          || request.resource.contentType == 'text/plain'
-        );
-    }
-
-    // O upload/download público não é permitido. Tudo passa por usuário logado.
+    // O upload/download público não é permitido. Tudo passa pela API.
 
     match /attachments/tickets/images/{ticketId}/{fileName=**} {
       allow read: if false;
