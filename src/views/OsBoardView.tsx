@@ -66,7 +66,7 @@ function resumoDaLinhaDoTempo(ticket: Ticket): string {
  * na Caixa de Entrada. Para Admin/Gestor (ver canAccess no App).
  */
 export function OsBoardView() {
-  const { tickets, ticketsLoading, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser } = useApp();
+  const { tickets, ticketsLoading, ticketsError, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser } = useApp();
   // As duas ações que dispensam abrir a OS inteira. Guardam o ID, não a OS: os
   // modais resolvem a versão viva do contexto, senão o que eles mostram congela no
   // instante em que abriram — a resposta enviada não aparecia na própria conversa.
@@ -315,8 +315,20 @@ export function OsBoardView() {
             <X size={14} /> Limpar
           </button>
         )}
+        {/* ⚠️ NÚMERO É AFIRMAÇÃO, e é o que se lê de relance.
+            Com o fetch no ar ou com a API fora, isto exibia "0 OS" — e não são zero,
+            é que não sabemos. O aviso ao lado salva quem para para ler; o contador
+            é lido sem parar. O traço diz "desconhecido" sem mentir e sem mexer no
+            layout.
+            SÃO DOIS os motivos para não saber, e o segundo me escapou na primeira
+            tentativa: carregando (`ticketsLoading`) E falhou (`ticketsError`). Com a
+            API fora, `ticketsLoading` já voltou a `false` — só a primeira condição
+            deixava o "0 OS" de pé exatamente no caso que motivou a mudança.
+            (O ternário anterior era `length === 1 ? 'OS' : 'OS'` — dois ramos
+            idênticos. Sumiu junto porque esta linha estava sendo reescrita.) */}
         <span className="ml-auto text-sm text-roman-text-sub">
-          {filtered.length} {filtered.length === 1 ? 'OS' : 'OS'} {hasActiveFilter ? `de ${tickets.length}` : ''}
+          {(ticketsLoading || ticketsError) && tickets.length === 0 ? '—' : filtered.length} OS{' '}
+          {hasActiveFilter ? `de ${tickets.length}` : ''}
         </span>
       </div>
 

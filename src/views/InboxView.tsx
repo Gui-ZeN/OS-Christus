@@ -123,6 +123,7 @@ export function InboxView() {
     inboxFilter,
     setInboxFilter,
     tickets,
+    ticketsLoading,
     refreshTickets,
     updateTicket,
     mergeTicketHistoryPage,
@@ -1925,7 +1926,14 @@ export function InboxView() {
         {/* Ticket List */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredTickets.length === 0 ? (
-            <div className="p-8 text-center text-roman-text-sub font-serif italic">Nenhuma OS encontrada para este filtro.</div>
+            <div className="p-8 text-center text-roman-text-sub font-serif italic">
+              {/* Enquanto carrega, "encontrada para este filtro" culpa o filtro por
+                  algo que ainda nem foi buscado -- e manda a pessoa mexer no
+                  recorte para resolver o que nao e problema de recorte. */}
+              {ticketsLoading && tickets.length === 0
+                ? 'Carregando as OS\u2026'
+                : 'Nenhuma OS encontrada para este filtro.'}
+            </div>
           ) : (
             filteredTickets.map(ticket => (
               <TicketListItem
@@ -1960,11 +1968,29 @@ export function InboxView() {
         {!hasTickets ? (
           <div className="flex-1 flex items-center justify-center bg-roman-bg p-8">
             <div className="max-w-md text-center bg-roman-surface border border-roman-border rounded-sm p-8 shadow-sm">
-              <Lock size={20} className="mx-auto mb-4 text-roman-primary" />
-              <h2 className="text-2xl font-serif text-roman-text-main mb-2">Nenhuma OS disponível</h2>
-              <p className="text-sm text-roman-text-sub font-serif italic">
-                Este usuário não possui OS visíveis com as permissões atuais de região e sede.
-              </p>
+              {/* ⚠️ ESTE ERA O PIOR DOS VAZIOS.
+                  Enquanto o fetch estava no ar, a tela nao dizia so "nao ha nada" --
+                  dizia POR QUE, e a razao era falsa: "permissoes atuais de regiao e
+                  sede". Uma gestora com acesso correto lia que o acesso dela estava
+                  errado e ia pedir o que ja tinha. Explicacao especifica e errada e
+                  pior que nenhuma explicacao. */}
+              {ticketsLoading ? (
+                <>
+                  <Loader2 size={20} className="mx-auto mb-4 animate-spin text-roman-primary" />
+                  <h2 className="text-2xl font-serif text-roman-text-main mb-2">Carregando as OS…</h2>
+                  <p className="text-sm text-roman-text-sub font-serif italic">
+                    Buscando as ordens de serviço visíveis para você.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Lock size={20} className="mx-auto mb-4 text-roman-primary" />
+                  <h2 className="text-2xl font-serif text-roman-text-main mb-2">Nenhuma OS disponível</h2>
+                  <p className="text-sm text-roman-text-sub font-serif italic">
+                    Este usuário não possui OS visíveis com as permissões atuais de região e sede.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         ) : (

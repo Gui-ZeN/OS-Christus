@@ -137,19 +137,17 @@ test('“Tentar novamente” recupera de verdade', async ({ page }) => {
   await expect(page.locator('main')).not.toContainText('Nenhuma OS carregada');
 });
 
-test('⚠️ o contador ainda afirma “0 OS” sem saber', async ({ page }) => {
+test('o contador não inventa um número que não conhece', async ({ page }) => {
   /**
-   * CARACTERIZAÇÃO de um comportamento que ficou, e é decisão sua.
+   * Número é afirmação, e é o que se lê de relance. Com a API fora, o cabeçalho
+   * exibia "0 OS" — e não são zero, é que não sabemos. O aviso ao lado salva quem
+   * para para ler; o contador é lido sem parar.
    *
-   * Com a API fora, o cabeçalho da Gestão exibe "0 OS". Não são zero — é que não
-   * sabemos. O aviso ao lado salva a leitura de quem para para ler, mas número é
-   * justamente o que se lê de relance, e "0" é uma afirmação.
-   *
-   * Mesma classe dos contadores de filtro ("Travadas (0)", "Água (0)").
-   *
-   * Não mexi porque é decisão de produto sobre o que mostrar no lugar — traço,
-   * reticências, ou esconder o contador. Quando decidir, este teste falha de
-   * propósito: é o lembrete.
+   * ⚠️ SÃO DOIS os motivos para não saber, e o segundo escapou na primeira tentativa
+   * de conserto: carregando E falhou. Com a API fora, `ticketsLoading` já voltou a
+   * `false` — cobrir só o carregamento deixava o "0 OS" de pé exatamente no caso que
+   * motivou a mudança. Este teste era a caracterização do defeito e virou a prova do
+   * conserto; foi ele que denunciou a meia-correção, ao continuar passando.
    */
   await page.route(ROTA_TICKETS, rota =>
     rota.fulfill({ status: 500, contentType: 'application/json', body: '{"ok":false}' })
@@ -161,5 +159,36 @@ test('⚠️ o contador ainda afirma “0 OS” sem saber', async ({ page }) => 
   await expect(page.getByText(/não foi possível atualizar os tickets/i)).toBeVisible({
     timeout: 15000,
   });
-  await expect(page.locator('main')).toContainText('0 OS');
+
+  const conteudo = page.locator('main');
+  await expect(conteudo).toContainText('— OS');
+  await expect(conteudo, 'zero é uma afirmação, e o sistema não sabe').not.toContainText('0 OS');
+});
+
+test('a Caixa de Entrada não culpa a permissão de quem está esperando', async ({ page }) => {
+  /**
+   * O PIOR DOS VAZIOS, e o motivo de este teste existir.
+   *
+   * Enquanto o fetch estava no ar, a Caixa não dizia apenas "não há nada" — dizia
+   * POR QUÊ, e a razão era falsa: "este usuário não possui OS visíveis com as
+   * permissões atuais de região e sede".
+   *
+   * Uma gestora com acesso correto lia que o acesso dela estava errado, e ia pedir o
+   * que já tinha. Explicação específica e errada é pior que nenhuma explicação: manda
+   * a pessoa resolver um problema que não existe.
+   */
+  await page.route(ROTA_TICKETS, async rota => {
+    await new Promise(r => setTimeout(r, 6000));
+    await rota.continue();
+  });
+
+  await loginWithPassword(page, loginEmail, loginPassword);
+  await page.getByTitle('Caixa de Entrada', { exact: true }).click();
+
+  const conteudo = page.locator('main');
+  await expect(conteudo).toContainText(/carregando as OS/i, { timeout: 15000 });
+  await expect(
+    conteudo,
+    'enquanto carrega, a tela não pode culpar a permissão de quem está esperando'
+  ).not.toContainText(/permissões atuais/i);
 });

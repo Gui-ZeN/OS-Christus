@@ -59,7 +59,27 @@ interface Estouro {
  * E APONTA O CULPADO: "algo está fora da tela" não dá para consertar; "o elemento
  * `table.min-w-...` passa 148px da borda" dá.
  */
-async function medirEstouro(page: Page) {
+/**
+ * ⚠️ MEDIR DURANTE UMA ANIMAÇÃO DÁ NÚMERO FALSO.
+ *
+ * O painel lateral da Caixa de Entrada desliza. Parado, ele está inteiro fora da
+ * tela (e a regra da gaveta o ignora); no MEIO do deslize, ele atravessa a borda e
+ * vira "conteúdo inalcançável". Resultado: a suíte reprovava em 2 de 3 rodadas, com
+ * números diferentes a cada vez (+260px, +206px, +58px) — e o valor mudando é a
+ * assinatura de estar medindo algo em movimento.
+ *
+ * `document.getAnimations()` inclui transições CSS: esperar todas saírem de
+ * `running` é genérico e não depende de saber quais animações a tela tem.
+ */
+async function aguardarAnimacoes(page: Page) {
+  await page
+    .waitForFunction(() => document.getAnimations().every(a => a.playState !== 'running'), null, {
+      timeout: 5000,
+    })
+    .catch(() => {});
+}
+
+async function medirUmaVez(page: Page) {
   return page.evaluate(() => {
     const limite = document.documentElement.clientWidth;
     const TOLERANCIA = 2; // arredondamento de subpixel não é defeito
@@ -77,6 +97,21 @@ async function medirEstouro(page: Page) {
 
       const excesso = Math.round(caixa.right - limite);
       if (excesso <= TOLERANCIA) continue;
+
+      /**
+       * ⚠️ GAVETA FECHADA NÃO É CONTEÚDO PERDIDO.
+       *
+       * Painel lateral que desliza fica ESTACIONADO fora da tela quando fechado
+       * (`aside.fixed.inset-y-0.right-0`, 260px além da borda). É padrão, não
+       * defeito — e a primeira versão acusava, mas só às vezes: dependia de um
+       * teste anterior ter deixado o painel montado. Vermelho que aparece e some
+       * conforme a ordem da suíte é o que ensina o time a ignorar vermelho.
+       *
+       * A distinção: gaveta fechada fica INTEIRAMENTE fora (começa na borda ou
+       * depois dela); conteúdo clipado ATRAVESSA a borda — começa visível e o resto
+       * some. Só o segundo é perda.
+       */
+      if (caixa.left >= limite - TOLERANCIA) continue;
 
       const estilo = getComputedStyle(el);
       if (estilo.visibility === 'hidden' || estilo.opacity === '0') continue;
@@ -103,6 +138,32 @@ async function medirEstouro(page: Page) {
 
     return { sobra: pior.excesso, culpado: pior.descricao };
   });
+}
+
+/**
+ * SÓ CONTA O QUE PERSISTE — duas medidas, mesmo culpado nas duas.
+ *
+ * Esperar `document.getAnimations()` ajudou, mas não bastou: sobrava 1 reprovação a
+ * cada 3 rodadas, sempre no painel lateral da Caixa de Entrada e sempre com número
+ * diferente (+260px, +206px, +58px). Valor que muda a cada rodada é a assinatura de
+ * estado transitório, e o estado dependia do que o teste ANTERIOR da suíte tinha
+ * deixado aberto.
+ *
+ * Duas amostras com um intervalo curto resolvem sem depender de saber quais
+ * animações existem: o que está de passagem some entre uma e outra; o que está
+ * realmente fora da borda continua lá. Perder um defeito que dure menos de 400ms é
+ * um preço barato — vermelho intermitente custa mais, porque ensina a ignorar o
+ * vermelho.
+ */
+async function medirEstouro(page: Page) {
+  const primeira = await medirUmaVez(page);
+  if (primeira.sobra === 0) return primeira;
+
+  await page.waitForTimeout(400);
+  const segunda = await medirUmaVez(page);
+
+  if (segunda.culpado !== primeira.culpado) return { sobra: 0, culpado: '' };
+  return segunda;
 }
 
 /**
@@ -133,6 +194,7 @@ test('nada fica inalcançável fora da borda, em nenhuma largura', async ({ page
       await page.setViewportSize({ width: largura, height: altura });
       await page.getByTitle(tela, { exact: true }).click();
       await page.waitForLoadState('networkidle').catch(() => {});
+      await aguardarAnimacoes(page);
 
       const { sobra, culpado } = await medirEstouro(page);
       linha[nome] = sobra > 0 ? `+${sobra}px` : 'ok';
@@ -164,6 +226,7 @@ test('a porta pública cabe no celular', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.waitForLoadState('networkidle').catch(() => {});
+  await aguardarAnimacoes(page);
 
   const login = await medirEstouro(page);
   expect(login.sobra, `o login joga ${login.sobra}px fora da borda (${login.culpado})`).toBe(0);
@@ -171,6 +234,7 @@ test('a porta pública cabe no celular', async ({ page }) => {
   await page.getByRole('button', { name: /abrir chamado/i }).click();
   await expect(page.getByRole('heading', { name: 'Nova Ordem de Serviço' })).toBeVisible();
   await page.waitForLoadState('networkidle').catch(() => {});
+  await aguardarAnimacoes(page);
 
   const formulario = await medirEstouro(page);
   expect(
