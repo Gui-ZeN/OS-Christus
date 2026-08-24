@@ -1,5 +1,12 @@
 # Agendador externo para o ciclo operacional
 
+> **Estado: ativo desde 24/08/2026.** O pinger roda o ciclo a cada 5 minutos e o
+> `schedule:` do `ciclo-operacional.yml` foi removido — só o `workflow_dispatch:`
+> ficou, para teste manual e como plano B. Os demais workflows agendados
+> (`agenda-sedes`, `attention-sweep`, `gmail-watch-renew`, `resumos-operacao`,
+> `revisao-semanal`) continuam no GitHub: são diários ou semanais, e o atraso de
+> ~40 min não pesa neles.
+
 ## Por quê
 
 O agendador do GitHub é *best-effort*. Medido em 24/08, pedindo uma execução a cada
@@ -138,7 +145,7 @@ redireciona domínio nu para www, e sem seguir todo POST vira 308 e nada roda.
 O painel do pinger mostra o corpo da resposta. Procure `"ok": true` e olhe os `ms`
 de cada etapa — é assim que se vê uma ficando lenta antes de começar a estourar.
 
-### 4. Só então desligue o agendamento do GitHub
+### 4. Só então desligue o agendamento do GitHub — FEITO em 24/08
 
 **Nesta ordem.** Desligar antes de confirmar que o pinger funciona deixa a operação
 sem nenhum agendador.
