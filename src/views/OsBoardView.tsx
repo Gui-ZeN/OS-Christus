@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { ArrowRightLeft, Droplets, MessageSquare, Search, TriangleAlert, UserRound, X } from 'lucide-react';
+import { ArrowRightLeft, Droplets, MessageSquare, Search, TriangleAlert, UserRound, X, CalendarClock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
@@ -16,6 +16,7 @@ import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import type { Ticket } from '../types';
 import { ConversaModal } from './osboard/ConversaModal';
 import { EtapaModal } from './osboard/EtapaModal';
+import { ProximaAcaoModal } from './osboard/ProximaAcaoModal';
 import { ResponsavelModal } from './osboard/ResponsavelModal';
 import { repairMojibake } from '../utils/text';
 
@@ -72,6 +73,8 @@ export function OsBoardView() {
   // instante em que abriram — a resposta enviada não aparecia na própria conversa.
   const [conversaDe, setConversaDe] = useState<string | null>(null);
   const [etapaDe, setEtapaDe] = useState<string | null>(null);
+  // Dizer quando a OS anda sem sair da Gestao: ate aqui isso so existia no Hoje.
+  const [proximaAcaoDe, setProximaAcaoDe] = useState<string | null>(null);
   const [responsavelDe, setResponsavelDe] = useState<string | null>(null);
   const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
@@ -525,6 +528,13 @@ export function OsBoardView() {
                           <ArrowRightLeft size={14} /> Etapa
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setProximaAcaoDe(ticket.id)}
+                        className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
+                      >
+                        <CalendarClock size={14} /> Quando anda
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -536,6 +546,9 @@ export function OsBoardView() {
 
       {conversaDe && <ConversaModal ticketId={conversaDe} onClose={() => setConversaDe(null)} />}
       {etapaDe && <EtapaModal ticketId={etapaDe} onClose={() => setEtapaDe(null)} />}
+      {proximaAcaoDe && (
+        <ProximaAcaoModal ticketId={proximaAcaoDe} onClose={() => setProximaAcaoDe(null)} />
+      )}
       {responsavelDe && <ResponsavelModal ticketId={responsavelDe} onClose={() => setResponsavelDe(null)} />}
     </div>
   );

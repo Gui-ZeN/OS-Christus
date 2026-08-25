@@ -5,6 +5,8 @@ import { activeSuspension, resolvedAttentionOf } from '../../utils/agenda';
 import { ATTENTION_KIND_LABEL, ATTENTION_KIND_WHY } from '../../constants/attentionKind';
 import { isTicketOpen } from '../../constants/ticketLifecycle';
 import type { Ticket } from '../../types';
+import { EditorDeAcao } from '../agenda/EditorDeAcao';
+import { useProximaAcao } from '../agenda/useProximaAcao';
 
 /**
  * O QUE PRECISA ACONTECER — no lugar da faixa que adivinhava pela etapa.
@@ -19,6 +21,15 @@ import type { Ticket } from '../../types';
  * ninguém está tocando é a informação mais importante da tela.
  */
 export function NextActionStrip({ ticket }: { ticket: Ticket }) {
+  /**
+   * A FAIXA PASSOU A DEIXAR EDITAR.
+   *
+   * Ela nasceu só de leitura, e durante semanas a agenda foi o ÚNICO lugar onde dava
+   * para dizer quando a OS anda. Mas a data nasce AQUI: é lendo a conversa que se
+   * descobre que o fornecedor vem sexta. Obrigar a sair da tela para gravar isso é
+   * atrito no lugar exato onde a informação aparece — e campo distante é campo vazio.
+   */
+  const editor = useProximaAcao(ticket);
   /**
    * O relógio mora AQUI, não na InboxView.
    *
@@ -37,13 +48,17 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
   const suspensao = activeSuspension(ticket, agora);
   if (suspensao) {
     return (
-      <div className="flex items-start gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-[12.5px] text-roman-text-sub">
-        <PauseCircle size={14} className="mt-0.5 shrink-0" />
-        <span className="min-w-0">
-          Suspensa por <strong>{SUSPENSION_REASON_LABEL[suspensao.reason]}</strong> — revisar em{' '}
-          {formatarData(suspensao.reviewAt)}
-          {suspensao.note ? ` · ${suspensao.note}` : ''}
-        </span>
+      <div>
+        <div className="flex items-start gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-[12.5px] text-roman-text-sub">
+          <PauseCircle size={14} className="mt-0.5 shrink-0" />
+          <span className="min-w-0">
+            Suspensa por <strong>{SUSPENSION_REASON_LABEL[suspensao.reason]}</strong> — revisar em{' '}
+            {formatarData(suspensao.reviewAt)}
+            {suspensao.note ? ` · ${suspensao.note}` : ''}
+          </span>
+          <BotaoEditar aberto={editor.editando} onClick={editor.alternar} rotulo="Rever" />
+        </div>
+        {editor.editando && <Editor ticket={ticket} editor={editor} agora={agora} />}
       </div>
     );
   }
@@ -69,6 +84,7 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
   // não julga se faz sentido e aprende a ignorar.
   if (resolvida.proposta && resolvida.kind) {
     return (
+      <div>
       <div
         className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
           atrasada ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main' : 'border-roman-border bg-roman-bg text-roman-text-sub'
@@ -79,11 +95,15 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
           <strong>{ATTENTION_KIND_LABEL[resolvida.kind] || 'Requer atenção'}</strong>
           {ATTENTION_KIND_WHY[resolvida.kind] ? ` — ${ATTENTION_KIND_WHY[resolvida.kind]}` : ''}
         </span>
+        <BotaoEditar aberto={editor.editando} onClick={editor.alternar} rotulo="Definir" />
+      </div>
+      {editor.editando && <Editor ticket={ticket} editor={editor} agora={agora} />}
       </div>
     );
   }
 
   return (
+    <div>
     <div
       className={`flex items-start gap-2 rounded-sm border px-3 py-2 text-[12.5px] ${
         atrasada
@@ -102,6 +122,54 @@ export function NextActionStrip({ ticket }: { ticket: Ticket }) {
         {resolvida.what} · {formatarData(resolvida.dueAt)}
         {ticket.nextAction?.ownerName ? ` · ${ticket.nextAction.ownerName}` : ''}
       </span>
+      <BotaoEditar aberto={editor.editando} onClick={editor.alternar} rotulo="Alterar" />
+    </div>
+    {editor.editando && <Editor ticket={ticket} editor={editor} agora={agora} />}
+    </div>
+  );
+}
+
+/**
+ * O botão que abre o editor — o mesmo nos três estados da faixa.
+ *
+ * `ml-auto` empurra para a direita sem depender de a mensagem ter tamanho fixo, e o
+ * texto muda para "Fechar" quando aberto: o mesmo controle abre e fecha, então ele
+ * precisa dizer o que vai acontecer, não o que está acontecendo.
+ */
+function BotaoEditar({ aberto, onClick, rotulo }: { aberto: boolean; onClick: () => void; rotulo: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ml-auto shrink-0 rounded-sm border border-roman-border px-2 py-0.5 text-[11px] font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-primary"
+    >
+      {aberto ? 'Fechar' : rotulo}
+    </button>
+  );
+}
+
+function Editor({
+  ticket,
+  editor,
+  agora,
+}: {
+  ticket: Ticket;
+  editor: ReturnType<typeof useProximaAcao>;
+  agora: Date;
+}) {
+  return (
+    <div className="mt-2">
+      <EditorDeAcao
+        acao={ticket.nextAction}
+        suspensao={activeSuspension(ticket, agora)}
+        agora={agora}
+        autorEmail={editor.autorEmail}
+        autorNome={editor.autorNome}
+        onSalvar={editor.salvar}
+        onSuspender={editor.suspender}
+        onVirarVisita={editor.virarVisita}
+        onCancelar={editor.fechar}
+      />
     </div>
   );
 }
