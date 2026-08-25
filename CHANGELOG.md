@@ -3,6 +3,43 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-25 (a conversa começava meses antes da OS — e estava toda ali, citada)
+
+A OS-0345 ("Gatos Loan e forro almoxarifado") nasceu em 12/08 com um corpo de
+**24 caracteres**: "Bom dia, Serv 3 em cópia.". A conversa real rodava desde
+**09 de abril** entre seis pessoas e já tinha passado pelo orçamento de
+R$ 3.899,39 e pela autorização. Nada disso estava na OS.
+
+Pedir a thread ao Gmail **não resolve**: aquelas mensagens nunca chegaram à caixa
+do sistema, então a API não as tem. Mas elas vêm dentro da mensagem que chegou,
+citadas — e a ingestão joga a citação fora de propósito (`stripQuotedReply`),
+senão cada resposta repetiria o histórico inteiro dentro da OS.
+
+Novo `api/_lib/quotedChain.js` faz o caminho inverso, e o script
+`infra:corrente:importar` importa por decisão explícita — nunca no fluxo de
+entrada. Dry-run por padrão; id derivado do conteúdo, então rodar duas vezes não
+duplica.
+
+**Na OS-0345**: 18 mensagens importadas, de abril a agosto. O histórico foi de
+6 para 27 entradas.
+
+**No resto da base**: 1.733 mensagens citadas, das quais **1.279 não estão em
+nenhuma OS**, espalhadas por **152 OS**. Não foi aplicado — a decisão é de quem
+opera.
+
+Quatro defeitos que só apareceram rodando contra a base real:
+
+| o que quebrava | por quê |
+| --- | --- |
+| as três mensagens da Caroline sumiam | a exportação quebra o endereço no meio (`christus.com. br`) e o marcador não casava |
+| `sáb.` engolia a mensagem seguinte | `w` não casa letra acentuada em JS |
+| a mesma mensagem entrava duas vezes | o e-mail traz a corrente em texto **e** em HTML; numa das versões o corpo engolia a citação seguinte |
+| um aviso do próprio Serv3 entraria como pessoa | as notificações que ele manda voltam citadas quando alguém responde por cima |
+
+O que **não** vem junto: anexos. A citação carrega texto — as fotos e as planilhas
+daquela época continuam só nas caixas de quem participou. A tabela do orçamento
+chega como texto corrido.
+
 ## 2026-08-17 (o e-mail era caixa dentro de caixa — e a prévia mostrava outro e-mail)
 
 Pedido do dono: "os e-mails estão muito carregados". Estavam. Medindo o que sai:

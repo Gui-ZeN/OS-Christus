@@ -26,6 +26,7 @@
     "infra:territory:measure": "node scripts/infra/measure-territory-legacy.mjs",
     "infra:inbound:measure": "node scripts/infra/measure-inbound-body-loss.mjs",
     "infra:inbound:repair": "node scripts/infra/repair-inbound-bodies.mjs",
+    "infra:corrente:importar": "node scripts/infra/importar-corrente-citada.mjs",
     "infra:rain:alert": "node scripts/infra/rain-alert.mjs",
     "infra:marcos:backfill": "node scripts/infra/backfill-marcos.mjs",
     "infra:storage:check": "node scripts/infra/check-storage.mjs",
