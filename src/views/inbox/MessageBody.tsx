@@ -12,9 +12,20 @@ function MessageBodyComponent({ text }: { text: string }) {
   const { latest, quoted } = useMemo(() => splitMessageQuote(text), [text]);
   const [showQuoted, setShowQuoted] = useState(false);
 
+  // Mensagem cujo corpo é SÓ a citação: a pessoa respondeu sem escrever nada
+  // novo, ou mandou só anexo. Sem isto o fallback jogava o texto cru na tela e a
+  // entrada virava uma linha solta dizendo "Em qui… Fulano escreveu:" — 28 das
+  // 854 entradas do histórico em 25/08/2026. O texto continua guardado e a
+  // conversa segue acessível pelo botão abaixo.
+  const semTextoProprio = !latest.trim() && Boolean(quoted);
+
   return (
     <div className="text-left">
-      <div className="whitespace-pre-line break-words">{latest || text}</div>
+      {semTextoProprio ? (
+        <p className="italic text-roman-text-sub">Sem texto novo &mdash; só a conversa citada.</p>
+      ) : (
+        <div className="whitespace-pre-line break-words">{latest || text}</div>
+      )}
       {quoted && (
         <div className="mt-2">
           <button
