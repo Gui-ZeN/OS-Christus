@@ -34,16 +34,21 @@ const MESES = {
 // `\w+`, que em JS não casa letra acentuada e engolia a mensagem inteira,
 // grudando o corpo dela na anterior.
 const MARCADOR_PT =
-  /^[ \t>]*Em\s+(?:[^\s,]+,\s*)?(\d{1,2})\s+de\s+([^\s.,]{3})[^\s.,]*\.?\s+de\s+(\d{4})[,]?\s+(?:às\s+|as\s+)?(\d{1,2}):(\d{2})\s*,\s*(.+?)\s*<\s*([^>]+?@[^>]+?)\s*>\s*escreveu:[ \t]*$/;
+  /^[ \t>]*Em\s+(?:[^\s,]+,\s*)?(\d{1,2})\s+de\s+([^\s.,]{3})[^\s.,]*\.?\s+de\s+(\d{4})[,]?\s+(?:às\s+|as\s+)?(\d{1,2}):(\d{2})(?:\s*([AaPp])\.?[Mm]\.?)?\s*,\s*(.+?)\s*<\s*([^>]+?@[^>]+?)\s*>\s*escreveu:[ \t]*$/;
 
 // Fortaleza não tem horário de verão: o deslocamento é -03:00 o ano inteiro. O
 // Gmail renderiza a citação no fuso de quem lê, que é o mesmo de quem escreveu.
 const FUSO_FORTALEZA_MIN = -180;
 
-function montarData(dia, mesTexto, ano, hora, minuto) {
+function montarData(dia, mesTexto, ano, hora, minuto, meridiano) {
   const mes = MESES[String(mesTexto).toLowerCase()];
   if (mes === undefined) return null;
-  const utc = Date.UTC(Number(ano), mes, Number(dia), Number(hora), Number(minuto));
+  // Parte dos clientes escreve em relógio de 12 horas ("às 3:36 PM").
+  let h = Number(hora);
+  const m = String(meridiano || '').toLowerCase();
+  if (m === 'p' && h < 12) h += 12;
+  if (m === 'a' && h === 12) h = 0;
+  const utc = Date.UTC(Number(ano), mes, Number(dia), h, Number(minuto));
   const data = new Date(utc - FUSO_FORTALEZA_MIN * 60 * 1000);
   return Number.isNaN(data.getTime()) ? null : data;
 }
@@ -56,8 +61,15 @@ function montarData(dia, mesTexto, ano, hora, minuto) {
 function juntarCabecalhosQuebrados(texto) {
   return String(texto || '')
     .replace(/\r\n?/g, '\n')
+    // A quebra também cai DENTRO dos sinais: a linha termina em "<" e o endereço
+    // começa na seguinte. Sem esta regra o marcador não casa e o cabeçalho fica
+    // colado no corpo da mensagem importada.
+    .replace(/<[ \t]*\n[ \t>]*([^\s<>]+@[^\s<>]+>)/g, '<$1')
     .replace(/([^\n])\n[ \t>]*(<[^>\n]+>\s*escreveu:)/gi, '$1 $2')
-    .replace(/([^\n])\n[ \t>]*(escreveu:)/gi, '$1 $2');
+    .replace(/([^\n])\n[ \t>]*(escreveu:)/gi, '$1 $2')
+    // E cai dentro do NOME também ("…às 23:48, Larissa\nBrandão <e@x> escreveu:").
+    // Junta uma linha que ABRE com "Em " à seguinte que FECHA com "escreveu:".
+    .replace(/^([ \t>]*Em\s[^\n]*?)\n[ \t>]*([^\n]*escreveu:[ \t]*)$/gim, '$1 $2');
 }
 
 function limparCorpo(linhas) {
@@ -80,9 +92,9 @@ export function parseQuotedChain(texto) {
     if (m) {
       if (atual) mensagens.push(atual);
       atual = {
-        time: montarData(m[1], m[2], m[3], m[4], m[5]),
-        sender: m[6].replace(/\s+/g, ' ').trim(),
-        email: m[7].replace(/\s+/g, '').toLowerCase(),
+        time: montarData(m[1], m[2], m[3], m[4], m[5], m[6]),
+        sender: m[7].replace(/\s+/g, ' ').trim(),
+        email: m[8].replace(/\s+/g, '').toLowerCase(),
         linhas: [],
       };
       continue;

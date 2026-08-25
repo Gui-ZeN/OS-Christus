@@ -23,18 +23,25 @@ duplica.
 **Na OS-0345**: 18 mensagens importadas, de abril a agosto. O histórico foi de
 6 para 27 entradas.
 
-**No resto da base**: 1.733 mensagens citadas, das quais **1.279 não estão em
-nenhuma OS**, espalhadas por **152 OS**. Não foi aplicado — a decisão é de quem
-opera.
+**No resto da base**: aplicado. **1.280 mensagens** recuperadas em **152 OS**,
+média de 8,4 por OS e até 36 numa só. A mais antiga é de **12/12/2024** — uma
+conversa sobre elevador que começou antes de o sistema existir.
 
-Quatro defeitos que só apareceram rodando contra a base real:
+Seis defeitos que só apareceram rodando contra a base real:
 
 | o que quebrava | por quê |
 | --- | --- |
 | as três mensagens da Caroline sumiam | a exportação quebra o endereço no meio (`christus.com. br`) e o marcador não casava |
-| `sáb.` engolia a mensagem seguinte | `w` não casa letra acentuada em JS |
+| `sáb.` engolia a mensagem seguinte | `\w` não casa letra acentuada em JS |
 | a mesma mensagem entrava duas vezes | o e-mail traz a corrente em texto **e** em HTML; numa das versões o corpo engolia a citação seguinte |
 | um aviso do próprio Serv3 entraria como pessoa | as notificações que ele manda voltam citadas quando alguém responde por cima |
+| 20 entradas ficaram com o cabeçalho colado no corpo | a quebra de linha cai **dentro** dos sinais de menor/maior, e o endereço começa na linha seguinte |
+| 9 mensagens da Larissa Castro sumiam | o cliente dela escreve relógio de 12 horas ("às 3:36 PM") e a vírgula esperada não vinha logo após os minutos |
+
+Os dois últimos só apareceram **depois** de aplicar: por isso o `--refazer`, que
+apaga o que o script escreveu antes de reescrever. É seguro porque cada entrada
+leva `importedFromQuote` — nada mais é tocado. Ao fim, **zero** entradas com
+resto de citação no corpo.
 
 O que **não** vem junto: anexos. A citação carrega texto — as fotos e as planilhas
 daquela época continuam só nas caixas de quem participou. A tabela do orçamento

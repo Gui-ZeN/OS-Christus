@@ -58,6 +58,49 @@ describe('corrente citada', () => {
     expect(mensagens[0].email).toBe('pcm04@px.com.br');
   });
 
+  it('junta o cabeçalho quebrado DENTRO dos sinais de menor/maior', () => {
+    // A linha termina em "<" e o endereço começa na seguinte. Sem juntar, o
+    // marcador não casa e o cabeçalho fica colado no corpo da mensagem.
+    const quebrado = [
+      'Em sex., 8 de mai. de 2026 às 11:41, Rafael Oliveira <',
+      'operacional02@px.com.br> escreveu:',
+      'Segue a proposta.',
+    ].join('\n');
+    const mensagens = parseQuotedChain(quebrado);
+    expect(mensagens).toHaveLength(1);
+    expect(mensagens[0].email).toBe('operacional02@px.com.br');
+    expect(mensagens[0].text).toBe('Segue a proposta.');
+  });
+
+  it('entende relógio de 12 horas — parte dos clientes escreve "às 3:36 PM"', () => {
+    const comPm = [
+      'Em seg., 3 de ago. de 2026 às 3:36 PM, Shirley Silva <infra01.su@px.com.br> escreveu:',
+      'Boa tarde.',
+    ].join('\n');
+    const [msg] = parseQuotedChain(comPm);
+    expect(msg.text).toBe('Boa tarde.');
+    // 15:36 em Fortaleza (-03:00) é 18:36Z.
+    expect(msg.time.toISOString()).toBe('2026-08-03T18:36:00.000Z');
+  });
+
+  it('meia-noite e meio-dia no relógio de 12 horas não se invertem', () => {
+    const meiaNoite = parseQuotedChain('Em seg., 3 de ago. de 2026 às 12:10 AM, A B <a@x.com> escreveu:\nOi.');
+    expect(meiaNoite[0].time.toISOString()).toBe('2026-08-03T03:10:00.000Z');
+    const meioDia = parseQuotedChain('Em seg., 3 de ago. de 2026 às 12:10 PM, A B <a@x.com> escreveu:\nOi.');
+    expect(meioDia[0].time.toISOString()).toBe('2026-08-03T15:10:00.000Z');
+  });
+
+  it('junta o cabeçalho quebrado no meio do NOME', () => {
+    const quebrado = [
+      'Em ter., 28 de abr. de 2026 às 23:48, Larissa',
+      'Brandão <infra04.su@px.com.br> escreveu:',
+      'Bom dia.',
+    ].join('\n');
+    const mensagens = parseQuotedChain(quebrado);
+    expect(mensagens).toHaveLength(1);
+    expect(mensagens[0].sender).toBe('Larissa Brandão');
+  });
+
   it('tira os sinais de citação do corpo', () => {
     const comSinais = [
       'Em qua., 12 de ago. de 2026 às 09:34, A B <a@x.com> escreveu:',
