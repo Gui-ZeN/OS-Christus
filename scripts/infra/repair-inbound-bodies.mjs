@@ -156,6 +156,29 @@ function palavras(value) {
     .trim();
 }
 
+/**
+ * Toda palavra de `novo` aparece em `atual`, na mesma ordem?
+ *
+ * Prefixo seria mais simples, mas recusa reparo legítimo: o parser de hoje não só
+ * corta o rabo da citação — ele também redige endereço no MEIO do texto. Uma
+ * entrada como "E-mail do SERV3 em cópia / @fulano@x.com <fulano@x.com> em cópia
+ * / Em qui., 14 de mai…" vira "E-mail do SERV3 em cópia / cópia", que não é
+ * prefixo de nada, embora só tenha removido.
+ *
+ * Subsequência prova o mesmo que interessa — nenhuma palavra nova aparece — sem
+ * exigir que as remoções sejam todas no fim.
+ */
+function ehSubsequencia(novo, atual) {
+  const alvo = novo.split(' ').filter(Boolean);
+  if (alvo.length === 0) return false;
+  let i = 0;
+  for (const palavra of atual.split(' ')) {
+    if (palavra === alvo[i]) i += 1;
+    if (i === alvo.length) return true;
+  }
+  return false;
+}
+
 function isContained(atual, novo) {
   const alvo = nucleo(atual);
   if (!alvo) return true;
@@ -320,7 +343,13 @@ async function main() {
         // e exigir igualdade literal reprovaria todo reparo legítimo. O que
         // importa é a SEQUÊNCIA DE PALAVRAS.
         const novoP = palavras(novoTexto);
-        if (!novoP || !palavras(atual).startsWith(novoP)) {
+        const atualP = palavras(atual);
+        // Texto de duas palavras casa como subsequência em quase qualquer lugar
+        // por acaso ("ok", "ciente"). Abaixo de três, exige o começo mesmo.
+        const provado = novoP.split(' ').filter(Boolean).length >= 3
+          ? ehSubsequencia(novoP, atualP)
+          : atualP.startsWith(novoP);
+        if (!novoP || !provado) {
           stats.bloqueados += 1;
           bloqueados.push({
           ticketId,

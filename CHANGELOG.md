@@ -55,6 +55,24 @@ que continuaria citada mesmo se reescrita.
 Na OS-0344, que originou a reclamação: a mensagem do Eliezer foi de 940 para 334
 caracteres, a do David de 657 para 34, a do Darkson de 743 para 120.
 
+Depois disso olhei as 44 que sobraram e a trava estava estrita demais. Ela exigia
+que o texto novo fosse o COMEÇO do atual, mas o parser de hoje não só corta o rabo
+da citação — ele também redige endereço no MEIO. "E-mail do SERV3 em cópia /
+@fulano@x.com <fulano@x.com> em cópia / Em qui., 14 de mai…" vira "E-mail do SERV3
+em cópia / cópia", que não é prefixo de nada, embora só tenha removido.
+
+A trava passou a ser **subsequência**: toda palavra do texto novo aparece no
+atual, na mesma ordem. Prova o mesmo que interessa — nenhuma palavra nova aparece
+— sem exigir que as remoções sejam todas no fim. Abaixo de três palavras continua
+exigindo o começo, porque "ok" e "ciente" casam como subsequência em quase
+qualquer lugar por acaso.
+
+Mais 40 entradas reparadas. **Total na base: 222 → 37 entradas com citação no
+corpo, zero vazias.** Das 37, **28 são entradas que são SÓ a citação** — o corpo
+da mensagem estava vazio, e cortar deixaria a entrada sem nada. Restam 9 acima de
+500 caracteres, das quais 2 a trava recusa (uma iria de 3.946 para 74 caracteres,
+o que esvaziaria o chamado).
+
 ### E o resto era um desvio, não um formato
 
 Levantei os 62 casos que ainda traziam citação no corpo esperando achar formatos
