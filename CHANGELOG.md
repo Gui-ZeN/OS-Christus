@@ -44,7 +44,16 @@ relação de subtração e a trava recusa em vez de chutar.
 trava não resolveria: o que falta é o parser aprender aquele formato. O relatório
 marca cada uma.
 
-Nada foi aplicado — dry-run.
+**Aplicado**: 529 entradas em 138 OS, **59.434 caracteres removidos**. Nenhuma
+entrada ficou vazia, e rodar de novo acha zero para reparar — o id é derivado do
+conteúdo e a trava recusa o que já está no ponto.
+
+Na base, as entradas com citação no corpo caíram de **222 para 44**. As 42 que a
+trava recusa continuam intocadas e listadas no relatório, com marca em cada uma
+que continuaria citada mesmo se reescrita.
+
+Na OS-0344, que originou a reclamação: a mensagem do Eliezer foi de 940 para 334
+caracteres, a do David de 657 para 34, a do Darkson de 743 para 120.
 
 ### E o resto era um desvio, não um formato
 
