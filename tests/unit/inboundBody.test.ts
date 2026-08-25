@@ -78,6 +78,30 @@ describe('stripQuotedReply', () => {
     const email = 'Em 24 de ago. de 2026 às 17:50, faremos a visita ao local.\nConfirmado.';
     expect(stripQuotedReply(email)).toBe(email);
   });
+
+  // O extrator de encaminhamento devolve tudo que vem depois do marcador SEM
+  // cortar citação — correto quando a conversa encaminhada É o chamado. Só que
+  // ele reivindicava também resposta comum com um encaminhamento velho no fundo
+  // da corrente, e aí a corrente inteira colava no corpo da OS: 39 das 827
+  // mensagens recebidas até 25/08/2026 (caso da OS-0344).
+  it('resposta com encaminhamento VELHO no fundo da corrente é cortada como resposta', () => {
+    const email = [
+      'Eliezer,',
+      'Ciente. Vou verificar com a equipe.',
+      '',
+      'Em ter., 25 de ago. de 2026 às 12:47, Eliezer Romcy <e@px.com.br> escreveu:',
+      '> Murilo, bom dia!',
+      '>>>> ---------- Forwarded message ---------',
+      '>>>> De: Murilo Brasil <m@gmail.com>',
+      '>>>> Subject: Re: Solicitação de Câmeras',
+      '>>>> Prezado, dando continuidade...',
+    ].join('\n');
+    const limpo = extractInboundMessageBody(email, '');
+    // Sem a vírgula: o acabamento tira pontuação de linha que é só vocativo.
+    expect(limpo).toBe('Eliezer\nCiente. Vou verificar com a equipe.');
+    expect(limpo).not.toContain('dando continuidade');
+    expect(limpo).not.toContain('Murilo, bom dia');
+  });
 });
 
 describe('stripSignature', () => {

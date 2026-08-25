@@ -46,6 +46,39 @@ marca cada uma.
 
 Nada foi aplicado — dry-run.
 
+### E o resto era um desvio, não um formato
+
+Levantei os 62 casos que ainda traziam citação no corpo esperando achar formatos
+de cliente que o parser não conhece. Não havia nenhum: **39 deles entravam por um
+desvio.**
+
+`extractForwardedMessageBody` devolve tudo que vem depois do marcador SEM cortar
+citação — correto quando a conversa encaminhada É o chamado, como na OS-0289, que
+existe por causa do que veio dentro. Só que ele disparava com o marcador em
+QUALQUER lugar do texto, e reivindicava também resposta comum que carrega um
+encaminhamento velho no fundo da corrente.
+
+O que separa os dois casos é a PROFUNDIDADE do marcador na citação:
+
+| onde está o marcador | o que é |
+| --- | --- |
+| sem `>` | o remetente encaminhou direto |
+| `>` | quem respondeu a ele encaminhou, e ele repassou — ainda é entregar uma conversa (OS-0289) |
+| `>>>>` ou mais | história velha enterrada na corrente (OS-0344: seis meses e cinco respostas atrás) |
+
+A medida é feita no valor ORIGINAL, antes de `stripQuoteMarkers` apagar os `>`
+que são justamente a prova.
+
+**62 → 34.** Os 34 que ficam são os que o parser reconhece e decide preservar: 23
+onde o cabeçalho abre a mensagem (cortar deixaria a OS sem texto) e 11 que são
+encaminhamento de verdade. E o encolher, que antes achava 16.209 caracteres para
+tirar, agora acha **59.434** em 529 entradas.
+
+Uma correção de diagnóstico: na primeira classificação eu tinha contado 25 casos
+de "atribuição nua" e 26 "sem endereço". Fui ao e-mail original e nenhum dos dois
+existe — era artefato de olhar a saída depois da higienização, que remove o
+endereço e a linha do `escreveu:`.
+
 De quebra, a importação foi refeita: a versão limpa que ela reconstrói é um
 PREFIXO da versão inchada já gravada, e a dedupe por igualdade não casava. Agora
 compara por contenção nos dois sentidos, com piso de 25 caracteres — "sim", "ok" e

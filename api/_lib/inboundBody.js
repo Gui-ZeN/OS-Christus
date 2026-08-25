@@ -196,6 +196,31 @@ export function sanitizeInboundLines(value) {
     .join('\n');
 }
 
+const MARCADOR_ENCAMINHAMENTO_LINHA =
+  /^\s*(?:-+\s*)?(?:forwarded (?:message|conversation)|mensagem encaminhada|conversa encaminhada)(?:\s*-+)?\s*$/i;
+
+/**
+ * A que profundidade de citação está o marcador de encaminhamento.
+ *
+ * Zero é o remetente encaminhando direto. Um é quem respondeu a ele ter
+ * encaminhado, e ele ter repassado — ainda é entregar uma conversa, e foi o caso
+ * da OS-0289, que existe por causa do que veio dentro. De dois para cima é
+ * história velha enterrada na corrente: na OS-0344 o marcador aparecia em `>>>>`
+ * e `>>>>>>`, seis meses e cinco respostas atrás do assunto.
+ *
+ * @returns {number} profundidade, ou -1 se não há marcador
+ */
+function forwardMarkerDepth(value) {
+  for (const linha of String(value || '').replace(/\r\n?/g, '\n').split('\n')) {
+    const prefixo = linha.match(/^[ \t]*((?:>[ \t]*)*)/)?.[1] || '';
+    if (!MARCADOR_ENCAMINHAMENTO_LINHA.test(linha.slice(prefixo.length))) continue;
+    return (prefixo.match(/>/g) || []).length;
+  }
+  return -1;
+}
+
+const PROFUNDIDADE_MAXIMA_DE_ENCAMINHAMENTO = 1;
+
 export function extractForwardedMessageBody(value) {
   // Trabalha sempre no texto SEM marca de citacao: o Gmail encaminha conversa
   // inteira citada, e o marcador aparece como "> ---------- Forwarded ...".
@@ -209,6 +234,17 @@ export function extractForwardedMessageBody(value) {
     /^\s*(?:-+\s*)?(?:forwarded (?:message|conversation)|mensagem encaminhada|conversa encaminhada)(?:\s*-+)?\s*$/im;
   const marker = markerRegex.exec(text);
   if (!marker) return '';
+
+  // Um marcador FUNDO na corrente não faz da mensagem um encaminhamento: é
+  // resposta comum que carrega, lá atrás, um encaminhamento antigo. Como este
+  // extrator devolve o que vem depois do marcador SEM cortar citação (correto
+  // quando a conversa encaminhada é o chamado), reivindicar essas respostas
+  // colava a corrente inteira no corpo da OS — 39 das 827 mensagens recebidas
+  // até 25/08/2026, e a maior parte do texto que parecia repetido ao ler a OS.
+  //
+  // A profundidade é medida no valor ORIGINAL, antes de `stripQuoteMarkers`
+  // apagar os `>` que são justamente a prova.
+  if (forwardMarkerDepth(value) > PROFUNDIDADE_MAXIMA_DE_ENCAMINHAMENTO) return '';
 
   // O prefacio ("Bom dia, Serv3 em copia. Atenciosamente,") e limpo AQUI, e nao
   // depois no pipeline: a despedida dele cortaria junto todo o encaminhamento.
