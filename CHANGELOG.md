@@ -26,8 +26,25 @@ para os dois lados: a ingestão (que corta) e a importação (que reconstrói).
 a OS sem texto, e o guard preserva de propósito. **3,35 milhões de caracteres** de
 citação deixam de entrar nos corpos das OS daqui em diante.
 
-Isto vale para o que chegar. As 204 já gravadas continuam como estão — reescrever
-mensagem recebida é outra decisão, e histórico é superfície de auditoria.
+Para o que já está gravado, `infra:inbound:repair --encolher`. O reparo nasceu
+para o caso em que o parser passou a EXTRAIR mais texto, e tinha trava de tamanho
+que só deixava passar reparo que cresce. O modo novo inverte a direção e a trava
+junto: em vez de exigir que o núcleo velho sobreviva no novo, exige que o texto
+novo seja o COMEÇO do atual — prova de que só se cortou o rabo, sem trocar nem
+inventar palavra no meio. A comparação ignora acento e pontuação, porque os dois
+textos passaram por acabamentos diferentes ("- *Subsolo;*" contra "- Subsolo;").
+
+Dry-run na base: **492 entradas em 126 OS, 16.209 caracteres**. É pouco, e o
+relatório explica por quê: **55 ficam bloqueadas**, e são justamente as maiores
+(uma de 7.667 caracteres). Nelas o texto novo não é um corte do atual — a ingestão
+da época removia linhas que o parser de hoje mantém, então os dois não estão em
+relação de subtração e a trava recusa em vez de chutar.
+
+**32 dessas 55 continuariam com citação mesmo depois de reescritas.** Afrouxar a
+trava não resolveria: o que falta é o parser aprender aquele formato. O relatório
+marca cada uma.
+
+Nada foi aplicado — dry-run.
 
 De quebra, a importação foi refeita: a versão limpa que ela reconstrói é um
 PREFIXO da versão inchada já gravada, e a dedupe por igualdade não casava. Agora

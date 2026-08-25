@@ -34,6 +34,7 @@ import { readServiceAccount, resolveCredentialsPath } from './shared-auth.mjs';
  *   npm run infra:inbound:repair                 (DRY-RUN — não escreve nada)
  *   npm run infra:inbound:repair -- --apply      (escreve)
  *   npm run infra:inbound:repair -- --os=OS-0289 (limita a uma OS)
+ *   npm run infra:inbound:repair -- --encolher   (tira a citação que vazou para o corpo)
  */
 
 const EMULATOR = process.env.FIRESTORE_EMULATOR_HOST;
@@ -42,6 +43,23 @@ const PAGE_SIZE = 200;
 
 const APPLY = process.argv.includes('--apply');
 const ONLY_OS = (process.argv.find(arg => arg.startsWith('--os=')) || '').split('=')[1]?.toUpperCase() || null;
+/**
+ * MODO ENCOLHER. O reparo nasceu para o caso em que o parser passou a EXTRAIR
+ * mais texto — daí a trava de tamanho, que só deixa passar reparo que cresce.
+ *
+ * O caso oposto apareceu em 25/08/2026: 204 das 824 mensagens recebidas tinham a
+ * corrente citada COLADA no corpo, porque o `text/plain` quebra em ~72 colunas e
+ * partia o cabeçalho da citação — nenhum marcador casava e o corte não acontecia.
+ * `unwrapQuoteHeaders` consertou a entrada, mas o que já estava gravado seguiu
+ * inchado: ao ler a OS-0344, a mesma frase aparecia duas vezes.
+ *
+ * Aqui o texto novo é MENOR, e a trava vira o seu espelho: em vez de exigir que o
+ * núcleo velho sobreviva no novo, exige que o núcleo NOVO caiba no velho. Assim a
+ * operação é comprovadamente subtrativa — nenhuma palavra nova aparece, e o que
+ * some é o que `nucleo()` já classifica como não-conteúdo (citação, despedida,
+ * endereço). O original segue intacto em `ticketInbound`.
+ */
+const ENCOLHER = process.argv.includes('--encolher');
 
 function connect() {
   if (getApps().length > 0) return getFirestore();
@@ -121,6 +139,23 @@ function nucleo(value) {
   return normalizeForContainment(semRuido);
 }
 
+/** Linha de atribuição de citação, com ou sem o "escreveu:" no fim. */
+const LINHA_DE_CITACAO =
+  /^\s*(?:Em|On)\s+(?:[^\s,]+,\s*)?\d{1,2}\s+de\s+[^\s,]+\.?\s+de\s+\d{4},?\s+(?:às\s+|as\s+)?\d{1,2}:\d{2}/m;
+
+/**
+ * Só a sequência de palavras, sem acento e sem pontuação. É o denominador comum
+ * entre dois textos que passaram por acabamentos diferentes do parser.
+ */
+function palavras(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function isContained(atual, novo) {
   const alvo = nucleo(atual);
   if (!alvo) return true;
@@ -131,8 +166,11 @@ async function main() {
   const db = connect();
   const alvo = EMULATOR ? `emulador ${EMULATOR}` : `PRODUÇÃO (${PROJECT_ID})`;
   const modo = APPLY ? '*** APLICANDO (escreve no banco) ***' : 'DRY-RUN (não escreve nada)';
+  const direcao = ENCOLHER
+    ? 'ENCOLHER (tira a citação que vazou para o corpo)'
+    : 'crescer (recupera texto que o parser antigo perdeu)';
   console.log(`\nReparo de corpo de e-mail encaminhado — ${alvo}`);
-  console.log(`${modo}${ONLY_OS ? ` · só ${ONLY_OS}` : ''}\n`);
+  console.log(`${modo} · ${direcao}${ONLY_OS ? ` · só ${ONLY_OS}` : ''}\n`);
 
   const stats = { inbounds: 0, candidatos: 0, reparados: 0, semEntrada: 0, bloqueados: 0, jaOk: 0 };
   const bloqueados = [];
@@ -253,7 +291,15 @@ async function main() {
         stats.jaOk += 1;
         continue;
       }
-      if (!jaReparada && novoTexto.length <= atual.length) {
+      const encolhendo = novoTexto.length < atual.length;
+      // No modo encolher só interessa o que diminui; fora dele, só o que cresce.
+      // Sem esta separação o modo encolher também mexia em reparo de crescimento,
+      // e o relatório misturava as duas coisas.
+      if (ENCOLHER && !encolhendo) {
+        stats.jaOk += 1;
+        continue;
+      }
+      if (!ENCOLHER && !jaReparada && novoTexto.length <= atual.length) {
         stats.jaOk += 1;
         continue;
       }
@@ -264,9 +310,42 @@ async function main() {
       // está lá é máquina, não pessoa — e o original segue intacto em
       // `ticketInbound`. Comparar contra a própria saída anterior só impediria de
       // corrigir o que ela mesma errou (foi o caso do endereço vazado no prefácio).
-      if (!jaReparada && !isContained(atual, novoTexto)) {
+      if (ENCOLHER) {
+        // Trava do encolher: o texto novo tem que ser o COMEÇO do atual. Isso prova
+        // que a operação só cortou o rabo — a citação — sem trocar nem inventar
+        // palavra no meio.
+        //
+        // A comparação ignora acento e pontuação de propósito: os dois textos
+        // passaram por acabamentos diferentes ("- *Subsolo;*" contra "- Subsolo;")
+        // e exigir igualdade literal reprovaria todo reparo legítimo. O que
+        // importa é a SEQUÊNCIA DE PALAVRAS.
+        const novoP = palavras(novoTexto);
+        if (!novoP || !palavras(atual).startsWith(novoP)) {
+          stats.bloqueados += 1;
+          bloqueados.push({
+          ticketId,
+          entryId,
+          atual: atual.length,
+          novo: novoTexto.length,
+          // Quem revisa precisa saber se valeria a pena forçar: se o texto novo
+          // AINDA traz citação, reescrever não conserta nada — o que falta é o
+          // parser aprender aquele formato, não afrouxar a trava.
+          aindaCitado: LINHA_DE_CITACAO.test(novoTexto),
+        });
+          continue;
+        }
+      } else if (!jaReparada && !isContained(atual, novoTexto)) {
         stats.bloqueados += 1;
-        bloqueados.push({ ticketId, entryId, atual: atual.length, novo: novoTexto.length });
+        bloqueados.push({
+          ticketId,
+          entryId,
+          atual: atual.length,
+          novo: novoTexto.length,
+          // Quem revisa precisa saber se valeria a pena forçar: se o texto novo
+          // AINDA traz citação, reescrever não conserta nada — o que falta é o
+          // parser aprender aquele formato, não afrouxar a trava.
+          aindaCitado: LINHA_DE_CITACAO.test(novoTexto),
+        });
         continue;
       }
 
@@ -360,17 +439,25 @@ async function main() {
 
   if (porOs.size > 0) {
     console.log(`\nPor OS (${porOs.size} OS):`);
-    console.log('  OS          entradas    ganho');
-    for (const [ticketId, dados] of [...porOs.entries()].sort((a, b) => b[1].ganho - a[1].ganho)) {
-      console.log(`  ${ticketId.padEnd(11)} ${String(dados.entradas).padStart(8)} ${String(dados.ganho).padStart(8)}`);
+    console.log(ENCOLHER ? '  OS          entradas  removido' : '  OS          entradas    ganho');
+    // Ao encolher o "ganho" é negativo: ordena pelo que mais tira e mostra positivo.
+    const ordem = ENCOLHER ? (a, b) => a[1].ganho - b[1].ganho : (a, b) => b[1].ganho - a[1].ganho;
+    for (const [ticketId, dados] of [...porOs.entries()].sort(ordem)) {
+      const quanto = ENCOLHER ? -dados.ganho : dados.ganho;
+      console.log(`  ${ticketId.padEnd(11)} ${String(dados.entradas).padStart(8)} ${String(quanto).padStart(8)}`);
     }
+    const total = [...porOs.values()].reduce((soma, dados) => soma + dados.ganho, 0);
+    console.log(`\n  total: ${Math.abs(total).toLocaleString('pt-BR')} caracteres ${ENCOLHER ? 'removidos' : 'recuperados'}`);
   }
 
   if (bloqueados.length > 0) {
-    console.log(`\n⚠️  Bloqueados — o texto atual NÃO está contido no novo. Nada foi tocado;`);
+    console.log(ENCOLHER
+      ? `\n⚠️  Bloqueados — o texto novo NÃO está contido no atual (apareceria palavra que\n   não estava lá) ou ficaria vazio. Nada foi tocado;`
+      : `\n⚠️  Bloqueados — o texto atual NÃO está contido no novo. Nada foi tocado;`);
     console.log(`   olhe caso a caso antes de decidir:`);
     for (const item of bloqueados) {
-      console.log(`  ${item.ticketId.padEnd(11)} atual=${item.atual} novo=${item.novo}  (${item.entryId})`);
+      const nota = item.aindaCitado ? '  ← o texto novo AINDA traz citação' : '';
+      console.log(`  ${item.ticketId.padEnd(11)} atual=${item.atual} novo=${item.novo}${nota}`);
     }
   }
 
