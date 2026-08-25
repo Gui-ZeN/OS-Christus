@@ -1,4 +1,4 @@
-import { stripQuoteMarkers, stripSignature, tidyInboundText } from './inboundBody.js';
+import { stripQuoteMarkers, stripSignature, tidyInboundText, unwrapQuoteHeaders } from './inboundBody.js';
 
 /**
  * Reconstrói as mensagens ANTERIORES a partir do histórico citado de um e-mail.
@@ -53,25 +53,6 @@ function montarData(dia, mesTexto, ano, hora, minuto, meridiano) {
   return Number.isNaN(data.getTime()) ? null : data;
 }
 
-/**
- * O Gmail quebra o cabeçalho de citação em duas linhas quando o nome é longo:
- * "…Deladier Davi Pessoa Silva\n<pcm04@px.com.br> escreveu:". Sem juntar, o
- * marcador não casa e a mensagem some.
- */
-function juntarCabecalhosQuebrados(texto) {
-  return String(texto || '')
-    .replace(/\r\n?/g, '\n')
-    // A quebra também cai DENTRO dos sinais: a linha termina em "<" e o endereço
-    // começa na seguinte. Sem esta regra o marcador não casa e o cabeçalho fica
-    // colado no corpo da mensagem importada.
-    .replace(/<[ \t]*\n[ \t>]*([^\s<>]+@[^\s<>]+>)/g, '<$1')
-    .replace(/([^\n])\n[ \t>]*(<[^>\n]+>\s*escreveu:)/gi, '$1 $2')
-    .replace(/([^\n])\n[ \t>]*(escreveu:)/gi, '$1 $2')
-    // E cai dentro do NOME também ("…às 23:48, Larissa\nBrandão <e@x> escreveu:").
-    // Junta uma linha que ABRE com "Em " à seguinte que FECHA com "escreveu:".
-    .replace(/^([ \t>]*Em\s[^\n]*?)\n[ \t>]*([^\n]*escreveu:[ \t]*)$/gim, '$1 $2');
-}
-
 function limparCorpo(linhas) {
   const bruto = stripQuoteMarkers(linhas.join('\n'));
   return tidyInboundText(stripSignature(bruto)).trim();
@@ -83,7 +64,7 @@ function limparCorpo(linhas) {
  *          da mais antiga para a mais recente, sem as sem-data e sem as vazias
  */
 export function parseQuotedChain(texto) {
-  const linhas = juntarCabecalhosQuebrados(texto).split('\n');
+  const linhas = unwrapQuoteHeaders(texto).split('\n');
   const mensagens = [];
   let atual = null;
 

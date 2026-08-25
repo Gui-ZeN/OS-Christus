@@ -3,6 +3,38 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-25 (a citação entrava no corpo porque a linha quebrava no meio do cabeçalho)
+
+Reclamação ao ler a OS-0344: "meio que os textos ficam repetindo". Estavam. O
+Murilo aparecia duas vezes com a mesma pergunta — uma entrada de 125 caracteres e
+outra de 1.355, a segunda arrastando a conversa inteira atrás.
+
+A causa não era a importação. **204 das 824 mensagens que o sistema recebeu**
+tinham a corrente citada colada no corpo, porque o `text/plain` quebra em ~72
+colunas e parte o cabeçalho da citação em qualquer ponto:
+
+```
+Em ter., 28 de jul. de 2026 às 12:31, Silvia Helena Tobias <
+infra01.pq@px.com.br> escreveu:
+```
+
+Nenhum marcador casa numa linha partida — e sem marcador o corte não acontece.
+`unwrapQuoteHeaders` junta o cabeçalho antes de procurar a marca, e agora vale
+para os dois lados: a ingestão (que corta) e a importação (que reconstrói).
+
+**204 → 53.** Os 53 que sobram são mensagens que são SÓ citação: cortar deixaria
+a OS sem texto, e o guard preserva de propósito. **3,35 milhões de caracteres** de
+citação deixam de entrar nos corpos das OS daqui em diante.
+
+Isto vale para o que chegar. As 204 já gravadas continuam como estão — reescrever
+mensagem recebida é outra decisão, e histórico é superfície de auditoria.
+
+De quebra, a importação foi refeita: a versão limpa que ela reconstrói é um
+PREFIXO da versão inchada já gravada, e a dedupe por igualdade não casava. Agora
+compara por contenção nos dois sentidos, com piso de 25 caracteres — "sim", "ok" e
+"concordo" são prefixo de qualquer coisa. **1.205 mensagens em 144 OS** (eram
+1.280 em 152; as 75 a menos eram redundantes).
+
 ## 2026-08-25 (a conversa começava meses antes da OS — e estava toda ali, citada)
 
 A OS-0345 ("Gatos Loan e forro almoxarifado") nasceu em 12/08 com um corpo de

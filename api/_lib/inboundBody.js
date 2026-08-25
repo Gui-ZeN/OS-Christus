@@ -252,8 +252,27 @@ export function extractForwardedMessageBody(value) {
   return [preface, forwardedBody].filter(Boolean).join('\n\n').trim();
 }
 
+/**
+ * Junta o cabeçalho de citação que a quebra de linha partiu.
+ *
+ * O text/plain quebra em ~72 colunas e corta o cabeçalho em qualquer ponto: no
+ * meio do endereço (a linha termina em "<" e "fulano@ex.com> escreveu:" cai na
+ * seguinte), no meio do nome, ou logo antes do "escreveu:". Nenhum marcador casa
+ * numa linha partida — e sem marcador a corrente inteira entra no corpo. Era o
+ * caso de 204 das 824 mensagens recebidas até 25/08/2026: o mesmo texto aparecia
+ * duas vezes ao ler a OS.
+ */
+export function unwrapQuoteHeaders(value) {
+  return String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/<[ \t]*\n[ \t>]*([^\s<>]+@[^\s<>]+>)/g, '<$1')
+    .replace(/([^\n])\n[ \t>]*(<[^>\n]+>\s*(?:escreveu|wrote):)/gi, '$1 $2')
+    .replace(/([^\n])\n[ \t>]*((?:escreveu|wrote):)/gi, '$1 $2')
+    .replace(/^([ \t>]*(?:Em|On)\s[^\n]*?)\n[ \t>]*([^\n]*(?:escreveu|wrote):[ \t]*)$/gim, '$1 $2');
+}
+
 export function stripQuotedReply(value) {
-  const text = String(value || '').replace(/\r\n/g, '\n').trim();
+  const text = unwrapQuoteHeaders(value).trim();
   if (!text) return '';
 
   const markers = [

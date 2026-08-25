@@ -46,6 +46,38 @@ describe('stripQuotedReply', () => {
   it('remove linhas citadas soltas mesmo sem marcador', () => {
     expect(stripQuotedReply('resposta\n> citado\nfim')).toBe('resposta\nfim');
   });
+
+  // 204 das 824 mensagens recebidas até 25/08/2026 chegaram com o cabeçalho da
+  // citação partido pela quebra de linha do text/plain. Nenhum marcador casava, a
+  // corrente inteira entrava no corpo, e o mesmo texto aparecia duas vezes ao ler
+  // a OS — foi o que apareceu na OS-0344.
+  it('corta mesmo com o cabeçalho partido no meio do endereço', () => {
+    const email = [
+      'Eliezer,',
+      'Qual o fluxo de solicitação de câmeras?',
+      '',
+      'Em ter., 28 de jul. de 2026 às 12:31, Silvia Helena Tobias <',
+      'infra01.pq@px.com.br> escreveu:',
+      'Murilo e Pedro, boa tarde',
+    ].join('\n');
+    expect(stripQuotedReply(email)).toBe('Eliezer,\nQual o fluxo de solicitação de câmeras?');
+  });
+
+  it('corta com o cabeçalho partido logo antes do "escreveu:"', () => {
+    const email = [
+      'Ciente.',
+      '',
+      'Em ter., 28 de abr. de 2026 às 23:48, Larissa Brandão <infra04.su@px.com.br>',
+      'escreveu:',
+      'texto antigo',
+    ].join('\n');
+    expect(stripQuotedReply(email)).toBe('Ciente.');
+  });
+
+  it('NÃO corta frase legítima que começa com data e hora', () => {
+    const email = 'Em 24 de ago. de 2026 às 17:50, faremos a visita ao local.\nConfirmado.';
+    expect(stripQuotedReply(email)).toBe(email);
+  });
 });
 
 describe('stripSignature', () => {
