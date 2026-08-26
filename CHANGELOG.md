@@ -3,6 +3,47 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-26 (a apresentação virou o argumento, e não a lista de ajustes)
+
+Peça para mostrar aos usuários. Nada disto é código do sistema — mora fora do
+repositório, no material da apresentação — mas as decisões valem registro porque
+a próxima versão vai partir daqui.
+
+**A tese mudou.** A capa dizia "duas semanas de ajustes, quase todos vindos de
+quem usa", que descreve o esforço. Passou a dizer o que a mudança é: *o sistema
+deixou de abrir numa caixa de mensagens e passou a abrir no dia*.
+
+**Saiu o gráfico de fluxo.** É relatório gerencial, outro assunto — e com ele saiu
+a linha do passo a passo que apontava para os Indicadores, porque apontar para o
+que a peça não cobre é ponta solta.
+
+**Entrou um passo a passo** ("Onde fica cada coisa"): onze linhas de *quero… →
+caminho → detalhe*, com a régua de ícones da barra lateral ao lado. Usei recortes
+dos controles em vez de telas cheias: botão e chip não mudam quando a base muda,
+então a página não envelhece.
+
+**Entrou o "Quando anda" com seis páginas de fundo** — por que existe, as seis
+regras em ordem de precedência, suspender, o ciclo da visita, onde cada OS cai no
+Hoje, e o que o sistema **não** faz. O pedido foi explícito: *"o pessoal
+dificilmente entenderia sem explicar detalhadamente"*.
+
+**As telas ficaram 40% maiores.** Três causas somadas: o texto virou faixa de
+colunas no topo em vez de coluna lateral, a margem da página caiu de 16 para
+13 mm, e os prints foram recapturados em viewport de 1280 em vez de 1440 — são
+160px a menos atravessando a mesma largura de papel. As duas telas de tabela
+ficaram em 1440 porque abaixo disso a coluna "Parada há" é cortada.
+
+**Os modais viraram recortes.** Conversa e Trocar etapa estavam como print da tela
+inteira: no papel a janela virava um selo ilegível.
+
+**O PDF passou a ser legível por máquina.** Perguntado se uma IA entenderia o
+arquivo, medi: camada de texto real com 14.470 caracteres, acentos corretos, e
+ordem de leitura certa mesmo na grade de três colunas e nas tabelas. O buraco
+eram as páginas que **são** o print — "Travadas" dava 182 caracteres, só título e
+legenda. Escrevi descrição para os 11 prints e liguei `tagged: true`; conferido
+depois, 11 objetos `/Alt` dentro do arquivo. Vale para leitor de tela e para quem
+lê as tags; extração crua de texto continua sem ver imagem.
+
 ## 2026-08-26 (quem mais trabalha a fila era quem não via o painel dela)
 
 O Gestor não conseguia abrir os Indicadores. A regra dizia:
@@ -117,6 +158,23 @@ corpo, zero vazias.** Das 37, **28 são entradas que são SÓ a citação** — 
 da mensagem estava vazio, e cortar deixaria a entrada sem nada. Restam 9 acima de
 500 caracteres, das quais 2 a trava recusa (uma iria de 3.946 para 74 caracteres,
 o que esvaziaria o chamado).
+
+### As 28 que sobraram viraram um recado, não uma linha solta
+
+Essas 28 são mensagens em que a pessoa respondeu **sem escrever nada novo** — ou
+mandou só anexo. Na tela viravam uma linha dizendo
+`Em qui., 2 de jul. de 2026 às 11:37, Pablo Cunha escreveu:` e mais nada, que não
+informa quem lê.
+
+O `MessageBody` já separava o texto novo da citação e escondia a citação atrás do
+botão "Mostrar conversa anterior". Faltava o caso de **não sobrar texto novo**: o
+fallback jogava o cru na tela. Agora aparece *"Sem texto novo — só a conversa
+citada"* em itálico apagado, com a conversa acessível pelo botão e os anexos
+listados logo abaixo.
+
+Isto é exibição, não reparo: o texto continua guardado como chegou. Quatro testes
+travam o contrato que a tela usa (`latest` vazio + `quoted` cheio = "não escreveu
+nada"), e conferi no navegador com uma mensagem semeada.
 
 ### E o resto era um desvio, não um formato
 
