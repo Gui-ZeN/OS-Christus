@@ -21,6 +21,7 @@ import {
 import { SidebarIcon } from './components/ui/SidebarIcon';
 import { NotificationsPopover } from './components/NotificationsPopover';
 import { WhatsNewModal } from './components/WhatsNewModal';
+import { podeVerIndicadores } from './constants/acessoIndicadores';
 import { CURRENT_RELEASE, hasSeenRelease, markReleaseSeen } from './constants/releaseNotes';
 import { useApp } from './context/AppContext';
 import { useAttachmentPreview } from './context/AttachmentPreviewContext';
@@ -233,7 +234,7 @@ export default function App() {
   const canAccessFinance = currentRole === 'Admin' || currentRole === 'Gestor';
   const canAccessEmailHealth = currentRole === 'Admin' || currentRole === 'Diretor';
   const canAccessAudit = currentRole === 'Admin';
-  const canAccessKpi = currentRole === 'Admin' || currentRole === 'Diretor' || currentRole === 'Usuario';
+  const canAccessKpi = podeVerIndicadores(currentRole);
   const canAccessSettings = currentRole === 'Admin' || currentRole === 'Gestor';
   const isManagerOrAdmin = currentRole === 'Admin' || currentRole === 'Gestor';
 

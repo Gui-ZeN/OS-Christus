@@ -12,6 +12,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord, Ticket } from '../types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
+import { PAPEIS_COM_INDICADORES_LABEL, podeVerIndicadores } from '../constants/acessoIndicadores';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { coerceDate } from '../utils/date';
 import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
@@ -112,7 +113,9 @@ export function KpiView() {
     () => todasAsTickets.filter(ticket => !ticket.excludedFromMetrics),
     [todasAsTickets]
   );
-  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor' || currentUser?.role === 'Usuario';
+  // Mesma fonte que acende o ícone na barra lateral: duas listas escritas à mão
+  // divergiam em silêncio, e o sintoma era ver o ícone e levar "acesso restrito".
+  const canAccess = podeVerIndicadores(currentUser?.role);
   // `Usuario` é solicitante/representante de unidade: acompanha os indicadores
   // OPERACIONAIS da estrutura, sem contrato, pagamento, fornecedor ou valor.
   // Espelha canUserReadFinancials do backend, que é quem de fato barra — aqui é
@@ -924,7 +927,7 @@ export function KpiView() {
           <EmptyState
             icon={TrendingUp}
             title="Acesso restrito"
-            description="Os indicadores gerenciais estão disponíveis apenas para Usuário, Diretor e Admin."
+            description={`Os indicadores gerenciais estão disponíveis para: ${PAPEIS_COM_INDICADORES_LABEL}.`}
           />
         </div>
       </div>

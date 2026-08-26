@@ -3,6 +3,39 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-26 (quem mais trabalha a fila era quem não via o painel dela)
+
+O Gestor não conseguia abrir os Indicadores. A regra dizia:
+
+```
+canAccessKpi = Admin || Diretor || Usuario
+```
+
+Ele administra catálogo, acessos e Financeiro — e ficou de fora do painel. Pior:
+os três que encerram quase todas as OS são Gestores. Em produção são **7 Gestores
+ativos** contra 18 Usuários e 3 Admins.
+
+Não havia comentário justificando, num arquivo que comenta cada decisão. O dono
+confirmou: descuido.
+
+**A regra estava escrita à mão em dois lugares** — `App.tsx`, que acende o ícone da
+barra, e `KpiView.tsx`, que desenha a tela. Duas listas iguais, mantidas em
+paralelo. Permissão é o pior lugar para isso: quando divergem, o sintoma é ver o
+ícone e levar "acesso restrito" ao clicar. Agora as duas leem
+`podeVerIndicadores()`, e a tela de acesso negado lista os papéis da mesma fonte
+em vez de repeti-los em texto fixo.
+
+A função recebe `string`, e não o tipo fechado de papel, porque é isso que chega
+do Firestore. Papel desconhecido não vê — o lado seguro de errar.
+
+O que **não** mudou: `canViewFinancials` continua Admin e Diretor. O Gestor vê o
+painel operacional e exporta o PDF gerencial; contrato, pagamento e valor seguem
+fora, e quem barra de verdade é o backend.
+
+Verificado na aplicação, logado como Gestor: o ícone aparece, o Painel Executivo
+carrega, e o **Exportar PDF** devolve `200 application/pdf` — um relatório de duas
+páginas. Cinco testes travam quem vê o quê, que antes não existiam.
+
 ## 2026-08-25 (a citação entrava no corpo porque a linha quebrava no meio do cabeçalho)
 
 Reclamação ao ler a OS-0344: "meio que os textos ficam repetindo". Estavam. O
