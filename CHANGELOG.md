@@ -28,9 +28,21 @@ em vez de repeti-los em texto fixo.
 A função recebe `string`, e não o tipo fechado de papel, porque é isso que chega
 do Firestore. Papel desconhecido não vê — o lado seguro de errar.
 
-O que **não** mudou: `canViewFinancials` continua Admin e Diretor. O Gestor vê o
-painel operacional e exporta o PDF gerencial; contrato, pagamento e valor seguem
-fora, e quem barra de verdade é o backend.
+**E o mesmo defeito estava na regra do dinheiro.** `canViewFinancials` era
+`Admin || Diretor`, com um comentário dizendo que espelhava
+`canUserReadFinancials` do backend. Não espelhava: lá,
+`FINANCIAL_READER_ROLES` é `{Admin, Gestor, Diretor}` — **o servidor já entregava
+os dados ao Gestor e a tela os escondia dele**. Tela mais restrita que a API não
+protege nada; só esconde da pessoa o que a API entrega a ela. Liberado, com a
+lista agora copiada do backend e o parentesco escrito.
+
+O `Usuario` continua fora do financeiro: acompanha a estrutura, não a compra.
+
+⚠️ Fica registrada uma divergência que NÃO consertei: o backend consulta antes do
+papel uma permissão individual (`canViewFinancials` no documento do usuário), e o
+front não a recebe — o campo não existe em `DirectoryUser` nem vem de
+`/api/users`. Hoje não quebra nada, porque nenhum dos 28 usuários a tem marcada.
+No dia em que alguém marcar, o servidor entrega e a aba continuará escondida.
 
 Verificado na aplicação, logado como Gestor: o ícone aparece, o Painel Executivo
 carrega, e o **Exportar PDF** devolve `200 application/pdf` — um relatório de duas

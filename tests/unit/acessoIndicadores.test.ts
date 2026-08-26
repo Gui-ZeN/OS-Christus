@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PAPEIS_COM_INDICADORES_LABEL,
+  podeVerFinanceiro,
   podeVerIndicadores,
 } from '../../src/constants/acessoIndicadores';
 
@@ -35,5 +36,32 @@ describe('quem vê o painel de indicadores', () => {
     for (const papel of ['Admin', 'Diretor', 'Gestor', 'Usuario'] as const) {
       expect(PAPEIS_COM_INDICADORES_LABEL).toContain(papel);
     }
+  });
+});
+
+/**
+ * A regra do dinheiro é OUTRA, e o front estava mais restrito que o servidor:
+ * `FINANCIAL_READER_ROLES` em `api/_lib/procurementAccess.js` já tinha o Gestor.
+ * Tela mais fechada que a API não protege nada — só esconde da pessoa o que a
+ * API entrega a ela.
+ */
+describe('quem vê dinheiro dentro do painel', () => {
+  it('Gestor vê — o backend já entregava e o front escondia', () => {
+    expect(podeVerFinanceiro('Gestor')).toBe(true);
+  });
+
+  it('Admin e Diretor veem', () => {
+    expect(podeVerFinanceiro('Admin')).toBe(true);
+    expect(podeVerFinanceiro('Diretor')).toBe(true);
+  });
+
+  it('Usuario NÃO vê — acompanha a estrutura, não a compra', () => {
+    expect(podeVerFinanceiro('Usuario')).toBe(false);
+    expect(podeVerIndicadores('Usuario')).toBe(true);
+  });
+
+  it('sem papel ou papel desconhecido não vê', () => {
+    expect(podeVerFinanceiro(null)).toBe(false);
+    expect(podeVerFinanceiro('Fornecedor')).toBe(false);
   });
 });

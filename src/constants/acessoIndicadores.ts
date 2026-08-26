@@ -31,3 +31,29 @@ export function podeVerIndicadores(role: string | null | undefined): boolean {
 
 /** Os papéis por extenso, para a tela de acesso negado não mentir sobre a regra. */
 export const PAPEIS_COM_INDICADORES_LABEL = PAPEIS_COM_INDICADORES.join(', ');
+
+/**
+ * QUEM VÊ DINHEIRO DENTRO DO PAINEL — contrato, pagamento, medição, fornecedor,
+ * valor.
+ *
+ * É outra pergunta que a de cima, e tem outra resposta: `Usuario` é solicitante
+ * ou representante de unidade e acompanha a estrutura, não a compra.
+ *
+ * Esta lista COPIA `FINANCIAL_READER_ROLES` de `api/_lib/procurementAccess.js`,
+ * que é quem barra de verdade — aqui é só para não oferecer uma aba que voltaria
+ * vazia. O front dizia espelhar e não espelhava: o backend já liberava o
+ * Gestor, e o front o escondia. Uma tela mais restrita que o servidor não
+ * protege nada; só esconde da pessoa o que a API entrega a ela.
+ *
+ * ⚠️ O backend tem ainda uma permissão INDIVIDUAL (`canViewFinancials` no
+ * documento do usuário), consultada antes do papel, e o front não a
+ * recebe — ela não existe em `DirectoryUser` nem vem de `/api/users`. Hoje
+ * isso não quebra nada porque nenhum dos 28 usuários a tem marcada.
+ * No dia em que alguém marcar, o servidor entrega e a aba continuará
+ * escondida — o conserto começa por trazer o campo até aqui.
+ */
+const PAPEIS_COM_FINANCEIRO: readonly AppActorRole[] = ['Admin', 'Diretor', 'Gestor'];
+
+export function podeVerFinanceiro(role: string | null | undefined): boolean {
+  return PAPEIS_COM_FINANCEIRO.includes(String(role || '') as AppActorRole);
+}

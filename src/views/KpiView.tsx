@@ -12,7 +12,7 @@ import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/
 import { fetchProcurementData } from '../services/procurementApi';
 import type { ContractRecord, PaymentRecord, Ticket } from '../types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
-import { PAPEIS_COM_INDICADORES_LABEL, podeVerIndicadores } from '../constants/acessoIndicadores';
+import { PAPEIS_COM_INDICADORES_LABEL, podeVerFinanceiro, podeVerIndicadores } from '../constants/acessoIndicadores';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { coerceDate } from '../utils/date';
 import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
@@ -116,11 +116,7 @@ export function KpiView() {
   // Mesma fonte que acende o ícone na barra lateral: duas listas escritas à mão
   // divergiam em silêncio, e o sintoma era ver o ícone e levar "acesso restrito".
   const canAccess = podeVerIndicadores(currentUser?.role);
-  // `Usuario` é solicitante/representante de unidade: acompanha os indicadores
-  // OPERACIONAIS da estrutura, sem contrato, pagamento, fornecedor ou valor.
-  // Espelha canUserReadFinancials do backend, que é quem de fato barra — aqui é
-  // só para não oferecer uma aba que voltaria vazia.
-  const canViewFinancials = currentUser?.role === 'Admin' || currentUser?.role === 'Diretor';
+  const canViewFinancials = podeVerFinanceiro(currentUser?.role);
   const [period, setPeriod] = useState<PeriodMode>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
