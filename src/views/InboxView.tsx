@@ -784,10 +784,21 @@ export function InboxView() {
   const handleSaveQuickPanel = async () => {
     if (!canManageStatus || isSending) return;
 
-    if (isExternalTeam && selectedThirdParties.length === 0) {
-      showToast('Selecione ao menos um terceiro responsável para equipes externas.', 3000);
-      return;
-    }
+    /**
+     * ⚠️ O TERCEIRO É OPCIONAL — decisão do dono, 25/08.
+     *
+     * Aqui havia uma trava: equipe externa sem terceiro selecionado não passava. Ela
+     * entrou de carona num commit de março sobre outro assunto, sem motivo registrado,
+     * e cobrava caro em três situações reais:
+     *
+     *   · o fornecedor ainda não foi escolhido — a OS precisa andar mesmo assim;
+     *   · o fornecedor não está no cadastro, e cadastrar no meio da triagem é desvio;
+     *   · o endereço foi DIGITADO à mão no campo de e-mail — `resolveAssignedEmails`
+     *     soma os dois, mas a trava só olhava a lista, e barrava quem já tinha
+     *     informado o contato.
+     *
+     * O terceiro continua sendo o caminho normal; deixou de ser porteiro.
+     */
 
     const nextAssignedEmail = isExternalTeam ? resolveAssignedEmails() : '';
     const nextClassification = resolveClassificationSelection();
@@ -898,13 +909,17 @@ export function InboxView() {
       return;
     }
 
-    if (isExternalTeam && selectedThirdParties.length === 0) {
-      showToast('Selecione ao menos um terceiro responsável para encaminhamento externo.', 3000);
-      return;
-    }
+    // O terceiro é opcional também aqui — ver o comentário em `handleSaveQuickPanel`.
 
+    /**
+     * Sem terceiro escolhido, o destino é a EQUIPE.
+     *
+     * O texto anterior caía em "Terceiro selecionado", que ia parar no histórico como
+     * "encaminhada para Terceiro selecionado" — uma frase que afirma o que não
+     * aconteceu. O nome da equipe é verdade e é útil: diz para onde a OS foi.
+     */
     const target = isExternalTeam
-      ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || 'Terceiro selecionado')
+      ? (selectedThirdParties.map(vendor => vendor.name).join(', ') || techTeam)
       : techTeam;
     // Aceitar a OS no painel já é o ato de triagem — o motivo é opcional aqui.
     const statusReason = statusTransitionReason.trim();
