@@ -3,7 +3,7 @@ import { RecurrencePanel } from './RecurrencePanel';
 import { ArrowRightLeft, Droplets, FileDown, MessageSquare, Search, TriangleAlert, UserRound, X, CalendarClock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
-import { baixarPdfDaOs, baixarPdfDaLista } from '../services/ticketsApi';
+import { baixarPdfDaLista } from '../services/ticketsApi';
 import { mensagemDeErro } from '../utils/errorMessage';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 // Apelidado: `etapaDe` já é um estado local deste arquivo (o id da OS cuja etapa
@@ -78,9 +78,6 @@ export function OsBoardView() {
   // Dizer quando a OS anda sem sair da Gestao: ate aqui isso so existia no Hoje.
   const [proximaAcaoDe, setProximaAcaoDe] = useState<string | null>(null);
   const [responsavelDe, setResponsavelDe] = useState<string | null>(null);
-  // Qual OS está gerando PDF agora. Guarda o ID, não um booleano: são várias linhas,
-  // e um booleano só acenderia "Gerando…" em todas ao mesmo tempo.
-  const [pdfDe, setPdfDe] = useState<string | null>(null);
   const [pdfDaLista, setPdfDaLista] = useState(false);
   const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
@@ -196,35 +193,6 @@ export function OsBoardView() {
   const openTicket = (id: string) => {
     setActiveTicketId(id);
     navigateTo('inbox');
-  };
-
-  /**
-   * Baixa o retrato da OS — o estado de agora, para levar a campo ou à reunião.
-   *
-   * O documento é montado no SERVIDOR (`?route=ticket-pdf`), e não a partir do que
-   * esta tabela tem em mãos: a listagem não carrega o histórico das OS migradas nem
-   * as ações preliminares completas, então um PDF feito daqui sairia com campo em
-   * branco sem erro nenhum — exatamente o tipo de falha que este projeto já pegou
-   * como "job verde que não entrega".
-   */
-  const exportarPdf = async (ticketId: string) => {
-    if (pdfDe) return;
-    setPdfDe(ticketId);
-    try {
-      const blob = await baixarPdfDaOs(ticketId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${ticketId}-estado.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      window.alert(mensagemDeErro(error, 'Falha ao gerar o PDF da OS.'));
-    } finally {
-      setPdfDe(null);
-    }
   };
 
   /**
@@ -649,19 +617,6 @@ export function OsBoardView() {
                         className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
                       >
                         <CalendarClock size={14} /> Quando anda
-                      </button>
-                      {/* Fecha a lista de ações que dispensam abrir a OS: aqui a
-                          pergunta é "preciso desta OS no papel". O rótulo diz o que
-                          o arquivo é — "PDF" sozinho não distingue este retrato do
-                          relatório gerencial, que sai da tela de Indicadores. */}
-                      <button
-                        type="button"
-                        onClick={() => void exportarPdf(ticket.id)}
-                        disabled={pdfDe !== null}
-                        title="Baixa um PDF com o estado atual desta OS (sem dados financeiros e sem registro interno)"
-                        className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main disabled:opacity-60"
-                      >
-                        <FileDown size={14} /> {pdfDe === ticket.id ? 'Gerando…' : 'Estado em PDF'}
                       </button>
                     </div>
                   </td>

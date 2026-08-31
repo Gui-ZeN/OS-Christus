@@ -462,31 +462,6 @@ export async function postTrackingMessageInApi(trackingToken: string, publicMess
 }
 
 /**
- * O PDF do estado atual de UMA OS, montado no servidor.
- *
- * ⚠️ O TAMANHO ZERO É CONFERIDO AQUI. Um `Blob` vazio vira um download que abre em
- * branco e não gera erro nenhum — o defeito que já apareceu neste projeto como
- * "botão que descarta o resultado". Melhor recusar com uma frase do que entregar um
- * arquivo que só decepciona quando alguém tenta abrir.
- */
-export async function baixarPdfDaOs(ticketId: string): Promise<Blob> {
-  const response = await fetch(`/api/tickets?route=ticket-pdf&id=${encodeURIComponent(ticketId)}`, {
-    cache: 'no-store',
-    headers: await getAuthenticatedActorHeaders(),
-  });
-  // O corpo de sucesso é binário: só faz sentido lê-lo como JSON quando deu errado.
-  if (!response.ok) {
-    const payload = await readApiJson(response);
-    throw new ApiError(resolveApiError(payload, 'Falha ao gerar o PDF da OS.'), response.status);
-  }
-  const blob = await response.blob();
-  if (blob.size === 0) {
-    throw new UserFacingError('O PDF da OS voltou vazio. Nada foi baixado.');
-  }
-  return blob;
-}
-
-/**
  * A FILA FILTRADA EM PDF — o que está na tela, no papel.
  *
  * Manda as LINHAS já montadas, e não os filtros: refazer o recorte no servidor seria

@@ -1,11 +1,11 @@
 /**
  * O PAPEL — medidas e tinta comuns aos PDFs do Serv3.
  *
- * Saiu de `reportPdf.js` quando nasceu o segundo documento (`ticketPdf.js`). São
- * dois papéis diferentes — um relatório gerencial e o retrato de uma OS — mas eles
- * saem da mesma casa e chegam juntos na mesa de quem lê. Palette e margem duplicadas
- * divergem no dia em que alguém acerta o dourado de um só, e aí o sistema passa a
- * ter duas identidades sem ninguém ter decidido isso.
+ * Saiu de `reportPdf.js` quando nasceu o segundo documento da casa. São papéis
+ * diferentes — hoje o relatório gerencial e a fila da Gestão — mas saem do mesmo
+ * lugar e chegam juntos na mesa de quem lê. Palette e margem duplicadas divergem no
+ * dia em que alguém acerta o dourado de um só, e aí o sistema passa a ter duas
+ * identidades sem ninguém ter decidido isso.
  *
  * Só constantes: cada documento desenha o que é dele.
  */
@@ -25,9 +25,9 @@ export const BOTTOM = PAGE_H - M - 24; // limite antes do rodapé
  * a reunião de sede, que é para onde ela vai.
  *
  * ⚠️ O PADRÃO É EXATAMENTE O QUE ERA. `ensureSpace` e `drawTable` recebem a
- * geometria como parâmetro opcional; sem ela, usam A4 retrato e os dois documentos
- * antigos desenham igual. Trocar as constantes de módulo por paisagem teria mudado o
- * relatório gerencial e o retrato da OS em silêncio.
+ * geometria como parâmetro opcional; sem ela, usam A4 retrato e o relatório
+ * gerencial, que já estava em produção, desenha igual. Trocar as constantes de
+ * módulo por paisagem o teria mudado em silêncio.
  */
 export const A4_RETRATO = { M, PAGE_W, PAGE_H, CW, BOTTOM };
 

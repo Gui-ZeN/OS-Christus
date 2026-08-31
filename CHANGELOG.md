@@ -3,6 +3,20 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-31 (o retrato de uma OS em PDF saiu — a Lista já cobre o caso)
+
+Com a fila filtrada exportando em PDF, o botão "Estado em PDF" na linha — o
+retrato de uma OS sozinha — deixou de ter razão de existir como ação separada, e
+foi removido: botão na linha, `baixarPdfDaOs` no cliente, a rota
+`?route=ticket-pdf`, `handleTicketPdf` e `_lib/ticketPdf.js` inteiro, e os
+testes (unit + E2E) que abriam esse arquivo.
+
+**O que ficou, e por quê.** `_lib/historicoPublico.js` mantém o outro leitor —
+a página `?tracking=TOKEN` — então o corte de visibilidade continua num lugar
+só. `_lib/pdfPapel.js` segue servindo o Relatório Gerencial e a Lista. Nenhum
+dos dois virou órfão; só o documento que só um botão acionava saiu, junto com
+tudo que só existia para ele.
+
 ## 2026-08-31 (a fila filtrada no papel — e a decisão de ontem estava errada)
 
 Hoje de manhã ficou registrado que exportar seria "uma OS por vez, e não a lista

@@ -2,12 +2,10 @@
  * O QUE DO HISTÓRICO PODE SAIR DA ORGANIZAÇÃO.
  *
  * A regra nasceu para a página `?tracking=TOKEN` — o solicitante lendo a própria OS
- * sem login — e morava dentro de `api/tickets.js`. Saiu daqui porque ganhou um
- * SEGUNDO leitor: o PDF do estado da OS (`_lib/ticketPdf.js`), que é um arquivo e,
- * por isso, circula. Uma vez impresso, ninguém controla para quem ele é encaminhado.
- *
- * Duas cópias da mesma regra divergem em silêncio, e esta decide o que vaza: o corte
- * tem que ser UM só, com um lugar para mudar.
+ * sem login — e morava dentro de `api/tickets.js`. Saiu daqui porque chegou a ganhar
+ * um segundo leitor, o PDF do estado de uma OS — removido depois, mas o motivo de
+ * ter uma regra só continua valendo: duas cópias da mesma decisão divergem em
+ * silêncio, e esta decide o que vaza.
  *
  * ⚠️ O CORTE É POR OPT-IN NO QUE O SISTEMA ESCREVE e por marcador de texto no resto.
  * `visibility` não existia no começo do projeto, então histórico antigo simplesmente

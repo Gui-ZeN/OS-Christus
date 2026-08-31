@@ -4,10 +4,10 @@ import { A4_PAISAGEM, C, drawTable } from './pdfPapel.js';
 /**
  * A FILA DA GESTÃO NO PAPEL — a lista filtrada, como está na tela.
  *
- * É o terceiro documento da casa, e cada um responde a uma pergunta diferente:
- * o Relatório Gerencial responde "como estamos", o retrato responde "onde está ESTA
- * OS", e este responde "o que existe neste recorte" — as 15 do Sul 1 para levar à
- * reunião de sede, a lista de travadas para cobrar o fornecedor.
+ * O outro documento da casa é o Relatório Gerencial, e cada um responde a uma
+ * pergunta diferente: ele responde "como estamos", a partir dos Indicadores; este
+ * responde "o que existe neste recorte" — as 15 do Sul 1 para levar à reunião de
+ * sede, a lista de travadas para cobrar o fornecedor.
  *
  * ⚠️ PAISAGEM, e não retrato. Nove colunas não cabem em 499pt sem picar o assunto, e
  * é o assunto que identifica a OS numa fila — "Solicitando reparo para traves da

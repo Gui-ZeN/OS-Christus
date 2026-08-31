@@ -57,7 +57,6 @@ import { notificationTtlAt } from './_lib/notificationState.js';
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
 // /api/tickets?route=report-pdf, então o front continua igual.
 import { buildReportPdf } from './_lib/reportPdf.js';
-import { buildTicketPdf, montarEstadoDaOs } from './_lib/ticketPdf.js';
 
 // Teto de leituras da subcoleção por PATCH ao deduplicar histórico reenviado pelo
 // cliente. Um PATCH legítimo traz 1-3 entradas novas; o resto é histórico paginado.
@@ -1229,34 +1228,14 @@ async function handleReportPdf(req, res) {
 }
 
 /**
- * O PDF DO ESTADO DE UMA OS — `?route=ticket-pdf&id=OS-0123`.
- *
- * Entra como `?route=` dentro de tickets.js pelo mesmo motivo de `commitments` e do
- * relatório gerencial: a Vercel está no teto de funções do plano, então rota nova não
- * pode virar arquivo novo.
- *
- * ⚠️ O SERVIDOR MONTA O DOCUMENTO, e não o cliente. O relatório gerencial recebe do
- * front os números já computados — ali isso é inofensivo, porque quem lê o PDF é quem
- * já estava olhando a tela que os produziu. Aqui não: o retrato de UMA OS carrega
- * campo por campo do banco, e aceitar do cliente o que imprimir significaria que
- * qualquer requisição autenticada poderia imprimir qualquer OS, inclusive as de um
- * território que a pessoa não pode nem abrir. Por isso a OS é lida aqui, e passa
- * pelo mesmo `canUserAccessTicket` de todas as rotas de OS.
- *
- * A JANELA DO HISTÓRICO é deliberada: as OS migradas guardam a conversa numa
- * subcoleção que pode ter centenas de entradas, e o documento imprime as últimas.
- * Ler a coleção inteira para jogar fora quase tudo custaria leitura por página
- * impressa. O que a janela deixou de fora é contado e dito no papel.
- */
-const JANELA_DO_HISTORICO_NO_PDF = 60;
-
-/**
  * A FILA DA GESTAO NO PAPEL — `?route=lista-pdf` (POST).
  *
- * Entra como `?route=` em tickets.js pelo mesmo motivo dos outros dois: a Vercel
+ * Entra como `?route=` em tickets.js pelo mesmo motivo das outras: a Vercel
  * esta no teto de funcoes do plano.
  *
- * ⚠️ AQUI O CLIENTE MANDA AS LINHAS, ao contrario do retrato de uma OS.
+ * ⚠️ AQUI O CLIENTE MANDA AS LINHAS. Um retrato de UMA OS que existia aqui fazia o
+ * contrario, lendo tudo do banco — foi removido depois, mas a razao de cada escolha
+ * segue valendo para quem decidir o proximo documento desta familia.
  *
  * Nao e desleixo, e a mesma escolha do relatorio gerencial e pela mesma razao: quem
  * le este PDF e quem estava olhando a tela que o produziu. O pedido e literalmente
@@ -1333,56 +1312,6 @@ async function handleListaPdf(req, res) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="gestao-de-os.pdf"');
-    res.setHeader('Content-Length', String(pdf.length));
-    res.end(pdf);
-  } catch (error) {
-    if (res.headersSent) {
-      res.end();
-      return;
-    }
-    sendError(res, error);
-  }
-}
-
-async function handleTicketPdf(req, res) {
-  try {
-    if (req.method !== 'GET') {
-      throw new HttpError(405, 'Método não permitido.');
-    }
-    // O par operacional da tela de Gestão, que é de onde a ação nasce.
-    const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
-
-    const id = String(req.query?.id || '').trim().toUpperCase();
-    if (!id) {
-      throw new HttpError(400, 'Informe a OS.');
-    }
-
-    const db = getAdminDb();
-    const ticketRef = db.collection('tickets').doc(id);
-    const snap = await ticketRef.get();
-    if (!snap.exists) {
-      throw new HttpError(404, 'OS não encontrada.');
-    }
-
-    const ticket = { id: snap.id, ...snap.data() };
-    const territory = user.role === 'Admin'
-      ? { regions: [], sites: [] }
-      : await readTerritoryCatalog(db);
-    if (!canUserAccessTicket(user, ticket, territory.regions, territory.sites)) {
-      throw new HttpError(403, 'Você não tem acesso a esta OS.');
-    }
-
-    const comHistorico = await hydrateTicketHistoryForRead(ticket, ticketRef, {
-      paginated: true,
-      limit: JANELA_DO_HISTORICO_NO_PDF,
-    });
-    const pdf = await buildTicketPdf(
-      montarEstadoDaOs(comHistorico, { agora: new Date(), geradoPor: actorHistoryLabel(user) })
-    );
-
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${id.replace(/[^A-Za-z0-9-]/g, '')}-estado.pdf"`);
     res.setHeader('Content-Length', String(pdf.length));
     res.end(pdf);
   } catch (error) {
@@ -1795,7 +1724,6 @@ export default async function handler(req, res) {
   // quem chegasse depois.
   if (route === 'revisao-pagina') return handleRevisaoSemanal(req, res);
   if (route === 'report-pdf') return handleReportPdf(req, res);
-  if (route === 'ticket-pdf') return handleTicketPdf(req, res);
   if (route === 'lista-pdf') return handleListaPdf(req, res);
   if (route === 'commitments') return handleCommitments(req, res);
   if (route === 'confirm-visit') return handleConfirmVisit(req, res);
