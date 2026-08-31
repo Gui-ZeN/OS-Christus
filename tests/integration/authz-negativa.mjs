@@ -138,6 +138,45 @@ async function main() {
     }
   }
 
+  // --- O PDF do estado da OS respeita o TERRITORIO --------------------------
+  //
+  // O papel ja e conferido (Admin+Gestor, na matriz). O que se afirma aqui e o
+  // segundo portao: uma rota de OS que nasce sem `canUserAccessTicket` entrega, num
+  // arquivo pronto para circular, uma OS que a pessoa nao consegue nem abrir na
+  // tela. Aconteceu neste repositorio — a rota de compromissos nasceu assim.
+  //
+  // O Gestor do E2E esta vinculado a universidade/PQL3. OS-0003 e da regiao-sul.
+  for (const [ticketId, esperado, motivo] of [
+    ['OS-0001', 200, 'OS da sede do Gestor (PQL3)'],
+    ['OS-0003', 403, 'OS de outra regiao (SUL3)'],
+  ]) {
+    const token = await signIn('gestor.e2e@test.local');
+    const res = await fetch(`${API}/api/tickets?route=ticket-pdf&id=${ticketId}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const corpo = Buffer.from(await res.arrayBuffer());
+    check(
+      `PDF de ${ticketId} para o Gestor responde ${esperado} — ${motivo}`,
+      res.status === esperado,
+      `HTTP ${res.status}`
+    );
+    if (esperado === 200) {
+      // O 200 tem que ser um PDF de verdade: `Content-Type` certo com corpo vazio e
+      // exatamente o defeito que esta familia ja produziu.
+      check(
+        `${ticketId} volta um PDF com conteudo`,
+        corpo.subarray(0, 5).toString('latin1') === '%PDF-' && corpo.length > 1000,
+        `${corpo.length} bytes`
+      );
+    } else {
+      check(
+        `a recusa de ${ticketId} nao devolve documento nenhum`,
+        corpo.subarray(0, 5).toString('latin1') !== '%PDF-',
+        corpo.subarray(0, 40).toString('latin1')
+      );
+    }
+  }
+
   const falhas = results.filter(item => !item.pass).length;
   console.log(`\n=== ${results.length - falhas}/${results.length} OK ===`);
   process.exit(falhas > 0 ? 1 : 0);

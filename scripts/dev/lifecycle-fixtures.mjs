@@ -16,6 +16,12 @@ const LIFECYCLE_TICKET_IDS = {
   desistir: 'OS-E2E-DESISTIR',
 };
 
+/** A mensagem que TEM que sair no PDF do estado da OS. */
+export const NOTA_PUBLICA_DA_CONVERSA = 'O teto da recepcao voltou a pingar depois da chuva.';
+
+/** A que NUNCA pode sair: o papel circula, e nota interna nao acompanha. */
+export const NOTA_INTERNA_DA_CONVERSA = 'NOTA INTERNA E2E: combinar o valor por fora com o fornecedor.';
+
 const TICKET_SUBCOLLECTIONS = [
   'approvalCommands',
   'approvalSnapshots',
@@ -134,6 +140,29 @@ export async function seedLifecycleFixtures(
       subject: 'Fixture E2E - parecer tecnico com diretor',
       directorEmail,
       now,
+      // A CONVERSA QUE PROVA O CORTE DO PDF.
+      //
+      // O retrato da OS em PDF (`?route=ticket-pdf`) e um arquivo: ele circula por
+      // e-mail e e impresso. Estas duas entradas existem para o E2E poder afirmar o
+      // corte abrindo o arquivo — uma tem que aparecer no papel, a outra nunca.
+      history: [
+        {
+          id: `history-${LIFECYCLE_TICKET_IDS.parecer}-publica`,
+          type: 'customer',
+          sender: 'Solicitante E2E',
+          time: now,
+          text: NOTA_PUBLICA_DA_CONVERSA,
+          visibility: 'public',
+        },
+        {
+          id: `history-${LIFECYCLE_TICKET_IDS.parecer}-interna`,
+          type: 'internal',
+          sender: 'Gestor E2E (Gestor)',
+          time: now,
+          text: NOTA_INTERNA_DA_CONVERSA,
+          visibility: 'internal',
+        },
+      ],
       // COM diretor: era exatamente este caso que apontava para a etapa aposentada
       // da diretoria e falhava com 409, sem mover nada.
       extra: { ...classificada, directorIds: ['dir-e2e'], directorEmails: [directorEmail] },

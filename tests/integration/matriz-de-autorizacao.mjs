@@ -304,6 +304,10 @@ if (semToken.length === 0) {
     // Admin + Gestor: o par operacional do dia a dia.
     { rota: 'catalog:settings', permitidos: ['Admin', 'Gestor'] },
     { rota: 'mail:dropped-inbound', permitidos: ['Admin', 'Gestor'] },
+    // O PDF do estado da OS nasce na tela de Gestao, que e de Admin+Gestor. O papel
+    // e so o primeiro portao: o territorio da OS e conferido depois, e o corte esta
+    // em `authz-negativa.mjs`.
+    { rota: 'tickets:ticket-pdf', permitidos: ['Admin', 'Gestor'] },
     // Dado financeiro: o solicitante de unidade nao ve contrato nem pagamento.
     { rota: 'procurement:finance', permitidos: ['Admin', 'Gestor'] },
     { rota: 'procurement:', permitidos: ['Admin', 'Gestor', 'Diretor'] },

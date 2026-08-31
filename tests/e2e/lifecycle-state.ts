@@ -2,6 +2,8 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import {
   LIFECYCLE_TICKET_IDS,
+  NOTA_INTERNA_DA_CONVERSA,
+  NOTA_PUBLICA_DA_CONVERSA,
   seedLifecycleFixtures,
 } from '../../scripts/dev/lifecycle-fixtures.mjs';
 
@@ -89,4 +91,4 @@ export async function readTicketRecords(ticketId: string, collection: string) {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Record<string, any>);
 }
 
-export { LIFECYCLE_TICKET_IDS };
+export { LIFECYCLE_TICKET_IDS, NOTA_INTERNA_DA_CONVERSA, NOTA_PUBLICA_DA_CONVERSA };

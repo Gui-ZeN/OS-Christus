@@ -1,5 +1,5 @@
 ﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
-import { expectApiJson, readApiJson, resolveApiError } from './apiClient';
+import { ApiError, expectApiJson, readApiJson, resolveApiError } from './apiClient';
 import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 import { repairMojibake } from '../utils/text';
@@ -459,6 +459,31 @@ export async function postTrackingMessageInApi(trackingToken: string, publicMess
     body: JSON.stringify({ trackingToken, publicMessage }),
   });
   await expectApiJson(response, 'Falha ao enviar mensagem pelo acompanhamento.');
+}
+
+/**
+ * O PDF do estado atual de UMA OS, montado no servidor.
+ *
+ * ⚠️ O TAMANHO ZERO É CONFERIDO AQUI. Um `Blob` vazio vira um download que abre em
+ * branco e não gera erro nenhum — o defeito que já apareceu neste projeto como
+ * "botão que descarta o resultado". Melhor recusar com uma frase do que entregar um
+ * arquivo que só decepciona quando alguém tenta abrir.
+ */
+export async function baixarPdfDaOs(ticketId: string): Promise<Blob> {
+  const response = await fetch(`/api/tickets?route=ticket-pdf&id=${encodeURIComponent(ticketId)}`, {
+    cache: 'no-store',
+    headers: await getAuthenticatedActorHeaders(),
+  });
+  // O corpo de sucesso é binário: só faz sentido lê-lo como JSON quando deu errado.
+  if (!response.ok) {
+    const payload = await readApiJson(response);
+    throw new ApiError(resolveApiError(payload, 'Falha ao gerar o PDF da OS.'), response.status);
+  }
+  const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new UserFacingError('O PDF da OS voltou vazio. Nada foi baixado.');
+  }
+  return blob;
 }
 
 export async function deleteTicketInApi(id: string) {

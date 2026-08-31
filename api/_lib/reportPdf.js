@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { C, CW, M, PAGE_H, drawTable, ensureSpace, sectionHeader } from './pdfPapel.js';
 
 /**
  * Gera o Relatório Gerencial de OS em PDF no servidor (pdfkit, sem browser) —
@@ -6,81 +7,11 @@ import PDFDocument from 'pdfkit';
  * computa (ver KpiView) e devolve um Buffer. Testável localmente (Node).
  */
 
-const M = 48; // margem
-const PAGE_W = 595.28; // A4
-const PAGE_H = 841.89;
-const CW = PAGE_W - M * 2; // largura de conteúdo
-const BOTTOM = PAGE_H - M - 24; // limite antes do rodapé
-
-const C = {
-  ink: '#241f1b',
-  body: '#4a4038',
-  sub: '#8a7f74',
-  gold: '#a67c3d',
-  goldDeep: '#7d5c28',
-  green: '#4a7a5c',
-  line: '#e5ddd0',
-  soft: '#faf7f2',
-};
-
 function niceCeil(v) {
   if (v <= 5) return 5;
   const p = Math.pow(10, Math.floor(Math.log10(v)));
   for (const m of [1, 2, 2.5, 5, 10]) if (v <= m * p) return m * p;
   return 10 * p;
-}
-
-function ensureSpace(doc, y, needed) {
-  if (y + needed <= BOTTOM) return y;
-  doc.addPage();
-  return M;
-}
-
-function sectionHeader(doc, y, title) {
-  y = ensureSpace(doc, y, 60);
-  doc.rect(M, y + 3, 16, 2.5).fill(C.gold);
-  doc.font('Times-Bold').fontSize(13).fillColor(C.ink).text(title, M + 24, y - 1, { lineBreak: false });
-  y += 16;
-  doc.moveTo(M, y).lineTo(M + CW, y).lineWidth(0.8).strokeColor(C.line).stroke();
-  return y + 12;
-}
-
-function drawTable(doc, x, y, w, cols, rows) {
-  const colW = cols.map(c => (c.w != null ? c.w : (w - cols.reduce((s, cc) => s + (cc.w || 0), 0)) / cols.filter(cc => cc.w == null).length));
-  const drawHead = yy => {
-    doc.font('Helvetica-Bold').fontSize(8);
-    let cx = x;
-    cols.forEach((c, i) => {
-      doc.fillColor(C.goldDeep).text(c.label.toUpperCase(), cx + 6, yy, { width: colW[i] - 12, align: c.align || 'left', lineBreak: false, characterSpacing: 0.3 });
-      cx += colW[i];
-    });
-    yy += 13;
-    doc.moveTo(x, yy).lineTo(x + w, yy).lineWidth(1.2).strokeColor(C.goldDeep).stroke();
-    return yy + 2;
-  };
-  y = drawHead(y);
-  if (rows.length === 0) {
-    doc.font('Helvetica-Oblique').fontSize(9).fillColor(C.sub).text('Sem dados no período/filtro.', x + 6, y + 4);
-    return y + 18;
-  }
-  const rowH = 15;
-  rows.forEach((row, ri) => {
-    if (y + rowH > BOTTOM) {
-      doc.addPage();
-      y = drawHead(M);
-    }
-    if (ri % 2) doc.rect(x, y, w, rowH).fill(C.soft);
-    let cx = x;
-    cols.forEach((c, i) => {
-      const isFirst = i === 0;
-      doc.font(isFirst ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(isFirst ? C.ink : C.body)
-        .text(String(row[i]), cx + 6, y + 3.5, { width: colW[i] - 12, align: c.align || 'left', lineBreak: false });
-      cx += colW[i];
-    });
-    y += rowH;
-    doc.moveTo(x, y).lineTo(x + w, y).lineWidth(0.5).strokeColor(C.line).stroke();
-  });
-  return y;
 }
 
 function drawBarChart(doc, x, y, w, h, categories, series, legend) {

@@ -29,6 +29,7 @@ import {
 import { FieldPath } from 'firebase-admin/firestore';
 import { hasWaterIssueSignal } from './_lib/inboundBody.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog, readTicketsChangedSince } from './_lib/ticketAccess.js';
+import { isPublicTrackingHistoryEntry } from './_lib/historicoPublico.js';
 import {
   boundEmbeddedHistory,
   copyTicketHistoryToSubcollection,
@@ -55,6 +56,7 @@ import { notificationTtlAt } from './_lib/notificationState.js';
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
 // /api/tickets?route=report-pdf, então o front continua igual.
 import { buildReportPdf } from './_lib/reportPdf.js';
+import { buildTicketPdf, montarEstadoDaOs } from './_lib/ticketPdf.js';
 
 // Teto de leituras da subcoleção por PATCH ao deduplicar histórico reenviado pelo
 // cliente. Um PATCH legítimo traz 1-3 entradas novas; o resto é histórico paginado.
@@ -177,74 +179,6 @@ function buildPublicTrackingHistoryEntry(sender, approved) {
       : 'Solicitante reprovou a entrega e devolveu a OS para execução.',
     visibility: 'public',
   };
-}
-
-function normalizeHistoryText(value) {
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-const PUBLIC_HISTORY_SYSTEM_MARKERS = [
-  'solicitacao registrada via formulario publico',
-  'status atualizado de',
-  'triagem concluida',
-  'parecer consolidado e enviado para aprovacao da diretoria',
-  'solucao tecnica aprovada',
-  'orcamentos consolidados e enviados para aprovacao da diretoria',
-  'orcamento aprovado',
-  'contrato anexado pelo gestor',
-  'contrato aprovado pela diretoria',
-  'acoes preliminares concluidas',
-  'execucao iniciada',
-  'inicio da execucao',
-  'execucao concluida',
-  'os encerrada',
-  'os cancelada',
-];
-
-const PUBLIC_HISTORY_SENSITIVE_MARKERS = [
-  'orcamento',
-  'contrato',
-  'aditivo',
-  'pagamento',
-  'parcela',
-  'r$',
-];
-
-const PUBLIC_HISTORY_INTERNAL_MARKERS = [
-  'parecer consolidado e enviado para aprovacao da diretoria',
-  'painel da os atualizado',
-];
-
-function isPublicTrackingHistoryEntry(item) {
-  if (!item || typeof item !== 'object') return false;
-  const text = String(item.text || '').trim();
-  if (!text) return false;
-
-  const type = String(item.type || '').trim().toLowerCase();
-  const visibility = String(item.visibility || '').trim().toLowerCase();
-  if (type === 'customer') return true;
-  if (type === 'tech') {
-    if (visibility === 'internal') return false;
-
-    const normalizedText = normalizeHistoryText(text);
-    const hasStatusMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
-    if (hasStatusMarker) return true;
-
-    if (visibility === 'public') return true;
-    const hasSensitiveMarker = PUBLIC_HISTORY_SENSITIVE_MARKERS.some(marker => normalizedText.includes(marker));
-    const hasInternalMarker = PUBLIC_HISTORY_INTERNAL_MARKERS.some(marker => normalizedText.includes(marker));
-    return !hasSensitiveMarker && !hasInternalMarker;
-  }
-  if (type !== 'system') return false;
-  if (visibility === 'internal') return false;
-  if (visibility === 'public') return true;
-
-  const normalizedText = normalizeHistoryText(text);
-  const hasPublicMarker = PUBLIC_HISTORY_SYSTEM_MARKERS.some(marker => normalizedText.includes(marker));
-  return hasPublicMarker;
 }
 
 // Campos permitidos em cada entrada de histórico pública (sem anexos/URLs assinadas).
@@ -1294,6 +1228,78 @@ async function handleReportPdf(req, res) {
 }
 
 /**
+ * O PDF DO ESTADO DE UMA OS — `?route=ticket-pdf&id=OS-0123`.
+ *
+ * Entra como `?route=` dentro de tickets.js pelo mesmo motivo de `commitments` e do
+ * relatório gerencial: a Vercel está no teto de funções do plano, então rota nova não
+ * pode virar arquivo novo.
+ *
+ * ⚠️ O SERVIDOR MONTA O DOCUMENTO, e não o cliente. O relatório gerencial recebe do
+ * front os números já computados — ali isso é inofensivo, porque quem lê o PDF é quem
+ * já estava olhando a tela que os produziu. Aqui não: o retrato de UMA OS carrega
+ * campo por campo do banco, e aceitar do cliente o que imprimir significaria que
+ * qualquer requisição autenticada poderia imprimir qualquer OS, inclusive as de um
+ * território que a pessoa não pode nem abrir. Por isso a OS é lida aqui, e passa
+ * pelo mesmo `canUserAccessTicket` de todas as rotas de OS.
+ *
+ * A JANELA DO HISTÓRICO é deliberada: as OS migradas guardam a conversa numa
+ * subcoleção que pode ter centenas de entradas, e o documento imprime as últimas.
+ * Ler a coleção inteira para jogar fora quase tudo custaria leitura por página
+ * impressa. O que a janela deixou de fora é contado e dito no papel.
+ */
+const JANELA_DO_HISTORICO_NO_PDF = 60;
+
+async function handleTicketPdf(req, res) {
+  try {
+    if (req.method !== 'GET') {
+      throw new HttpError(405, 'Método não permitido.');
+    }
+    // O par operacional da tela de Gestão, que é de onde a ação nasce.
+    const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
+
+    const id = String(req.query?.id || '').trim().toUpperCase();
+    if (!id) {
+      throw new HttpError(400, 'Informe a OS.');
+    }
+
+    const db = getAdminDb();
+    const ticketRef = db.collection('tickets').doc(id);
+    const snap = await ticketRef.get();
+    if (!snap.exists) {
+      throw new HttpError(404, 'OS não encontrada.');
+    }
+
+    const ticket = { id: snap.id, ...snap.data() };
+    const territory = user.role === 'Admin'
+      ? { regions: [], sites: [] }
+      : await readTerritoryCatalog(db);
+    if (!canUserAccessTicket(user, ticket, territory.regions, territory.sites)) {
+      throw new HttpError(403, 'Você não tem acesso a esta OS.');
+    }
+
+    const comHistorico = await hydrateTicketHistoryForRead(ticket, ticketRef, {
+      paginated: true,
+      limit: JANELA_DO_HISTORICO_NO_PDF,
+    });
+    const pdf = await buildTicketPdf(
+      montarEstadoDaOs(comHistorico, { agora: new Date(), geradoPor: actorHistoryLabel(user) })
+    );
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${id.replace(/[^A-Za-z0-9-]/g, '')}-estado.pdf"`);
+    res.setHeader('Content-Length', String(pdf.length));
+    res.end(pdf);
+  } catch (error) {
+    if (res.headersSent) {
+      res.end();
+      return;
+    }
+    sendError(res, error);
+  }
+}
+
+/**
  * A CONFIRMAÇÃO DA SEDE, sem login.
  *
  * Entra como `?route=confirm-visit` dentro de tickets.js pelo mesmo motivo de
@@ -1694,6 +1700,7 @@ export default async function handler(req, res) {
   // quem chegasse depois.
   if (route === 'revisao-pagina') return handleRevisaoSemanal(req, res);
   if (route === 'report-pdf') return handleReportPdf(req, res);
+  if (route === 'ticket-pdf') return handleTicketPdf(req, res);
   if (route === 'commitments') return handleCommitments(req, res);
   if (route === 'confirm-visit') return handleConfirmVisit(req, res);
   if (route === 'rebuild-attention') return handleRebuildAttention(req, res);
