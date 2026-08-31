@@ -43,16 +43,6 @@ export function isTicketConversationSubject(ticketId, subject) {
   return Boolean(normalizedTicketId && normalizedSubject.startsWith(`${normalizedTicketId} - `));
 }
 
-export function buildThreadRootMessageId(ticketId) {
-  const normalizedTicketId = String(ticketId || 'ticket')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return `<os-thread-${normalizedTicketId || 'ticket'}@serv3>`;
-}
-
 // Id determinístico da entrada de histórico do inbound: derivado do messageId para
 // que reprocessar a mesma mensagem não duplique a entrada.
 export function buildInboundHistoryId(messageId, fallbackKey) {
@@ -81,3 +71,27 @@ export function parseMessageIdCandidates(inReplyTo, referencesRaw) {
     .forEach(token => candidates.add(token));
   return [...candidates];
 }
+
+/**
+ * Corta a corrente de References SEM perder a raiz.
+ *
+ * ⚠️ `.slice(-20)` sozinho fazia o contrário do que o RFC pede. A raiz é a PRIMEIRA
+ * da lista e `slice(-20)` guarda as ULTIMAS: passando de 20 mensagens, a ancora da
+ * conversa era a primeira coisa a cair. Numa OS longa o encadeamento se rompia
+ * exatamente quando a conversa mais importava — e sem erro nenhum, porque
+ * referencia faltando nao falha, so deixa de agrupar.
+ *
+ * O RFC 5322 §3.6.4 manda preservar o inicio da cadeia e cortar o MEIO: a raiz
+ * ancora a conversa inteira, e as ultimas mensagens sao as que os clientes usam
+ * para pendurar a resposta. O meio e o descartavel.
+ *
+ * O teto existe porque `References` cresce sem limite e cabecalho gigante e
+ * rejeitado por servidor.
+ */
+export function limitarReferencias(referencias, teto = 20) {
+  const lista = [...new Set((Array.isArray(referencias) ? referencias : []).filter(Boolean))];
+  if (lista.length <= teto) return lista;
+  // A raiz, e depois as mais RECENTES — o meio e que sai.
+  return [lista[0], ...lista.slice(-(teto - 1))];
+}
+

@@ -3,11 +3,11 @@ import {
   buildConversationSubject,
   buildInboundHistoryId,
   buildReplySubject,
-  buildThreadRootMessageId,
   escapeHtml,
   isTicketConversationSubject,
   normalizeMessageIdToken,
   parseMessageIdCandidates,
+  limitarReferencias,
 } from '../../api/_lib/emailThreading.js';
 
 describe('buildConversationSubject', () => {
@@ -70,13 +70,6 @@ describe('Message-Id', () => {
     expect(normalizeMessageIdToken('  ')).toBeNull();
   });
 
-  it('raiz da thread é estável e segura para a OS', () => {
-    expect(buildThreadRootMessageId('OS-0100')).toBe('<os-thread-os-0100@serv3>');
-    expect(buildThreadRootMessageId('OS-0100')).toBe(buildThreadRootMessageId('OS-0100'));
-    // caracteres estranhos não vazam para o header
-    expect(buildThreadRootMessageId('OS/01 00')).toBe('<os-thread-os-01-00@serv3>');
-  });
-
   it('candidatos combinam In-Reply-To e References sem repetir', () => {
     const candidatos = parseMessageIdCandidates('<a@x>', '<a@x> <b@x>  <c@x>');
     expect(candidatos).toEqual(['<a@x>', '<b@x>', '<c@x>']);
@@ -95,4 +88,52 @@ describe('HTML seguro', () => {
     expect(escapeHtml('<b>"x"&y</b>')).toBe('&lt;b&gt;&quot;x&quot;&amp;y&lt;/b&gt;');
   });
 
+});
+
+describe('o corte da corrente não pode derrubar a raiz', () => {
+  /**
+   * ⚠️ O DEFEITO: era `.slice(-20)`, que guarda as ÚLTIMAS 20 — e a raiz é a
+   * PRIMEIRA da lista. Passando de 20 mensagens, a âncora da conversa era a
+   * primeira coisa a cair, e o encadeamento se rompia numa OS longa: exatamente
+   * quando a conversa mais importa.
+   *
+   * Não dava erro nenhum. Referência faltando não falha — só deixa de agrupar.
+   */
+  const raiz = '<raiz@real>';
+  const corrente = (quantas: number) =>
+    Array.from({ length: quantas }, (_, i) => `<m${i}@x>`);
+
+  it('a raiz sobrevive ao corte', () => {
+    const cortada = limitarReferencias([raiz, ...corrente(30)]);
+    expect(cortada[0]).toBe(raiz);
+  });
+
+  it('e as mais RECENTES também — o meio é que sai', () => {
+    const cortada = limitarReferencias([raiz, ...corrente(30)]);
+    expect(cortada).toHaveLength(20);
+    expect(cortada[cortada.length - 1]).toBe('<m29@x>');
+    // O meio foi descartado: é o que o RFC manda cortar.
+    expect(cortada).not.toContain('<m5@x>');
+  });
+
+  it('corrente curta passa inteira', () => {
+    const curta = [raiz, '<a@x>', '<b@x>'];
+    expect(limitarReferencias(curta)).toEqual(curta);
+  });
+
+  it('exatamente no teto não corta nada', () => {
+    const noLimite = [raiz, ...corrente(19)];
+    expect(limitarReferencias(noLimite)).toHaveLength(20);
+    expect(limitarReferencias(noLimite)[0]).toBe(raiz);
+  });
+
+  it('repetido vira um só, e a ordem da primeira aparição manda', () => {
+    expect(limitarReferencias([raiz, '<a@x>', raiz, '<b@x>'])).toEqual([raiz, '<a@x>', '<b@x>']);
+  });
+
+  it('vazio, nulo e não-lista não explodem', () => {
+    expect(limitarReferencias([])).toEqual([]);
+    expect(limitarReferencias(null as never)).toEqual([]);
+    expect(limitarReferencias([null, undefined, ''] as never)).toEqual([]);
+  });
 });

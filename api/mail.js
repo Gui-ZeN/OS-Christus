@@ -38,8 +38,8 @@ import {
   buildConversationSubject,
   buildInboundHistoryId,
   buildReplySubject,
-  buildThreadRootMessageId,
   isTicketConversationSubject,
+  limitarReferencias,
   normalizeMessageIdToken,
   parseMessageIdCandidates,
 } from './_lib/emailThreading.js';
@@ -995,9 +995,8 @@ async function processGmailInboundMessage(db, msg, source) {
     const references = String(msg.references || '')
       .split(/\s+/)
       .map(value => value.trim())
-      .filter(Boolean)
-      .slice(-20);
-    const mergedReferences = [...new Set([...references, msg.inReplyTo, messageId].filter(Boolean))].slice(-20);
+      .filter(Boolean);
+    const mergedReferences = limitarReferencias([...references, msg.inReplyTo, messageId]);
     const participants = [fromEmail, toEmail, ...ccRecipients].filter(Boolean);
 
     await threadRef.set(
@@ -1904,8 +1903,20 @@ async function handleSend(req, res) {
       throw new Error('Campo obrigatório: toEmail (ou thread existente com destinatário).');
     }
 
+    // ⚠️ A RAIZ DA CONVERSA É UMA MENSAGEM QUE EXISTE — não um id inventado.
+    //
+    // Aqui havia um `|| buildThreadRootMessageId(threadDocId)`, que fabricava
+    // `<os-thread-os-0100@serv3>` quando a thread ainda não tinha raiz. Esse id
+    // NUNCA saía como `Message-Id` de nada (quem gera o Message-Id real é o
+    // `gmailSend`), mas era gravado como `rootMessageId` e depois virava o
+    // `In-Reply-To` de TODA resposta seguinte — uma referência para uma mensagem
+    // inexistente, que nenhum cliente de e-mail consegue casar. Só acontecia na OS
+    // aberta pela WEB: a aberta por e-mail já nasce com a raiz real do solicitante
+    // (ver a gravação do inbound, com `rootMessageId: messageId`).
+    //
+    // Sem raiz gravada, a raiz é ESTA mensagem — e ela só é conhecida depois do
+    // envio, por isso `effectiveRootMessageId` (lá embaixo) é quem decide.
     const storedRootMessageId = normalizeMessageIdToken(thread?.rootMessageId);
-    const rootMessageId = storedRootMessageId || buildThreadRootMessageId(threadDocId);
     const hasRequesterThreadContext = Boolean(storedRootMessageId || thread?.lastMessageId);
     const reuseThread = shouldUseManagedThread && Boolean(thread?.lastMessageId);
     const priorMessageId =
@@ -1914,7 +1925,7 @@ async function handleSend(req, res) {
         : null;
     const references = shouldUseManagedThread && Array.isArray(thread?.references) ? thread.references : [];
     const nextReferences = shouldUseManagedThread && hasRequesterThreadContext
-      ? [...new Set([...references, rootMessageId, priorMessageId].filter(Boolean))].slice(-20)
+      ? limitarReferencias([...references, storedRootMessageId, priorMessageId])
       : [];
 
     const _headers = {
@@ -2023,8 +2034,25 @@ async function handleSend(req, res) {
       });
       outboxDeliveryConfirmed = true;
     }
-    const effectiveRootMessageId = storedRootMessageId || (recoveredThread ? messageId : rootMessageId);
-    const mergedReferences = [...new Set([effectiveRootMessageId, ...effectiveReferences, messageId].filter(Boolean))].slice(-20);
+    const effectiveRootMessageId = storedRootMessageId || messageId;
+    // ⚠️ A CORRENTE GRAVADA NÃO PODE ENCOLHER.
+    //
+    // `effectiveReferences` é o que FOI no cabeçalho desta mensagem — e nos dois
+    // caminhos de recuperação (`sendWithGmailThreadFallback` no 404 e o retry do
+    // bloqueio genérico) ele volta VAZIO, porque o reenvio sai de propósito sem
+    // contexto de thread. Gravar só ele apagava do doc os Message-Id de todas as
+    // mensagens anteriores: a próxima resposta então referenciava apenas a que
+    // acabou de sair, e a conversa se partia em duas para sempre — em silêncio,
+    // com a rota devolvendo `ok: true`.
+    //
+    // Guardando também o que a thread já tinha (`references`), a mensagem seguinte
+    // volta a citar a corrente inteira e recostura o que a recuperação separou.
+    const mergedReferences = limitarReferencias([
+      effectiveRootMessageId,
+      ...references,
+      ...effectiveReferences,
+      messageId,
+    ]);
     const persistedHeaders = {
       'X-OS-Ticket-ID': ticketId,
       ...(trackingToken ? { 'X-OS-Tracking-Token': trackingToken } : {}),
@@ -2042,7 +2070,12 @@ async function handleSend(req, res) {
           ...(ccEmail ? { ccEmail } : {}),
           rootMessageId: effectiveRootMessageId,
           lastMessageId: messageId,
-          gmailThreadId: (reuseThread ? thread?.gmailThreadId : null) || sendResult.threadId || null,
+          // `recoveredThread` significa que o Gmail respondeu "entidade não
+          // encontrada" para o `gmailThreadId` guardado. Mantê-lo faria o MESMO 404
+          // se repetir em todo envio seguinte, e cada um sairia solto. O id novo,
+          // do reenvio que deu certo, é o que existe.
+          gmailThreadId:
+            (reuseThread && !recoveredThread ? thread?.gmailThreadId : null) || sendResult.threadId || null,
           references: mergedReferences,
           lastDirection: 'outbound',
           lastOutboundAt: now,
