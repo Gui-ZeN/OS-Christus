@@ -3,6 +3,155 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-31 (o motivo digitado saía junto com o aviso de etapa)
+
+O PDF do estado da OS reusa o corte de visibilidade da página pública — decisão
+certa, uma regra só. Mas ao revisar esse corte apareceu um furo **anterior ao PDF**,
+que o PDF apenas fez custar mais caro: página se fecha, arquivo é encaminhado e
+impresso.
+
+**O defeito.** Achar um marcador público — `status atualizado de`, `triagem
+concluída`, `OS cancelada` — devolvia "pode sair" na hora, **antes** de olhar os
+marcadores sensíveis. Bastava a frase conter um deles para o resto sair junto.
+
+**E era alcançável sem malícia.** A Caixa de Entrada gravava o aceite como uma
+frase só: `Triagem concluída. … Motivo da transição: <texto digitado>` — e sem
+campo `visibility`. Quem escrevesse um valor no motivo mandava esse valor para a
+página do solicitante. O cancelamento tinha a mesma forma.
+
+**Não bastava procurar "orçamento" na frase inteira.** Palavra sensível aparece
+legitimamente em dois lugares que não são vazamento: no próprio marcador
+(`Orçamento aprovado`, `Contrato anexado pelo gestor` — que são justamente o aviso
+que o solicitante precisa receber) e no **nome da etapa**, que o servidor escreve
+entre aspas (`Status atualizado de "Aguardando Orçamento"`). O que vaza é o texto
+**livre** colado ao lado. Então a busca por sensível passou a acontecer no que
+sobra depois de remover marcador e nome de etapa.
+
+**O conserto de verdade é na origem.** O filtro é a rede; o chão é a Caixa de
+Entrada parar de misturar. Aviso e motivo viraram **duas entradas** — o solicitante
+continua sabendo que a OS foi aceita ou cancelada, e o texto digitado nasce marcado
+`internal`, sem depender de o filtro adivinhar o que veio de um teclado. Outras
+cinco entradas escritas pelo cliente (painel, duplicação, reabertura, documentos do
+Financeiro) ganharam o rótulo explícito que já era o comportamento efetivo.
+
+**O histórico já gravado tem cura.** `scripts/infra/separar-motivo-do-aviso.mjs`,
+ensaio por padrão, separa as duas formas antigas. Marcar a frase inteira como
+interna seria uma linha — e tiraria do solicitante, retroativamente, o aviso de que
+a OS foi aceita ou cancelada. Separar preserva o aviso e recolhe só o que veio de um
+teclado. O aviso herda id, autor e instante: reparo não reescreve autoria. E é
+idempotente — entrada que já tem `visibility` não é tocada.
+
+Onde cortar não é regex improvisada dentro do script: mora em módulo puro, com
+treze testes, metade deles sobre o que **não** pode casar (`OS reaberta…`,
+`Transição manual…`, `Motivo da transição:` solto). Um reparo que roda uma vez sobre
+meses de histórico não tem segunda chance — separador guloso é pior que o vazamento
+que ele conserta, porque vazamento se fecha e texto mutilado não volta.
+
+**A regra que decide o que sai da organização não tinha um teste só.** Agora tem
+onze, escritos com os dois lados lado a lado de propósito: apertar o filtro é
+fácil, apertar demais cala a página do solicitante. Antes de aceitar o verde, a
+lógica antiga foi restaurada e rodada — falharam exatamente os casos de vazamento,
+e nenhum dos casos que precisam continuar saindo.
+
+## 2026-08-31 (o estado da OS em PDF, direto da tela de Gestão)
+
+A tela de Gestão já resolve conversa, etapa e responsável sem abrir a OS. Faltava
+a quarta pergunta da fila: *"preciso desta OS no papel"* — para levar a campo, à
+reunião de sede ou à conversa com o fornecedor. Agora cada linha tem **Estado em
+PDF**: um retrato do que está registrado no instante do clique, não um relatório
+histórico.
+
+**Três decisões, todas tomadas por escrito antes de codar.**
+
+**Uma OS por vez, não a lista filtrada.** "Estado atual" é singular, e exportar o
+painel já existe: o Relatório Gerencial sai da tela de Indicadores. Duas ações com
+o mesmo nome em telas diferentes viram a pergunta "qual das duas eu uso".
+
+**Montado no servidor** (`/api/tickets?route=ticket-pdf&id=OS-XXXX`), não a partir
+do que a tabela tem em mãos. Dois motivos, e nenhum é preferência: a listagem
+**não carrega o histórico** das OS migradas para subcoleção (sairia com a conversa
+vazia, sem erro nenhum — o defeito que este projeto já pegou como "job verde que
+não entrega"); e um documento montado pelo cliente aceitaria imprimir qualquer OS,
+inclusive de território que a pessoa não consegue abrir. A rota confere papel
+(Admin/Gestor, os mesmos da tela) e depois `canUserAccessTicket`, como toda rota de
+OS — a de compromissos nasceu sem esse segundo portão, e o registro está aqui.
+
+**O que "estado atual" inclui**, campo a campo: identificação e classificação
+(solicitante, abertura, tipo, região, sede, setor, local, macroserviço, serviço,
+equipe, prioridade, água), etapa atual com desde quando, responsável, os **seis
+marcos** da régua da coordenação, próxima ação, parada declarada, execução, ações
+preliminares, encerramento, garantia, a conversa e a lista de anexos.
+
+**O corte de visibilidade é a parte que não é layout.** O PDF é um arquivo: ele
+circula por e-mail e é impresso, e depois disso ninguém controla quem lê. Então a
+conversa passa pelo **mesmo filtro da página pública de acompanhamento** — a regra
+saiu de dentro de `api/tickets.js` para `_lib/historicoPublico.js` e agora tem dois
+leitores em vez de duas cópias. Nota interna não sai; menção a orçamento, contrato,
+parcela ou valor não sai; `releasedPercent` e cotações não entram (o percentual
+**físico** da execução entra). Anexo entra como **nome e data, nunca como link**:
+as URLs do Cloud Storage são assinadas e expiram, e link morto num documento
+impresso parece arquivo perdido. E o corte é **declarado no papel**, com contagem —
+omissão calada se lê como ausência.
+
+**Verificação: abrindo o arquivo.** Um PDF vazio baixa igual a um PDF certo, e
+nenhum dos dois gera erro. `tests/pdfTexto.ts` infla os streams e devolve o texto
+de dentro do documento; o E2E novo (`exportar-pdf-da-os.e2e.spec.ts`) clica na
+linha da Gestão, pega o download e **lê o arquivo** — afirma que a OS, a etapa, a
+sede e a mensagem pública estão lá, e que a nota interna não está. No unitário
+(`ticketPdf.test.ts`, 10 casos) a mesma prova sem browser, mais a sincronia dos
+seis marcos e dos motivos de parada com a tela. Na integração, `authz-negativa`
+afirma o território: o Gestor de PQL3 recebe o PDF de OS-0001 e **403** em OS-0003,
+que é de outra região.
+
+**Também**: `_lib/pdfPapel.js` passa a guardar margem, paleta e as primitivas de
+desenho que os dois PDFs compartilham — palette duplicada divergiria no dia em que
+alguém acertasse o dourado de um lado só.
+
+## 2026-08-31 (a corrente de e-mail apontava para uma mensagem que não existia)
+
+O relato foi cru — *"os e-mails não estão ficando na mesma corrente"*. Antes de
+mexer em qualquer coisa, reconstruí a cadeia de uma OS rodando o caminho de
+produção contra o emulador, com o transporte do Gmail instrumentado para
+registrar o MIME que sai no fio. O que apareceu foram **três defeitos**, nenhum
+deles capaz de gerar erro: as três rotas respondiam `ok: true`.
+
+**A raiz da conversa era um id inventado.** Quando a thread ainda não tinha raiz,
+`handleSend` fabricava `<os-thread-os-0100@serv3>` e gravava isso como
+`rootMessageId`. Esse id **nunca saiu como `Message-Id` de mensagem nenhuma** —
+quem gera o Message-Id real é o `gmailSend`, com outro formato — e depois virava
+o `In-Reply-To` de **toda** resposta seguinte. Referência para mensagem
+inexistente não encadeia nada. Só acontecia na OS aberta **pela web**: a aberta
+por e-mail já nasce com a raiz real do solicitante, gravada pelo inbound. A raiz
+agora é o Message-Id que de fato saiu, e o `buildThreadRootMessageId` foi
+removido — junto com o teste que só afirmava o formato do id fantasma.
+
+**O envio recusado apagava a corrente já gravada.** Nos dois caminhos de
+recuperação (o 404 "entidade não encontrada" do `threadId` e o retry do bloqueio
+genérico), o reenvio sai de propósito sem contexto de thread — isso está certo, a
+alternativa é não entregar nada. O erro era gravar só o que foi nesse cabeçalho:
+o doc esquecia os Message-Id de todas as mensagens anteriores, e a **próxima**
+resposta nascia órfã também. A conversa partia em duas, para sempre. Agora o que
+a thread já tinha é preservado, e a mensagem seguinte recostura o que a
+recuperação separou.
+
+**A thread recusada pelo Gmail continuava sendo reaproveitada.** Depois de um
+404 no `gmailThreadId` guardado, ele era mantido — então o mesmo 404 se repetia
+em todo envio seguinte e cada um saía solto. Passa a adotar o id do reenvio que
+deu certo.
+
+**Teste**: `tests/integration/corrente-de-email.mjs` (novo, na suíte). Reconstrói
+a cadeia lado a lado — `emailThreads`, `emailEvents`, `history[]` e os cabeçalhos
+de cada mensagem — e afirma a regra do RFC 5322 §3.6.4: todo Message-Id citado
+em `In-Reply-To`/`References` tem que ser de uma mensagem que existe. Sem a
+correção: 7 de 9 falham. Cobre também o envio recusado. Era a lacuna que deixou
+isto passar: `emailThreading.test.ts` cobre os helpers puros, e ninguém
+verificava o que decide o agrupamento na caixa de quem recebe.
+
+**Fica em aberto** (relatado, não corrigido): as OS já abertas mantêm a raiz
+fantasma gravada — a correção vale para conversa nova; e o `In-Reply-To` aponta
+sempre para a raiz, nunca para a mensagem anterior, o que é fora do RFC mas não
+desagrupa nada.
+
 ## 2026-08-26 (a apresentação virou o argumento, e não a lista de ajustes)
 
 Peça para mostrar aos usuários. Nada disto é código do sistema — mora fora do

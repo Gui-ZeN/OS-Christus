@@ -583,6 +583,7 @@ export function FinanceView() {
             sender: 'Financeiro',
             time: new Date(),
             text: `Documento de encerramento anexado: ${uploaded.name}.`,
+            visibility: 'internal',
           },
         ],
       });
@@ -618,6 +619,7 @@ export function FinanceView() {
             sender: 'Financeiro',
             time: new Date(),
             text: `Documento de encerramento removido: ${targetDocument.name}.`,
+            visibility: 'internal',
           },
         ],
       });

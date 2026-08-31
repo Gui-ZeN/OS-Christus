@@ -880,6 +880,7 @@ export function InboxView() {
             sender: displayActorLabel,
             time: new Date(),
             text: `Painel da OS atualizado: ${changes.join(' · ')}.`,
+            visibility: 'internal',
           },
         ],
       }, undefined);
@@ -944,13 +945,34 @@ export function InboxView() {
         directorEmails: selectedDirectors.map(director => director.email).filter(Boolean),
         history: [
           ...activeTicket.history,
+          /**
+           * ⚠️ O AVISO E O MOTIVO SÃO DUAS ENTRADAS, DE PROPÓSITO.
+           *
+           * Eram uma frase só, e essa frase começava com "Triagem concluída" — um
+           * marcador que o filtro público reconhece. O motivo DIGITADO ia junto para
+           * a página do solicitante, e agora iria também para o PDF, que circula.
+           *
+           * Separar resolve os dois lados sem escolher entre eles: o solicitante
+           * continua sabendo que a OS foi aceita, e o que alguém escreveu à mão fica
+           * marcado como interno na origem, não dependendo de o filtro adivinhar.
+           */
           {
             id: crypto.randomUUID(),
             type: 'system',
             sender: displayActorLabel,
             time: new Date(),
-            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, local ${nextSector}${nextLocation ? `, detalhe do local ${nextLocation}` : ''} e encaminhada para ${target}.${statusReason ? ` Motivo da transição: ${statusReason}.` : ''}`,
+            text: `Triagem concluída. OS aceita com prioridade ${ticketPriority}, local ${nextSector}${nextLocation ? `, detalhe do local ${nextLocation}` : ''} e encaminhada para ${target}.`,
           },
+          ...(statusReason
+            ? [{
+                id: crypto.randomUUID(),
+                type: 'system' as const,
+                sender: displayActorLabel,
+                time: new Date(),
+                text: `Motivo da transição: ${statusReason}.`,
+                visibility: 'internal' as const,
+              }]
+            : []),
         ],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
 
@@ -1653,6 +1675,7 @@ export function InboxView() {
             sender: displayActorLabel,
             time: now,
             text: `OS duplicada para ${createdTicket.id}.`,
+            visibility: 'internal',
           },
         ],
       }).then(registered => {
@@ -1692,12 +1715,22 @@ export function InboxView() {
         status: TICKET_STATUS.CANCELED,
         history: [
           ...activeTicket.history,
+          // Mesma separação do aceite: "OS cancelada" também é marcador público, e o
+          // motivo do cancelamento é justamente onde se escreve o que não deve sair.
           {
             id: crypto.randomUUID(),
             type: 'system',
             sender: displayActorLabel,
             time: new Date(),
-            text: `OS cancelada por ${displayActorLabel}. Motivo: ${reasonText}.`,
+            text: `OS cancelada por ${displayActorLabel}.`,
+          },
+          {
+            id: crypto.randomUUID(),
+            type: 'system' as const,
+            sender: displayActorLabel,
+            time: new Date(),
+            text: `Motivo do cancelamento: ${reasonText}.`,
+            visibility: 'internal' as const,
           },
         ],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
@@ -1742,6 +1775,7 @@ export function InboxView() {
             sender: displayActorLabel,
             time: new Date(),
             text: `OS reaberta pelo gestor para ${nextStatus}. Motivo da transição: ${statusReason}.`,
+            visibility: 'internal',
           },
         ],
       }, { sendEmailUpdate: sendStatusEmailUpdate });
