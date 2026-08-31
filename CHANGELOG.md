@@ -3,6 +3,43 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-31 (a fila filtrada no papel — e a decisão de ontem estava errada)
+
+Hoje de manhã ficou registrado que exportar seria "uma OS por vez, e não a lista
+filtrada", porque exportar o painel já existia no Relatório Gerencial. **Errado.**
+São perguntas diferentes: o Gerencial responde *"como estamos"* a partir dos
+Indicadores; a Gestão precisa responder *"o que existe neste recorte"* — as 15 do
+SUL 1 para levar à reunião de sede, a lista de travadas para cobrar o fornecedor.
+
+A tela ganhou **Lista em PDF**, na barra de filtros e não na linha: o recorte é o
+assunto do documento, e é olhando para o contador que a decisão de exportar nasce.
+
+**Paisagem, e não retrato.** Nove colunas não cabem em 499pt sem picar o assunto, e
+é o assunto que identifica a OS numa fila — cortado, obriga quem lê a voltar ao
+sistema, que é o que o papel existe para evitar. O papel ganhou geometria
+configurável com A4 retrato **como padrão**: os dois documentos que já estavam em
+produção desenham igual, e os testes deles são a prova disso.
+
+**O recorte vai escrito no cabeçalho, sempre.** É o risco real deste documento — não
+sair errado, mas sair certo e ser lido errado. "3 OS" num e-mail se lê como "existem
+3 OS", e não "existem 3 no SUL 1, fora as encerradas". A tela tem os seletores à
+vista; o papel não tem nada.
+
+**As linhas saem do cliente; o território fica no servidor.** É o oposto do retrato
+de uma OS, e de propósito: sede, etapa, marcos e "parada há" são quatro derivações
+que o front já faz, e refazê-las no servidor criaria quatro implementações paralelas
+que divergem no dia em que alguém ajusta uma só — foi assim que a moeda acabou com
+quatro implementações e três comportamentos. O que o servidor **não** delega é quais
+OS podem sair: cada id é conferido contra `canUserAccessTicket`, e o que for cortado
+é declarado no cabeçalho em vez de sumir.
+
+Verificado na tela contra o emulador, e o E2E **abre o arquivo** — 200 com
+`application/pdf` afirma sobre o transporte, e PDF em branco baixa igual a PDF
+certo. Antes de aceitar o verde, o recorte foi apagado do cabeçalho e o teste falhou
+na asserção certa. A blindagem contra teste vácuo pegou um defeito no próprio teste:
+`locator('td').first()` pega a primeira célula da TABELA, e o laço conferia uma OS
+achando que conferia três.
+
 ## 2026-08-31 (o motivo digitado saía junto com o aviso de etapa)
 
 O PDF do estado da OS reusa o corte de visibilidade da página pública — decisão

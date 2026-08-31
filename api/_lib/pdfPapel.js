@@ -16,6 +16,29 @@ export const PAGE_H = 841.89;
 export const CW = PAGE_W - M * 2; // largura de conteúdo
 export const BOTTOM = PAGE_H - M - 24; // limite antes do rodapé
 
+/**
+ * A GEOMETRIA DA PÁGINA, QUANDO ELA NÃO É A4 RETRATO.
+ *
+ * Nasceu com o terceiro documento: a lista da Gestão como está na tela. Oito colunas
+ * não cabem em 499pt de retrato sem picar o assunto, que é justamente o que
+ * identifica a OS na fila — e uma lista impressa com assunto cortado não serve para
+ * a reunião de sede, que é para onde ela vai.
+ *
+ * ⚠️ O PADRÃO É EXATAMENTE O QUE ERA. `ensureSpace` e `drawTable` recebem a
+ * geometria como parâmetro opcional; sem ela, usam A4 retrato e os dois documentos
+ * antigos desenham igual. Trocar as constantes de módulo por paisagem teria mudado o
+ * relatório gerencial e o retrato da OS em silêncio.
+ */
+export const A4_RETRATO = { M, PAGE_W, PAGE_H, CW, BOTTOM };
+
+export const A4_PAISAGEM = {
+  M,
+  PAGE_W: PAGE_H,
+  PAGE_H: PAGE_W,
+  CW: PAGE_H - M * 2,
+  BOTTOM: PAGE_W - M - 24,
+};
+
 export const C = {
   ink: '#241f1b',
   body: '#4a4038',
@@ -33,10 +56,10 @@ export const C = {
  * Vieram inteiras de `reportPdf.js`, sem mudanca de comportamento: o corte de pagina,
  * o cabecalho de secao e a tabela zebrada sao o que da aos dois PDFs a mesma cara.
  */
-export function ensureSpace(doc, y, needed) {
-  if (y + needed <= BOTTOM) return y;
+export function ensureSpace(doc, y, needed, geo = A4_RETRATO) {
+  if (y + needed <= geo.BOTTOM) return y;
   doc.addPage();
-  return M;
+  return geo.M;
 }
 
 export function sectionHeader(doc, y, title) {
@@ -54,7 +77,7 @@ export function sectionHeader(doc, y, title) {
  * vem de o registro não existir. A mesma frase nos dois lugares diria ao leitor da
  * OS que ele filtrou alguma coisa.
  */
-export function drawTable(doc, x, y, w, cols, rows, vazio = 'Sem dados no período/filtro.') {
+export function drawTable(doc, x, y, w, cols, rows, vazio = 'Sem dados no período/filtro.', geo = A4_RETRATO) {
   const colW = cols.map(c => (c.w != null ? c.w : (w - cols.reduce((s, cc) => s + (cc.w || 0), 0)) / cols.filter(cc => cc.w == null).length));
   const drawHead = yy => {
     doc.font('Helvetica-Bold').fontSize(8);
@@ -74,9 +97,9 @@ export function drawTable(doc, x, y, w, cols, rows, vazio = 'Sem dados no perío
   }
   const rowH = 15;
   rows.forEach((row, ri) => {
-    if (y + rowH > BOTTOM) {
+    if (y + rowH > geo.BOTTOM) {
       doc.addPage();
-      y = drawHead(M);
+      y = drawHead(geo.M);
     }
     if (ri % 2) doc.rect(x, y, w, rowH).fill(C.soft);
     let cx = x;

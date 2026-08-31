@@ -29,6 +29,7 @@ import {
 import { FieldPath } from 'firebase-admin/firestore';
 import { hasWaterIssueSignal } from './_lib/inboundBody.js';
 import { canUserAccessTicket, readAccessibleTickets, readTerritoryCatalog, readTicketsChangedSince } from './_lib/ticketAccess.js';
+import { buildListaPdf, descreverRecorte } from './_lib/listaPdf.js';
 import { isPublicTrackingHistoryEntry } from './_lib/historicoPublico.js';
 import {
   boundEmbeddedHistory,
@@ -1249,6 +1250,100 @@ async function handleReportPdf(req, res) {
  */
 const JANELA_DO_HISTORICO_NO_PDF = 60;
 
+/**
+ * A FILA DA GESTAO NO PAPEL — `?route=lista-pdf` (POST).
+ *
+ * Entra como `?route=` em tickets.js pelo mesmo motivo dos outros dois: a Vercel
+ * esta no teto de funcoes do plano.
+ *
+ * ⚠️ AQUI O CLIENTE MANDA AS LINHAS, ao contrario do retrato de uma OS.
+ *
+ * Nao e desleixo, e a mesma escolha do relatorio gerencial e pela mesma razao: quem
+ * le este PDF e quem estava olhando a tela que o produziu. O pedido e literalmente
+ * "como esta na tela" — sede, etapa, marcos e "parada ha" sao quatro derivacoes que
+ * o front ja faz, e refaze-las aqui criaria quatro implementacoes paralelas que
+ * divergem no dia em que alguem ajusta uma so. Foi exatamente assim que a moeda
+ * acabou com quatro implementacoes e tres comportamentos.
+ *
+ * ⚠️ O QUE O SERVIDOR NAO DELEGA E O TERRITORIO. As linhas vem do cliente, mas quais
+ * OS podem sair no papel e decisao daqui: cada id e conferido contra
+ * `canUserAccessTicket`. Sem isso, bastaria forjar o corpo do POST para imprimir a
+ * fila de outra sede.
+ *
+ * ⚠️ E O QUE FOR CORTADO E DECLARADO no cabecalho, nao sumido em silencio — omissao
+ * calada se le como ausencia, e uma lista curta demais sem aviso vira decisao errada
+ * na reuniao.
+ */
+async function handleListaPdf(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      throw new HttpError(405, 'Método não permitido.');
+    }
+    const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
+
+    const body = await readJsonBody(req);
+    const linhas = Array.isArray(body?.linhas) ? body.linhas : null;
+    if (!linhas) {
+      throw new HttpError(400, 'Lista ausente.');
+    }
+    // Teto grosseiro: a fila inteira sao ~207 OS. O limite existe para um corpo
+    // absurdo nao virar um PDF de mil paginas gerado dentro do orcamento da funcao.
+    if (linhas.length > 600) {
+      throw new HttpError(413, 'Lista grande demais para o papel. Filtre antes de exportar.');
+    }
+
+    const db = getAdminDb();
+    const ids = linhas.map(linha => String(linha?.[0] || '').trim().toUpperCase());
+
+    let permitidas = new Set(ids.filter(Boolean));
+    if (user.role !== 'Admin') {
+      const territory = await readTerritoryCatalog(db);
+      const refs = [...permitidas].map(id => db.collection('tickets').doc(id));
+      const snaps = refs.length ? await db.getAll(...refs) : [];
+      permitidas = new Set(
+        snaps
+          .filter(snap => snap.exists
+            && canUserAccessTicket(user, { id: snap.id, ...snap.data() }, territory.regions, territory.sites))
+          .map(snap => snap.id)
+      );
+    }
+
+    const visiveis = linhas.filter((_, i) => permitidas.has(ids[i]));
+    const cortadas = linhas.length - visiveis.length;
+
+    const recorte = descreverRecorte(body?.filtros, {
+      total: Number(body?.total) || linhas.length,
+      exibidas: visiveis.length,
+    });
+
+    const pdf = await buildListaPdf({
+      linhas: visiveis,
+      contagem: recorte.contagem,
+      filtros: cortadas > 0
+        ? `${recorte.filtros} · ${cortadas} OS fora do seu território não entram neste documento`
+        : recorte.filtros,
+      geradoEm: new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'America/Fortaleza',
+      }).format(new Date()),
+      geradoPor: user.name || user.email || '',
+    });
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="gestao-de-os.pdf"');
+    res.setHeader('Content-Length', String(pdf.length));
+    res.end(pdf);
+  } catch (error) {
+    if (res.headersSent) {
+      res.end();
+      return;
+    }
+    sendError(res, error);
+  }
+}
+
 async function handleTicketPdf(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -1701,6 +1796,7 @@ export default async function handler(req, res) {
   if (route === 'revisao-pagina') return handleRevisaoSemanal(req, res);
   if (route === 'report-pdf') return handleReportPdf(req, res);
   if (route === 'ticket-pdf') return handleTicketPdf(req, res);
+  if (route === 'lista-pdf') return handleListaPdf(req, res);
   if (route === 'commitments') return handleCommitments(req, res);
   if (route === 'confirm-visit') return handleConfirmVisit(req, res);
   if (route === 'rebuild-attention') return handleRebuildAttention(req, res);

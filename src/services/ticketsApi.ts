@@ -486,6 +486,38 @@ export async function baixarPdfDaOs(ticketId: string): Promise<Blob> {
   return blob;
 }
 
+/**
+ * A FILA FILTRADA EM PDF — o que está na tela, no papel.
+ *
+ * Manda as LINHAS já montadas, e não os filtros: refazer o recorte no servidor seria
+ * uma segunda implementação das dez condições de `filtered`, e a lista impressa
+ * deixaria de bater com a tela no dia em que uma das duas mudasse. O servidor ainda
+ * confere o território de cada OS — ver `handleListaPdf`.
+ *
+ * Mesma checagem de tamanho zero do PDF da OS, e pelo mesmo motivo: blob vazio vira
+ * download que abre em branco sem erro nenhum.
+ */
+export async function baixarPdfDaLista(payload: {
+  linhas: string[][];
+  filtros: Record<string, unknown>;
+  total: number;
+}): Promise<Blob> {
+  const response = await fetch('/api/tickets?route=lista-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthenticatedActorHeaders()) },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const erro = await readApiJson(response);
+    throw new ApiError(resolveApiError(erro, 'Falha ao gerar o PDF da lista.'), response.status);
+  }
+  const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new UserFacingError('O PDF da lista voltou vazio. Nada foi baixado.');
+  }
+  return blob;
+}
+
 export async function deleteTicketInApi(id: string) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/tickets', {

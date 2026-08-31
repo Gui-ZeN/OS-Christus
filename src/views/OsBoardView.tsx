@@ -3,7 +3,7 @@ import { RecurrencePanel } from './RecurrencePanel';
 import { ArrowRightLeft, Droplets, FileDown, MessageSquare, Search, TriangleAlert, UserRound, X, CalendarClock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
-import { baixarPdfDaOs } from '../services/ticketsApi';
+import { baixarPdfDaOs, baixarPdfDaLista } from '../services/ticketsApi';
 import { mensagemDeErro } from '../utils/errorMessage';
 import { getTicketSiteLabel } from '../utils/ticketTerritory';
 // Apelidado: `etapaDe` já é um estado local deste arquivo (o id da OS cuja etapa
@@ -81,6 +81,7 @@ export function OsBoardView() {
   // Qual OS está gerando PDF agora. Guarda o ID, não um booleano: são várias linhas,
   // e um booleano só acenderia "Gerando…" em todas ao mesmo tempo.
   const [pdfDe, setPdfDe] = useState<string | null>(null);
+  const [pdfDaLista, setPdfDaLista] = useState(false);
   const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
 
@@ -226,6 +227,72 @@ export function OsBoardView() {
     }
   };
 
+  /**
+   * A FILA FILTRADA NO PAPEL — as 15 do Sul 1 para levar à reunião de sede.
+   *
+   * ⚠️ AQUI AS LINHAS SAEM DAQUI, ao contrário do PDF de uma OS.
+   *
+   * O caso é o oposto do outro: o retrato de uma OS precisa de histórico e ações
+   * preliminares que esta listagem não carrega, e montá-lo daqui sairia com campo em
+   * branco sem erro nenhum. A lista, não — ela é exatamente o que esta tabela já tem
+   * na mão, e o pedido é "como está na tela". Refazer o recorte no servidor seria uma
+   * segunda implementação das dez condições de `filtered`, e as duas divergiriam no
+   * dia em que só uma mudasse.
+   *
+   * O servidor ainda decide QUAIS podem sair: ele confere o território de cada OS e
+   * declara no cabeçalho o que cortou.
+   */
+  const linhasParaPdf = () =>
+    filtered.map(({ ticket, siteLabel, macro, service: svc, team: tm }) => {
+      const travada = bloqueioParaAvancar(ticket);
+      return [
+        ticket.id,
+        repairMojibake(ticket.subject),
+        siteLabel || '—',
+        svc || macro || '—',
+        tm || '—',
+        ticket.responsible?.name || '—',
+        // A trava vai junto porque está na tela e é o motivo de a OS não andar —
+        // uma lista de cobrança sem ela manda cobrar quem não pode fazer nada.
+        travada ? `${etapaDoStatus(ticket.status)} · travada` : etapaDoStatus(ticket.status),
+        `${contarMarcos(ticket)}/6`,
+        diasNaEtapa(ticket),
+      ];
+    });
+
+  const exportarLista = async () => {
+    if (pdfDaLista) return;
+    setPdfDaLista(true);
+    try {
+      const blob = await baixarPdfDaLista({
+        linhas: linhasParaPdf(),
+        // O recorte vai escrito no papel: lista sem os filtros que a produziram é uma
+        // afirmação falsa para quem recebe o arquivo sem ter visto a tela.
+        filtros: {
+          sede, macroServico: macroService, servico: service, equipe: team,
+          responsavel: responsible === NONE
+            ? 'sem responsável'
+            : (responsibleOptions.find(([email]) => email === responsible)?.[1] || responsible),
+          etapa: status, busca: search, travadas: bloqueadas, agua,
+          mostrarEncerradas: showClosed, ordem,
+        },
+        total: tickets.length,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'gestao-de-os.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      window.alert(mensagemDeErro(error, 'Falha ao gerar o PDF da lista.'));
+    } finally {
+      setPdfDaLista(false);
+    }
+  };
+
   const hasActiveFilter =
     sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed || bloqueadas || agua;
   const clearFilters = () =>
@@ -367,6 +434,20 @@ export function OsBoardView() {
           {(ticketsLoading || ticketsError) && tickets.length === 0 ? '—' : filtered.length} OS{' '}
           {hasActiveFilter ? `de ${tickets.length}` : ''}
         </span>
+        {/* Ao lado do contador de propósito: o número é o que diz O QUE vai sair no
+            papel, e a decisão de exportar nasce de olhar para ele. Preso à barra de
+            filtros, e não à linha, porque o recorte é o assunto do documento.
+            Desabilitado com a lista vazia: botão que gera um PDF de zero linhas é o
+            mesmo "botão que descarta o resultado" que este projeto já pegou. */}
+        <button
+          type="button"
+          onClick={exportarLista}
+          disabled={pdfDaLista || filtered.length === 0}
+          title={filtered.length === 0 ? 'Nenhuma OS neste recorte' : 'Exportar esta lista, como está na tela'}
+          className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-sub hover:border-roman-primary/40 hover:text-roman-text-main disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <FileDown size={14} /> {pdfDaLista ? 'Gerando…' : 'Lista em PDF'}
+        </button>
       </div>
 
       {/* Reincidência: o mesmo lugar voltando. Fica logo acima da tabela e
