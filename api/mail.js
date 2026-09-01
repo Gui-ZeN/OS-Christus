@@ -77,7 +77,7 @@ import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
 import { fetchCemaden } from './_lib/cemaden.js';
 import { fetchMetar } from './_lib/metar.js';
 import { detectRainTransition, stateToPersist } from './_lib/rainWatch.js';
-import { avaliarChuva, montarEmail, sinalSimulado } from './_lib/rainAlert.js';
+import { avaliarChuva, montarEmail, selecionarPontosDeGoteira, sinalSimulado } from './_lib/rainAlert.js';
 import { destinatariosDoAviso } from './_lib/avisoDeChuva.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 
@@ -3439,6 +3439,23 @@ async function handleResumoDaOperacao(req, res) {
   }
 }
 
+/**
+ * AS OS MARCADAS COM RISCO DE GOTEIRA — a leitura. A decisão de quais entram
+ * (etapa aberta, sede do aviso) é de `selecionarPontosDeGoteira`, em
+ * `_lib/rainAlert.js` — sem Firestore, para dar para testar sem o emulador.
+ *
+ * ⚠️ IGUALDADE SIMPLES, sem índice composto: `waterIssue == true` sozinho não
+ * precisa de nada declarado em `firestore.indexes.json`.
+ *
+ * O campo é o mesmo que a Gestão liga/desliga na coluna de chuva e a Caixa de
+ * Entrada no painel rápido — um só lugar decide "esta OS entra na lista", e aqui só
+ * se lê o que já foi decidido.
+ */
+async function listarPontosDeGoteira(db, sede) {
+  const snap = await db.collection('tickets').where('waterIssue', '==', true).get();
+  return selecionarPontosDeGoteira(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })), sede);
+}
+
 async function handleRainAlert(req, res) {
   try {
     if (req.method !== 'POST') {
@@ -3525,7 +3542,8 @@ async function handleRainAlert(req, res) {
       }
 
       const quando = now.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
-      const email = montarEmail(sinal, quando, sede);
+      const goteiras = await listarPontosDeGoteira(db, sede);
+      const email = montarEmail(sinal, quando, sede, goteiras);
       // A chuva também: a transição já protege contra repetir, mas duas execuções
       // simultâneas do cron de 5 em 5 minutos leriam o mesmo estado anterior.
       /**

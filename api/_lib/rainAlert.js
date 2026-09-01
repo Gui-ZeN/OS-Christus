@@ -2,6 +2,7 @@ import { readCityRain, describeStationRain } from './cemaden.js';
 import { readObservation, describeRain } from './metar.js';
 import { readRainSignal } from './rainWatch.js';
 import { buildNoticeEmailTemplate } from './emailTemplates.js';
+import { isTicketOpen } from './statusFlow.js';
 
 /**
  * A DECISÃO do aviso de chuva, sem I/O.
@@ -63,8 +64,53 @@ export function sinalSimulado(sinalReal, simular) {
   };
 }
 
+/**
+ * QUAIS OS ENTRAM NA LISTA DE GOTEIRA — puro, sem Firestore.
+ *
+ * A rota (`api/mail.js`) faz a única leitura: `where('waterIssue', '==', true')`,
+ * igualdade simples, sem índice composto. O que sobra — abrir só as OS ainda em
+ * andamento, restringir à sede do aviso quando há uma, decidir a ordem — é decisão,
+ * não busca, e mora aqui pelo mesmo motivo que `destinatariosDoAviso` mora em
+ * `avisoDeChuva.js`: testável com objetos soltos, sem precisar do emulador de pé.
+ */
+export function selecionarPontosDeGoteira(tickets, sede = null) {
+  return tickets
+    .filter(ticket => isTicketOpen(ticket.status))
+    .filter(ticket => !sede || ticket.sede === sede)
+    .map(ticket => ({ id: ticket.id, sede: ticket.sede || null, assunto: ticket.subject || '(sem assunto)' }))
+    .sort((a, b) => (a.sede || '').localeCompare(b.sede || '', 'pt-BR') || a.id.localeCompare(b.id));
+}
+
+/**
+ * As linhas da lista de goteira — usada no texto E no HTML, para as duas versões
+ * dizerem exatamente a mesma coisa.
+ *
+ * ⚠️ AUSÊNCIA É DITA, NÃO OMITIDA. Uma lista vazia sem nada no lugar do placeholder
+ * se leria como "a seção sumiu" — quem confere o e-mail não saberia se ninguém tem
+ * goteira marcada ou se a busca falhou.
+ *
+ * ⚠️ A SEDE só aparece por item quando o aviso é da CIDADE inteira (`sede` do
+ * chamador nulo). Quando o aviso já é de uma sede só, repetir o mesmo código em cada
+ * linha seria ruído — quem lê já sabe onde está.
+ */
+function linhasDeGoteira(goteiras, sedeDoAviso) {
+  if (!goteiras.length) return ['Nenhuma OS marcada com risco de goteira no momento.'];
+  return goteiras.map(g => (sedeDoAviso ? `${g.id} · ${g.assunto}` : `${g.id} · ${g.sede || 'sede não informada'} · ${g.assunto}`));
+}
+
+/** As mesmas linhas, no formato {label, value} do `detailCards` do HTML. */
+function linhasDeGoteiraParaCard(goteiras, sedeDoAviso) {
+  if (!goteiras.length) {
+    return [{ label: 'Situação', value: 'Nenhuma OS marcada com risco de goteira no momento.' }];
+  }
+  return goteiras.map(g => ({
+    label: g.id,
+    value: sedeDoAviso ? g.assunto : `${g.sede || 'sede não informada'} · ${g.assunto}`,
+  }));
+}
+
 /** Corpo do e-mail. Mostra as DUAS fontes: se uma errar, quem lê enxerga a outra. */
-export function montarEmail(sinal, quando, sede = null) {
+export function montarEmail(sinal, quando, sede = null, goteiras = []) {
   const onde = sede ? `na sede ${sede}` : 'em Fortaleza';
   const linhas = [
     // O aviso de simulação vem PRIMEIRO e no assunto: e-mail de teste que chega numa
@@ -83,7 +129,7 @@ export function montarEmail(sinal, quando, sede = null) {
     `  · aeroporto:    ${sinal.fontes.aeroporto.detalhe}${sinal.fontes.aeroporto.speci ? ' (relatório especial — o tempo acabou de mudar)' : ''}`,
     '',
     '— Pontos de goteira a verificar —',
-    '  (a lista da Thaís ainda não existe no sistema; quando existir, entra aqui)',
+    ...linhasDeGoteira(goteiras, sede).map(linha => `  ${linha}`),
     '',
     'Aviso automático do Serv3. Fontes: CEMADEN e aviationweather.gov (NOAA).',
   ];
@@ -109,6 +155,10 @@ export function montarEmail(sinal, quando, sede = null) {
             value: `${sinal.fontes.aeroporto.detalhe}${sinal.fontes.aeroporto.speci ? ' (relatório especial — o tempo acabou de mudar)' : ''}`,
           },
         ],
+      },
+      {
+        title: 'Pontos de goteira a verificar',
+        rows: linhasDeGoteiraParaCard(goteiras, sede),
       },
     ],
     rodape: 'Aviso automático do Serv3. Fontes: CEMADEN e aviationweather.gov (NOAA).',

@@ -69,7 +69,7 @@ function resumoDaLinhaDoTempo(ticket: Ticket): string {
  * na Caixa de Entrada. Para Admin/Gestor (ver canAccess no App).
  */
 export function OsBoardView() {
-  const { tickets, ticketsLoading, ticketsError, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser } = useApp();
+  const { tickets, ticketsLoading, ticketsError, navigateTo, setActiveTicketId, osBoardFilter, setOsBoardFilter, currentUser, updateTicket } = useApp();
   // As duas ações que dispensam abrir a OS inteira. Guardam o ID, não a OS: os
   // modais resolvem a versão viva do contexto, senão o que eles mostram congela no
   // instante em que abriram — a resposta enviada não aparecia na própria conversa.
@@ -79,6 +79,9 @@ export function OsBoardView() {
   const [proximaAcaoDe, setProximaAcaoDe] = useState<string | null>(null);
   const [responsavelDe, setResponsavelDe] = useState<string | null>(null);
   const [pdfDaLista, setPdfDaLista] = useState(false);
+  // Qual OS está salvando o toggle de chuva agora. Por id, não booleano, pelo mesmo
+  // motivo do PDF: são várias linhas, e um booleano só travaria todas ao mesmo tempo.
+  const [chuvaDe, setChuvaDe] = useState<string | null>(null);
   const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
 
@@ -193,6 +196,39 @@ export function OsBoardView() {
   const openTicket = (id: string) => {
     setActiveTicketId(id);
     navigateTo('inbox');
+  };
+
+  /**
+   * MARCAR/DESMARCAR GOTEIRA DIRETO NA FILA — o mesmo campo `waterIssue` que já
+   * existia só no painel rápido da Caixa de Entrada.
+   *
+   * ⚠️ É ESTE CAMPO QUE ALIMENTA O AVISO DE CHUVA. O e-mail que sai quando começa a
+   * chover em Fortaleza lista as OS com `waterIssue === true` — ligar aqui é o que
+   * põe esta OS nessa lista; não é um rótulo cosmético na tela.
+   */
+  const alternarChuva = async (ticket: Ticket) => {
+    if (chuvaDe) return;
+    setChuvaDe(ticket.id);
+    try {
+      const proximo = !ticket.waterIssue;
+      const ok = await updateTicket(ticket.id, {
+        waterIssue: proximo,
+        history: [
+          ...ticket.history,
+          {
+            id: crypto.randomUUID(),
+            type: 'system',
+            sender: currentUser?.name || 'Sistema',
+            time: new Date(),
+            text: proximo ? 'Marcado risco de goteira/infiltração.' : 'Desmarcado risco de goteira/infiltração.',
+            visibility: 'internal',
+          },
+        ],
+      });
+      if (!ok) window.alert('Não foi possível salvar. Verifique a conexão e tente de novo.');
+    } finally {
+      setChuvaDe(null);
+    }
   };
 
   /**
@@ -454,6 +490,14 @@ export function OsBoardView() {
                 <th className="px-3 py-2.5 font-medium">Equipe</th>
                 <th className="px-3 py-2.5 font-medium">Responsável</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
+                {/* Ícone, não texto: "Chuva" ao lado das outras oito colunas reabriria
+                    a briga de largura que "Marcos" já ganhou (11 → 9 colunas, medido
+                    em 1280px). Um ícone sozinho fica mais estreito que qualquer
+                    rótulo, e o title explica o que ele faz. */}
+                <th className="px-2 py-2.5 text-center font-medium" title="Entra na lista de goteira do aviso de chuva">
+                  <Droplets size={14} className="inline" aria-hidden="true" />
+                  <span className="sr-only">Goteira/infiltração — aviso de chuva</span>
+                </th>
                 {/* UMA coluna, não seis. A régua da planilha tem seis datas, mas a
                     tabela já perdeu essa briga uma vez (11 colunas → 9, medido em
                     1366/1280px). A faixa dá a mesma leitura de relance e as datas
@@ -525,20 +569,21 @@ export function OsBoardView() {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{tm || '—'}</td>
                   {/* Clicável na própria célula: definir responsável tem que custar um
-                      clique, senão continua não sendo feito. */}
+                      clique, senão continua não sendo feito.
+                      Sem ternário por `podeTrocarEtapa`: quem chega a esta tabela já
+                      passou por `canAccessOsBoard` (App.tsx), a MESMA condição — não
+                      existe papel que veja a Gestão sem poder usar este botão. Se um
+                      dia um papel novo ganhar a tela sem ganhar edição, o guard volta
+                      aqui e no toggle de chuva logo abaixo, juntos. */}
                   <td className="whitespace-nowrap px-3 py-2.5" onClick={event => event.stopPropagation()}>
-                    {podeTrocarEtapa ? (
-                      <button
-                        type="button"
-                        onClick={() => setResponsavelDe(ticket.id)}
-                        className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-1 text-left hover:bg-roman-primary/10 ${ticket.responsible?.name ? 'text-roman-text-main' : 'text-roman-text-sub italic'}`}
-                      >
-                        <UserRound size={14} />
-                        {ticket.responsible?.name || 'definir'}
-                      </button>
-                    ) : (
-                      <span className="text-roman-text-sub">{ticket.responsible?.name || '—'}</span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setResponsavelDe(ticket.id)}
+                      className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-1 text-left hover:bg-roman-primary/10 ${ticket.responsible?.name ? 'text-roman-text-main' : 'text-roman-text-sub italic'}`}
+                    >
+                      <UserRound size={14} />
+                      {ticket.responsible?.name || 'definir'}
+                    </button>
                   </td>
                   <td className="px-3 py-2.5">
                     <StatusBadge status={ticket.status} />
@@ -554,6 +599,31 @@ export function OsBoardView() {
                         {bloqueioParaAvancar(ticket)?.motivo}
                       </div>
                     )}
+                  </td>
+                  {/* Clicável na própria célula. Sem ternário por `podeTrocarEtapa` —
+                      ver o comentário no Responsável, logo acima: a checagem aqui
+                      seria código morto, não uma segunda camada de segurança. */}
+                  <td className="whitespace-nowrap px-2 py-2.5 text-center" onClick={event => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => void alternarChuva(ticket)}
+                      disabled={chuvaDe !== null}
+                      title={
+                        ticket.waterIssue
+                          ? 'Marcada — sai da lista de goteira quando chover. Clique para desmarcar.'
+                          : 'Marcar como risco de goteira/infiltração — entra na lista do aviso de chuva'
+                      }
+                      className={`inline-flex items-center justify-center rounded-sm border p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                        ticket.waterIssue
+                          ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                          : 'border-roman-border bg-roman-surface text-roman-text-sub hover:border-roman-primary/40 hover:text-roman-text-main'
+                      }`}
+                    >
+                      <Droplets size={14} />
+                      <span className="sr-only">
+                        {ticket.waterIssue ? 'Goteira/infiltração marcada — clique para desmarcar' : 'Marcar risco de goteira/infiltração'}
+                      </span>
+                    </button>
                   </td>
                   {/* Apertada de propósito: medida no navegador, a faixa custava 49px
                       e era exatamente o que jogava a tabela de volta na rolagem

@@ -68,6 +68,11 @@ async function main() {
   console.log('--- o e-mail que o servidor mandaria ---\n');
   console.log(`Assunto: ${email.subject}\n`);
   console.log(email.text);
+  // ⚠️ Este script não tem acesso ao Firestore — de propósito, para não duplicar
+  // credencial. A seção "Pontos de goteira" acima sempre sai como "nenhuma OS
+  // marcada" porque a lista real nunca foi consultada, não porque não haja nenhuma.
+  console.log('⚠️  "Pontos de goteira" acima é sempre vazio aqui: este ensaio não lê o Firestore.');
+  console.log('   A lista real só existe quando o servidor monta o e-mail de verdade.');
 }
 
 main().catch(erro => {

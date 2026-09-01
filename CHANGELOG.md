@@ -3,6 +3,50 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-08-31 (a coluna de chuva na Gestão, e o placeholder do e-mail finalmente virou lista)
+
+O e-mail de aviso de chuva tinha uma seção órfã desde que nasceu: "Pontos de goteira
+a verificar — (a lista da Thaís ainda não existe no sistema; quando existir, entra
+aqui)". A Gestão ganhou uma coluna com ícone de gota — clicar liga/desliga o mesmo
+`waterIssue` que a Caixa de Entrada já marcava só pelo painel rápido — e o e-mail
+passou a listar de verdade quem está marcado.
+
+**Duas peças que já existiam e nunca se falaram.** O aviso de chuva decide por
+clima real (CEMADEN + METAR); `waterIssue` é um campo de OS, hoje só editável na
+Caixa de Entrada. Nada ligava um ao outro — o e-mail nunca leu o campo, e o campo
+nunca alimentou nada fora dos filtros de tela. A feature é o fio entre os dois.
+
+**A decisão de quem entra é pura, sem Firestore.** `selecionarPontosDeGoteira`
+(`_lib/rainAlert.js`) recebe os tickets já lidos e decide: só os abertos, só da
+sede do aviso quando o aviso é de uma sede (a rota de produção não passa sede —
+é sempre a cidade inteira). A leitura (`where('waterIssue', '==', true)`, igualdade
+simples, sem índice composto) fica na rota, no molde que `destinatariosDoAviso` já
+tinha estabelecido para os destinatários: buscar é I/O, decidir é testável sem
+emulador.
+
+**Ausência é dita, não omitida.** Sem nenhuma OS marcada, o e-mail diz "Nenhuma OS
+marcada com risco de goteira no momento." — não fica em branco. O script de ensaio
+local (`scripts/infra/rain-alert.mjs`) não tem acesso ao Firestore de propósito, e
+avisar "nenhuma" ali seria mentira de um tipo pior que a omissão: ele nunca
+perguntou. Ganhou uma nota explícita dizendo isso.
+
+**Verificação.** Onze testes novos no `selecionarPontosDeGoteira`/`montarEmail`,
+com o vermelho provado duas vezes — sem a montagem da lista e sem o filtro de sede
+— antes de aceitar o verde. E2E na tela: liga, sobrevive ao reload (a prova real,
+não só o optimistic update), desliga de volta; a OS que já nascia marcada no seed
+reflete o banco; Gestor consegue tanto quanto Admin. A montagem real foi vista
+rodando contra o emulador — duas OS marcadas em sedes diferentes saíram ordenadas
+e com os dados certos — até a única coisa que faltava, a credencial do Gmail, que
+não existe no ambiente local.
+
+**Os dois achados, corrigidos.** O ramo "só mostra o estado, sem controle" — que a
+coluna nova herdou do padrão da coluna Responsável — era código morto: quem chega à
+Gestão já passou por `canAccessOsBoard` (App.tsx), a MESMA condição de
+`podeTrocarEtapa`. Não existe papel que veja a tabela sem poder usar os dois
+botões. Removido dos dois lugares, com um comentário dizendo por quê — se um papel
+novo um dia ganhar a tela sem ganhar edição, o guard volta nos dois juntos, não só
+num. E o script de ensaio local ganhou a nota que faltava (item anterior).
+
 ## 2026-08-31 (o retrato de uma OS em PDF saiu — a Lista já cobre o caso)
 
 Com a fila filtrada exportando em PDF, o botão "Estado em PDF" na linha — o
