@@ -16,6 +16,7 @@ import {
   maiorObra,
   media,
   porFornecedor,
+  reguaDosMarcos,
   resumoFinanceiro,
   urgenciaDaFila,
   valorDaOs,
@@ -459,5 +460,71 @@ describe('esperaDaFila — suspensa com data não é parada', () => {
   it('as duas somam o total da fila, sempre', () => {
     const r = esperaDaFila([os({ id: 'A' }), os({ id: 'B' })], suspensa, agora);
     expect(r.suspensas + r.paradas).toBe(r.total);
+  });
+});
+
+describe('reguaDosMarcos — buraco é informação, nunca pendência', () => {
+  /** Um leitor de marcos falso, para o teste não depender do formato do banco. */
+  const marcos = (datas: Array<number | null>) => (_ticket: Ticket) =>
+    ['VT', 'AS', 'OR', 'AP', 'EX', 'CO'].map((curto, i) => ({
+      curto,
+      rotulo: curto,
+      data: datas[i] === null || datas[i] === undefined ? null : diasAtras(datas[i] as number),
+    }));
+
+  it('conta quantas OS têm CADA data registrada — cobertura do registro', () => {
+    /**
+     * ⚠️ NÃO É "% DA RÉGUA PREENCHIDA". A planilha mostra que 45% das OS pulam etapa
+     * e 45% das concluídas nunca registraram início de execução: um indicador de
+     * completude leria isso como atraso e cobraria um processo que não existe.
+     */
+    const regua = reguaDosMarcos([os({ id: 'A' })], marcos([10, null, 8, null, null, 2]));
+    expect(regua.coorte).toBe(1);
+    expect(regua.marcos.find(m => m.curto === 'VT')?.registradas).toBe(1);
+    expect(regua.marcos.find(m => m.curto === 'AS')?.registradas).toBe(0);
+    expect(regua.marcos.find(m => m.curto === 'CO')?.registradas).toBe(1);
+  });
+
+  it('etapa pulada não entra no intervalo dela — nada é inventado', () => {
+    // VT existe e AS não: o par VT→AS fica sem amostra, e diz isso com `null`.
+    const regua = reguaDosMarcos([os({ id: 'A' })], marcos([10, null, 8, null, null, 2]));
+    const vtAs = regua.intervalos.find(i => i.de === 'VT' && i.para === 'AS');
+    expect(vtAs?.medianaDias).toBeNull();
+    expect(vtAs?.amostra).toBe(0);
+  });
+
+  it('mede só os pares em que as DUAS datas existem, com a amostra ao lado', () => {
+    // Duas OS com OR→AP: 3 e 5 dias. Uma terceira só tem OR.
+    const regua = reguaDosMarcos(
+      [os({ id: 'A' }), os({ id: 'B' }), os({ id: 'C' })],
+      ticket => {
+        const porOs: Record<string, Array<number | null>> = {
+          A: [null, null, 10, 7, null, null],
+          B: [null, null, 10, 5, null, null],
+          C: [null, null, 10, null, null, null],
+        };
+        return marcos(porOs[ticket.id])(ticket);
+      }
+    );
+    const orAp = regua.intervalos.find(i => i.de === 'OR' && i.para === 'AP');
+    expect(orAp?.amostra).toBe(2);
+    expect(orAp?.medianaDias).toBe(4); // mediana de [3, 5]
+  });
+
+  it('data invertida é CONTADA, não aparada em zero', () => {
+    // ⚠️ `Math.max(0, …)` faria uma data fora de ordem virar "levou zero dia" — dado
+    // torto disfarçado de eficiência. Fica de fora da média e aparece no contador.
+    const regua = reguaDosMarcos([os({ id: 'A' })], marcos([null, null, 5, 9, null, null]));
+    const orAp = regua.intervalos.find(i => i.de === 'OR' && i.para === 'AP');
+    expect(orAp?.foraDeOrdem).toBe(1);
+    expect(orAp?.amostra).toBe(0);
+    expect(orAp?.medianaDias).toBeNull();
+  });
+
+  it('sem OS concluída, não inventa régua nenhuma', () => {
+    const regua = reguaDosMarcos([], marcos([]));
+    expect(regua.coorte).toBe(0);
+    expect(regua.marcos).toEqual([]);
+    expect(regua.intervalos).toEqual([]);
   });
 });

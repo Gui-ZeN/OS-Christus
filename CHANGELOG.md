@@ -3,6 +3,42 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-02 (a régua da coordenação entrou no painel — sem virar cobrança)
+
+Eu tinha deixado a régua de fora dizendo que exigia uma decisão da coordenação
+sobre o que significa "marco vazio". Estava errado: **a decisão já estava tomada e
+escrita**, em `utils/marcos.ts` — *"Marco vazio é informação — 'não aconteceu' ou 'o
+sistema não sabe' —, nunca pendência. Qualquer tela que trate buraco como erro vai
+estar cobrando um processo que a operação não executa."*
+
+Isso não diz se dá para fazer; diz **o que a régua não pode ser**. E o que sobra é
+exatamente o que a planilha da coordenação existe para mostrar.
+
+**Não mede completude.** Nada de "% da régua preenchida": medido na planilha, 45% das
+OS pulam etapa, 45% das concluídas nunca registraram início de execução e 31% não
+passaram por aprovação da solução. Um indicador de completude leria isso como atraso.
+
+**Mede duas coisas que os buracos não contaminam.** Quantas OS têm **cada data
+registrada** — cobertura do REGISTRO, não do processo, que é o número que responde
+por que a planilha continua aberta; e **quanto tempo entre marcos vizinhos**, só das
+OS que têm os dois. Etapa pulada não entra naquele par, e cada intervalo carrega a
+própria amostra, porque cada um tem uma diferente.
+
+**A coorte é "concluídas no período", e não é detalhe.** Numa OS ainda aberta,
+"Conclusão" vazia não é falta de registro — é a verdade. Contar OS viva aqui
+misturaria "ainda não aconteceu" com "aconteceu e ninguém anotou", que são as duas
+coisas que o comentário da régua manda não confundir.
+
+**Data invertida é contada, não aparada em zero.** `Math.max(0, …)` faria uma data
+fora de ordem virar "levou zero dia" — dado torto disfarçado de eficiência. Ela fica
+fora da mediana e aparece em vermelho no card.
+
+**Verificação.** Cinco testes novos, vermelho provado sabotando as duas regras que
+mais importam (buraco virando zero na média, data invertida sendo aparada). Visto na
+tela com quatro OS semeadas de propósito diferentes entre si — caminho completo,
+etapa pulada, só dois marcos, e uma com data invertida: `AS 25% (1 de 4)`,
+`OR → AP 9 dias, mediana de 1 OS` e o aviso `1 com data invertida, fora da conta`.
+
 ## 2026-09-02 (quatro indicadores novos — o painel passou a medir o que o Serv3 ganhou)
 
 Pergunta do dono, depois da auditoria: *"seria bom adicionar indicadores? principalmente

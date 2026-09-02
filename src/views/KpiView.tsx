@@ -39,11 +39,13 @@ import {
   esperaDaFila,
   filaTravada,
   tempoDeResolucao,
+  reguaDosMarcos,
 } from './kpi/calculos';
 import { mensagemDeErro, UserFacingError } from '../utils/errorMessage';
 import { repairMojibake } from '../utils/text';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import { activeSuspension } from '../utils/agenda';
+import { lerMarcos } from '../utils/marcos';
 /**
  * ⚠️ ESTA TELA TINHA QUATRO FORMAS DE ESCREVER DINHEIRO — uma local sem casas
  * decimais, uma inline com `toLocaleString`, e duas de eixo com e sem
@@ -689,6 +691,7 @@ export function KpiView() {
   const proximaAcao = useMemo(() => coberturaDaProximaAcao(ticketsDaFila), [ticketsDaFila]);
   const travadas = useMemo(() => filaTravada(ticketsDaFila, bloqueioParaAvancar), [ticketsDaFila]);
   const espera = useMemo(() => esperaDaFila(ticketsDaFila, activeSuspension), [ticketsDaFila]);
+  const regua = useMemo(() => reguaDosMarcos(ticketsFechadosNoPeriodo, lerMarcos), [ticketsFechadosNoPeriodo]);
 
   const financialOverview = useMemo(() => resumoFinanceiro(contractValues), [contractValues]);
 
@@ -1433,6 +1436,86 @@ export function KpiView() {
         {perspective === 'managerial' && (
           <>
             <PainelDeCobranca inicio={periodRange.start} fim={periodRange.end} ticketIds={idsDoRecorte} />
+
+            {/*
+              A RÉGUA DA COORDENAÇÃO.
+              ⚠️ Não mostra "% preenchido" e não chama buraco de pendência: 45% das OS
+              pulam etapa, e um indicador de completude cobraria um processo que a
+              operação não executa. Mostra o que o sistema REGISTROU e quanto tempo
+              passou entre marcos vizinhos — só das OS que têm os dois.
+            */}
+            <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm mb-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-1">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">A régua da coordenação</h2>
+                <div className="text-xs text-roman-text-sub">
+                  {regua.coorte === 0
+                    ? 'Nenhuma OS concluída no período'
+                    : `${regua.coorte} OS concluída(s) no período`}
+                </div>
+              </div>
+              <p className="text-xs text-roman-text-sub mb-6 max-w-3xl">
+                Marco em branco é informação, não pendência — 45% das OS pulam etapa. Aqui se lê o
+                que o sistema <strong>registrou</strong> e quanto tempo levou entre um marco e o
+                seguinte, contando só as OS que têm os dois.
+              </p>
+
+              {regua.coorte === 0 ? (
+                <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
+                  Sem OS concluída neste recorte, não há régua para ler. Numa OS ainda aberta, marco
+                  vazio no fim não é falta de registro — é a verdade.
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                    {regua.marcos.map(marco => (
+                      <div key={marco.curto} className="border border-roman-border rounded-sm bg-roman-bg px-3 py-3">
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">
+                          {marco.curto}
+                        </div>
+                        <div className="text-lg font-medium text-roman-text-main mt-1">
+                          {Math.round((marco.registradas / regua.coorte) * 100)}%
+                        </div>
+                        {/* O denominador à vista: "45%" sozinho não deixa ninguém conferir. */}
+                        <div className="text-[11px] text-roman-text-sub">
+                          {marco.registradas} de {regua.coorte} · {marco.rotulo}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-3">
+                    Tempo entre marcos vizinhos
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                    {regua.intervalos.map(intervalo => (
+                      <div
+                        key={`${intervalo.de}-${intervalo.para}`}
+                        className="border border-roman-border rounded-sm bg-roman-bg px-3 py-3"
+                      >
+                        <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">
+                          {intervalo.de} → {intervalo.para}
+                        </div>
+                        <div className="text-lg font-medium text-roman-text-main mt-1">
+                          {intervalo.medianaDias === null ? '—' : `${intervalo.medianaDias} dias`}
+                        </div>
+                        {/* Cada par tem a própria amostra, e ela muda muito entre eles:
+                            sem o número ao lado, "12 dias" de uma OS parece regra. */}
+                        <div className="text-[11px] text-roman-text-sub">
+                          {intervalo.amostra === 0
+                            ? 'Nenhuma OS com os dois marcos'
+                            : `mediana de ${intervalo.amostra} OS`}
+                        </div>
+                        {intervalo.foraDeOrdem > 0 && (
+                          <div className="text-[11px] text-roman-danger mt-1">
+                            {intervalo.foraDeOrdem} com data invertida, fora da conta
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">

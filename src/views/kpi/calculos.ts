@@ -595,3 +595,87 @@ export function esperaDaFila(
   const suspensas = abertas.filter(ticket => Boolean(suspensaAtiva(ticket, agora))).length;
   return { suspensas, paradas: abertas.length - suspensas, total: abertas.length };
 }
+
+// ── A RÉGUA DOS SEIS MARCOS ─────────────────────────────────────────────────
+
+export type CoberturaDoMarco = { curto: string; rotulo: string; registradas: number };
+export type IntervaloDaRegua = {
+  de: string;
+  para: string;
+  medianaDias: number | null;
+  amostra: number;
+  foraDeOrdem: number;
+};
+export type ReguaDosMarcos = {
+  coorte: number;
+  marcos: CoberturaDoMarco[];
+  intervalos: IntervaloDaRegua[];
+};
+
+/**
+ * A RÉGUA DA COORDENAÇÃO NO PAINEL — o dado mais rico do projeto, e o mais fácil
+ * de transformar em mentira.
+ *
+ * ⚠️ MARCO VAZIO É INFORMAÇÃO, NUNCA PENDÊNCIA. Está escrito em `utils/marcos.ts` e
+ * é a regra que decide o desenho inteiro: medido na planilha, 45% das OS pulam
+ * etapa, 45% das concluídas nunca registraram início de execução e 31% não passaram
+ * por aprovação da solução. Um indicador de "% da régua preenchida" leria esses
+ * buracos como atraso e estaria cobrando um processo que a operação não executa.
+ *
+ * Então esta função NÃO mede completude. Ela mede duas coisas que os buracos não
+ * contaminam:
+ *
+ *   1. QUANTAS OS TÊM CADA DATA REGISTRADA — cobertura do REGISTRO, não do processo.
+ *      É o número que responde por que a planilha continua aberta: se o Serv3 sabe
+ *      as datas que a coordenação anota à mão, a planilha perde a função.
+ *
+ *   2. QUANTO TEMPO ENTRE DOIS MARCOS VIZINHOS, e só das OS que têm OS DOIS. Etapa
+ *      pulada simplesmente não entra naquele par — nada é inventado, e cada
+ *      intervalo carrega a própria amostra porque cada um tem uma diferente.
+ *
+ * ⚠️ A COORTE É "CONCLUÍDAS NO PERÍODO", e isso não é detalhe. Numa OS ainda aberta,
+ * "Conclusão" vazia não é falta de registro — é a verdade. Contar OS viva aqui
+ * misturaria "ainda não aconteceu" com "aconteceu e ninguém anotou", que são
+ * exatamente as duas coisas que o comentário da régua manda não confundir.
+ */
+export function reguaDosMarcos(
+  ticketsConcluidosNoPeriodo: Ticket[],
+  lerMarcosDaOs: (ticket: Ticket) => Array<{ curto: string; rotulo: string; data: Date | null }>
+): ReguaDosMarcos {
+  const lidos = ticketsConcluidosNoPeriodo.map(lerMarcosDaOs);
+  const referencia = lidos[0] || [];
+
+  const marcos = referencia.map((marco, i) => ({
+    curto: marco.curto,
+    rotulo: marco.rotulo,
+    registradas: lidos.filter(linha => linha[i]?.data).length,
+  }));
+
+  const intervalos: IntervaloDaRegua[] = [];
+  for (let i = 0; i < referencia.length - 1; i += 1) {
+    const duracoes: number[] = [];
+    let foraDeOrdem = 0;
+    for (const linha of lidos) {
+      const inicio = linha[i]?.data;
+      const fim = linha[i + 1]?.data;
+      if (!inicio || !fim) continue;
+      // ⚠️ Fora de ordem é CONTADO, não aparado em zero. `Math.max(0, …)` faria uma
+      // data invertida virar "levou zero dia" — dado torto disfarçado de eficiência.
+      if (fim.getTime() < inicio.getTime()) {
+        foraDeOrdem += 1;
+        continue;
+      }
+      duracoes.push(diasEntre(inicio, fim));
+    }
+    const meio = mediana(duracoes);
+    intervalos.push({
+      de: referencia[i].curto,
+      para: referencia[i + 1].curto,
+      medianaDias: meio === null ? null : Math.round(meio),
+      amostra: duracoes.length,
+      foraDeOrdem,
+    });
+  }
+
+  return { coorte: ticketsConcluidosNoPeriodo.length, marcos, intervalos };
+}
