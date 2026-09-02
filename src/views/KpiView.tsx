@@ -35,9 +35,15 @@ import {
   valorDaOs,
   volumeDoPeriodo,
   volumePorSede,
+  coberturaDaProximaAcao,
+  esperaDaFila,
+  filaTravada,
+  tempoDeResolucao,
 } from './kpi/calculos';
 import { mensagemDeErro, UserFacingError } from '../utils/errorMessage';
 import { repairMojibake } from '../utils/text';
+import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
+import { activeSuspension } from '../utils/agenda';
 /**
  * ⚠️ ESTA TELA TINHA QUATRO FORMAS DE ESCREVER DINHEIRO — uma local sem casas
  * decimais, uma inline com `toLocaleString`, e duas de eixo com e sem
@@ -660,6 +666,30 @@ export function KpiView() {
 
   const esperaAberta = useMemo(() => esperaMaisLonga(ticketsDaFila), [ticketsDaFila]);
 
+  /**
+   * A TERCEIRA BASE: o que FECHOU no período.
+   *
+   * ⚠️ NÃO É `filteredTickets`, e a diferença é o indicador inteiro. Aquela recorta
+   * por data de ABERTURA — uma OS aberta este mês e ainda viva não tem tempo de
+   * resolução, e uma aberta em janeiro e concluída ontem é justamente a notícia. É o
+   * mesmo recorte que o gráfico de fluxo usa para contar saídas.
+   */
+  const ticketsFechadosNoPeriodo = useMemo(() => {
+    const inicio = periodRange.start.getTime();
+    const fim = periodRange.end.getTime();
+    return ticketsDaFila.filter(ticket => {
+      if (!ticket.closedAt) return false;
+      const data = ticket.closedAt instanceof Date ? ticket.closedAt : new Date(ticket.closedAt);
+      const quando = data.getTime();
+      return !Number.isNaN(quando) && quando >= inicio && quando <= fim;
+    });
+  }, [ticketsDaFila, periodRange.start, periodRange.end]);
+
+  const resolucao = useMemo(() => tempoDeResolucao(ticketsFechadosNoPeriodo), [ticketsFechadosNoPeriodo]);
+  const proximaAcao = useMemo(() => coberturaDaProximaAcao(ticketsDaFila), [ticketsDaFila]);
+  const travadas = useMemo(() => filaTravada(ticketsDaFila, bloqueioParaAvancar), [ticketsDaFila]);
+  const espera = useMemo(() => esperaDaFila(ticketsDaFila, activeSuspension), [ticketsDaFila]);
+
   const financialOverview = useMemo(() => resumoFinanceiro(contractValues), [contractValues]);
 
   const financialBalance = financialOverview.saldo;
@@ -1114,6 +1144,85 @@ export function KpiView() {
                 <div className="text-2xl font-medium text-roman-text-main mb-1">{distribuicaoUrgencia[0]?.name || 'Não definida'}</div>
                 <div className="text-sm text-roman-text-sub">
                   {distribuicaoUrgencia[0] ? `${distribuicaoUrgencia[0].total} OS em aberto` : 'Nenhuma OS em aberto'}
+                </div>
+              </div>
+            </div>
+
+            {/*
+              OS QUATRO QUE O PAINEL NÃO TINHA.
+              Eles medem o que o Serv3 GANHOU nos últimos meses e continuava
+              invisível aqui: quanto tempo se leva para resolver, se a próxima ação
+              está sendo preenchida, o que não anda por bloqueio, e o que espera com
+              data marcada — que não é a mesma coisa que estar parado.
+            */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Tempo de resolução</h3>
+                {/* Mediana, e a amostra ao lado: média de duas OS não é média. */}
+                <div className="text-2xl font-medium text-roman-text-main mb-1">
+                  {resolucao.mediana === null ? '—' : `${resolucao.mediana} dias`}
+                </div>
+                <div className="text-sm text-roman-text-sub">
+                  {resolucao.amostra === 0
+                    ? 'Nenhuma OS concluída neste período'
+                    : `Mediana de ${resolucao.amostra} OS concluída(s) no período`}
+                </div>
+                {resolucao.maisLento !== null && (
+                  <div className="mt-3 flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+                    Mais demorada: {resolucao.maisLento} dias
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Próxima ação definida</h3>
+                {/* Percentual com o denominador à vista — "78%" sozinho não deixa
+                    ninguém checar, e sem OS aberta não existe percentual nenhum. */}
+                <div className="text-2xl font-medium text-roman-text-main mb-1">
+                  {proximaAcao.total === 0
+                    ? '—'
+                    : `${Math.round((proximaAcao.comData / proximaAcao.total) * 100)}%`}
+                </div>
+                <div className="text-sm text-roman-text-sub">
+                  {proximaAcao.total === 0
+                    ? 'Nenhuma OS aberta no recorte'
+                    : `${proximaAcao.comData} de ${proximaAcao.total} OS abertas têm data para andar`}
+                </div>
+                {proximaAcao.vencidas > 0 && (
+                  <div className="mt-3 flex items-center gap-2 text-xs font-medium text-roman-danger bg-roman-danger/12 w-fit px-2 py-1 rounded-sm border border-roman-danger/35">
+                    {proximaAcao.vencidas} com a data já vencida
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Travadas por bloqueio</h3>
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{travadas.travadas}</div>
+                <div className="text-sm text-roman-text-sub">
+                  {travadas.travadas === 0
+                    ? 'Nenhuma OS bloqueada — a fila anda'
+                    : 'Não avançam enquanto isto não for resolvido'}
+                </div>
+                {travadas.motivos.map(motivo => (
+                  <div
+                    key={motivo.name}
+                    className="mt-3 flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border"
+                  >
+                    {motivo.name}: {motivo.total}
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Esperando com data</h3>
+                {/* Suspensa com motivo e revisão marcada é gestão, não falha — e no
+                    envelhecimento as duas contavam igual. */}
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{espera.suspensas}</div>
+                <div className="text-sm text-roman-text-sub">
+                  Suspensas com motivo e data de revisão
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
+                  Paradas sem previsão: {espera.paradas}
                 </div>
               </div>
             </div>

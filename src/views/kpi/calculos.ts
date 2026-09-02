@@ -451,3 +451,147 @@ export function custoPor(
   }
   return [...grupos.values()].sort((a, b) => b.custo - a.custo || a.name.localeCompare(b.name, 'pt-BR'));
 }
+
+// ── DESEMPENHO E DISCIPLINA ──────────────────────────────────────────────────
+
+/**
+ * Mediana, e não média — a mesma escolha de `metricasDeCobranca`.
+ *
+ * ⚠️ Uma obra de seis meses no meio de reparos de dois dias puxa a média para um
+ * número que não descreve nenhuma OS real. Com quantidade PAR, é a média dos dois
+ * centrais: pegar o de cima devolveria 180 para [60, 180], sempre para o lado que
+ * faz a operação parecer pior.
+ */
+export function mediana(valores: number[]): number | null {
+  if (valores.length === 0) return null;
+  const ordenados = [...valores].sort((a, b) => a - b);
+  const meio = ordenados.length / 2;
+  return ordenados.length % 2
+    ? ordenados[(ordenados.length - 1) / 2]
+    : (ordenados[meio - 1] + ordenados[meio]) / 2;
+}
+
+/**
+ * A data de fechamento, venha ela como `Date` ou como texto.
+ *
+ * ⚠️ O TIPO PERMITE OS DOIS (`string | Date | null`), e olhar só para `instanceof
+ * Date` descartaria em silêncio toda OS cuja data veio serializada — a amostra
+ * ficaria menor sem ninguém notar, que é o modo de falhar mais caro num indicador.
+ */
+function dataDeFechamento(ticket: Ticket): Date | null {
+  const bruto = ticket.closedAt;
+  if (!bruto) return null;
+  const data = bruto instanceof Date ? bruto : new Date(bruto);
+  return Number.isNaN(data.getTime()) ? null : data;
+}
+
+export type TempoDeResolucao = { mediana: number | null; maisLento: number | null; amostra: number };
+
+/**
+ * QUANTO TEMPO LEVOU PARA RESOLVER — o painel não tinha nenhuma medida assim.
+ *
+ * Ele media fila, custo e idade; nada olhava para trás para responder "estamos
+ * ficando mais rápidos?". O dado existe e é confiável desde que `ticket.closedAt`
+ * nasceu — `closureChecklist.closedAt` estava vazio em 92 das 92 OS fechadas.
+ *
+ * ⚠️ A BASE É "FECHADAS NO PERÍODO", NÃO "ABERTAS NO PERÍODO". Uma OS aberta este
+ * mês e ainda viva não tem tempo de resolução; uma aberta em janeiro e concluída
+ * ontem é justamente a notícia. É o mesmo recorte que o gráfico de fluxo usa para
+ * contar saídas, e o oposto do que todo card de volume usa.
+ */
+export function tempoDeResolucao(ticketsFechadosNoPeriodo: Ticket[]): TempoDeResolucao {
+  const duracoes = ticketsFechadosNoPeriodo
+    .map(ticket => {
+      const fim = dataDeFechamento(ticket);
+      if (!fim || !(ticket.time instanceof Date)) return null;
+      return diasEntre(ticket.time, fim);
+    })
+    .filter((dias): dias is number => dias !== null);
+
+  const meio = mediana(duracoes);
+  return {
+    mediana: meio === null ? null : Math.round(meio),
+    // O pior caso ao lado da mediana: sozinha, ela esconde a obra que travou meses.
+    maisLento: duracoes.length ? Math.round(Math.max(...duracoes)) : null,
+    amostra: duracoes.length,
+  };
+}
+
+export type CoberturaDaProximaAcao = { comData: number; semData: number; vencidas: number; total: number };
+
+/**
+ * QUANTAS OS TÊM DATA PARA ANDAR — e quantas dessas já venceram.
+ *
+ * ⚠️ MEDE SE A FERRAMENTA ESTÁ SENDO USADA. Dizer quando a OS anda passou a existir
+ * em três telas neste mês, e ninguém sabe se alguém preenche: quando só a agenda
+ * tinha o campo, ele estava preenchido em 1 de 181 OS. Sem este número, a feature
+ * pode estar morta e o painel não denuncia.
+ *
+ * `vencidas` é o que vira pauta — data marcada que passou é promessa não cumprida,
+ * e é diferente de nunca ter marcado nada.
+ */
+export function coberturaDaProximaAcao(
+  ticketsDaFila: Ticket[],
+  agora = new Date()
+): CoberturaDaProximaAcao {
+  const abertas = ticketsDaFila.filter(ticket => isTicketOpen(ticket.status));
+  let comData = 0;
+  let vencidas = 0;
+  for (const ticket of abertas) {
+    const quando = ticket.nextAction?.dueAt;
+    if (!(quando instanceof Date) || Number.isNaN(quando.getTime())) continue;
+    comData += 1;
+    if (quando.getTime() < agora.getTime()) vencidas += 1;
+  }
+  return { comData, semData: abertas.length - comData, vencidas, total: abertas.length };
+}
+
+export type FilaTravada = { travadas: number; motivos: Fatia[] };
+
+/**
+ * O QUE NÃO ANDA POR BLOQUEIO, não por falta de gente.
+ *
+ * ⚠️ A GESTÃO SABE DISSO E O PAINEL NÃO SABIA. O atalho "Travadas" existe na fila
+ * desde que se mediu que 88 OS estavam paradas por um motivo que ninguém sabia que
+ * existia — ele só aparecia para quem TENTAVA avançar. É o tipo de número que um
+ * painel gerencial deveria gritar, e ele nem existia lá.
+ */
+export function filaTravada(
+  ticketsDaFila: Ticket[],
+  bloqueioDe: (ticket: Ticket) => { motivo: string } | null
+): FilaTravada {
+  const contagem = new Map<string, number>();
+  for (const ticket of ticketsDaFila) {
+    if (!isTicketOpen(ticket.status)) continue;
+    const bloqueio = bloqueioDe(ticket);
+    if (!bloqueio) continue;
+    contagem.set(bloqueio.motivo, (contagem.get(bloqueio.motivo) || 0) + 1);
+  }
+  const motivos = [...contagem.entries()]
+    .map(([name, total]) => ({ name, total }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'pt-BR'));
+  return { travadas: motivos.reduce((soma, m) => soma + m.total, 0), motivos };
+}
+
+export type EsperaDaFila = { suspensas: number; paradas: number; total: number };
+
+/**
+ * ESPERAR COM DATA NÃO É ESTAR PARADO.
+ *
+ * ⚠️ NO ENVELHECIMENTO, AS DUAS CONTAM IGUAL — e são opostas. "OS parada há 60 dias"
+ * é falha; "OS esperando verba, com motivo escrito e revisão marcada para 12/09" é
+ * gestão. Somar as duas num gráfico de idade transforma trabalho bem conduzido em
+ * número ruim, e ensina a operação a ignorar o gráfico.
+ *
+ * A separação já existia no dado (`attention.state === 'suspended'` com `reviewAt`
+ * no futuro); só o painel não olhava.
+ */
+export function esperaDaFila(
+  ticketsDaFila: Ticket[],
+  suspensaAtiva: (ticket: Ticket, agora: Date) => unknown,
+  agora = new Date()
+): EsperaDaFila {
+  const abertas = ticketsDaFila.filter(ticket => isTicketOpen(ticket.status));
+  const suspensas = abertas.filter(ticket => Boolean(suspensaAtiva(ticket, agora))).length;
+  return { suspensas, paradas: abertas.length - suspensas, total: abertas.length };
+}

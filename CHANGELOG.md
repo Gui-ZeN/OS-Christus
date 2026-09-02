@@ -3,6 +3,48 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-02 (quatro indicadores novos — o painel passou a medir o que o Serv3 ganhou)
+
+Pergunta do dono, depois da auditoria: *"seria bom adicionar indicadores? principalmente
+Gerencial"*. Era — e por um motivo específico: **o painel não media nada do que o
+Serv3 ganhou nos últimos meses**. Ele media fila, custo e idade; tudo construído
+desde então era invisível ali. Só o Gerencial, por decisão do dono; o Financeiro
+ficou como está.
+
+**Tempo de resolução.** O buraco maior: nada olhava para trás para responder "estamos
+ficando mais rápidos?". Mediana, não média — uma obra de seis meses no meio de
+reparos de dois dias puxa a média para um número que não descreve OS nenhuma. A base
+é "fechadas NO período", e não "abertas no período": OS aberta este mês e ainda viva
+não tem tempo de resolução, e a aberta em janeiro concluída ontem é justamente a
+notícia. O dado só é confiável desde que `ticket.closedAt` nasceu.
+
+**Cobertura da próxima ação.** Dizer quando a OS anda passou a existir em três telas
+neste mês, e ninguém sabia se alguém preenche — quando só a agenda tinha o campo, ele
+estava em 1 de 181 OS. O card mostra a fração com o denominador à vista e destaca as
+**vencidas**, que é o que vira pauta: data marcada que passou é promessa não cumprida,
+diferente de nunca ter marcado nada. Medido no emulador: **8%**.
+
+**Travadas por bloqueio.** A Gestão tem o atalho desde que se mediu que 88 OS estavam
+paradas por um motivo que ninguém sabia que existia — ele só aparecia para quem
+TENTAVA avançar. O painel gerencial não sabia que isso existia.
+
+**Esperando com data ≠ parada.** No envelhecimento as duas contavam igual, e são
+opostas: "parada há 60 dias" é falha; "esperando verba, com motivo escrito e revisão
+em 12/09" é gestão. Somar as duas transforma trabalho bem conduzido em número ruim e
+ensina a operação a ignorar o gráfico. A separação já existia no dado; só o painel
+não olhava.
+
+**O que ficou de fora, e por quê.** A régua dos seis marcos é o dado mais rico do
+projeto — é a planilha que a coordenação mantém em paralelo há dois anos —, mas 45%
+das OS pulam etapa. Transformar isso em indicador exige decidir antes o que significa
+"marco vazio", e essa é conversa com a coordenação, não código.
+
+**Verificação.** Dez testes novos, vermelho provado sabotando as quatro contas de
+volta ao comportamento ingênuo (média no lugar de mediana, vencidas sem contar,
+bloqueio ignorado, suspensa somindo). Um deles pegou erro de aritmética meu no
+próprio fixture. Painel aberto na tela: os quatro coerentes entre si e com o resto —
+1 suspensa + 11 paradas = 12, que é a fila aberta.
+
 ## 2026-09-02 (os Indicadores estavam mentindo — auditoria e conserto)
 
 Pergunta do dono: *"Tão certos? pode melhorar?"* Não estavam. Uma auditoria linha a

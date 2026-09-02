@@ -3,6 +3,10 @@ import {
   backlogPorEquipe,
   backlogPorEtapa,
   comTeto,
+  coberturaDaProximaAcao,
+  esperaDaFila,
+  filaTravada,
+  tempoDeResolucao,
   custoPor,
   envelhecimentoDaFila,
   esperaMaisLonga,
@@ -377,5 +381,83 @@ describe('as seis etapas não são os treze status', () => {
     for (const status of STATUS_DO_BANCO) {
       expect(ORDEM_DAS_ETAPAS, status).toContain(etapaDe(status));
     }
+  });
+});
+
+// ── OS QUATRO INDICADORES NOVOS ─────────────────────────────────────────────
+
+describe('tempoDeResolucao — a medida que o painel não tinha', () => {
+  const fechada = (aberta: number, fechadaEm: number) =>
+    ({ ...os({ status: 'Encerrada' }), time: diasAtras(aberta), closedAt: diasAtras(fechadaEm) }) as never;
+
+  it('usa mediana, não média — uma obra longa não pode descrever o resto', () => {
+    // Durações de 2, 3, 4 dias e uma obra de 200: a média diria 52 dias, número
+    // que não descreve OS nenhuma. A mediana diz 4 (par, média dos centrais).
+    const r = tempoDeResolucao([fechada(2, 0), fechada(5, 2), fechada(6, 2), fechada(200, 0)]);
+    expect(r.mediana).toBe(4);
+    expect(r.maisLento).toBe(200);
+    expect(r.amostra).toBe(4);
+  });
+
+  it('com quantidade par, é a média dos dois centrais', () => {
+    // [2, 4] tem que dar 3, e não 4 — pegar o de cima puxa sempre para o lado
+    // que faz a operação parecer pior.
+    expect(tempoDeResolucao([fechada(2, 0), fechada(4, 0)]).mediana).toBe(3);
+  });
+
+  it('OS sem data de fechamento não entra na conta', () => {
+    const semFecho = { ...os({ status: 'Encerrada' }), closedAt: null } as never;
+    expect(tempoDeResolucao([semFecho]).amostra).toBe(0);
+  });
+
+  it('sem amostra devolve null, não zero — "não sei" não é "resolvemos na hora"', () => {
+    expect(tempoDeResolucao([])).toEqual({ mediana: null, maisLento: null, amostra: 0 });
+  });
+});
+
+describe('coberturaDaProximaAcao — mede se a ferramenta está sendo usada', () => {
+  const comAcao = (id: string, vence: number) =>
+    os({ id, nextAction: { what: 'ligar', dueAt: diasAtras(vence) } as never });
+
+  it('separa quem tem data, quem não tem, e quem já venceu', () => {
+    const r = coberturaDaProximaAcao(
+      [comAcao('A', 3), comAcao('B', -5), os({ id: 'C' }), os({ id: 'D', status: 'Encerrada' })],
+      agora
+    );
+    // A venceu há 3 dias; B vence daqui a 5; C não tem data; D está fechada.
+    expect(r).toEqual({ comData: 2, semData: 1, vencidas: 1, total: 3 });
+  });
+
+  it('OS fechada não entra — cobertura é da fila', () => {
+    expect(coberturaDaProximaAcao([os({ status: 'Encerrada' })], agora).total).toBe(0);
+  });
+});
+
+describe('filaTravada — o painel não sabia o que a Gestão já sabia', () => {
+  const bloqueio = (ticket: Ticket) =>
+    ticket.id === 'A' || ticket.id === 'B' ? { motivo: 'Falta classificar o serviço' } : null;
+
+  it('conta as travadas e agrupa por motivo', () => {
+    const r = filaTravada([os({ id: 'A' }), os({ id: 'B' }), os({ id: 'C' })], bloqueio);
+    expect(r.travadas).toBe(2);
+    expect(r.motivos).toEqual([{ name: 'Falta classificar o serviço', total: 2 }]);
+  });
+
+  it('OS fechada não está travada, está pronta', () => {
+    expect(filaTravada([os({ id: 'A', status: 'Encerrada' })], bloqueio).travadas).toBe(0);
+  });
+});
+
+describe('esperaDaFila — suspensa com data não é parada', () => {
+  const suspensa = (ticket: Ticket) => ticket.id === 'A';
+
+  it('separa as duas, porque uma é falha e a outra é gestão', () => {
+    const r = esperaDaFila([os({ id: 'A' }), os({ id: 'B' }), os({ id: 'C' })], suspensa, agora);
+    expect(r).toEqual({ suspensas: 1, paradas: 2, total: 3 });
+  });
+
+  it('as duas somam o total da fila, sempre', () => {
+    const r = esperaDaFila([os({ id: 'A' }), os({ id: 'B' })], suspensa, agora);
+    expect(r.suspensas + r.paradas).toBe(r.total);
   });
 });
