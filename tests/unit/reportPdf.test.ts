@@ -10,10 +10,11 @@ const BASE = {
   canceladas: 1,
   urgentesAbertas: 3,
   osMaisAntigaDias: 94,
-  osPorSede: [{ name: 'PQL1', abertas: 11, fechadas: 6 }],
+  osPorSede: [{ name: 'PQL1', abertas: 11, concluidas: 6, canceladas: 2 }],
   backlogPorEtapa: [{ name: 'Orçamento', total: 7 }],
   agingBuckets: [{ name: '8-30d', total: 5 }],
-  tempoPorEtapa: [{ name: 'Orçamento', dias: 18.7 }],
+  // `dias: null` é etapa sem OS — o PDF tem que imprimir travessão, não zero.
+  tempoPorEtapa: [{ name: 'Em orçamento', dias: 18.7, osNaEtapa: 4 }, { name: 'Contratação', dias: null, osNaEtapa: 0 }],
   tendenciaMensal: [{ name: 'jul', abertas: 8, encerradas: 5 }],
   distribuicaoUrgencia: [{ name: 'Alta', total: 11 }],
   backlogPorEquipe: [{ name: 'Infra - Sede', total: 9 }],

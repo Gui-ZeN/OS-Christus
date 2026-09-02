@@ -3,6 +3,93 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-02 (os Indicadores estavam mentindo — auditoria e conserto)
+
+Pergunta do dono: *"Tão certos? pode melhorar?"* Não estavam. Uma auditoria linha a
+linha do `KpiView.tsx` (1719 linhas, **zero teste nos cálculos**) achou 38 defeitos,
+e a correlação com a cobertura foi perfeita: os três módulos do painel que já tinham
+teste — `fluxoDemandas`, `metricasDeCobranca`, `currency` — passaram limpos, e todo
+achado grave estava nos ~25 `useMemo` sem teste. Não era falta de cuidado; era falta
+de lugar onde o cuidado pudesse ser verificado.
+
+**O conserto começou pela base:** os cálculos saíram do meio do JSX para
+`src/views/kpi/calculos.ts`, puros, com 32 testes. É o que torna o resto afirmável.
+
+**Os cinco que mudavam número na tela:**
+
+*O filtro de etapa não funcionava.* O dropdown era montado com as SEIS etapas
+(`etapaDe`) e o filtro comparava contra os TREZE status do banco. Só "Nova OS" e
+"Cancelada" coincidem por acaso — nas outras cinco opções, escolher uma etapa
+deixava o painel inteiro vazio, sem erro. Verificado na tela: "Em orçamento" agora
+devolve 3 OS, antes devolvia zero.
+
+*"Envelhecimento do backlog" era uma tautologia do próprio filtro.* A lista chegava
+já cortada pelo período; no padrão "Últimos 30 dias" nenhuma OS podia ter mais de 29
+dias, então as faixas "31-60" e "60+" eram **estruturalmente zero**. O gráfico
+provava que nada envelhece porque já tinha jogado fora tudo que envelheceu.
+
+*"Maior obra do recorte" anunciava R$ 0 com selo vermelho.* A trava só olhava lista
+vazia: sem nenhuma OS com valor, todas empatavam em zero e a primeira do sort
+vencia — "R$ 0 · Lâmpada queimada na recepção".
+
+*O tooltip de "Previsto x pago" rotulava as duas séries como "Pago".* O Recharts
+passa o `name` do `<Bar>` ("Previsto"), não o `dataKey` ("previsto"), e a comparação
+era com a minúscula. O mesmo defeito no Calendário financeiro.
+
+*"Lançamentos pendentes" ignorava todos os filtros* e dizia "no recorte filtrado" —
+era o único card que não passava pela lista filtrada.
+
+**A separação que consertou metade do resto: FILA e FLUXO são bases diferentes.**
+"Quantas abriram em março" recorta por data; "quantas estão paradas agora" não pode,
+porque a OS de janeiro ainda parada é justamente a que importa. O gráfico de fluxo já
+tinha percebido isso e documentado; a regra só não valia para o resto da tela.
+Backlog, envelhecimento, maior espera, garantia e urgência passaram para a base sem
+data.
+
+**Uma fórmula por pergunta.** "Quanto vale esta OS" tinha três respostas em cards
+vizinhos — com um aditivo lançado, a mesma sede aparecia com dois números no mesmo
+scroll. Agora é uma (`valorDaOs`), que prefere os lançamentos ao contrato porque é o
+lançamento que acompanha aditivo. E **obra cancelada saiu do dinheiro**: contrato
+assinado de OS cancelada somava valor cheio em "Compromisso previsto" e "Base
+contratada" — trabalho que não houve, contado como compromisso.
+
+**"Não sei" deixou de ser zero.** "0 dia" quando não há OS aberta virou "—"; média
+de etapa vazia virou `null` com a amostra declarada ao lado; contagem de lista
+cortada em 8 passou a dizer o total. E `formatCurrency` — a mesma do Financeiro e
+dos e-mails — substituiu as **quatro** formas de escrever dinheiro que conviviam
+neste arquivo.
+
+**"Tempo médio por etapa" virou "Espera média na etapa atual"**, que é o que a conta
+sempre mediu. Não dava para corrigir com `marcos`: o próprio projeto mediu que 45%
+das OS pulam etapa, e reconstruir duração real dali seria inventar precisão que o
+dado não tem. O nome passou a bater com a fórmula.
+
+**O PDF foi alinhado junto** — ele e a tela discordavam sobre os mesmos números.
+"Encerradas" incluía canceladas no relatório que sai da empresa, e a coluna "Dias
+méd." imprimia 0 onde não havia OS.
+
+**Os seis que faltavam, na segunda passada:** "Últimos 30 dias" mudava de resultado
+ao longo do dia (a janela não começava à meia-noite); o seletor de ano lia
+`closureChecklist.closedAt`, campo preenchido em ZERO das 92 OS fechadas, ignorando
+o `closedAt` que nasceu justamente por isso; material sem preço lançado sumia do
+ranking como se fosse de graça, e a contagem dizia "ocorrências" contando LINHAS —
+uma linha de quantidade 50 valia o mesmo que uma de 1; o Calendário financeiro
+descartava em silêncio todo lançamento que vence fora da janela, e agora declara
+quantos são.
+
+⚠️ **UM ACHADO NÃO FOI CONSERTADO, DE PROPÓSITO.** A auditoria apontou que contrato
+não assinado entra em "Base contratada". Mas `api/procurement.js` normaliza o status
+de contrato para três valores — `pending_signature`, `pending_upload`,
+`pending_approval` — e nenhum deles é "assinado": filtrar por status esconderia
+TODOS os contratos. Qual sinal significa "contrato fechado" neste sistema é pergunta
+de domínio, não defeito de código, e chutar aqui zeraria o painel financeiro.
+
+⚠️ **Dois defeitos foram introduzidos por mim durante o próprio conserto e pegos na
+tela, não pelo tsc:** um `dataKey="fechadas"` que deixou de existir (barra vazia) e
+um replace global que fez quatro gráficos de CONTAGEM escreverem "R$ 4,00" onde era
+"4 OS". `dataKey` do Recharts é string solta — o compilador não olha. Foi abrir a
+tela que mostrou.
+
 ## 2026-09-01 (o aviso de chuva também sai por Discord e Telegram, em paralelo ao e-mail)
 
 Decisão do dono: canal único (não por pessoa) nos dois, rodando ao lado do e-mail,

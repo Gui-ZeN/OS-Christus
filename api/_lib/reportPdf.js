@@ -185,12 +185,13 @@ export async function buildReportPdf(data) {
     y += drawBarChart(doc, M, y, CW, 150,
       data.osPorSede.map(s => s.name),
       [{ label: 'Abertas', color: C.gold, values: data.osPorSede.map(s => s.abertas) },
-       { label: 'Encerradas', color: C.green, values: data.osPorSede.map(s => s.fechadas) }],
+       { label: 'Concluídas', color: C.green, values: data.osPorSede.map(s => s.concluidas) },
+       { label: 'Canceladas', color: C.sub, values: data.osPorSede.map(s => s.canceladas) }],
       true);
     y += 8;
     y = drawTable(doc, M, y, CW,
-      [{ label: 'Sede' }, { label: 'Abertas', align: 'right', w: 90 }, { label: 'Encerradas', align: 'right', w: 90 }, { label: 'Total', align: 'right', w: 70 }],
-      data.osPorSede.map(s => [s.name, s.abertas, s.fechadas, s.abertas + s.fechadas]));
+      [{ label: 'Sede' }, { label: 'Abertas', align: 'right', w: 72 }, { label: 'Concluídas', align: 'right', w: 72 }, { label: 'Canceladas', align: 'right', w: 72 }, { label: 'Total', align: 'right', w: 60 }],
+      data.osPorSede.map(s => [s.name, s.abertas, s.concluidas, s.canceladas, s.abertas + s.concluidas + s.canceladas]));
     y += 8;
 
     // ── Backlog por Etapa ─────────────────────────────────────
@@ -220,9 +221,14 @@ export async function buildReportPdf(data) {
     const halfW = (CW - gap) / 2;
     y = ensureSpace(doc, y, 140);
     let y1 = sectionHeader2(doc, M, y, halfW, 'Idade do backlog');
-    let y2 = sectionHeader2(doc, M + halfW + gap, y, halfW, 'Tempo médio por etapa');
+    let y2 = sectionHeader2(doc, M + halfW + gap, y, halfW, 'Espera na etapa atual');
     const yA = drawTable(doc, M, y1, halfW, [{ label: 'Faixa' }, { label: 'OS abertas', align: 'right', w: 80 }], data.agingBuckets.map(a => [a.name, a.total]));
-    const yB = drawTable(doc, M + halfW + gap, y2, halfW, [{ label: 'Etapa' }, { label: 'Dias méd.', align: 'right', w: 70 }], data.tempoPorEtapa.map(t => [t.name, t.dias]));
+    // ⚠️ `null` VIRA TRAVESSÃO, não zero: etapa sem OS não esperou zero dia, o
+    // sistema é que não tem o que medir. E a coluna de amostra vai junto — média de
+    // uma OS só não é média, e quem lê o papel não tem como perguntar.
+    const yB = drawTable(doc, M + halfW + gap, y2, halfW,
+      [{ label: 'Etapa' }, { label: 'Dias méd.', align: 'right', w: 60 }, { label: 'OS', align: 'right', w: 40 }],
+      data.tempoPorEtapa.map(t => [t.name, t.dias == null ? '—' : t.dias, t.osNaEtapa]));
     y = Math.max(yA, yB) + 10;
 
     y = ensureSpace(doc, y, 140);
