@@ -77,7 +77,9 @@ import { processEmailOutboxBatch } from './_lib/emailOutboxWorker.js';
 import { fetchCemaden } from './_lib/cemaden.js';
 import { fetchMetar } from './_lib/metar.js';
 import { detectRainTransition, stateToPersist } from './_lib/rainWatch.js';
-import { avaliarChuva, montarEmail, selecionarPontosDeGoteira, sinalSimulado } from './_lib/rainAlert.js';
+import { avaliarChuva, montarEmail, montarMensagemDeChat, selecionarPontosDeGoteira, sinalSimulado } from './_lib/rainAlert.js';
+import { enviarParaDiscord } from './_lib/discord.js';
+import { enviarParaTelegram } from './_lib/telegram.js';
 import { destinatariosDoAviso } from './_lib/avisoDeChuva.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 
@@ -86,6 +88,10 @@ const GMAIL_SYNC_STATE_DOC = 'gmailSync';
 // vivia num arquivo no cache do GitHub Actions, que pode ser despejado e levaria
 // junto a memória de "estava chovendo ou não".
 const RAIN_STATE_DOC = 'rainWatch';
+
+/** Tetos de tamanho de mensagem dos dois canais — documentados pelas próprias APIs. */
+const LIMITE_MENSAGEM_DISCORD = 2000;
+const LIMITE_MENSAGEM_TELEGRAM = 4096;
 
 function required(input, name) {
   if (!input || String(input).trim() === '') throw new Error(`Campo obrigatório: ${name}`);
@@ -3506,9 +3512,16 @@ async function handleRainAlert(req, res) {
     let enviado = false;
     let origemDosDestinos = 'nao-consultado';
     let destinos = [];
+    // `null` = não tinha o que tentar (canal não configurado neste ambiente).
+    // `true`/`false` só depois de uma tentativa real de envio.
+    let discordEnviado = null;
+    let telegramEnviado = null;
+    // Só passa a valer DENTRO do bloco abaixo. Fora dele (nenhuma transição
+    // relevante) o estado sempre grava — isto não pode mudar esse caso.
+    let nenhumCanalConfigurado = false;
     if (transicao === 'comecou' || forcar) {
       /**
-       * A LISTA SÓ É LIDA QUANDO VAI SAIR E-MAIL.
+       * A LISTA SÓ É LIDA QUANDO VAI SAIR AVISO.
        *
        * A rota roda o dia inteiro e, em 99% dos ciclos, não há transição. Ler o
        * diretório em todos custaria centenas de leituras por dia na cota do Spark
@@ -3530,47 +3543,83 @@ async function handleRainAlert(req, res) {
         origemDosDestinos = escolha.origem;
       }
 
-      if (destinos.length === 0) {
-        // 200, não erro: a rota roda o dia inteiro, e transformar isto em falha
-        // vermelha ensinaria todo mundo a ignorar o vermelho.
-        return sendJson(res, 200, {
-          ok: true,
-          enviado: false,
-          motivo: 'ninguém marcado para receber o aviso de chuva (e RAIN_ALERT_TO vazio)',
-          estado: { anterior, agora: sinal.state, transicao },
-        });
-      }
-
       const quando = now.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
       const goteiras = await listarPontosDeGoteira(db, sede);
       const email = montarEmail(sinal, quando, sede, goteiras);
-      // A chuva também: a transição já protege contra repetir, mas duas execuções
-      // simultâneas do cron de 5 em 5 minutos leriam o mesmo estado anterior.
+
       /**
        * UMA CHAVE POR DESTINATÁRIO, e um envio por vez.
        *
        * A chave já incluía o destino, então cada pessoa tem a sua idempotência: se o
        * Gmail recusar a caixa de uma, as outras continuam recebendo, e a repetição da
        * execução seguinte não duplica para quem já recebeu.
+       *
+       * ⚠️ SEM DESTINO NÃO É MAIS ERRO DE ROTA. Antes, zero destinatário de e-mail
+       * encerrava a requisição inteira com 200 antecipado — e agora Discord e
+       * Telegram são canais ÚNICOS, independentes de alguém ter marcado a caixinha
+       * `avisoDeChuva`: precisam ter a chance de sair mesmo com `destinos` vazio.
        */
-      for (const destino of destinos) {
-        const chave = chaveDeEnvio(['chuva', destino, sede || 'cidade', quando]);
-        const saiu = await enviarUmaVez(db, chave, () => gmailSend({
-          toEmail: destino,
-          subject: email.subject,
-          text: email.text,
-          html: email.html,
-          ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
-          references: [],
-        }), now);
-        if (saiu) enviado = true;
+      if (destinos.length === 0) {
+        origemDosDestinos = origemDosDestinos === 'nao-consultado' ? 'ninguem-marcado' : origemDosDestinos;
+      } else {
+        for (const destino of destinos) {
+          const chaveEmail = chaveDeEnvio(['chuva', destino, sede || 'cidade', quando]);
+          const saiu = await enviarUmaVez(db, chaveEmail, () => gmailSend({
+            toEmail: destino,
+            subject: email.subject,
+            text: email.text,
+            html: email.html,
+            ticketId: sinal.simulado ? 'aviso-chuva-teste' : 'aviso-chuva',
+            references: [],
+          }), now);
+          if (saiu) enviado = true;
+        }
       }
+
+      /**
+       * DISCORD E TELEGRAM — CANAL ÚNICO, EM PARALELO AO E-MAIL.
+       *
+       * Mesma mensagem do e-mail (`montarMensagemDeChat`, `_lib/rainAlert.js`), sem
+       * segunda decisão de conteúdo. Sem controle por pessoa: quem está no
+       * canal/grupo vê, do jeito que um webhook e um bot funcionam — não há
+       * equivalente de `avisoDeChuva` por usuário aqui.
+       *
+       * Cada canal só tenta se as suas próprias variáveis estiverem configuradas —
+       * um ambiente pode ter só e-mail, só um dos dois, ou os três juntos.
+       */
+      const webhookDiscord = process.env.RAIN_ALERT_DISCORD_WEBHOOK_URL;
+      if (webhookDiscord) {
+        const chaveDiscord = chaveDeEnvio(['chuva', 'discord', sede || 'cidade', quando]);
+        const texto = montarMensagemDeChat(email, LIMITE_MENSAGEM_DISCORD);
+        discordEnviado = await enviarUmaVez(db, chaveDiscord, () => enviarParaDiscord(webhookDiscord, texto), now);
+        if (discordEnviado) enviado = true;
+      }
+
+      const telegramToken = process.env.RAIN_ALERT_TELEGRAM_BOT_TOKEN;
+      const telegramChatId = process.env.RAIN_ALERT_TELEGRAM_CHAT_ID;
+      if (telegramToken && telegramChatId) {
+        const chaveTelegram = chaveDeEnvio(['chuva', 'telegram', sede || 'cidade', quando]);
+        const texto = montarMensagemDeChat(email, LIMITE_MENSAGEM_TELEGRAM);
+        telegramEnviado = await enviarUmaVez(db, chaveTelegram, () => enviarParaTelegram(telegramToken, telegramChatId, texto), now);
+        if (telegramEnviado) enviado = true;
+      }
+
+      /**
+       * SE NENHUM CANAL TINHA PARA ONDE MANDAR, O CICLO NÃO CONTA.
+       *
+       * Antes, zero destinatário de e-mail encerrava a rota mais cedo e deixava o
+       * estado sem gravar — de propósito, para a próxima execução ver a mesma
+       * transição "começou" e tentar de novo, em vez de aceitar em silêncio que
+       * ninguém foi avisado. Generalizado para os três: se e-mail, Discord E
+       * Telegram estavam todos vazios/desconfigurados, continua sem gravar.
+       */
+      nenhumCanalConfigurado = destinos.length === 0 && !webhookDiscord && !(telegramToken && telegramChatId);
     }
 
     // Grava DEPOIS de enviar: se o envio falhar, o estado não avança e a próxima
     // execução tenta de novo. O contrário perderia o aviso em silêncio.
     const paraGuardar = stateToPersist(anterior, sinal.state);
-    if (paraGuardar && paraGuardar !== anterior) {
+    if (!nenhumCanalConfigurado && paraGuardar && paraGuardar !== anterior) {
       await ref.set({ [chave]: { state: paraGuardar, at: now } }, { merge: true });
     }
 
@@ -3581,8 +3630,14 @@ async function handleRainAlert(req, res) {
       // existe justamente para desviar o destino. Agora diz também DE ONDE saiu a
       // lista: `cadastro` é o normal, `ambiente` avisa que ninguém marcou a caixinha
       // e a rede de segurança está segurando o aviso sozinha.
-      destino: enviado ? destinos.join(', ') : null,
+      destino: destinos.length ? destinos.join(', ') : null,
       origemDosDestinos,
+      // `null` = canal não configurado neste ambiente; `true`/`false` = tentou e o
+      // resultado. As três formas são visíveis de propósito — "não configurado" e
+      // "configurado mas não enviou" são diagnósticos diferentes.
+      discord: discordEnviado,
+      telegram: telegramEnviado,
+      nenhumCanalConfigurado,
       estado: { anterior, agora: sinal.state, transicao },
       fontes: sinal.fontes,
       simulado: Boolean(sinal.simulado),
@@ -3669,6 +3724,8 @@ async function handleEmailDiagnose(req, res) {
               : 'nenhuma',
         cronSecretPresente: Boolean(process.env.CRON_SECRET),
         destinatarioDoAvisoDeChuva: Boolean(process.env.RAIN_ALERT_TO),
+        avisoDeChuvaNoDiscord: Boolean(process.env.RAIN_ALERT_DISCORD_WEBHOOK_URL),
+        avisoDeChuvaNoTelegram: Boolean(process.env.RAIN_ALERT_TELEGRAM_BOT_TOKEN && process.env.RAIN_ALERT_TELEGRAM_CHAT_ID),
       },
     });
   } catch (error) {

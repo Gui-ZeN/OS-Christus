@@ -3,6 +3,39 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-01 (o aviso de chuva também sai por Discord e Telegram, em paralelo ao e-mail)
+
+Decisão do dono: canal único (não por pessoa) nos dois, rodando ao lado do e-mail,
+não no lugar dele.
+
+MESMA MENSAGEM, SEM SEGUNDA DECISÃO. `montarMensagemDeChat` (`_lib/rainAlert.js`)
+reaproveita `email.subject` + `email.text` — não existe um terceiro texto para os
+dois divergirem do e-mail no dia em que só um mudar. Discord (webhook, sem bot) e
+Telegram (Bot API, sem `parse_mode` — o texto usa `.`/`-`/`!` à vontade, e o
+MarkdownV2 do Telegram rejeitaria a mensagem inteira por isso) são dois arquivos
+novos, cada um só a chamada HTTP.
+
+CADA CANAL SÓ TENTA SE ESTIVER CONFIGURADO — três variáveis novas no
+`.env.example`, nenhuma obrigatória. Um ambiente pode ter só e-mail, só um dos
+dois novos, ou os três juntos.
+
+⚠️ ZERO DESTINATÁRIO DE E-MAIL DEIXOU DE ENCERRAR A ROTA. Antes, `RAIN_ALERT_TO`
+vazio devolvia 200 antecipado e nem chegava a montar o aviso — correto quando só
+existia e-mail, errado agora: Discord e Telegram são canais únicos, independentes
+de alguém ter marcado a caixinha `avisoDeChuva`. A generalização manteve a mesma
+garantia de antes por um caminho diferente: se os TRÊS canais estão vazios/
+desconfigurados, o estado da chuva ainda não é gravado, e a próxima execução do
+cron tenta de novo — só que agora a checagem cobre os três, não só o e-mail.
+
+VERIFICAÇÃO. Onze testes novos (mensagem de chat + as duas chamadas HTTP
+mockadas), vermelho provado duas vezes antes do verde: sem o corte com aviso do
+limite de tamanho, e sem o tratamento de erro do Discord. Rodado de ponta a ponta
+contra o emulador com um servidor HTTP local fazendo de webhook: o Discord
+recebeu a mensagem real, assunto e corpo, com a OS marcada de goteira dentro.
+Telegram falhou contra a API de verdade (token falso, esperado) e a falha SUBIU
+como erro da rota — não foi engolida —, provando que um canal falhando não finge
+sucesso.
+
 ## 2026-08-31 (a coluna de chuva na Gestão, e o placeholder do e-mail finalmente virou lista)
 
 O e-mail de aviso de chuva tinha uma seção órfã desde que nasceu: "Pontos de goteira

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avaliarChuva, montarEmail, selecionarPontosDeGoteira, sinalSimulado } from '../../api/_lib/rainAlert.js';
+import { avaliarChuva, montarEmail, montarMensagemDeChat, selecionarPontosDeGoteira, sinalSimulado } from '../../api/_lib/rainAlert.js';
 
 /**
  * O AVISO DE CHUVA — 122 linhas sem teste até agora, e o único e-mail do sistema
@@ -316,5 +316,46 @@ describe('selecionarPontosDeGoteira — quem entra na lista', () => {
       'SUL1/OS-0001',
       'SUL1/OS-0003',
     ]);
+  });
+});
+
+/**
+ * A MESMA MENSAGEM, para Discord e Telegram — sem segunda montagem.
+ *
+ * ⚠️ POR QUE NÃO É UM TEXTO NOVO. Uma decisão de conteúdo escrita duas vezes
+ * diverge no dia em que só uma muda — a mesma regra que já valeu para não
+ * duplicar `destinatariosDoAviso`. Aqui a prova é literal: a mensagem tem que
+ * CONTER o e-mail inteiro, assunto e corpo, byte a byte.
+ */
+describe('montarMensagemDeChat — a mesma mensagem, para os dois canais', () => {
+  const email = () => ({ subject: 'Começou a chover em Fortaleza', text: 'linha 1\nlinha 2\nlinha 3' });
+
+  it('é o assunto e o texto do e-mail, sem reescrever nada', () => {
+    const msg = montarMensagemDeChat(email());
+    expect(msg).toBe('Começou a chover em Fortaleza\n\nlinha 1\nlinha 2\nlinha 3');
+  });
+
+  it('sem limite, não corta nunca', () => {
+    const longo = { subject: 'X', text: 'a'.repeat(10_000) };
+    expect(montarMensagemDeChat(longo).length).toBeGreaterThan(10_000);
+  });
+
+  it('dentro do limite, não mexe em nada', () => {
+    const msg = montarMensagemDeChat(email(), 2000);
+    expect(msg).toBe('Começou a chover em Fortaleza\n\nlinha 1\nlinha 2\nlinha 3');
+  });
+
+  it('acima do limite, corta e AVISA — não é silêncio', () => {
+    const longo = { subject: 'Aviso', text: 'x'.repeat(3000) };
+    const msg = montarMensagemDeChat(longo, 2000);
+    expect(msg.length).toBe(2000);
+    expect(msg).toContain('cortado por limite do canal');
+    expect(msg).toContain('e-mail tem a versão completa');
+  });
+
+  it('os limites reais dos dois canais: Discord 2000, Telegram 4096', () => {
+    const longuissimo = { subject: 'Aviso', text: 'x'.repeat(5000) };
+    expect(montarMensagemDeChat(longuissimo, 2000).length).toBe(2000);
+    expect(montarMensagemDeChat(longuissimo, 4096).length).toBe(4096);
   });
 });

@@ -170,3 +170,23 @@ export function montarEmail(sinal, quando, sede = null, goteiras = []) {
     html,
   };
 }
+
+/**
+ * A MESMA MENSAGEM, para Discord e Telegram.
+ *
+ * ⚠️ NÃO É UM TEXTO NOVO — é `email.subject` + `email.text` reaproveitados. Uma
+ * segunda montagem divergiria do e-mail no dia em que só uma das duas mudasse, e é
+ * a mesma regra que já valeu para não duplicar `destinatariosDoAviso`: uma decisão,
+ * um lugar.
+ *
+ * ⚠️ O CORTE É DITO, NÃO CALADO. Discord aceita até 2000 caracteres por mensagem de
+ * webhook; Telegram, 4096. Truncar em silêncio esconderia justamente o fim da lista
+ * de goteira num dia de chuva grande — a nota diz que faltou e aponta para o
+ * e-mail, que não tem esse limite.
+ */
+export function montarMensagemDeChat(email, limite = null) {
+  const texto = `${email.subject}\n\n${email.text}`;
+  if (!limite || texto.length <= limite) return texto;
+  const nota = '\n\n[…] cortado por limite do canal — o e-mail tem a versão completa.';
+  return `${texto.slice(0, limite - nota.length)}${nota}`;
+}
