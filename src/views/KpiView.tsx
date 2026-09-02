@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Legend, LabelList, ComposedChart, Area } from 'recharts';
+import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Cell, Legend, LabelList, ComposedChart, Area, ReferenceLine } from 'recharts';
 import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
@@ -1611,6 +1611,99 @@ export function KpiView() {
                         fillOpacity={0.35}
                       />
                     </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/*
+              O MESMO FLUXO, DISSECADO EM DUAS PERGUNTAS.
+              O acumulado acima conta a história longa, mas esconde duas leituras
+              dentro do próprio desenho: a fila é a ESPESSURA de uma faixa entre duas
+              curvas que sobem, e o ritmo de cada semana é a INCLINAÇÃO dela. Espessura
+              e inclinação se julgam mal a olho — tanto que o parágrafo precisa
+              explicar as duas em prosa. Aqui elas viram altura, que se lê sozinha.
+
+              ⚠️ Os três saem da MESMA série (`fluxoDemandas`) e da mesma identidade
+              travada por teste. Não há conta nova: se discordarem, é bug, não
+              interpretação.
+            */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">A fila, sozinha</h2>
+                <p className="text-xs text-roman-text-sub mt-1 mb-5">
+                  A mesma faixa dourada do gráfico acima, medida a partir do zero. Lá ela é a
+                  espessura entre duas curvas que sobem; aqui é altura — sobe quando entra mais do
+                  que sai. Não segue o filtro de etapa, pelo mesmo motivo do gráfico acima.
+                </p>
+                <div className="h-64 min-w-0 min-h-[16rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <ComposedChart data={fluxoDemandas} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="rotulo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ stroke: paleta.serieC, strokeWidth: 1 }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
+                        formatter={(valor: number) => [`${valor} OS`, 'Na fila']}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="pendencias"
+                        name="Na fila"
+                        stroke={paleta.destaque}
+                        strokeWidth={2}
+                        fill={paleta.destaque}
+                        fillOpacity={0.2}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
+                <h2 className="font-serif text-lg font-medium text-roman-text-main">
+                  Ganhou ou perdeu {granularidadeFluxo === 'semana' ? 'a semana' : 'o mês'}
+                </h2>
+                <p className="text-xs text-roman-text-sub mt-1 mb-5">
+                  Quanto entrou menos quanto saiu, período a período. Barra{' '}
+                  <strong className="font-medium">para baixo</strong> é{' '}
+                  {granularidadeFluxo === 'semana' ? 'semana' : 'mês'} em que a fila encolheu; para
+                  cima, cresceu. Cancelada conta como saída — a soma destas barras é exatamente a
+                  variação da linha ao lado.
+                </p>
+                <div className="h-64 min-w-0 min-h-[16rem]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={fluxoDemandas} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
+                      <XAxis dataKey="rotulo" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: paleta.cursor }}
+                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                        itemStyle={{ color: paleta.textoDica }}
+                        labelFormatter={(rotulo: string) => {
+                          const ponto = fluxoDemandas.find(item => item.rotulo === rotulo);
+                          return ponto ? `${rotulo} · ${ponto.abertas} abertas, ${ponto.saidas} saíram` : rotulo;
+                        }}
+                        formatter={(valor: number) => [
+                          valor === 0 ? 'empate' : valor > 0 ? `${valor} a mais na fila` : `${Math.abs(valor)} a menos`,
+                          'Saldo',
+                        ]}
+                      />
+                      {/* A linha do zero é o eixo da leitura: sem ela, "para cima" e
+                          "para baixo" viram julgamento de posição, não de sinal. */}
+                      <ReferenceLine y={0} stroke={paleta.eixo} strokeWidth={1} />
+                      <Bar dataKey="saldo" name="Saldo" radius={[2, 2, 0, 0]} barSize={22}>
+                        {fluxoDemandas.map(ponto => (
+                          <Cell
+                            key={ponto.chave}
+                            fill={ponto.saldo > 0 ? paleta.destaque : paleta.serieA}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>

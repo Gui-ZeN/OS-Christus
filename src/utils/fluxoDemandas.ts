@@ -33,6 +33,18 @@ export interface PontoDeFluxo {
   canceladas: number;
   /** Encerradas + canceladas: as duas saem da fila. */
   saidas: number;
+  /**
+   * O que a fila ganhou ou perdeu NESTE balde: `abertas - saidas`.
+   *
+   * ⚠️ MESMO SINAL DE `resumoDoFluxo`: positivo significa que a fila CRESCEU. Os dois
+   * moram no mesmo módulo e um sinal invertido entre eles seria a divergência mais
+   * fácil de não perceber — o resumo em prosa diria "51 a menos" e o gráfico ao lado
+   * desenharia a barra para cima.
+   *
+   * E usa `saidas`, não `encerradas`: cancelada também sai da fila, e é isso que faz
+   * a soma dos saldos bater com a variação da linha de pendências.
+   */
+  saldo: number;
   /** Estoque no FIM do balde. */
   pendencias: number;
   /** Tudo que já foi aberto até o fim do balde — inclusive antes da janela. */
@@ -126,6 +138,7 @@ export function serieDeFluxo(
       encerradas: 0,
       canceladas: 0,
       saidas: 0,
+      saldo: 0,
       pendencias: 0,
       abertasAcumuladas: 0,
       saidasAcumuladas: 0,
@@ -180,6 +193,7 @@ export function serieDeFluxo(
     balde.pendencias = vivas;
     balde.abertasAcumuladas = abertasAte;
     balde.saidasAcumuladas = saidasAte;
+    balde.saldo = balde.abertas - balde.saidas;
   }
 
   return baldes;

@@ -3,6 +3,41 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-02 (o fluxo de demandas dissecado em dois — o acumulado ficou)
+
+O gráfico acumulado é bom e continua onde está: é ele que conta a história longa e
+mostra a fila caindo de 154 para 103. Mas ele guarda duas leituras dentro do próprio
+desenho, e as duas são difíceis de ler: **a fila é a espessura** de uma faixa entre
+duas curvas que sobem, e **o ritmo da semana é a inclinação** dela. Espessura e
+inclinação se julgam mal a olho — tanto que o parágrafo precisava explicar as duas em
+prosa. Agora elas viram altura, que se lê sozinha.
+
+**A fila, sozinha.** A mesma `pendencias`, medida a partir do zero. Na verificação
+ficou claro o ganho: a linha cai de 8 para 3 no meio da janela e volta a subir — uma
+queda que, como espessura de faixa, praticamente não se enxerga.
+
+**Ganhou ou perdeu a semana.** `abertas − saidas` por período, com a linha do zero e
+duas cores. Barra para baixo é semana em que a fila encolheu.
+
+⚠️ **O saldo usa `saidas`, não `encerradas`**, e mora no mesmo módulo do resumo com o
+**mesmo sinal** (positivo = fila cresceu). Um sinal invertido entre os dois seria a
+divergência mais fácil de não perceber: o texto diria "51 a menos" e a barra ao lado
+apontaria para cima. Cancelada também sai da fila, e é isso que faz a soma das barras
+bater exatamente com a variação da linha — travado por teste novo, com o vermelho
+provado trocando `saidas` por `encerradas`.
+
+**Nenhuma conta nova:** os três gráficos saem da mesma série e da mesma identidade
+`abertasAcumuladas − saidasAcumuladas = pendencias`. Se discordarem, é bug, não
+interpretação. E os três herdam a mesma decisão de ignorar o filtro de etapa — etapa
+é estado de hoje, o gráfico é histórico —, o que passou a estar escrito nos três.
+
+**Verificação.** Vistos na tela com dado semeado de propósito para exercitar as duas
+metades: semanas de saldo positivo e negativo, com as barras nas duas direções e a
+linha da fila subindo e descendo junto. Uma observação do caminho: nas primeiras
+capturas os gráficos pareciam vazios, e o DOM mostrou o contrário — o `d` do caminho
+completo, clip aberto e `visibility: visible`. Era a animação de entrada do Recharts,
+não ausência de dado. Screenshot cedo demais mente nos dois sentidos.
+
 ## 2026-09-02 (a régua da coordenação entrou no painel — sem virar cobrança)
 
 Eu tinha deixado a régua de fora dizendo que exigia uma decisão da coordenação

@@ -168,3 +168,43 @@ describe('granularidade', () => {
     expect(granularidadeSugerida(new Date(2026, 0, 1), new Date(2026, 11, 31))).toBe('mes');
   });
 });
+
+describe('saldo do balde — o número que os três gráficos precisam compartilhar', () => {
+  /**
+   * ⚠️ A SOMA DOS SALDOS TEM QUE SER A VARIAÇÃO DA FILA. É isso que faz o gráfico
+   * acumulado, a linha de pendências e as barras de saldo contarem a MESMA história.
+   * Se o saldo usasse `encerradas` em vez de `saidas`, uma OS cancelada sumiria da
+   * barra e continuaria saindo da linha — dois gráficos vizinhos discordando.
+   */
+  it('a soma dos saldos é exatamente quanto a fila cresceu ou encolheu', () => {
+    const serie = serieDeFluxo(
+      [
+        { time: new Date(2026, 0, 2), closedAt: new Date(2026, 0, 20) },
+        { time: new Date(2026, 0, 3), closedAt: null },
+        { time: new Date(2026, 0, 4), closedAt: new Date(2026, 1, 2), status: 'Cancelada' },
+        { time: new Date(2026, 1, 5), closedAt: null },
+      ] as never,
+      { inicio: new Date(2026, 0, 1), fim: new Date(2026, 1, 28), granularidade: 'mes' }
+    );
+
+    const somaDosSaldos = serie.reduce((soma, ponto) => soma + ponto.saldo, 0);
+    const resumo = resumoDoFluxo(serie);
+    expect(somaDosSaldos).toBe(resumo.pendenciasFim - resumo.pendenciasInicio);
+    // E o mesmo sinal do resumo: positivo é fila CRESCENDO.
+    expect(somaDosSaldos).toBe(resumo.saldo);
+  });
+
+  it('saldo é `abertas - saidas` em cada balde, e cancelada conta como saída', () => {
+    const serie = serieDeFluxo(
+      [
+        { time: new Date(2026, 0, 5), closedAt: null },
+        { time: new Date(2026, 0, 6), closedAt: new Date(2026, 0, 7), status: 'Cancelada' },
+      ] as never,
+      { inicio: new Date(2026, 0, 1), fim: new Date(2026, 0, 31), granularidade: 'mes' }
+    );
+    // Duas abertas, uma saída (a cancelada): a fila cresceu 1.
+    expect(serie[0].abertas).toBe(2);
+    expect(serie[0].saidas).toBe(1);
+    expect(serie[0].saldo).toBe(1);
+  });
+});
