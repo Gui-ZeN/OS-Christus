@@ -1586,14 +1586,18 @@ export function KpiView() {
                           const intervalo = granularidadeFluxo === 'semana' ? `${dia(ponto.inicio)} a ${dia(ponto.fim)}` : rotulo;
                           // O movimento da semana continua legível aqui: o acumulado
                           // mostra a tendência, mas a pergunta do diretor era "20 e 21".
-                          return `${intervalo} · ${ponto.abertas} abertas, ${ponto.saidas} fechadas`;
+                          // "saíram", e não "fechadas": o número é `saidas`, que soma encerradas E
+                          // canceladas. Em produção são 3 canceladas dentro de 113 — pouco,
+                          // mas o card de Volume logo acima separa as duas, e o painel não
+                          // pode chamar de "fechada" o que ele mesmo chama de "cancelada".
+                          return `${intervalo} · ${ponto.abertas} abertas, ${ponto.saidas} saíram`;
                         }}
                       />
                       <Legend wrapperStyle={{ paddingTop: '16px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
                       <Area
                         type="monotone"
                         dataKey="saidasAcumuladas"
-                        name="Já resolvidas (acumulado)"
+                        name="Já saíram da fila (acumulado)"
                         stackId="acumulado"
                         stroke={paleta.serieA}
                         strokeWidth={2}

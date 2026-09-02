@@ -3,6 +3,32 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-02 (o gráfico de fluxo chamava cancelada de "resolvida")
+
+Pergunta do dono, olhando o tooltip: *"os gráficos estão todos corretos? consegue
+bater?"*. Os **números** batiam — a conferência contra produção fechou exatamente:
+110 encerradas + 3 canceladas = 113 "saídas", e 215 OS na base − 113 = 102 na fila,
+que é o que o tooltip mostrava. A identidade do módulo está de pé.
+
+**Os rótulos é que não batiam.** Dois lugares chamavam de outra coisa o número que
+inclui OS cancelada:
+
+  · o tooltip dizia "14 **fechadas**" para `ponto.saidas`;
+  · a legenda da área dizia "Já **resolvidas** (acumulado)" para `saidasAcumuladas`.
+
+São 3 canceladas dentro de 113 — pouco em volume, e errado em espécie: o card de
+Volume logo acima separa "concluídas" de "canceladas", então o painel chamava de
+fechada, na metade de baixo, o que ele mesmo chama de cancelada na metade de cima. E
+o gráfico novo de saldo, escrito ontem, já dizia "saíram" — o mesmo número com duas
+palavras na mesma tela.
+
+Agora os dois dizem **"saíram da fila"**, que é o que a conta faz.
+
+**O PDF não tinha o defeito** e continua como está: ele usa `encerradas` de verdade e
+o título diz "Tendência Mensal (abertas × encerradas)". Ele responde uma pergunta
+diferente da tela, e por isso vai mostrar 110 onde a tela mostra 113 no mesmo
+período. Os dois estão certos; agora os rótulos deixam ver qual é qual.
+
 ## 2026-09-02 (o fluxo de demandas dissecado em dois — o acumulado ficou)
 
 O gráfico acumulado é bom e continua onde está: é ele que conta a história longa e
