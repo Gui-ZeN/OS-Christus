@@ -126,9 +126,12 @@ await Promise.all([
 ]);
 
 // 2) Regiões e sedes (subconjunto representativo)
+// `group` espelha o catálogo de produção (DEFAULT_REGIONS): as regiões do colégio
+// são `operacao` e a universidade é `universidade`. Faltava aqui, e sem ele o
+// emulador não reproduzia o filtro Colégio/Universidade dos Indicadores.
 const regions = [
-  { id: 'universidade', code: 'UNI', name: 'Universidade', active: true },
-  { id: 'regiao-sul', code: 'RSU', name: 'Região Sul', active: true },
+  { id: 'universidade', code: 'UNI', name: 'Universidade', group: 'universidade', active: true },
+  { id: 'regiao-sul', code: 'RSU', name: 'Região Sul', group: 'operacao', active: true },
 ];
 const sites = [
   { id: 'pql3', code: 'PQL3', name: 'Parquelândia (PQL3)', regionId: 'universidade', active: true },

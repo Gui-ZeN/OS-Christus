@@ -3,6 +3,227 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-04 (Colégio ou Universidade, nos Indicadores)
+
+Pedido do dono: *"se eu quiser ver todas as OS do Colégio eu não consigo, sempre
+filtra por região"*. Os Indicadores ofereciam uma região por vez, e as cinco regiões
+do colégio não tinham como ser somadas.
+
+**O campo já existia e nunca tinha sido usado.** `region.group` está no catálogo desde
+o começo, com um valor por região, e não era lido em lugar nenhum — nem aparece nas
+Configurações. Conferido em produção antes de qualquer código: as cinco regiões do
+colégio têm `operacao`, a Universidade tem `universidade`, **209 OS de um lado e 15 do
+outro**, e todas as 224 têm `regionId` casando com o catálogo. Não era preciso campo
+novo nem migração — era preciso ler o que já estava lá.
+
+**"Unidade"**, o seletor novo, vem ANTES da região porque é o degrau de cima: escolhido
+o Colégio, a lista de regiões e a de sedes já vêm recortadas. Ele só aparece quando há
+mais de um grupo — com um só não recorta nada e seria mais um controle para ler.
+
+Duas decisões de honestidade no resolvedor: grupo desconhecido devolve o **próprio
+valor** em vez de um rótulo genérico (quem cadastrar um grupo novo precisa VER que ele
+apareceu estranho, em vez de encontrá-lo somado a "Colégio"), e OS que não resolve
+região nenhuma fica **sem grupo** — chutar "Colégio" porque é a maioria seria o erro
+que este arquivo evita em todo lugar. O `bn`/`bn-uni`, que é o mesmo prédio em duas
+regiões, cai do lado certo pela sede; tem teste.
+
+Verificado no emulador com a conta que importa: **Colégio 3 + Universidade 10 = 13**,
+o total sem filtro. A partição é exata — nenhuma OS perdida, nenhuma contada duas
+vezes, e os sub-totais (em curso, concluídas, canceladas) também fecham.
+
+De lambuja: o `seed-emulator.mjs` não gravava `group` nas regiões, então o emulador
+não reproduzia o catálogo de produção. Corrigido — é para isso que o seed existe.
+
+## 2026-09-04 (o dia deixou de ser só visita)
+
+Observação do dono, com print: a Hoje abria com *"Nada marcado para hoje — ninguém
+prometeu vir"* enquanto havia trabalho com data logo abaixo, em "Trabalho interno".
+
+**A causa.** "Marcado para hoje" lia só `compromissos` — quem prometeu vir. O trabalho
+interno vem de outra fonte (`nextAction` / sugestão do sistema) e nunca chegava lá:
+`agendaGroupOf` mandava para "Trabalho interno" TUDO que fosse interno e não estivesse
+no futuro, inclusive o marcado para hoje às 9h. Eram duas metades do mesmo dia em dois
+lugares, e a de cima dizia que o dia estava vazio.
+
+**O que mudou.** Interno com data de HOJE sobe para a pauta do dia. O bloco passou a
+ter duas partes: as visitas por horário, e o trabalho interno nos MESMOS cartões do
+resto da tela — porque é neles que estão "Feito", "Amanhã" e "+3 dias". Rebaixá-los a
+uma linha de texto para caber na lista tiraria justamente o que resolve o dia.
+
+**O atrasado fica onde estava**, por escolha do dono entre as duas leituras possíveis.
+"Marcado para hoje" tem que continuar dizendo a verdade sobre o dia: item de 18/08 não
+é de hoje, e empurrá-lo para lá transformaria a pauta em backlog — que é o que esta
+tela existe para não ser.
+
+**Um efeito de segunda ordem que quase passou:** `exigemAcaoAgora` somava
+`COBRAR + INTERNAL`, então mover o interno de hoje faria a nota do card "Hoje"
+encolher sem nada ter melhorado. O contador agora soma também o interno que está na
+pauta do dia — ele mudou de lugar na tela, não de natureza.
+
+Verificado no emulador nas três combinações, incluindo a que eu quase não testei: só
+interno, e **visita + interno no mesmo dia** — onde a visita podia aparecer duas vezes
+(linha e cartão) e não aparece. Quatro testes existentes mudaram de expectativa porque
+a regra mudou; três novos travam a regra nova.
+
+## 2026-09-03 (a Gestão no telefone e no notebook pequeno)
+
+A tela era uma tabela de onze colunas e mais nada. No telefone isso não é "apertado":
+é arrastar de lado para ler cada OS, com a coluna de ações grudada por cima do que se
+está lendo.
+
+**Dois desenhos, um conteúdo.** Abaixo de 1024px cada OS vira um cartão — leitura de
+cima para baixo, que é a que o polegar faz. Nenhuma coluna foi cortada no caminho: o
+que a linha mostra, o cartão mostra, inclusive o selo de "travada". Quem está na sede,
+no celular, é justamente quem precisa saber por que a OS não anda. `FaixaDeMarcos`,
+`AcoesDaOs` e `SeloDeBloqueio` saíram para o módulo e servem os dois desenhos — duas
+cópias do mesmo conteúdo seriam a divergência de sempre.
+
+**O corte é em 1024, e não em 768, porque foi medido.** É a partir de 1024 que a
+tabela cabe sem rolagem horizontal. Cortar em 768 daria a um tablet uma tabela que ele
+não comporta — o pior dos dois desenhos.
+
+**O notebook pequeno.** A 1024 a tabela pedia **193px a mais** que a tela. Três
+medidas, cada uma medida no navegador:
+
+  · os rótulos dos botões só voltam em 1280 (a coluna de ações caiu de 305 para 132px);
+  · Equipe só volta em 1536 — a 1280, com ela E os rótulos, ainda sobravam 44px, e os
+    botões são o que se usa o tempo todo enquanto Equipe o filtro já responde;
+  · a coluna OS perdeu o `whitespace-nowrap`, que fazia um id fora do formato esticar
+    a coluna inteira para 142px.
+
+Resultado conferido em seis larguras: **375, 900, 1024, 1152, 1280 e 1536 — rolagem
+horizontal zero em todas.**
+
+**Duas correções que só a tela mostrou**, com os testes já verdes: o `flex-wrap` que
+consertou os botões no cartão empilhou os três na célula da tabela e triplicou a
+altura da linha (111px), e a busca com `flex-1` encolheu até virar só a lupa (40px) no
+telefone. As duas eram invisíveis para o `tsc`.
+
+**Os filtros recolhem no telefone** atrás de um botão que declara quantos estão
+ligados — recolher um recorte ativo sem dizer é como alguém conclui que o sistema
+perdeu OS. O número exclui a busca de propósito: ela tem campo próprio, sempre à
+vista, e o número existe para avisar do que NÃO se está vendo.
+
+## 2026-09-03 (o marco que aconteceu sem data)
+
+Observação do dono: quem move a OS de "Em análise" direto para "Em execução" fica com
+dois marcos, e a OS parece parada no começo. *"Nem toda OS vai passar pelos outros
+marcos, ou a pessoa não vai saber a data certa."*
+
+**Medi em produção antes de discordar, e o dado me fez concordar.** Em 220 OS vivas:
+aprovação da solução tem **4 datas**, orçamento **4**, ações preliminares **5**. Mas a
+planilha que a coordenação mantém em paralelo registra **226 aprovações de solução,
+177 orçamentos e 141 ações preliminares**. Os marcos do meio não estão vazios porque o
+trabalho não houve — estão vazios porque o trabalho acontece por e-mail e telefone,
+antes de alguém mexer numa etapa aqui. Nenhuma OS passava de 3/6, e o padrão dominante
+— **100 das 220** — era uma OS *encerrada* exibindo "2 de 6".
+
+Eu tinha proposto derivar o estado na leitura sem afirmar nada ("a OS passou daqui,
+não sei se aconteceu"). O dono recusou: *"a pessoa já fez isso tudo, só não tem a
+data"*. Está certo, e é uma afirmação que o dado dele sustenta melhor que a minha
+cautela.
+
+**`marcosSemData`**, novo campo, preenchido pelo servidor na MESMA transação do
+carimbo: os marcos que a etapa nova deixou para trás sem data. Fora de `marcos` de
+propósito — `contarMarcos` e a régua dos Indicadores continuam contando só data de
+verdade, e as medianas de intervalo não veem nada disto. **A data manda**: marco que
+ganha carimbo sai da lista, e a ressalva some sozinha.
+
+Na tela, **três estados** no lugar de dois: cheio (com data), pálido (aconteceu, sem
+data) e vazio (ainda não chegou). A fração passa a contar o que aconteceu, com um
+asterisco quando há marco sem data — que é o aviso pedido. O PDF da lista leva o mesmo
+número e ganhou legenda para o asterisco: papel e tela discordando sobre a mesma OS é
+como nasce "o sistema está errado".
+
+Verificado no emulador de ponta a ponta, não só em unitário: **19/19** no integrado,
+incluindo que o campo atravessa a transação e que o cliente não o forja.
+
+**Rodado em produção em 04/09/2026**: `backfill-marcos-sem-data.mjs --apply` gravou em
+**137 das 224 OS** (as 87 restantes já estavam certas — são as que estão em triagem e
+não pularam nada). Sem ele as 116 encerradas ficariam de fora para sempre: elas não
+transicionam mais.
+
+Conferido depois de gravar, e as invariantes que importam deram zero: **nenhum marco
+aparece como "sem data" tendo carimbo** (é o que sustenta a regra "a data manda") e
+nenhuma chave fora do vocabulário dos seis. A distribuição de DATAS ficou idêntica —
+1/100/115/8 —, que é a prova de que nada foi sobrescrito: `contarMarcos` e a régua dos
+Indicadores continuam lendo exatamente os mesmos números de antes. O que mudou é só a
+leitura de andamento: 116 OS passam a mostrar 6/6 onde mostravam 2/6.
+
+Rodar de novo não faz nada (o ensaio agora acusa 0 alvos), e desfazer é apagar o
+campo — nenhuma data se perde no caminho.
+
+## 2026-09-03 (o e-mail encolheu, e quem escreve perdeu o crachá)
+
+Pedido do dono: *"tirar os layouts de todos, deixar apenas texto normal"* — e, na
+escolha, *"pode pôr um pouco de estilo, mas diminui ele, algo minimalista"*.
+
+**O que saiu.** A moldura de todo e-mail era uma tarja escura `#1f1a15` com "SERV3"
+em maiúscula espaçada, um cartão de 600px com borda sobre fundo bege `#efe8de`,
+título serifado de 23px e um botão preto de 24px de respiro. Numa mensagem de três
+linhas — o caso mais comum, de longe — o enfeite pesava mais que o recado. Foram-se
+o cartão, o fundo, a tarja, o serifado (uma família de fonte agora, não duas) e o
+botão, que virou link. A assinatura de rodapé, "Comunicado automático do Serv3.",
+virou **"Serv3"**.
+
+**O que ficou, de propósito.** As tabelas de valores e de detalhes são o dado, não o
+enfeite — quem recebe um lançamento precisa ver bruto, imposto e valor a pagar em
+coluna. O *eyebrow* (Clima, Financeiro, Agenda do dia) virou uma linha cinza de 11px
+em vez de sumir: tirar o quadro é frufru a menos, tirar a palavra seria informação a
+menos em seis e-mails. E a tarja amarela do disparo de teste fica — ela existe
+justamente para ser notada, e num desenho quieto é o único lugar onde o peso é o
+recado. Perdeu só a barra lateral de 4px: numa folha branca, a faixa amarela inteira
+já é o que salta, e a barra era peso repetido.
+
+**Dois defeitos que só a tela mostrou**, depois de os testes passarem: o bloco de
+itens do aviso de chuva encostava na tabela seguinte (o respiro estava em cada item,
+não no bloco), e o e-mail de senha continuava dizendo "clique no **botão** abaixo"
+para um botão que eu tinha acabado de remover.
+
+**O crachá saiu do e-mail.** A Inbox mandava `Nome (Papel)` como remetente da
+mensagem, então o solicitante receberia "Cezar Serra (Gestor)" — um papel do
+organograma interno que não diz nada a quem está do outro lado. Agora vai só o nome,
+igual ao que o modal da Gestão já fazia. **No histórico o papel continua**: lá dentro
+ele importa.
+
+**E o autor não estava saindo, ponto.** Perguntado onde ficava o layout da mensagem
+aos interessados, fui olhar: `notifyTicketPublicReply` manda `useBodyOnly: true`, e
+isso faz o servidor DESCARTAR o modelo gravado (`Olá {{requester.name}}` +
+`{{message.sender}} enviou uma nova mensagem`) e enviar só o texto digitado. É o que
+mantém a thread limpa — mas custava o autor: **as 12 mensagens já enviadas em
+produção não dizem em lugar nenhum quem as escreveu.** O `intro` também não salvava,
+porque a moldura só usa `intro` quando NÃO há corpo — então o
+`"${sender} enviou uma atualização interna"` da mensagem à Diretoria era código morto
+desde que foi escrito.
+
+O autor foi para o **título**, o único campo que atravessa o `useBodyOnly`: "Guilherme
+enviou uma nova mensagem". Três testes novos travam a armadilha — com corpo o `intro`
+não aparece, sem corpo ele assume, e o título sempre atravessa.
+
+**O Encerramento financeiro foi junto.** Perguntado se *todos* os layouts estavam
+feitos, varri os 11 pontos de envio: e-mail, sim — todos recebem `html` de um dos três
+geradores, e nenhum outro arquivo em `api/` monta HTML de e-mail. Mas sobrava um
+layout HTML que não é e-mail: `buildClosureExportHtml`, o documento que a tela de
+Financeiro exporta e imprime. Estava na família visual antiga — Georgia serifado,
+cartões com borda e fundo bege, tabela com borda em cada célula. Ganhou a mesma régua.
+
+A régua pára num ponto, e o ponto está escrito no arquivo: **este documento é
+impresso**, então as tabelas guardam um filete embaixo de cada linha. No papel, sem a
+cor de fundo do cabeçalho para ancorar a vista, tabela sem régua nenhuma vira lista
+solta.
+
+Continuam com desenho próprio, por serem outro meio (pdfkit, com gráficos):
+`reportPdf.js` e `listaPdf.js`.
+
+**O botão "Ver mensagem" saiu** desse e-mail: ele mandava ver a mensagem quem estava
+lendo a mensagem. Quem quiser responder responde o próprio e-mail, e a thread volta
+para a OS. ⚠️ Com ele foi junto o link de acompanhamento — este e-mail deixou de ter
+caminho para a página pública. Os e-mails de mudança de etapa continuam com o link,
+que é onde há algo a ver do outro lado.
+
+Os quatro testes novos foram provados no vermelho contra o desenho antigo (9 de 20
+falhavam) antes de ficarem verdes.
+
 ## 2026-09-02 (o gráfico de fluxo chamava cancelada de "resolvida")
 
 Pergunta do dono, olhando o tooltip: *"os gráficos estão todos corretos? consegue

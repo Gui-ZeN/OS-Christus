@@ -16,7 +16,7 @@ import { PAPEIS_COM_INDICADORES_LABEL, podeVerFinanceiro, podeVerIndicadores } f
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
 import { isTicketOpen } from '../constants/ticketLifecycle';
-import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
+import { getTicketGroupLabel, getTicketRegionLabel, getTicketSiteLabel, rotuloDoGrupo } from '../utils/ticketTerritory';
 import { formatCurrency, parseCurrency } from '../utils/currency';
 import { getItemUnitPrice, parseCurrencyOrNull } from '../../api/_lib/currency.js';
 import {
@@ -176,6 +176,10 @@ export function KpiView() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
+  // O degrau acima da região: Colégio ou Universidade. Até aqui a tela só sabia
+  // recortar UMA região por vez, e "todas as OS do Colégio" — 209 das 224 — não
+  // tinha como ser perguntado.
+  const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
   const [selectedVendor, setSelectedVendor] = useState('all');
@@ -354,14 +358,32 @@ export function KpiView() {
     });
   }, [periodRange, tickets]);
 
+  const groupOptions = useMemo(
+    () => {
+      const values: string[] = periodTickets.map(ticket => getTicketGroupLabel(ticket, regions, sites));
+      const fallbackValues: string[] = regions.map(region => rotuloDoGrupo(region.group));
+      const source = values.length ? values : fallbackValues;
+      return [...new Set(source)].filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    },
+    [periodTickets, regions, sites]
+  );
+
   const regionOptions = useMemo(
     () => {
-      const values: string[] = periodTickets.map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
-      const fallbackValues: string[] = regions.map(region => region.name).filter((value): value is string => Boolean(value));
+      // Cascata: escolhido o Colégio, o seletor de região passa a oferecer só as
+      // cinco regiões dele. Sem isto, sobrava "Universidade" numa lista que já não
+      // tem OS da universidade — e escolher devolveria a tela vazia.
+      const doGrupo = (ticket: Ticket) =>
+        selectedGroup === 'all' || getTicketGroupLabel(ticket, regions, sites) === selectedGroup;
+      const values: string[] = periodTickets.filter(doGrupo).map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
+      const fallbackValues: string[] = regions
+        .filter(region => selectedGroup === 'all' || rotuloDoGrupo(region.group) === selectedGroup)
+        .map(region => region.name)
+        .filter((value): value is string => Boolean(value));
       const source = values.length ? values : fallbackValues;
       return [...new Set(source)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
-    [periodTickets, regions, sites]
+    [periodTickets, regions, selectedGroup, sites]
   );
 
   const selectedRegionId = useMemo(() => {
@@ -372,17 +394,26 @@ export function KpiView() {
   const siteOptions = useMemo(
     () => {
       const values: string[] = periodTickets
+        .filter(ticket => selectedGroup === 'all' || getTicketGroupLabel(ticket, regions, sites) === selectedGroup)
         .filter(ticket => selectedRegion === 'all' || getTicketRegionLabel(ticket, regions, sites) === selectedRegion)
         .map(ticket => getTicketSiteLabel(ticket, sites))
         .filter((value): value is string => Boolean(value));
+      // A cascata do grupo vale aqui também: com "Colégio" e região "todas", a lista
+      // de sedes não pode oferecer DL, PE, EUS — elas são da Universidade.
+      const regioesDoGrupo = new Set(
+        regions
+          .filter(region => selectedGroup === 'all' || rotuloDoGrupo(region.group) === selectedGroup)
+          .map(region => region.id)
+      );
       const fallbackValues: string[] = sites
         .filter(site => selectedRegion === 'all' || !selectedRegionId || site.regionId === selectedRegionId)
+        .filter(site => selectedGroup === 'all' || regioesDoGrupo.has(site.regionId))
         .map(site => site.code || site.name)
         .filter((value): value is string => Boolean(value));
       const source = values.length ? values : fallbackValues;
       return [...new Set(source)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
-    [periodTickets, selectedRegion, selectedRegionId, regions, sites]
+    [periodTickets, selectedGroup, selectedRegion, selectedRegionId, regions, sites]
   );
 
   const vendorOptions = useMemo(
@@ -394,6 +425,12 @@ export function KpiView() {
     },
     [contractsByTicket, periodTickets]
   );
+
+  useEffect(() => {
+    if (selectedGroup !== 'all' && !groupOptions.includes(selectedGroup)) {
+      setSelectedGroup('all');
+    }
+  }, [groupOptions, selectedGroup]);
 
   useEffect(() => {
     if (selectedRegion !== 'all' && !regionOptions.includes(selectedRegion)) {
@@ -416,6 +453,7 @@ export function KpiView() {
   /** Os filtros de recorte, sem o período — que cada quadro aplica ao seu jeito. */
   const passaNosFiltros = useCallback(
     (ticket: Ticket) => {
+      if (selectedGroup !== 'all' && getTicketGroupLabel(ticket, regions, sites) !== selectedGroup) return false;
       if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
       if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
       // ⚠️ `etapaDe`, e não `ticket.status`. O dropdown é montado com as SEIS
@@ -431,7 +469,7 @@ export function KpiView() {
       }
       return true;
     },
-    [contractsByTicket, regions, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]
+    [contractsByTicket, regions, selectedGroup, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]
   );
 
   /** FLUXO: o que aconteceu no período. Recorta por data de abertura. */
@@ -522,6 +560,7 @@ export function KpiView() {
    */
   const ticketsDoEscopo = useMemo(() => {
     return tickets.filter(ticket => {
+      if (selectedGroup !== 'all' && getTicketGroupLabel(ticket, regions, sites) !== selectedGroup) return false;
       if (selectedRegion !== 'all' && getTicketRegionLabel(ticket, regions, sites) !== selectedRegion) return false;
       if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
       if (selectedPriority !== 'all' && ticket.priority !== selectedPriority) return false;
@@ -532,7 +571,7 @@ export function KpiView() {
       }
       return true;
     });
-  }, [contractsByTicket, regions, selectedRegion, selectedSite, selectedPriority, selectedTeam, selectedVendor, sites, tickets]);
+  }, [contractsByTicket, regions, selectedGroup, selectedRegion, selectedSite, selectedPriority, selectedTeam, selectedVendor, sites, tickets]);
 
   const fluxoDemandas = useMemo(
     () => serieDeFluxo(ticketsDoEscopo, { inicio: periodRange.start, fim: periodRange.end }),
@@ -815,6 +854,11 @@ export function KpiView() {
       { label: 'Período', value: periodLabel },
       { label: 'Sede', value: selectedSite === 'all' ? 'Todas' : selectedSite },
       { label: 'Região', value: selectedRegion === 'all' ? 'Todas' : selectedRegion },
+      // Sai só quando recorta: com "Colégio e Universidade" ele não estreita nada, e
+      // a régua desta lista é justamente essa. Mas quando recorta, ele PRECISA sair —
+      // um relatório do Colégio que não diz que é do Colégio vira relatório do grupo
+      // inteiro na mão de quem receber.
+      ...(selectedGroup !== 'all' ? [{ label: 'Unidade', value: selectedGroup }] : []),
       ...(selectedStatus !== 'all' ? [{ label: 'Etapa', value: selectedStatus }] : []),
       ...(selectedPriority !== 'all' ? [{ label: 'Urgência', value: selectedPriority }] : []),
       ...(selectedTeam !== 'all' ? [{ label: 'Equipe', value: selectedTeam }] : []),
@@ -948,6 +992,28 @@ export function KpiView() {
               onMonth={handleSelectMonth}
               onRange={handleSelectRange}
             />
+
+            {/* ANTES da região, porque é o degrau de cima: escolhido o Colégio, a
+                lista de regiões e a de sedes já vêm recortadas. Só aparece quando há
+                mais de um grupo — com um só, o seletor não recorta nada e seria mais
+                um controle para ler. */}
+            {groupOptions.length > 1 && (
+              <select
+                value={selectedGroup}
+                onChange={event => {
+                  setSelectedGroup(event.target.value);
+                  setSelectedRegion('all');
+                  setSelectedSite('all');
+                }}
+                className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                aria-label="Filtrar por unidade"
+              >
+                <option value="all">Colégio e Universidade</option>
+                {groupOptions.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            )}
 
             <select
               value={selectedRegion}
