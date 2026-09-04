@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { ArrowRightLeft, Droplets, FileDown, MessageSquare, Search, TriangleAlert, UserRound, X, CalendarClock } from 'lucide-react';
+import { ArrowRightLeft, Droplets, FileDown, MessageSquare, Search, SlidersHorizontal, TriangleAlert, UserRound, X, CalendarClock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { baixarPdfDaLista } from '../services/ticketsApi';
@@ -12,7 +12,7 @@ import { ORDEM_DAS_ETAPAS, etapaDe as etapaDoStatus } from '../../api/_lib/etapa
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { coerceDate, formatDateTimeSafe, formatShortDate } from '../utils/date';
-import { contarMarcos, lerMarcos } from '../utils/marcos';
+import { contarAcontecidos, contarMarcos, lerMarcos } from '../utils/marcos';
 import { matchesSearch } from '../utils/search';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import type { Ticket } from '../types';
@@ -45,22 +45,137 @@ function diasNaEtapa(ticket: Ticket): string {
 /**
  * A linha do tempo em texto — é ela que o leitor de tela anuncia e o mouse revela.
  *
- * Seis quadrados coloridos são inúteis para quem não os vê, e quase inúteis para quem
- * vê: "3 de 6" não diz QUAIS três. Aqui cada marco sai com a data, e o que falta sai
- * como "—" em vez de sumir, senão a ausência vira invisível.
+ * Seis quadrados são inúteis para quem não os vê, e quase inúteis para quem vê: "3 de
+ * 6" não diz QUAIS três. Aqui cada marco sai com a data, e o que falta sai como "—"
+ * em vez de sumir, senão a ausência vira invisível.
  *
- * ⚠️ "COM DATA", e não "de 6 marcos". A fração se lê como degrau — "está no 5 de 6" —
- * e não é: o número conta quantas das seis datas o sistema conhece, não onde a OS
- * está. Obra em execução com 3/6 é normal e não significa atraso: 45% das linhas da
- * planilha pulam etapa, e das 235 concluídas 45% nunca registraram início de
- * execução. Quem lê "5 de 6" como posição conclui que falta um passo quando pode não
- * faltar nenhum.
+ * ⚠️ A FRAÇÃO MUDOU DE PERGUNTA (03/09/2026). Ela contava datas e se lia como degrau:
+ * OS encerrada aparecia "2 de 6" e parecia parada no começo. Medido em produção: 100
+ * das 220 OS tinham exatamente quatro marcos ultrapassados sem carimbo. Agora a
+ * fração conta o que ACONTECEU (com data ou sem) e a contagem de datas vem ao lado,
+ * como ressalva — que é o aviso pedido: "andou até aqui, mas não sei quando".
  */
 function resumoDaLinhaDoTempo(ticket: Ticket): string {
-  const partes = lerMarcos(ticket).map(
-    marco => `${marco.rotulo}: ${marco.data ? formatShortDate(marco.data) : '—'}`
+  const marcos = lerMarcos(ticket);
+  const partes = marcos.map(marco => {
+    if (marco.data) return `${marco.rotulo}: ${formatShortDate(marco.data)}`;
+    return `${marco.rotulo}: ${marco.estado === 'sem-data' ? 'sem data registrada' : '—'}`;
+  });
+  const semData = contarAcontecidos(ticket) - contarMarcos(ticket);
+  const ressalva = semData > 0 ? `, ${semData} sem data registrada` : '';
+  return `${contarAcontecidos(ticket)} dos 6 marcos já aconteceram${ressalva} · ${partes.join(' · ')}`;
+}
+
+/*
+ * ── O QUE A TABELA E O CARTÃO COMPARTILHAM ──────────────────────────────────
+ *
+ * A partir de 03/09/2026 esta tela tem DOIS desenhos: tabela no desktop, cartões no
+ * telefone. Dois desenhos com duas cópias do mesmo conteúdo seria a divergência de
+ * sempre — a régua ganha um estado novo e só metade da tela aprende. Então o que os
+ * dois mostram mora aqui, num lugar só, e cada desenho decide apenas ONDE por.
+ *
+ * No módulo, e não dentro do componente: função-componente declarada no corpo de
+ * outra é recriada a cada render, e o React desmonta e remonta a subárvore inteira.
+ */
+
+// `min-h-9` enquanto o desenho é de cartão: no toque, o alvo de 26px era menor que a
+// ponta do dedo. Na tabela, onde o alvo é o ponteiro, a altura antiga volta e a linha
+// não engorda.
+const BOTAO_DE_ACAO =
+  'inline-flex min-h-9 items-center gap-1 whitespace-nowrap rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main lg:min-h-0';
+
+/*
+ * O RÓTULO SÓ VOLTA EM TELA LARGA — entre 1024 e 1280px ficam só os ícones.
+ *
+ * Medido a 1024px: com os três rótulos, a coluna de ações pedia 305px e a tabela
+ * transbordava 298px. Só com os ícones ela cabe em ~110px. É a mesma troca que a
+ * coluna de chuva já faz nesta tela ("um ícone sozinho fica mais estreito que
+ * qualquer rótulo, e o title explica o que ele faz") — e o `title` está nos três.
+ *
+ * No TELEFONE o rótulo volta: lá não há coluna disputando largura, o cartão tem a
+ * linha inteira, e ícone sem texto num alvo de toque é adivinhação — não há ponteiro
+ * para pairar e ler o `title`.
+ */
+const ROTULO_DA_ACAO = 'lg:hidden xl:inline';
+
+function FaixaDeMarcos({ ticket }: { ticket: Ticket }) {
+  const resumo = resumoDaLinhaDoTempo(ticket);
+  return (
+    <div className="flex items-center gap-px" aria-label={resumo} title={resumo}>
+      {/* Três pesos para três estados. O `sem-data` é o do meio de propósito: cheio o
+          bastante para dizer "aconteceu", pálido o bastante para dizer "não sei
+          quando" sem precisar de legenda. */}
+      {lerMarcos(ticket).map(marco => (
+        <span
+          key={marco.chave}
+          aria-hidden="true"
+          className={`h-2.5 w-1.5 ${
+            marco.estado === 'com-data'
+              ? 'bg-roman-primary'
+              : marco.estado === 'sem-data'
+                ? 'bg-roman-primary/35'
+                : 'bg-roman-border/50'
+          }`}
+        />
+      ))}
+      {/* O número resolve o que a faixa sozinha não resolve: seis quadrados quase
+          iguais não se contam de relance. O asterisco é a ressalva — há marco aqui de
+          que só sabemos que houve. */}
+      <span className="ml-1 text-[11px] tabular-nums text-roman-text-sub">
+        {contarAcontecidos(ticket)}/6
+        {contarAcontecidos(ticket) > contarMarcos(ticket) && (
+          <span className="text-roman-text-sub/70">*</span>
+        )}
+      </span>
+    </div>
   );
-  return `${contarMarcos(ticket)} dos 6 marcos com data (não é degrau: marco vazio é "não aconteceu") · ${partes.join(' · ')}`;
+}
+
+type AcoesProps = {
+  ticketId: string;
+  podeTrocarEtapa: boolean;
+  onConversa: (id: string) => void;
+  onEtapa: (id: string) => void;
+  onProximaAcao: (id: string) => void;
+};
+
+function AcoesDaOs({ ticketId, podeTrocarEtapa, onConversa, onEtapa, onProximaAcao }: AcoesProps) {
+  // Quebra só no telefone. No desktop os três botões ficam em linha: deixá-los quebrar
+  // empilhava um por linha na célula estreita e triplicava a altura de cada linha da
+  // tabela — medido a 1024px.
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap">
+      <button type="button" onClick={() => onConversa(ticketId)} className={BOTAO_DE_ACAO} title="Conversa">
+        <MessageSquare size={14} />
+        <span className={ROTULO_DA_ACAO}>Conversa</span>
+      </button>
+      {podeTrocarEtapa && (
+        <button type="button" onClick={() => onEtapa(ticketId)} className={BOTAO_DE_ACAO} title="Trocar a etapa">
+          <ArrowRightLeft size={14} />
+          <span className={ROTULO_DA_ACAO}>Etapa</span>
+        </button>
+      )}
+      <button type="button" onClick={() => onProximaAcao(ticketId)} className={BOTAO_DE_ACAO} title="Quando anda">
+        <CalendarClock size={14} />
+        <span className={ROTULO_DA_ACAO}>Quando anda</span>
+      </button>
+    </div>
+  );
+}
+
+/** O selo de bloqueio — o motivo de a OS não andar, visível sem tentar movê-la. */
+function SeloDeBloqueio({ ticket }: { ticket: Ticket }) {
+  const bloqueio = bloqueioParaAvancar(ticket);
+  if (!bloqueio) return null;
+  return (
+    <div
+      className="mt-1 flex w-fit items-center gap-1 rounded-sm bg-roman-primary/12 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-roman-text-main"
+      title="A OS não avança enquanto isto não for resolvido. Use o botão Etapa."
+    >
+      <TriangleAlert size={14} />
+      {bloqueio.motivo}
+    </div>
+  );
 }
 
 /**
@@ -82,6 +197,9 @@ export function OsBoardView() {
   // Qual OS está salvando o toggle de chuva agora. Por id, não booleano, pelo mesmo
   // motivo do PDF: são várias linhas, e um booleano só travaria todas ao mesmo tempo.
   const [chuvaDe, setChuvaDe] = useState<string | null>(null);
+  // Só no telefone: no desktop os filtros estão sempre abertos (`md:contents`), e este
+  // estado nem é consultado.
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const podeTrocarEtapa = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
   const [sites, setSites] = useState<CatalogSite[]>([]);
 
@@ -259,7 +377,9 @@ export function OsBoardView() {
         // A trava vai junto porque está na tela e é o motivo de a OS não andar —
         // uma lista de cobrança sem ela manda cobrar quem não pode fazer nada.
         travada ? `${etapaDoStatus(ticket.status)} · travada` : etapaDoStatus(ticket.status),
-        `${contarMarcos(ticket)}/6`,
+        // Mesmo número da tela, incluindo o asterisco: papel e tela discordando sobre
+        // o andamento da mesma OS é como nasce "o sistema está errado".
+        `${contarAcontecidos(ticket)}/6${contarAcontecidos(ticket) > contarMarcos(ticket) ? '*' : ''}`,
         diasNaEtapa(ticket),
       ];
     });
@@ -299,6 +419,25 @@ export function OsBoardView() {
 
   const hasActiveFilter =
     sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed || bloqueadas || agua;
+  /*
+   * Quantos filtros estão ligados — o número que o botão "Filtros" leva no telefone.
+   *
+   * A BUSCA FICA DE FORA de propósito: ela tem campo próprio, sempre visível ao lado
+   * do botão. Contá-la faria o botão dizer "(1)" apontando para um recorte que a
+   * pessoa está enxergando, e o número existe justamente para avisar do que ela NÃO
+   * está enxergando.
+   */
+  const filtrosAtivos = [
+    sede !== ALL,
+    macroService !== ALL,
+    service !== ALL,
+    team !== ALL,
+    status !== ALL,
+    responsible !== ALL,
+    showClosed,
+    bloqueadas,
+    agua,
+  ].filter(Boolean).length;
   const clearFilters = () =>
     setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false, bloqueadas: false, agua: false, ordem });
 
@@ -326,16 +465,55 @@ export function OsBoardView() {
       </header>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-roman-border bg-roman-bg px-4 py-3 md:px-6">
-        <div className="relative">
+        {/* Largura cheia no telefone: com `flex-1` dividindo a linha com o botão de
+            filtros, o contador e o "Lista em PDF", o campo encolhia até virar só a
+            lupa — media 40px, sem espaço para uma letra. */}
+        <div className="relative w-full md:w-auto md:flex-none">
           <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-roman-text-sub" />
           <input
             type="text"
             value={search}
             onChange={event => setFilter({ search: event.target.value })}
             placeholder="Buscar OS, assunto ou solicitante…"
-            className="w-56 rounded-sm border border-roman-border bg-roman-surface py-1.5 pl-8 pr-2.5 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+            className="w-full rounded-sm border border-roman-border bg-roman-surface py-1.5 pl-8 pr-2.5 text-sm text-roman-text-main outline-none focus:border-roman-primary md:w-56"
           />
         </div>
+        {/*
+          ── OS FILTROS RECOLHEM NO TELEFONE ────────────────────────────────────
+          São seis seletores, dois atalhos e uma caixa de marcar. Empilhados em
+          375px eles ocupam a tela inteira: rolava-se um formulário antes de ver a
+          primeira OS.
+
+          ⚠️ O BOTÃO DECLARA QUANTOS FILTROS ESTÃO LIGADOS. Recolher um recorte
+          ativo é a armadilha que esta tela já documenta em outro lugar — "chegar
+          numa lista recortada sem enxergar o recorte é como a pessoa conclui que o
+          sistema perdeu OS". O número no botão é o que impede isso.
+        */}
+        <button
+          type="button"
+          onClick={() => setFiltrosAbertos(aberto => !aberto)}
+          aria-expanded={filtrosAbertos}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm md:hidden ${
+            /* Acende por `filtrosAtivos`, não por `hasActiveFilter`: aquele inclui a
+               busca, e o botão ficava aceso sem número enquanto o único recorte
+               estava escrito no campo logo acima, à vista. Aceso tem que querer
+               dizer "há recorte que você NÃO está vendo". */
+            filtrosAtivos > 0
+              ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main'
+              : 'border-roman-border bg-roman-surface text-roman-text-sub'
+          }`}
+        >
+          <SlidersHorizontal size={14} />
+          Filtros{filtrosAtivos > 0 ? ` (${filtrosAtivos})` : ''}
+        </button>
+        {/*
+          `md:contents` no desktop: o grupo some como caixa e os filhos voltam a ser
+          filhos diretos do flex-wrap acima — o layout de hoje fica byte a byte o
+          mesmo. No telefone ele vira um bloco de largura cheia que abre e fecha.
+        */}
+        <div
+          className={`${filtrosAbertos ? 'flex' : 'hidden'} w-full flex-wrap items-center gap-2 md:contents`}
+        >
         <select value={sede} onChange={e => setFilter({ sede: e.target.value })} className={selectClass} aria-label="Filtrar por sede">
           <option value={ALL}>Sede: todas</option>
           {sedeOptions.map(option => (
@@ -423,6 +601,7 @@ export function OsBoardView() {
             <X size={14} /> Limpar
           </button>
         )}
+        </div>
         {/* ⚠️ NÚMERO É AFIRMAÇÃO, e é o que se lê de relance.
             Com o fetch no ar ou com a API fora, isto exibia "0 OS" — e não são zero,
             é que não sabemos. O aviso ao lado salva quem para para ler; o contador
@@ -434,7 +613,7 @@ export function OsBoardView() {
             deixava o "0 OS" de pé exatamente no caso que motivou a mudança.
             (O ternário anterior era `length === 1 ? 'OS' : 'OS'` — dois ramos
             idênticos. Sumiu junto porque esta linha estava sendo reescrita.) */}
-        <span className="ml-auto text-sm text-roman-text-sub">
+        <span className="text-sm text-roman-text-sub md:ml-auto">
           {(ticketsLoading || ticketsError) && tickets.length === 0 ? '—' : filtered.length} OS{' '}
           {hasActiveFilter ? `de ${tickets.length}` : ''}
         </span>
@@ -477,17 +656,162 @@ export function OsBoardView() {
                 : 'Nenhuma OS corresponde aos filtros.'}
           </div>
         ) : (
-          <table className="w-full border-collapse text-sm">
+          <>
+            {/*
+              ── A TABELA APARECE ONDE ELA CABE, E NÃO ANTES ────────────────────
+              Num aparelho de 375px a tabela não é "apertada": é arrastar de lado para
+              ler cada OS, com a coluna de ações grudada por cima do que se está lendo.
+              A mesma informação vira um cartão por OS — a ordem de leitura passa a
+              ser de cima para baixo, que é a que o polegar faz.
+
+              O corte é em `lg` (1024px), não em `md`: medido no navegador, é a partir
+              de 1024 que a tabela cabe sem rolagem horizontal. Cortar em 768 dava a
+              tabela a um tablet que não a comporta — o pior dos dois desenhos.
+
+              Nenhuma coluna foi cortada no caminho: o que a linha mostra, o cartão
+              mostra. Uma tela "responsiva" que esconde metade do dado não é a mesma
+              tela em outro tamanho, é outra tela — e quem está na sede, no celular,
+              é justamente quem precisa saber se a OS está travada.
+            */}
+            <ul className="space-y-2 p-3 lg:hidden">
+              {filtered.map(({ ticket, siteLabel, macro, service: svc, team: tm }) => (
+                <li key={`card-${ticket.id}`}>
+                  <div
+                    onClick={() => openTicket(ticket.id)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openTicket(ticket.id);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="rounded-sm border border-roman-border bg-roman-surface p-3 transition-colors hover:border-roman-primary/40"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-medium text-roman-text-main">{ticket.id}</span>
+                      <StatusBadge status={ticket.status} />
+                    </div>
+
+                    <div className="mt-1.5 font-medium text-roman-text-main">
+                      {repairMojibake(ticket.subject)}
+                    </div>
+                    <div className="text-xs text-roman-text-sub">
+                      {repairMojibake(ticket.requester || 'Sem solicitante')}
+                      {ticket.priority && (
+                        <>
+                          {' · '}
+                          <span className={priorityClass(repairMojibake(ticket.priority))}>
+                            {repairMojibake(ticket.priority)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <SeloDeBloqueio ticket={ticket} />
+
+                    {/* Rótulo à esquerda, valor à direita: sem o cabeçalho da tabela,
+                        "DT" sozinho não diz se é sede, equipe ou serviço. */}
+                    <dl className="mt-2.5 space-y-1 text-xs">
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-roman-text-sub">Sede</dt>
+                        <dd className="text-roman-text-main">{siteLabel || '—'}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-roman-text-sub">Serviço</dt>
+                        <dd className="text-roman-text-main">
+                          {svc || macro || '—'}
+                          {svc && macro && <span className="text-roman-text-sub"> · {macro}</span>}
+                        </dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-roman-text-sub">Equipe</dt>
+                        <dd className="text-roman-text-main">{tm || '—'}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-roman-text-sub">Parada há</dt>
+                        <dd className="font-serif italic text-roman-text-sub">{diasNaEtapa(ticket)}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-20 shrink-0 text-roman-text-sub">Marcos</dt>
+                        <dd><FaixaDeMarcos ticket={ticket} /></dd>
+                      </div>
+                    </dl>
+
+                    {/* As duas ações que a tabela põe DENTRO da linha — responsável e
+                        chuva — ficam numa faixa própria, porque no cartão não há
+                        coluna que as apresente. */}
+                    <div
+                      className="mt-2.5 flex items-center gap-1.5 border-t border-roman-border/60 pt-2.5"
+                      onClick={event => event.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setResponsavelDe(ticket.id)}
+                        className={`inline-flex min-h-9 flex-1 items-center gap-1 rounded-sm px-1.5 py-1 text-left text-sm hover:bg-roman-primary/10 ${ticket.responsible?.name ? 'text-roman-text-main' : 'text-roman-text-sub italic'}`}
+                      >
+                        <UserRound size={14} />
+                        {ticket.responsible?.name || 'definir responsável'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void alternarChuva(ticket)}
+                        disabled={chuvaDe !== null}
+                        title={
+                          ticket.waterIssue
+                            ? 'Marcada — sai da lista de goteira quando chover. Clique para desmarcar.'
+                            : 'Marcar como risco de goteira/infiltração — entra na lista do aviso de chuva'
+                        }
+                        className={`inline-flex min-h-9 w-9 items-center justify-center rounded-sm border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                          ticket.waterIssue
+                            ? 'border-roman-primary bg-roman-primary/10 text-roman-primary'
+                            : 'border-roman-border bg-roman-surface text-roman-text-sub'
+                        }`}
+                      >
+                        <Droplets size={14} />
+                        <span className="sr-only">
+                          {ticket.waterIssue
+                            ? 'Goteira/infiltração marcada — clique para desmarcar'
+                            : 'Marcar risco de goteira/infiltração'}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="mt-2" onClick={event => event.stopPropagation()}>
+                      <AcoesDaOs
+                        ticketId={ticket.id}
+                        podeTrocarEtapa={podeTrocarEtapa}
+                        onConversa={setConversaDe}
+                        onEtapa={setEtapaDe}
+                        onProximaAcao={setProximaAcaoDe}
+                      />
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <table className="hidden w-full border-collapse text-sm lg:table">
             <thead className="sticky top-0 z-10 bg-roman-surface text-left">
               <tr className="border-b border-roman-border text-[11px] uppercase tracking-wider text-roman-text-sub">
-                <th className="px-3 py-2.5 font-medium">OS</th>
+                {/* Largura fixa: "OS-0001" ocupa ~60px, e o layout automático da
+                    tabela estava dando 142px à coluna enquanto o resto transbordava. */}
+                <th className="w-24 px-3 py-2.5 font-medium">OS</th>
                 <th className="px-3 py-2.5 font-medium">Assunto</th>
                 <th className="px-3 py-2.5 font-medium">Sede</th>
                 {/* Macroserviço e serviço viraram UMA coluna: são hierárquicos, e
                     duas colunas para "Móveis" + "Reposição" custavam largura que a
                     tabela não tem. A prioridade saiu para junto do assunto. */}
                 <th className="px-3 py-2.5 font-medium">Serviço</th>
-                <th className="px-3 py-2.5 font-medium">Equipe</th>
+                {/* ⚠️ SÓ APARECE A PARTIR DE 1536px, e a escolha é medida.
+                    Num notebook de 1024 a tabela pedia 193px a mais que a tela e
+                    rolava de lado — e rolagem horizontal numa tabela de trabalho é
+                    pior que uma coluna a menos, porque esconde TUDO o que está à
+                    direita, não uma coisa.
+                    A 1280, com Equipe de volta E os rótulos dos botões de volta,
+                    ainda sobravam 44px. Uma das duas tinha que esperar, e foi esta:
+                    os botões são o que se usa o tempo todo, e Equipe é a única coluna
+                    cujo valor o filtro já responde por completo. */}
+                <th className="hidden px-3 py-2.5 font-medium 2xl:table-cell">Equipe</th>
                 <th className="px-3 py-2.5 font-medium">Responsável</th>
                 <th className="px-3 py-2.5 font-medium">Status</th>
                 {/* Ícone, não texto: "Chuva" ao lado das outras oito colunas reabriria
@@ -545,10 +869,14 @@ export function OsBoardView() {
                   // e o contorno do tema volta a ser o indicador.
                   className="cursor-pointer border-b border-roman-border/60 align-top transition-colors hover:bg-roman-primary/[0.06] focus:bg-roman-primary/10"
                 >
-                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-roman-text-main">{ticket.id}</td>
+                  {/* Sem `whitespace-nowrap`: com ele, um id fora do formato normal
+                      (`OS-0369`) esticava a coluna inteira — 142px por causa de uma
+                      linha — e devolvia a rolagem horizontal em 1024px. Sem ele, o id
+                      raro quebra em duas linhas e as outras colunas ficam de pé. */}
+                  <td className="px-3 py-2.5 font-medium text-roman-text-main">{ticket.id}</td>
                   {/* Sem `truncate`: o assunto é o que identifica a OS na tabela.
                       Corta-lo economizava uma linha e custava a leitura. */}
-                  <td className="min-w-[16rem] max-w-[26rem] px-3 py-2.5">
+                  <td className="min-w-[12rem] max-w-[26rem] px-3 py-2.5 xl:min-w-[16rem]">
                     <div className="font-medium text-roman-text-main">{repairMojibake(ticket.subject)}</div>
                     <div className="truncate text-xs text-roman-text-sub">
                       {repairMojibake(ticket.requester || 'Sem solicitante')}
@@ -567,7 +895,7 @@ export function OsBoardView() {
                     <div>{svc || macro || '—'}</div>
                     {svc && macro && <div className="text-xs text-roman-text-sub">{macro}</div>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-roman-text-sub">{tm || '—'}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-2.5 text-roman-text-sub 2xl:table-cell">{tm || '—'}</td>
                   {/* Clicável na própria célula: definir responsável tem que custar um
                       clique, senão continua não sendo feito.
                       Sem ternário por `podeTrocarEtapa`: quem chega a esta tabela já
@@ -590,15 +918,7 @@ export function OsBoardView() {
                     {/* O bloqueio deixa de ser invisível: até agora ele só aparecia
                         para quem TENTAVA avançar, e por isso 88 OS estavam paradas
                         por um motivo que ninguém sabia que existia. */}
-                    {bloqueioParaAvancar(ticket) && (
-                      <div
-                        className="mt-1 flex w-fit items-center gap-1 rounded-sm bg-roman-primary/12 px-1.5 py-0.5 text-[11px] font-medium leading-tight text-roman-text-main"
-                        title="A OS não avança enquanto isto não for resolvido. Use o botão Etapa."
-                      >
-                        <TriangleAlert size={14} />
-                        {bloqueioParaAvancar(ticket)?.motivo}
-                      </div>
-                    )}
+                    <SeloDeBloqueio ticket={ticket} />
                   </td>
                   {/* Clicável na própria célula. Sem ternário por `podeTrocarEtapa` —
                       ver o comentário no Responsável, logo acima: a checagem aqui
@@ -630,26 +950,7 @@ export function OsBoardView() {
                       horizontal em 1280px — a briga que o corte de 11 para 9 colunas
                       tinha acabado de ganhar. */}
                   <td className="whitespace-nowrap px-2 py-2.5">
-                    <div
-                      className="flex items-center gap-px"
-                      aria-label={resumoDaLinhaDoTempo(ticket)}
-                      title={resumoDaLinhaDoTempo(ticket)}
-                    >
-                      {lerMarcos(ticket).map(marco => (
-                        <span
-                          key={marco.chave}
-                          aria-hidden="true"
-                          className={`h-2.5 w-1.5 ${
-                            marco.data ? 'bg-roman-primary' : 'bg-roman-border/50'
-                          }`}
-                        />
-                      ))}
-                      {/* O número resolve o que a faixa sozinha não resolve: seis
-                          quadrados quase iguais não se contam de relance. */}
-                      <span className="ml-1 text-[11px] tabular-nums text-roman-text-sub">
-                        {contarMarcos(ticket)}/6
-                      </span>
-                    </div>
+                    <FaixaDeMarcos ticket={ticket} />
                   </td>
                   <td
                     className="whitespace-nowrap px-3 py-2.5 font-serif italic text-roman-text-sub"
@@ -664,36 +965,19 @@ export function OsBoardView() {
                     className="sticky right-0 whitespace-nowrap bg-roman-surface px-3 py-2.5"
                     onClick={event => event.stopPropagation()}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setConversaDe(ticket.id)}
-                        className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
-                      >
-                        <MessageSquare size={14} /> Conversa
-                      </button>
-                      {podeTrocarEtapa && (
-                        <button
-                          type="button"
-                          onClick={() => setEtapaDe(ticket.id)}
-                          className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
-                        >
-                          <ArrowRightLeft size={14} /> Etapa
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setProximaAcaoDe(ticket.id)}
-                        className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-xs font-medium text-roman-text-sub hover:border-roman-primary hover:text-roman-text-main"
-                      >
-                        <CalendarClock size={14} /> Quando anda
-                      </button>
-                    </div>
+                    <AcoesDaOs
+                      ticketId={ticket.id}
+                      podeTrocarEtapa={podeTrocarEtapa}
+                      onConversa={setConversaDe}
+                      onEtapa={setEtapaDe}
+                      onProximaAcao={setProximaAcaoDe}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </>
         )}
       </div>
 
