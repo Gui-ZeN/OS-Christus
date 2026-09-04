@@ -62,7 +62,10 @@ const COLUNAS = [
   { label: 'Equipe', w: 78 },
   { label: 'Responsável', w: 88 },
   { label: 'Etapa', w: 92 },
-  { label: 'Marcos', w: 42, align: 'center' },
+  // 50 e não 42: medido, "MARCOS" pede 38pt de largura útil e a coluna dava 30 — o
+  // cabeçalho partia no meio da palavra ("MARC / OS"). Os 8pt saem do Assunto, que é
+  // a coluna elástica. "PARADA HÁ" também quebra, mas entre palavras, e lê bem.
+  { label: 'Marcos', w: 50, align: 'center' },
   { label: 'Parada há', w: 58, align: 'right' },
 ];
 

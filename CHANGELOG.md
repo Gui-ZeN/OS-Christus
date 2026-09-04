@@ -3,6 +3,59 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-04 (a lista da Gestão desenhava OS por cima de OS)
+
+Relato: "as OS tão sendo comidas, uma em cima da outra, provavelmente quando o título
+é mais que 2 linhas". Era isso, e a causa estava escrita no código como uma garantia
+que nunca valeu.
+
+`drawTable` tinha `rowH = 15` fixo e passava `lineBreak: false` em cada célula,
+confiando que nada quebraria. **O pdfkit 0.19.1 ignora esse `lineBreak` quando há
+`width`** — medido: `heightOfString` devolve o mesmo valor com ele ligado ou desligado
+(20,8pt onde uma linha mede 8,3). Assunto de 115 caracteres — há vários em produção —
+quebrava em duas linhas dentro de uma faixa de 15pt, e a segunda linha era desenhada
+por cima da OS seguinte. Reproduzido com os 30 assuntos mais longos da base: o defeito
+aparece na primeira linha, e até o cabeçalho vinha partido ("MARC / OS").
+
+A altura agora é **medida em linhas**, não presumida.
+
+⚠️ **Contando LINHAS, e não a altura crua.** A primeira versão somava `heightOfString`
+ao respiro e engordava TODA linha em ~3pt (a medida já traz entrelinha) — o relatório
+gerencial, que só tem células de uma linha, mudaria de desenho sem ninguém ter pedido.
+Gerei o documento antes e depois e vi as tabelas escorregando. Contando linhas, o caso
+de uma linha cai exatamente em 15pt e só o que quebra cresce; conferido página a
+página, **o relatório gerencial ficou idêntico**.
+
+Coluna Marcos de 42 para 50pt: medido, "MARCOS" pede 38pt de largura útil e a coluna
+dava 30. Os 8pt saem do Assunto, que é a coluna elástica.
+
+Os testes novos afirmam **posição**, não conteúdo — o texto sempre esteve lá, só
+sobreposto; nem `tsc` nem teste de conteúdo pegariam isto. Provados vermelhos contra o
+código antigo. A lista agora ocupa 3 páginas onde dizia 2.
+
+## 2026-09-04 (sugestão de interessados, medida por sede)
+
+O campo de interessados era uma caixa de texto vazia: para pôr alguém em cópia é
+preciso SABER e DIGITAR o endereço. Medido em produção: 239 das 244 OS têm
+interessados, com 112 endereços distintos — o hábito existe, só não estava em lugar
+nenhum que a tela conseguisse ler.
+
+⚠️ **Por sede, e não global — foi a medição que decidiu, não gosto.** No ranking
+global só QUATRO endereços passam de 70% das OS, e são justamente os que já entram em
+tudo: sugerir eles não acrescenta nada. O que varia é a sede, e varia forte —
+`diretoria01.pq@christus.com.br` está em 76% das OS de PQL1 e em 7% do geral. Num
+top-10 global ficaria em trigésimo; para quem abre uma OS de PQL1, é a terceira pessoa
+mais provável.
+
+Sem consulta nova (deriva de `tickets`, que já vive no contexto) e com piso de
+amostra: abaixo de 3 OS na sede a resposta é lista vazia — com uma OS, o primeiro
+endereço que alguém copiou apareceria como "100%", número que parece medida e é acaso.
+Quem já está em cópia sai da lista, o que apaga os quatro onipresentes sem precisar de
+regra para eles.
+
+⚠️ **Ainda não foi visto renderizado** — o emulador caiu repetidamente na hora de
+conferir. A função foi verificada contra os dados de produção; os chips na tela, não.
+
 ## 2026-09-04 (o reparo do histórico curava a fonte errada)
 
 Pedido para rodar `separar-motivo-do-aviso.mjs --apply` em produção. Fui conferir o

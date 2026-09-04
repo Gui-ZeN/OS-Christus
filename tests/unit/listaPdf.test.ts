@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildListaPdf, descreverRecorte } from '../../api/_lib/listaPdf.js';
-import { A4_RETRATO, A4_PAISAGEM } from '../../api/_lib/pdfPapel.js';
+import { A4_RETRATO, A4_PAISAGEM, drawTable } from '../../api/_lib/pdfPapel.js';
 import { ehPdf, textoDoPdf } from '../pdfTexto';
 
 /**
@@ -94,5 +94,58 @@ describe('a geometria do papel', () => {
     expect(A4_PAISAGEM.PAGE_W).toBe(A4_RETRATO.PAGE_H);
     expect(A4_PAISAGEM.PAGE_H).toBe(A4_RETRATO.PAGE_W);
     expect(A4_PAISAGEM.CW).toBeGreaterThan(A4_RETRATO.CW);
+  });
+});
+
+/**
+ * A LINHA NÃO PODE COMER A DE BAIXO.
+ *
+ * ⚠️ O DEFEITO QUE ISTO TRAVA. A tabela tinha altura de linha FIXA (15pt) e passava
+ * `lineBreak: false` em cada célula, confiando que nada quebraria. O pdfkit 0.19.1
+ * ignora esse `lineBreak` quando há `width` — medido: `heightOfString` devolve o
+ * mesmo valor com ele ligado ou desligado. Assunto de 115 caracteres (há vários em
+ * produção) quebrava em duas linhas dentro da faixa de 15pt e a segunda era
+ * desenhada POR CIMA da OS seguinte.
+ *
+ * Nem `tsc` nem teste de conteúdo veem isso: o texto está lá, só está sobreposto. O
+ * que se afirma aqui é POSIÇÃO — quanto a tabela andou no eixo y.
+ */
+describe('altura da linha acompanha o conteúdo', () => {
+  // Larguras da tabela real (COLUNAS em listaPdf.js): com nove colunas, o Assunto
+  // fica com ~270pt. Numa tabela de três colunas ele receberia 687pt, e o assunto
+  // mais longo da produção caberia numa linha — o teste passaria sem testar nada.
+  const COLS = [
+    { label: 'OS', w: 60 },
+    { label: 'Assunto', w: 270 },
+    { label: 'Sede', w: 46 },
+  ];
+
+  const avancoDe = async (assunto: string) => {
+    const { default: PDFDocument } = await import('pdfkit');
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
+    const yInicial = 100;
+    const yFinal = drawTable(
+      doc, A4_PAISAGEM.M, yInicial, A4_PAISAGEM.CW, COLS,
+      [['OS-0001', assunto, 'BS']], 'vazio', A4_PAISAGEM,
+    );
+    doc.end();
+    return yFinal - yInicial;
+  };
+
+  it('assunto que quebra em duas linhas empurra a tabela para baixo', async () => {
+    const curto = await avancoDe('Reparo na quadra');
+    // O assunto real mais longo da produção, medido em 04/09/2026: 115 caracteres.
+    const longo = await avancoDe(
+      'Solicitação de pintura de escorregadores - Escorregadores do parquinho do infantil 5 estão com a pintura desgastada'
+    );
+    expect(longo).toBeGreaterThan(curto);
+  });
+
+  it('linha de uma linha continua medindo o que media — o relatório gerencial não muda', async () => {
+    // 15pt de faixa + 13 do cabeçalho + 2 do filete = 30. A conta antiga, intacta:
+    // esta tabela é a mesma que desenha os números do relatório gerencial, e ele já
+    // está em produção.
+    const curto = await avancoDe('Reparo na quadra');
+    expect(curto).toBe(30);
   });
 });
