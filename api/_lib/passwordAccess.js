@@ -71,8 +71,8 @@ export async function sendPasswordAccessEmail({
       : 'Serv3 - Recuperacao de senha';
   const intro =
     mode === 'invite'
-      ? 'Seu acesso foi criado. Clique no botao abaixo para definir sua senha inicial.'
-      : 'Recebemos uma solicitacao para redefinir sua senha. Clique no botao abaixo para continuar.';
+      ? 'Seu acesso foi criado. Use o link abaixo para definir sua senha inicial.'
+      : 'Recebemos uma solicitacao para redefinir sua senha. Use o link abaixo para continuar.';
 
   const template = buildAccessEmailTemplate({
     title: mode === 'invite' ? 'Seu acesso foi liberado' : 'Recuperacao de senha',

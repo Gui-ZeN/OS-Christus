@@ -825,14 +825,29 @@ export async function notifyTicketPublicReply(
       },
     }),
     templateData: {
-      title: 'Nova mensagem registrada',
-      intro: '',
+      /*
+       * QUEM ESCREVEU VAI NO TÍTULO, e não em `intro` nem no modelo.
+       *
+       * `useBodyOnly: true` (logo abaixo) manda o servidor DESCARTAR o modelo
+       * gravado e usar só o texto digitado — é o que faz a conversa chegar limpa,
+       * sem "Olá Fulano" enxertado no meio de uma thread. O preço era que
+       * `{{message.sender}}` do modelo nunca chegava a ser renderizado, e `intro`
+       * também não (a moldura só usa `intro` quando NÃO há corpo). Resultado: as 12
+       * mensagens já enviadas em produção não dizem em lugar nenhum quem as
+       * escreveu — o solicitante recebia um texto solto.
+       *
+       * O título é o único campo que atravessa `useBodyOnly` e aparece, e é onde a
+       * frase pertence de qualquer forma.
+       */
+      title: `${sender} enviou uma nova mensagem`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,
       useBodyOnly: true,
-      ctaUrl: buildTrackingUrl(ticket),
-      ctaLabel: 'Ver mensagem',
+      // SEM link de acompanhamento aqui, de propósito: ele dizia "Ver mensagem" para
+      // quem estava lendo a mensagem. Quem quiser responder responde o próprio
+      // e-mail — a thread volta para a OS. O link de acompanhamento continua nos
+      // e-mails de mudança de etapa, onde há de fato algo a ver do outro lado.
     },
   });
   return sent ? ('sent' as const) : ('failed' as const);
@@ -867,8 +882,10 @@ export async function notifyTicketDirectorReply(
     attachments: normalizeEmailAttachments(attachments),
     variables,
     templateData: {
-      title: 'Nova mensagem para a Diretoria',
-      intro: `${sender} enviou uma atualização interna para a Diretoria.`,
+      // Mesma armadilha da mensagem pública: este `intro` era código morto — com
+      // corpo presente, a moldura nunca o renderiza, e a Diretoria também recebia
+      // texto sem autor. A frase vai no título, que aparece.
+      title: `${sender} enviou uma atualização para a Diretoria`,
       ticketSubject: ticket.subject,
       status: ticket.status,
       bodyText,

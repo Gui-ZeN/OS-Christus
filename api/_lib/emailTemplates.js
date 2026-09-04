@@ -2,29 +2,25 @@
 // `src/utils/emailTemplatePreview.ts`. Eram diferentes — quem editava um modelo nas
 // Configurações via uma prévia que ninguém recebia. Agora a prévia chama daqui.
 //
-// A régua do desenho, depois de medir o que saía: nada de caixa dentro de caixa.
-// O e-mail anterior empilhava quatro níveis (cartão → bloco "Mensagem" → cartão de
-// métrica → linha com borda), e três dos textos ficavam abaixo de 4,5:1 — os
-// rotulinhos de 10px em maiúscula espaçada davam 3,85. Aqui: uma moldura só, filete
-// para separar, rótulo legível. Peso vem do conteúdo, não da borda.
+// ⚠️ O DESENHO ENCOLHEU (03/09/2026), a pedido de quem recebe. O anterior tinha
+// tarja escura com "SERV3" em maiúscula espaçada, cartão de 600px com borda sobre
+// fundo bege, título serifado de 23px e botão preto — moldura pesada para, na maior
+// parte dos e-mails, três linhas de recado. Agora: sem cartão, sem fundo, sem tarja,
+// uma família de fonte só, link no lugar do botão e a assinatura reduzida a "Serv3".
+//
+// O que NÃO encolheu, de propósito: as tabelas de valores e de detalhes (são o dado,
+// não o enfeite), a tarja do disparo de teste (existe justamente para ser notada) e
+// a régua de contraste — todo texto continua acima de 4,5:1 no branco.
 
-const FONTE_TITULO = "Georgia,'Times New Roman',serif";
-// Dado (valor, rótulo, número) vai em sans: o Georgia usa algarismos de altura
-// variável, e "R$ 12.480,00" saía cambaleando numa tabela de dinheiro.
-const FONTE_DADO = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const FONTE = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 const COR = {
-  fundo: '#efe8de',
-  papel: '#ffffff',
-  cabecalho: '#1f1a15',
-  cabecalhoTexto: '#f8f2e9',
-  texto: '#2d241d',
-  prosa: '#4a4038',
-  rotulo: '#5f5347', // 7,46:1 no branco — o antigo #8a7a67 dava 3,85
-  discreto: '#6b5f52',
-  filete: '#e7ded1',
-  moldura: '#ddd2c0',
-  link: '#7a4f18',
+  texto: '#1f2328',
+  prosa: '#32383f',
+  rotulo: '#5a626b', // 6,19:1 no branco
+  discreto: '#5a626b',
+  filete: '#e6e8eb',
+  link: '#0b5cad', // 6,31:1 no branco
 };
 
 /**
@@ -190,16 +186,16 @@ function renderBodyText(text) {
         const items = lines
           .map(line => line.replace(/^[-•]\s*/, '').trim())
           .filter(Boolean)
-          .map(item => `<li style="margin:0 0 6px;">${styleMentions(linkifyEscaped(esc(item)))}</li>`)
+          .map(item => `<li style="margin:0 0 5px;">${styleMentions(linkifyEscaped(esc(item)))}</li>`)
           .join('');
-        return `<ul style="margin:0 0 14px 20px;padding:0;color:${COR.prosa};font-family:${FONTE_TITULO};font-size:15px;line-height:1.6;">${items}</ul>`;
+        return `<ul style="margin:0 0 12px 20px;padding:0;color:${COR.prosa};font-size:15px;line-height:1.6;">${items}</ul>`;
       }
 
       // Quebra simples vira quebra de verdade. O envio juntava as linhas com espaço,
       // e o aviso de nova OS — que manda assunto, solicitante, sede e região, uma por
       // linha — chegava como um parágrafo corrido: "Assunto: ... Sede: ALD Região: ...".
       const corpo = lines.map(line => styleMentions(linkifyEscaped(esc(line)))).join('<br/>');
-      return `<p style="margin:0 0 14px;color:${COR.prosa};font-family:${FONTE_TITULO};font-size:15px;line-height:1.65;">${corpo}</p>`;
+      return `<p style="margin:0 0 12px;color:${COR.prosa};font-size:15px;line-height:1.6;">${corpo}</p>`;
     })
     .join('');
 }
@@ -215,9 +211,12 @@ function limparPares(lista) {
     : [];
 }
 
-// Rótulo à esquerda, valor à direita, filete entre as linhas. Substitui os cartões
-// com borda e fundo próprios: com quatro valores em cartão, ninguém percebia que
-// bruto menos imposto dava o valor a pagar. Em linha, a conta fica à vista.
+// Rótulo à esquerda, valor à direita. Substitui os cartões com borda e fundo
+// próprios: com quatro valores em cartão, ninguém percebia que bruto menos imposto
+// dava o valor a pagar. Em linha, a conta fica à vista.
+//
+// O filete entre as linhas saiu junto com o resto da moldura: com o espaçamento
+// dando o mesmo recado, ele era só mais um traço.
 //
 // A ÚLTIMA linha sai em destaque — é onde quem monta a mensagem põe a conclusão
 // (o "Valor a pagar" vem depois de bruto e imposto).
@@ -227,18 +226,16 @@ function renderValores(metricRows) {
 
   const linhas = items
     .map((item, indice) => {
-      const ultima = indice === items.length - 1;
-      const destaque = ultima && items.length > 1;
-      const borda = indice === 0 ? '' : `border-top:1px solid ${COR.filete};`;
+      const destaque = indice === items.length - 1 && items.length > 1;
       return `
         <tr>
-          <td style="${borda}padding:9px 0;font-family:${FONTE_DADO};font-size:13px;color:${COR.rotulo};">${esc(item.label)}</td>
-          <td align="right" style="${borda}padding:9px 0;font-family:${FONTE_DADO};font-size:${destaque ? '17px' : '15px'};${destaque ? 'font-weight:600;' : ''}color:${COR.texto};font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(item.value)}</td>
+          <td style="padding:4px 0;font-size:14px;color:${COR.rotulo};">${esc(item.label)}</td>
+          <td align="right" style="padding:4px 0;font-size:${destaque ? '16px' : '14px'};${destaque ? 'font-weight:600;' : ''}color:${COR.texto};font-variant-numeric:tabular-nums;white-space:nowrap;">${esc(item.value)}</td>
         </tr>`;
     })
     .join('');
 
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;border-collapse:collapse;">${linhas}</table>`;
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;border-collapse:collapse;">${linhas}</table>`;
 }
 
 function renderDetalhes(detailCards) {
@@ -254,79 +251,67 @@ function renderDetalhes(detailCards) {
     .map(card => {
       const linhas = card.rows
         .map(
-          (row, indice) => `
+          row => `
             <tr>
-              <td width="38%" valign="top" style="${indice === 0 ? '' : `border-top:1px solid ${COR.filete};`}padding:8px 12px 8px 0;font-family:${FONTE_DADO};font-size:13px;color:${COR.rotulo};">${esc(row.label)}</td>
-              <td valign="top" style="${indice === 0 ? '' : `border-top:1px solid ${COR.filete};`}padding:8px 0;font-family:${FONTE_DADO};font-size:14px;line-height:1.5;color:${COR.texto};">${esc(row.value)}</td>
+              <td width="38%" valign="top" style="padding:4px 12px 4px 0;font-size:14px;color:${COR.rotulo};">${esc(row.label)}</td>
+              <td valign="top" style="padding:4px 0;font-size:14px;line-height:1.5;color:${COR.texto};">${esc(row.value)}</td>
             </tr>`,
         )
         .join('');
 
       return `
-        <div style="margin:0 0 22px;">
-          <div style="margin:0 0 6px;font-family:${FONTE_DADO};font-size:13px;font-weight:600;color:${COR.texto};">${esc(card.title)}</div>
+        <div style="margin:0 0 18px;">
+          <div style="margin:0 0 4px;font-size:13px;font-weight:600;color:${COR.texto};">${esc(card.title)}</div>
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${linhas}</table>
         </div>`;
     })
     .join('');
 }
 
+// Link, não botão. O botão preto de 24px de respiro era o objeto mais pesado da
+// página inteira, num e-mail que costuma ter três linhas de texto.
+//
+// O "Link completo: https://..." que vinha aqui repetia o mesmo endereço, esticava
+// o e-mail e tinha cara de phishing. Em cliente sem HTML, a URL já vai no texto.
 function renderBotao(ctaUrl, ctaLabel) {
   if (!ctaUrl) return '';
-  // O "Link completo: https://..." que vinha aqui repetia o mesmo endereço do botão,
-  // esticava o e-mail e tinha cara de phishing. Em cliente que não pinta o botão, o
-  // href continua clicável; em cliente sem HTML, a URL já vai na versão em texto.
   return `
-    <div style="margin:26px 0 0;">
-      <a href="${esc(ctaUrl)}" style="display:inline-block;background:${COR.cabecalho};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-family:${FONTE_DADO};font-size:14px;font-weight:600;">${esc(ctaLabel)}</a>
-    </div>`;
+    <p style="margin:18px 0 0;font-size:14px;">
+      <a href="${esc(ctaUrl)}" style="color:${COR.link};">${esc(ctaLabel)}</a>
+    </p>`;
 }
 
-// A ÚNICA caixa colorida que sobrou no sistema. Ela existe porque um e-mail de
-// teste que chega numa caixa real sem se identificar faz alguém sair correndo
-// atrás de goteira que não existe — aqui a moldura pesada é o recado.
+// A ÚNICA caixa colorida do sistema, e ela fica. Existe porque um e-mail de teste
+// que chega numa caixa real sem se identificar faz alguém sair correndo atrás de
+// goteira que não existe — num desenho quieto, ela é o único lugar onde o peso é o
+// recado.
+//
+// A barra lateral de 4px saiu com o resto da moldura: num e-mail que agora é uma
+// folha branca, a faixa amarela inteira já é o que salta. A barra era peso repetido.
 function renderAlerta(alerta) {
   if (!alerta) return '';
   return `
-    <div style="margin:0 0 22px;padding:12px 16px;background:#fdf3d7;border-left:4px solid #a16207;font-family:${FONTE_DADO};font-size:13px;line-height:1.5;color:#5b4310;">
+    <div style="margin:0 0 18px;padding:12px 14px;background:#fdf3d7;font-size:13px;line-height:1.5;color:#5b4310;">
       <strong>${esc(alerta.titulo)}</strong>${alerta.detalhe ? `<br/>${esc(alerta.detalhe)}` : ''}
     </div>`;
 }
 
-// Moldura comum: cabeçalho escuro curto, conteúdo no papel, rodapé de uma linha.
+// Moldura comum: rótulo, título, conteúdo, filete e assinatura. Sem cartão, sem
+// fundo e sem tarja — a largura máxima é o que resta de "moldura", e existe só para
+// a linha não atravessar um monitor inteiro.
 function renderMoldura({ eyebrow, title, subtitle, conteudo }) {
+  const rotulo = String(eyebrow || '').trim();
   return `
 <!doctype html>
 <html lang="pt-BR">
-  <body style="margin:0;padding:24px 12px;background:${COR.fundo};color:${COR.texto};">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:${COR.fundo};">
-      <tr>
-        <td align="center">
-          <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${COR.papel};border:1px solid ${COR.moldura};">
-            <tr>
-              <td style="padding:20px 28px;background:${COR.cabecalho};color:${COR.cabecalhoTexto};">
-                <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="font-family:${FONTE_DADO};font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:0.7;">Serv3</td>
-                    <td align="right" style="font-family:${FONTE_DADO};font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:0.7;">${esc(eyebrow)}</td>
-                  </tr>
-                </table>
-                <div style="margin-top:12px;font-family:${FONTE_TITULO};font-size:23px;line-height:1.3;">${esc(title)}</div>
-                ${subtitle ? `<div style="margin-top:7px;font-family:${FONTE_DADO};font-size:13px;opacity:0.78;">${esc(subtitle)}</div>` : ''}
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:26px 28px 30px;">${conteudo}</td>
-            </tr>
-            <tr>
-              <td style="padding:14px 28px;border-top:1px solid ${COR.filete};font-family:${FONTE_DADO};font-size:12px;color:${COR.discreto};">
-                Comunicado automático do Serv3.
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
+  <body style="margin:0;padding:20px 16px;background:#ffffff;color:${COR.texto};font-family:${FONTE};">
+    <div style="max-width:560px;">
+      ${rotulo ? `<div style="font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:${COR.rotulo};">${esc(rotulo)}</div>` : ''}
+      <div style="margin:${rotulo ? '6px' : '0'} 0 0;font-size:18px;font-weight:600;line-height:1.35;">${esc(title)}</div>
+      ${subtitle ? `<div style="margin:3px 0 0;font-size:13px;color:${COR.rotulo};">${esc(subtitle)}</div>` : ''}
+      <div style="margin:18px 0 0;">${conteudo}</div>
+      <div style="margin:24px 0 0;padding:10px 0 0;border-top:1px solid ${COR.filete};font-size:12px;color:${COR.discreto};">Serv3</div>
+    </div>
   </body>
 </html>`;
 }
@@ -358,7 +343,7 @@ export function buildTicketEmailTemplate({
     renderValores(metricRows),
     renderDetalhes(detailCards),
     messageHtml ||
-      `<p style="margin:0;color:${COR.prosa};font-family:${FONTE_TITULO};font-size:15px;line-height:1.65;">Atualização registrada na OS.</p>`,
+      `<p style="margin:0;color:${COR.prosa};font-size:15px;line-height:1.6;">Atualização registrada na OS.</p>`,
     renderBotao(ctaUrl, ctaLabel),
   ]
     .filter(Boolean)
@@ -400,29 +385,27 @@ function renderItens(itens) {
   const lista = Array.isArray(itens) ? itens.filter(item => item && item.titulo) : [];
   if (lista.length === 0) return '';
 
-  return lista
+  // O respiro no fim é do BLOCO, não de cada item: sem ele, o link de ação do último
+  // item encosta na tabela seguinte — foi o que apareceu na prévia do aviso de chuva.
+  const itensHtml = lista
     .map(
       (item, indice) => `
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${indice === 0 ? '' : `border-top:1px solid ${COR.filete};`}">
-          <tr>
-            <td style="padding:${indice === 0 ? '0' : '18px'} 0 0;">
-              <div style="font-family:${FONTE_DADO};font-size:13px;color:${COR.rotulo};">${esc(item.quando || '')}</div>
-              <div style="margin-top:3px;font-family:${FONTE_DADO};font-size:16px;font-weight:600;color:${COR.texto};">${esc(item.titulo)}</div>
-              ${item.detalhe ? `<div style="margin-top:3px;font-family:${FONTE_DADO};font-size:13px;color:${COR.rotulo};">${esc(item.detalhe)}</div>` : ''}
-              ${
-                Array.isArray(item.acoes) && item.acoes.length > 0
-                  ? `<div style="margin:12px 0 18px;">${item.acoes
-                      .map(
-                        acao => `<a href="${esc(acao.url)}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 18px;border:1px solid ${COR.moldura};border-radius:6px;text-decoration:none;font-family:${FONTE_DADO};font-size:14px;font-weight:600;color:${COR.texto};">${esc(acao.rotulo)}</a>`
-                      )
-                      .join('')}</div>`
-                  : ''
-              }
-            </td>
-          </tr>
-        </table>`
+        <div style="${indice === 0 ? '' : `margin-top:16px;padding-top:16px;border-top:1px solid ${COR.filete};`}">
+          <div style="font-size:13px;color:${COR.rotulo};">${esc(item.quando || '')}</div>
+          <div style="margin-top:2px;font-size:15px;font-weight:600;color:${COR.texto};">${esc(item.titulo)}</div>
+          ${item.detalhe ? `<div style="margin-top:2px;font-size:13px;color:${COR.rotulo};">${esc(item.detalhe)}</div>` : ''}
+          ${
+            Array.isArray(item.acoes) && item.acoes.length > 0
+              ? `<div style="margin-top:8px;font-size:14px;">${item.acoes
+                  .map(acao => `<a href="${esc(acao.url)}" style="color:${COR.link};">${esc(acao.rotulo)}</a>`)
+                  .join(`<span style="color:${COR.rotulo};"> &middot; </span>`)}</div>`
+              : ''
+          }
+        </div>`
     )
     .join('');
+
+  return `<div style="margin:0 0 18px;">${itensHtml}</div>`;
 }
 
 /**
@@ -447,9 +430,7 @@ export function buildNoticeEmailTemplate({
     renderBodyText(bodyText),
     renderItens(itens),
     renderDetalhes(detailCards),
-    rodape
-      ? `<p style="margin:0;font-family:${FONTE_DADO};font-size:12px;line-height:1.6;color:${COR.discreto};">${esc(rodape)}</p>`
-      : '',
+    rodape ? `<p style="margin:0;font-size:12px;line-height:1.6;color:${COR.discreto};">${esc(rodape)}</p>` : '',
     renderBotao(ctaUrl, ctaLabel),
   ]
     .filter(Boolean)
@@ -466,14 +447,14 @@ export function buildAccessEmailTemplate({
   ctaLabel = 'Criar senha',
 }) {
   const tituloFinal = title || 'Defina sua senha de acesso';
-  const introFinal = intro || 'Use o botão abaixo para definir sua senha de acesso ao sistema.';
+  const introFinal = intro || 'Use o link abaixo para definir sua senha de acesso ao sistema.';
   const saudacao = recipientName ? `Olá ${esc(recipientName)},` : 'Olá,';
-  const prosa = `font-family:${FONTE_TITULO};font-size:15px;line-height:1.65;color:${COR.prosa};`;
+  const prosa = `font-size:15px;line-height:1.6;color:${COR.prosa};`;
 
   const conteudo = `
-    <p style="margin:0 0 14px;${prosa}">${saudacao}</p>
-    <p style="margin:0 0 14px;${prosa}">${esc(introFinal)}</p>
-    <p style="margin:0;font-family:${FONTE_DADO};font-size:13px;line-height:1.6;color:${COR.rotulo};">Por segurança, este link expira automaticamente após um período.</p>
+    <p style="margin:0 0 12px;${prosa}">${saudacao}</p>
+    <p style="margin:0 0 12px;${prosa}">${esc(introFinal)}</p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:${COR.rotulo};">Por segurança, este link expira automaticamente após um período.</p>
     ${renderBotao(ctaUrl, ctaLabel)}`;
 
   const html = renderMoldura({ eyebrow: 'Acesso', title: tituloFinal, subtitle: '', conteudo });

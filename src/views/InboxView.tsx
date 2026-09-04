@@ -1206,7 +1206,10 @@ export function InboxView() {
         // Responder SEMPRE dispara o e-mail (o propósito do modo é notificar o
         // solicitante/interessados). Dá feedback se o e-mail não sair (não é
         // fire-and-forget silencioso).
-        notifyTicketPublicReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails)
+        // `displayActor`, não `sender`: quem lê é o solicitante, e "Cezar Serra
+        // (Gestor)" leva para fora um papel do organograma interno que não diz nada
+        // a quem está do outro lado. No histórico o papel continua — lá ele importa.
+        notifyTicketPublicReply(activeTicket, displayActor, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments, selectedInterestedEmails)
           .then(result => {
             if (result === 'no-recipient') showToast('Resposta registrada, mas esta OS não tem e-mail do solicitante — nenhum e-mail foi enviado.', 5000);
             else if (result === 'failed') showToast('Resposta registrada, mas o e-mail NÃO foi enviado ao solicitante. Tente reenviar.', 5000);
@@ -1239,7 +1242,7 @@ export function InboxView() {
           return;
         }
         // Diretoria SEMPRE dispara o e-mail (o propósito do modo é notificar).
-        notifyTicketDirectorReply(activeTicket, sender, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments)
+        notifyTicketDirectorReply(activeTicket, displayActor, trimmedReply || 'Mensagem com anexo.', uploadedReplyAttachments)
           .then(result => {
             if (result === 'no-directors') showToast('Mensagem registrada, mas não há diretores envolvidos — nada foi enviado à Diretoria.', 5000);
             else if (result === 'failed') showToast('Mensagem registrada, mas o e-mail à Diretoria NÃO foi enviado. Tente reenviar.', 5000);

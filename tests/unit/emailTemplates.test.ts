@@ -29,11 +29,34 @@ function contarOcorrencias(texto: string, alvo: string) {
 }
 
 describe('o e-mail não empilha caixa dentro de caixa', () => {
-  it('usa uma moldura só — o desenho antigo aninhava quatro níveis', () => {
+  it('não tem caixa nenhuma — nem a externa, que era a última que restava', () => {
     const { html } = buildTicketEmailTemplate(PAGAMENTO);
     // Cada `border:1px solid` era uma caixa: a externa, o bloco "Mensagem", um por
-    // cartão de métrica e um por cartão de detalhe. Sobra a externa.
-    expect(contarOcorrencias(html, 'border:1px solid')).toBe(1);
+    // cartão de métrica e um por cartão de detalhe. Foram todas.
+    expect(contarOcorrencias(html, 'border:1px solid')).toBe(0);
+  });
+
+  it('não tem tarja escura, fundo colorido nem botão preenchido', () => {
+    const { html } = buildTicketEmailTemplate(PAGAMENTO);
+    // O desenho antigo abria com uma faixa #1f1a15 sobre um papel #ffffff dentro de
+    // um fundo bege, e fechava num botão preto. Só o branco sobrou.
+    expect(html).not.toContain('#1f1a15');
+    expect(html).not.toContain('#efe8de');
+    // Sobra um `background:` no arquivo inteiro: o branco do corpo.
+    expect(contarOcorrencias(html, 'background:')).toBe(1);
+    expect(html).toContain('background:#ffffff');
+  });
+
+  it('usa uma família de fonte só — o serifado do título saiu junto', () => {
+    const { html } = buildTicketEmailTemplate(PAGAMENTO);
+    expect(html).not.toContain('Georgia');
+    expect(contarOcorrencias(html, 'font-family:')).toBe(1);
+  });
+
+  it('assina com "Serv3" e nada mais', () => {
+    const { html } = buildTicketEmailTemplate(PAGAMENTO);
+    expect(html).not.toContain('Comunicado automático');
+    expect(html).toContain('>Serv3</div>');
   });
 
   it('não repete a OS no cabeçalho', () => {
@@ -94,10 +117,10 @@ describe('nenhum texto do e-mail cai abaixo de 4,5:1', () => {
 
   it('todo `color:#xxxxxx` do corpo passa sobre o papel branco', () => {
     const { html } = buildTicketEmailTemplate(PAGAMENTO);
-    const corpo = html.slice(html.indexOf('padding:26px 28px 30px'));
-    const cores = [...new Set(corpo.match(/color:#[0-9a-f]{6}/g) || [])]
+    // O e-mail inteiro é branco agora — não há mais um trecho escuro para recortar
+    // fora, então a régua vale para o arquivo todo.
+    const cores = [...new Set(html.match(/color:#[0-9a-f]{6}/g) || [])]
       .map(t => t.replace('color:', ''))
-      // O branco é texto sobre o botão escuro, não sobre o papel.
       .filter(cor => cor !== '#ffffff');
 
     expect(cores.length).toBeGreaterThan(0);
@@ -119,10 +142,10 @@ describe('a prévia das Configurações mostra o e-mail que sai de verdade', () 
     const enviado = buildTicketEmailTemplate(PAGAMENTO).html;
     // Antes a prévia terminava em "Prévia visual do e-mail institucional" e o envio
     // em "comunicado automático" — eram dois desenhos diferentes.
-    const rodape = 'Comunicado automático do Serv3.';
+    const rodape = '>Serv3</div>';
     expect(previa).toContain(rodape);
     expect(enviado).toContain(rodape);
-    expect(contarOcorrencias(previa, 'border:1px solid')).toBe(1);
+    expect(contarOcorrencias(previa, 'border:1px solid')).toBe(0);
   });
 
   it('substitui as variáveis do modelo', () => {
@@ -149,8 +172,8 @@ describe('o aviso de chuva deixou de sair em texto puro', () => {
       title: 'Começou a chover em Fortaleza',
       detailCards: [{ title: 'Fontes', rows: [{ label: 'Pluviômetros', value: sinal.fontes.posto.detalhe }] }],
     });
-    expect(html).toContain('Comunicado automático do Serv3.');
-    expect(contarOcorrencias(html, 'border:1px solid')).toBe(1);
+    expect(html).toContain('>Serv3</div>');
+    expect(contarOcorrencias(html, 'border:1px solid')).toBe(0);
   });
 
   it('o disparo de teste se identifica na tarja — a única caixa colorida que sobrou', () => {
@@ -160,9 +183,52 @@ describe('o aviso de chuva deixou de sair em texto puro', () => {
     }).html;
     const semTeste = buildNoticeEmailTemplate({ title: 'Começou a chover' }).html;
 
+    // A faixa amarela é o sinal, e ela só existe no disparo de teste — o e-mail de
+    // chuva de verdade não tem cor nenhuma além do texto.
     expect(comTeste).toContain('Teste — não é chuva de verdade');
-    expect(comTeste).toContain('border-left:4px solid');
-    expect(semTeste).not.toContain('border-left:4px solid');
+    expect(comTeste).toContain('background:#fdf3d7');
+    expect(semTeste).not.toContain('#fdf3d7');
+  });
+});
+
+describe('`intro` é reserva do corpo, não um segundo parágrafo', () => {
+  /*
+   * A ARMADILHA QUE JÁ MORDEU. `renderBodyText(cleanedBody || intro)` usa `intro`
+   * SÓ quando não há corpo. Quem lê a assinatura de `buildTicketEmailTemplate` vê
+   * dois campos de texto e supõe que os dois saem — foi o que aconteceu com a
+   * mensagem à Diretoria, que montava `"${sender} enviou uma atualização interna"`
+   * num `intro` que nunca foi renderizado. O nome do autor sumia do e-mail.
+   *
+   * O teste não conserta a assinatura; ele garante que o próximo a supor isso veja
+   * a regra escrita em vez de descobrir por um e-mail que saiu errado.
+   */
+  it('com corpo, o intro NÃO aparece — informação posta ali se perde', () => {
+    const { html, text } = buildTicketEmailTemplate({
+      ...PAGAMENTO,
+      intro: 'Guilherme enviou uma atualização.',
+      bodyText: 'A metalúrgica confirmou a visita.',
+    });
+    expect(html).toContain('A metalúrgica confirmou a visita.');
+    expect(html).not.toContain('Guilherme enviou uma atualização.');
+    expect(text).not.toContain('Guilherme enviou uma atualização.');
+  });
+
+  it('sem corpo, o intro assume', () => {
+    const { html } = buildTicketEmailTemplate({
+      ...PAGAMENTO,
+      intro: 'Guilherme enviou uma atualização.',
+      bodyText: '',
+    });
+    expect(html).toContain('Guilherme enviou uma atualização.');
+  });
+
+  it('o título atravessa: é por onde o autor chega ao leitor', () => {
+    const { html } = buildTicketEmailTemplate({
+      ...PAGAMENTO,
+      title: 'Guilherme enviou uma nova mensagem',
+      bodyText: 'A metalúrgica confirmou a visita.',
+    });
+    expect(html).toContain('Guilherme enviou uma nova mensagem');
   });
 });
 
@@ -182,7 +248,7 @@ describe('o que já funcionava continua funcionando', () => {
       bodyText: 'Foto em https://drive.google.com/abc — @Ana Paula confere.',
     });
     expect(html).toContain('<a href="https://drive.google.com/abc"');
-    expect(html).toContain('<strong style="color:#7a4f18;">@Ana Paula</strong>');
+    expect(html).toContain('<strong style="color:#0b5cad;">@Ana Paula</strong>');
   });
 
   it('quebra de linha simples continua sendo quebra', () => {
@@ -208,8 +274,8 @@ describe('o que já funcionava continua funcionando', () => {
       ctaUrl: 'https://serv3.vercel.app/?senha=xyz',
     });
     expect(html).toContain('Olá Marcos,');
-    expect(html).toContain('Comunicado automático do Serv3.');
-    expect(contarOcorrencias(html, 'border:1px solid')).toBe(1);
+    expect(html).toContain('>Serv3</div>');
+    expect(contarOcorrencias(html, 'border:1px solid')).toBe(0);
     expect(text).toContain('https://serv3.vercel.app/?senha=xyz');
   });
 });
