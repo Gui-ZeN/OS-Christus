@@ -154,10 +154,34 @@ describe('agendaGroupOf', () => {
     expect(agendaGroupOf(visita, AGORA)).toBe(AGENDA_GROUP.TODAY);
   });
 
-  it('trabalho SEM fornecedor vai para Trabalho interno, não para Hoje', () => {
-    // O PDF separa os dois: misturado com visita, o trabalho interno some atrás de
-    // coisa que depende de terceiro — e é justamente o que a equipe destrava sozinha.
-    expect(agendaGroupOf(comAcao(hoje(16)), AGORA)).toBe(AGENDA_GROUP.INTERNAL);
+  /*
+   * ⚠️ A REGRA MUDOU EM 03/09/2026, a pedido do dono: *"o trabalho interno também
+   * deveria aparecer no marcado para hoje caso tenha alguma data"*.
+   *
+   * Antes, TODO trabalho interno que não estivesse no futuro caía em "Trabalho
+   * interno" — inclusive o marcado para hoje às 9h. O efeito na tela era abrir com
+   * "Nada marcado para hoje — ninguém prometeu vir" tendo trabalho com hora marcada
+   * logo abaixo: o bloco do dia só sabia falar de visita de fornecedor.
+   *
+   * A separação que o PDF pedia continua de pé para o ATRASADO, que é onde ela
+   * importa: ali o trabalho da equipe não pode sumir atrás do que depende de
+   * terceiro. O de hoje sobe para a pauta do dia.
+   */
+  it('trabalho SEM fornecedor marcado para HOJE vai para a pauta do dia', () => {
+    expect(agendaGroupOf(comAcao(hoje(16)), AGORA)).toBe(AGENDA_GROUP.TODAY);
+  });
+
+  it('mas o trabalho interno ATRASADO fica em Trabalho interno', () => {
+    // Empurrar item de outro dia para "Marcado para hoje" transformaria a pauta em
+    // backlog — que é o que esta tela existe para não ser.
+    const ontem = new Date('2026-08-04T12:00:00Z');
+    expect(agendaGroupOf(comAcao(ontem), AGORA)).toBe(AGENDA_GROUP.INTERNAL);
+  });
+
+  it('trabalho interno de hoje cuja hora já passou continua sendo de hoje', () => {
+    // `hoje(8)` é 08h e AGORA é 09h. O dia é o mesmo, então a pauta do dia é o lugar
+    // — quem tinha 8h para analisar um orçamento e são 9h ainda tem o dia inteiro.
+    expect(agendaGroupOf(comAcao(hoje(8)), AGORA)).toBe(AGENDA_GROUP.TODAY);
   });
 
   it('compromisso de fornecedor que estourou a tolerância → Aguardando a sede', () => {
@@ -167,8 +191,13 @@ describe('agendaGroupOf', () => {
     expect(agendaGroupOf(t, AGORA)).toBe(AGENDA_GROUP.WAITING_SITE);
   });
 
-  it('ação INTERNA vencida não vira "aguardando sede" — não há sede para esperar', () => {
-    expect(agendaGroupOf(comAcao(hoje(8)), AGORA)).toBe(AGENDA_GROUP.INTERNAL);
+  it('ação INTERNA com a hora passada não vira "aguardando sede" — não há sede para esperar', () => {
+    // O que este teste protege é a ausência de `commitmentId`, não o grupo de
+    // destino: sem fornecedor, não existe sede a quem perguntar se ele veio.
+    expect(agendaGroupOf(comAcao(hoje(8)), AGORA)).not.toBe(AGENDA_GROUP.WAITING_SITE);
+    expect(agendaGroupOf(comAcao(new Date('2026-08-04T12:00:00Z')), AGORA)).not.toBe(
+      AGENDA_GROUP.WAITING_SITE
+    );
   });
 
   it('falta CONFIRMADA pela sede vai para o topo: Cobrar agora', () => {
@@ -228,7 +257,9 @@ describe('buildAgenda — passivo sem responsável: número ou lista', () => {
     const lista = [...semDono(50), comAcao(hoje(9))];
     const agenda = buildAgenda(lista, AGORA);
     expect(agenda.semResponsavel.total).toBe(50);
-    expect(agenda.groups['trabalho-interno']).toHaveLength(1);
+    // A ação é de hoje, então ela mora na pauta do dia — o que este teste protege é
+    // que ela NÃO some junto com o passivo agrupado.
+    expect(agenda.groups[AGENDA_GROUP.TODAY]).toHaveLength(1);
   });
 
   it('sem nenhuma parada, o contador some', () => {
@@ -249,14 +280,25 @@ describe('buildAgenda', () => {
   const agenda = buildAgenda(lista, AGORA);
 
   it('separa nos grupos e ignora encerrada', () => {
-    // Estas ações não têm `commitmentId`: são trabalho da própria equipe, e o PDF
-    // as separa das visitas justamente para não sumirem atrás de terceiro.
-    expect(agenda.groups[AGENDA_GROUP.INTERNAL].map(t => t.id)).toEqual(['OS-3', 'OS-2', 'OS-1']);
+    // Estas ações não têm `commitmentId`: são trabalho da própria equipe. O de HOJE
+    // vai para a pauta do dia; o atrasado fica em Trabalho interno, onde o PDF o
+    // separa das visitas para não sumir atrás do que depende de terceiro.
+    expect(agenda.groups[AGENDA_GROUP.INTERNAL].map(t => t.id)).toEqual(['OS-3']);
+    expect(agenda.groups[AGENDA_GROUP.TODAY].map(t => t.id)).toEqual(['OS-2', 'OS-1']);
     expect(agenda.groups[AGENDA_GROUP.NO_ACTION]).toHaveLength(2);
   });
 
-  it('ordena o trabalho interno pela data', () => {
-    expect(agenda.groups[AGENDA_GROUP.INTERNAL][0].id).toBe('OS-3'); // a mais vencida
+  it('ordena a pauta do dia pela hora', () => {
+    // OS-2 às 11h antes de OS-1 às 16h: a lista do dia se lê de cima para baixo
+    // como o relógio anda.
+    expect(agenda.groups[AGENDA_GROUP.TODAY].map(t => t.id)).toEqual(['OS-2', 'OS-1']);
+  });
+
+  it('o contador "exigem ação agora" NÃO encolheu com a mudança de grupo', () => {
+    // O interno de hoje mudou de lugar na tela, não de natureza: continua sendo
+    // trabalho que alguém precisa fazer hoje. Sem esta soma, a nota do card "Hoje"
+    // cairia de 3 para 1 sem nada ter melhorado.
+    expect(agenda.contadores.exigemAcaoAgora).toBe(3);
   });
 
   it('🔍 "sem próxima ação" ordena pelo TEMPO PARADO — a mais esquecida primeiro', () => {

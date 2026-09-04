@@ -162,11 +162,27 @@ export function agendaGroupOf(
 
   const due = action.dueAt;
 
-  // Trabalho interno: sem `commitmentId` não há fornecedor para esperar, e a bola
-  // é da própria equipe. Só o que já venceu ou vence hoje — o resto continua em
-  // "Próximos 7 dias", que é para se preparar, não para agir.
-  if (!action.commitmentId && due.getTime() <= now.getTime()) return AGENDA_GROUP.INTERNAL;
-  if (!action.commitmentId && isSameDay(due, now)) return AGENDA_GROUP.INTERNAL;
+  /*
+   * Trabalho interno: sem `commitmentId` não há fornecedor para esperar, e a bola é
+   * da própria equipe.
+   *
+   * ⚠️ O DE HOJE SUBIU PARA A PAUTA DO DIA (03/09/2026). Antes, tudo o que era
+   * interno e não estava no futuro caía aqui — inclusive o marcado para hoje às 9h.
+   * O efeito era a tela abrir com "Nada marcado para hoje — ninguém prometeu vir"
+   * enquanto havia trabalho com hora marcada logo abaixo: o bloco do dia só sabia
+   * falar de visita de fornecedor.
+   *
+   * `dueAt` é `datetime-local` e carrega hora (os atalhos gravam 9h), então o
+   * interno entra na lista por horário sem inventar dado.
+   *
+   * O ATRASADO FICA. "Marcado para hoje" tem que continuar dizendo a verdade sobre
+   * o dia: item de 18/08 não é de hoje, e empurrá-lo para lá transformaria a pauta
+   * em backlog — que é exatamente o que esta tela existe para não ser.
+   */
+  if (!action.commitmentId) {
+    if (isSameDay(due, now)) return AGENDA_GROUP.TODAY;
+    if (due.getTime() < now.getTime()) return AGENDA_GROUP.INTERNAL;
+  }
 
   if (isSameDay(due, now)) {
     // Passou da hora e é compromisso de fornecedor: quem responde agora é a sede,
@@ -351,7 +367,15 @@ export function buildAgenda(
     semAcaoAgrupada,
   contadores: {
       hoje: groups[AGENDA_GROUP.TODAY].length + groups[AGENDA_GROUP.COBRAR].length + groups[AGENDA_GROUP.WAITING_SITE].length,
-      exigemAcaoAgora: groups[AGENDA_GROUP.COBRAR].length + groups[AGENDA_GROUP.INTERNAL].length,
+      // ⚠️ O interno de hoje CONTINUA contando aqui, mesmo tendo mudado de grupo.
+      // Ele saiu de "Trabalho interno" e foi para a pauta do dia — mas a pergunta
+      // deste número não é onde ele aparece, e sim se alguém precisa agir agora.
+      // Visita marcada para as 15h não exige ação agora; analisar um orçamento hoje,
+      // exige. Sem esta soma, a nota do card "Hoje" encolheria sem nada ter melhorado.
+      exigemAcaoAgora:
+        groups[AGENDA_GROUP.COBRAR].length +
+        groups[AGENDA_GROUP.INTERNAL].length +
+        groups[AGENDA_GROUP.TODAY].filter(t => !resolvedAttentionOf(t)?.commitmentId).length,
       vencidas: groups[AGENDA_GROUP.OVERDUE].length,
       proximosSeteDias: groups[AGENDA_GROUP.UPCOMING].length,
       semProximaAcao: paradas.length,

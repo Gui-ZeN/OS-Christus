@@ -558,26 +558,43 @@ export function TodayView() {
           *
           * ⚠️ Dia vazio MOSTRA que está vazio. Sumir com a seção faria a tela abrir
           * direto no passivo — e "não há nada marcado" é informação, não ausência
-          * dela: significa que ninguém prometeu vir hoje.
+          * dela.
+          *
+          * ⚠️ O DIA DEIXOU DE SER SÓ VISITA (03/09/2026). A seção lia apenas
+          * `compromissos` — quem prometeu vir — e por isso abria dizendo "nada
+          * marcado" com trabalho interno marcado para hoje logo abaixo, em "Trabalho
+          * interno". Eram duas metades do mesmo dia em dois lugares, e a de cima
+          * dizia que o dia estava vazio.
+          *
+          * Agora são duas partes: as visitas, por horário, e o trabalho interno de
+          * hoje, nos MESMOS cartões do resto da tela — porque é neles que estão
+          * "Feito", "Amanhã" e "+3 dias". Rebaixar esses itens a uma linha de texto
+          * para caber na lista tiraria justamente o que resolve o dia.
           */}
         {(() => {
           const doDia = compromissos
             .filter(c => c.startAt && isSameDay(c.startAt, agora))
             .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+          // Só o que é interno: o resto do grupo TODAY são visitas, já listadas
+          // acima como compromisso — sem este filtro elas apareceriam duas vezes.
+          const internoDeHoje = filtra(agenda.groups[AGENDA_GROUP.TODAY]).filter(
+            ticket => !resolvedAttentionOf(ticket)?.commitmentId
+          );
+          const total = doDia.length + internoDeHoje.length;
 
           return (
             <section className="mt-4">
               <div className="mb-2 flex items-baseline gap-2">
                 <span className="text-roman-text-sub"><CalendarClock size={14} /></span>
                 <h2 className="font-serif text-base font-medium text-roman-text-main">Marcado para hoje</h2>
-                {doDia.length > 0 && <span className="text-xs text-roman-text-sub">{doDia.length}</span>}
+                {total > 0 && <span className="text-xs text-roman-text-sub">{total}</span>}
               </div>
 
-              {doDia.length === 0 ? (
+              {total === 0 ? (
                 <p className="rounded-sm border border-dashed border-roman-border px-3 py-2 text-sm text-roman-text-sub">
-                  Nada marcado para hoje — ninguém prometeu vir.
+                  Nada marcado para hoje — ninguém prometeu vir e não há trabalho interno com data de hoje.
                 </p>
-              ) : (
+              ) : doDia.length === 0 ? null : (
                 <ol className="divide-y divide-roman-border rounded-sm border border-roman-border">
                   {doDia.map(c => (
                     <li key={c.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2">
@@ -594,6 +611,37 @@ export function TodayView() {
                     </li>
                   ))}
                 </ol>
+              )}
+
+              {/* O trabalho interno de hoje, nos mesmos cartões do resto da tela —
+                  com os botões que resolvem o dia. A margem só existe quando há
+                  visita acima, senão o bloco abriria com um buraco. */}
+              {internoDeHoje.length > 0 && (
+                <div className={`grid gap-2 md:grid-cols-2 xl:grid-cols-3 ${doDia.length > 0 ? 'mt-2' : ''}`}>
+                  {internoDeHoje.map(ticket => (
+                    <Cartao
+                      key={ticket.id}
+                      ticket={ticket}
+                      grupo={AGENDA_GROUP.TODAY}
+                      agora={agora}
+                      onAbrir={abrir}
+                      editando={editando === ticket.id}
+                      onEditar={() => setEditando(editando === ticket.id ? null : ticket.id)}
+                      onSalvar={acao => salvarAcao(ticket.id, acao)}
+                      onSuspender={attention => salvarSuspensao(ticket.id, attention)}
+                      compromisso={null}
+                      onConfirmar={registrarConfirmacao}
+                      onCancelar={cancelarCompromisso}
+                      onCobrar={cobrarFornecedor}
+                      onDesfechoDaCobranca={registrarDesfecho}
+                      contatoDoFornecedor={contatoDoFornecedor}
+                      onCorrigir={(resolution, dueAt) => corrigirAtencao(ticket, resolution, dueAt)}
+                      onVirarVisita={(acao, fornecedor) => marcarComoVisita(ticket, acao, fornecedor)}
+                      autorEmail={currentUser?.email}
+                      autorNome={currentUser?.name}
+                    />
+                  ))}
+                </div>
               )}
             </section>
           );
