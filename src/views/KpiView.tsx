@@ -34,7 +34,7 @@ import {
   urgenciaDaFila,
   valorDaOs,
   volumeDoPeriodo,
-  volumePorSede,
+  volumeAgrupado,
   coberturaDaProximaAcao,
   esperaDaFila,
   filaTravada,
@@ -537,8 +537,36 @@ export function KpiView() {
   }, [periodTickets]);
 
   const osPorSede = useMemo(
-    () => volumePorSede(filteredTickets, ticket => getTicketSiteLabel(ticket, sites)),
+    () => volumeAgrupado(filteredTickets, ticket => getTicketSiteLabel(ticket, sites)),
     [filteredTickets, sites]
+  );
+
+  /**
+   * VOLUME POR CATEGORIA — a pergunta que o dado respondia e a tela não.
+   *
+   * Medido em 04/09/2026: 92% das 226 OS têm macroserviço preenchido (76% têm o
+   * serviço específico), e mesmo assim "quantas OS de cada categoria" só existia na
+   * aba Financeira, agrupada por CUSTO — que é zero em todas as OS da base. A
+   * pergunta tinha resposta e não tinha tela.
+   *
+   * ⚠️ MACROSERVIÇO, e não o serviço específico. São 14 macroserviços contra 24
+   * serviços, com 92% de preenchimento contra 76%: mais barra e menos dado é o pior
+   * dos dois lados. Com o filtro de sede ligado, este mesmo gráfico responde "quais
+   * categorias concentram na sede X".
+   *
+   * "Não classificada" fica À VISTA, e não some: são 18 OS, e uma categoria que a
+   * operação não preencheu é justamente o que o painel precisa mostrar.
+   *
+   * SEM TETO, ao contrário dos rankings. São 14 macroserviços e o gráfico vizinho já
+   * desenha 18 sedes sem apertar — e cortar a cauda numa pergunta que é "quantas em
+   * cada categoria" seria responder outra coisa.
+   */
+  const osPorCategoria = useMemo(
+    () =>
+      volumeAgrupado(filteredTickets, ticket =>
+        repairMojibake(ticket.macroServiceName || '') || 'Não classificada'
+      ),
+    [filteredTickets]
   );
 
   const volume = useMemo(() => volumeDoPeriodo(filteredTickets), [filteredTickets]);
@@ -1411,6 +1439,53 @@ export function KpiView() {
               </div>
             </div>
           </>
+        )}
+
+        {/*
+          VOLUME POR CATEGORIA — largura cheia, e só no Gerencial.
+          A pergunta "como dividimos as categorias e quantas em cada uma" tinha
+          resposta no banco (92% das OS classificadas) e não tinha tela: o único
+          gráfico por categoria era o de CUSTO, na aba Financeira, que é zero em toda
+          a base. Com o filtro de sede ligado, este mesmo gráfico responde "quais
+          categorias concentram na sede X".
+          Deitado porque os nomes são longos ("Acabamentos e Divisórias"): em pé eles
+          se atropelam ou giram, e o de sedes ao lado já usa rótulo curto.
+        */}
+        {perspective === 'managerial' && (
+          <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0 mb-6">
+            <h2 className="font-serif text-lg font-medium text-roman-text-main">Volume de OS por categoria</h2>
+            <p className="mb-6 font-serif italic text-sm text-roman-text-sub">
+              Por macroserviço. Segue o recorte dos filtros acima — com uma sede escolhida, mostra a
+              concentração daquela sede.
+            </p>
+            <div className="min-w-0" style={{ height: `${Math.max(18, osPorCategoria.length * 2.2)}rem` }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={osPorCategoria} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={paleta.grade} />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} allowDecimals={false} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} width={170} />
+                  <Tooltip
+                    cursor={{ fill: paleta.cursor }}
+                    contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
+                    itemStyle={{ color: paleta.textoDica }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '12px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
+                  {/* As MESMAS três séries do gráfico de sedes, pelo mesmo motivo:
+                      cancelada não é entrega, e uma barra só faria "concluídas"
+                      incluir obra que não aconteceu. */}
+                  <Bar dataKey="abertas" name="Em aberto" stackId="a" fill={paleta.serieC}>
+                    <LabelList dataKey="abertas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
+                  </Bar>
+                  <Bar dataKey="concluidas" name="Concluídas" stackId="a" fill={paleta.serieA}>
+                    <LabelList dataKey="concluidas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.superficie, fontWeight: 600 }} />
+                  </Bar>
+                  <Bar dataKey="canceladas" name="Canceladas" stackId="a" fill={paleta.grade} radius={[0, 2, 2, 0]}>
+                    <LabelList dataKey="canceladas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

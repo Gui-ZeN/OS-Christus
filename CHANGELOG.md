@@ -3,6 +3,39 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-04 (volume por categoria — a pergunta que o dado respondia e a tela não)
+
+Veio de uma thread de e-mail entre Murilo, Larissa, Rafael e Cezar sobre o que falta
+no Serv3. Do checklist do Murilo, esta era a única pergunta em que o dado estava
+pronto e a tela não respondia.
+
+Medido em produção: **92% das 226 OS têm macroserviço preenchido** (76% têm o serviço
+específico). Mesmo assim, "quantas OS de cada categoria" só existia agrupado por
+CUSTO, na aba Financeira — e custo é **zero em todas as 226 OS da base**. A pergunta
+tinha resposta e não tinha onde aparecer.
+
+Gráfico novo na aba Gerencial, largura cheia, deitado (os nomes são longos: "Acabamentos
+e Divisórias" em pé se atropela). Com o filtro de sede ligado, o mesmo gráfico responde
+"quais categorias concentram na sede X" — a pergunta seguinte da lista.
+
+**Por macroserviço, e não pelo serviço específico**: 14 contra 24 categorias, com 92%
+de preenchimento contra 76%. Mais barra e menos dado é o pior dos dois lados.
+
+**"Não classificada" fica à vista** — são 18 OS. Categoria que a operação não preencheu
+é justamente o que o painel precisa mostrar, e escondê-la faria o total do gráfico não
+bater com o card de Volume logo acima.
+
+`volumePorSede` virou **`volumeAgrupado`**: a função sempre foi genérica (o agrupador
+vinha por parâmetro) e o nome passou a mentir quando a mesma conta virou o gráfico de
+categorias. Nome que mente é o defeito que este painel mais produziu.
+
+**Um defeito que só a tela mostrou**, com os testes verdes: com poucas categorias, os
+rótulos do eixo não alinhavam com as barras. Era o `barSize` fixo — removido, o
+Recharts dimensiona pela faixa e alinha. Conferido com 3, 6 e 13 categorias.
+
+A conta fecha nos três lugares: categoria 13, sede 13, card de Volume 13. Com a sede
+filtrada, 6 nos três.
+
 ## 2026-09-04 (Colégio ou Universidade, nos Indicadores)
 
 Pedido do dono: *"se eu quiser ver todas as OS do Colégio eu não consigo, sempre

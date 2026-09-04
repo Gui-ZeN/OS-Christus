@@ -21,7 +21,7 @@ import {
   urgenciaDaFila,
   valorDaOs,
   volumeDoPeriodo,
-  volumePorSede,
+  volumeAgrupado,
 } from '../../src/views/kpi/calculos';
 import type { ContractRecord, PaymentRecord, Ticket } from '../../src/types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
@@ -204,9 +204,9 @@ describe('volumeDoPeriodo — as canceladas deixaram de ser invisíveis', () => 
   });
 });
 
-describe('volumePorSede — "Concluídas" deixou de incluir cancelada', () => {
+describe('volumeAgrupado — "Concluídas" deixou de incluir cancelada', () => {
   it('separa as três, porque obra cancelada não é entrega', () => {
-    const porSede = volumePorSede(
+    const porSede = volumeAgrupado(
       [
         os({ id: 'A', sede: 'SUL1', status: 'Em andamento' }),
         os({ id: 'B', sede: 'SUL1', status: 'Encerrada' }),
@@ -215,6 +215,40 @@ describe('volumePorSede — "Concluídas" deixou de incluir cancelada', () => {
       sede
     );
     expect(porSede[0]).toMatchObject({ name: 'SUL1', abertas: 1, concluidas: 1, canceladas: 1 });
+  });
+
+  /**
+   * O MESMO CÁLCULO SERVINDO A CATEGORIA — foi por isto que a função perdeu o "Sede"
+   * do nome. Medido em 04/09/2026: 92% das 226 OS têm macroserviço preenchido, e a
+   * pergunta "quantas em cada categoria" só existia agrupada por CUSTO, na aba
+   * Financeira, que é zero em toda a base.
+   */
+  const categoria = (t: Ticket) => t.macroServiceName || 'Não classificada';
+
+  it('agrupa por categoria com a mesma conta, e ordena pela maior', () => {
+    const porCategoria = volumeAgrupado(
+      [
+        os({ id: 'A', macroServiceName: 'Estrutura Civil', status: 'Em andamento' }),
+        os({ id: 'B', macroServiceName: 'Estrutura Civil', status: 'Encerrada' }),
+        os({ id: 'C', macroServiceName: 'Elétrica', status: 'Encerrada' }),
+      ],
+      categoria
+    );
+    expect(porCategoria.map(c => c.name)).toEqual(['Estrutura Civil', 'Elétrica']);
+    expect(porCategoria[0]).toMatchObject({ abertas: 1, concluidas: 1, canceladas: 0 });
+  });
+
+  it('OS sem categoria vira barra própria — não some do gráfico', () => {
+    // São 18 OS em produção. Categoria que a operação não preencheu é justamente o
+    // que o painel precisa mostrar; escondê-la faria o total do gráfico não bater
+    // com o card de Volume logo acima.
+    const porCategoria = volumeAgrupado(
+      [os({ id: 'A', macroServiceName: 'Elétrica' }), os({ id: 'B' })],
+      categoria
+    );
+    expect(porCategoria.map(c => c.name).sort()).toEqual(['Elétrica', 'Não classificada']);
+    const total = porCategoria.reduce((s, c) => s + c.abertas + c.concluidas + c.canceladas, 0);
+    expect(total).toBe(2);
   });
 });
 

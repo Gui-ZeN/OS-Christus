@@ -242,22 +242,27 @@ export function volumeDoPeriodo(ticketsDoPeriodo: Ticket[]): VolumeDoPeriodo {
   return { total: ticketsDoPeriodo.length, concluidas, canceladas, emCurso };
 }
 
-export type VolumePorSede = { name: string; abertas: number; concluidas: number; canceladas: number };
+export type VolumeAgrupado = { name: string; abertas: number; concluidas: number; canceladas: number };
 
 /**
- * Volume por sede.
+ * Volume por qualquer recorte — a sede é só o primeiro que existiu.
  *
- * ⚠️ "CONCLUÍDAS" DEIXOU DE INCLUIR CANCELADA. A série somava as duas e a legenda
- * dizia "Concluídas" — obra cancelada aparecia como entrega. Agora são três séries,
- * e o rótulo diz o que a barra é.
+ * ⚠️ CHAMAVA-SE `volumePorSede` E JÁ ERA GENÉRICA: o agrupador sempre veio por
+ * parâmetro. O nome passou a mentir quando a mesma conta virou o gráfico de
+ * categorias (04/09/2026), e nome que mente é o defeito que este painel mais
+ * produziu — três vezes numa semana.
+ *
+ * ⚠️ "CONCLUÍDAS" NÃO INCLUI CANCELADA. A série somava as duas e a legenda dizia
+ * "Concluídas" — obra cancelada aparecia como entrega. São três séries, e o rótulo
+ * diz o que a barra é.
  */
-export function volumePorSede(
+export function volumeAgrupado(
   ticketsDoPeriodo: Ticket[],
-  rotuloDaSede: (ticket: Ticket) => string
-): VolumePorSede[] {
-  const grupos = new Map<string, VolumePorSede>();
+  rotuloDoGrupo: (ticket: Ticket) => string
+): VolumeAgrupado[] {
+  const grupos = new Map<string, VolumeAgrupado>();
   for (const ticket of ticketsDoPeriodo) {
-    const name = rotuloDaSede(ticket);
+    const name = rotuloDoGrupo(ticket);
     if (!grupos.has(name)) grupos.set(name, { name, abertas: 0, concluidas: 0, canceladas: 0 });
     const atual = grupos.get(name)!;
     if (isTicketOpen(ticket.status)) atual.abertas += 1;
