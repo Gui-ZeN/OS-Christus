@@ -3,6 +3,37 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-04 (o reparo do histórico curava a fonte errada)
+
+Pedido para rodar `separar-motivo-do-aviso.mjs --apply` em produção. Fui conferir o
+alvo antes e o script não teria feito nada de útil.
+
+**O histórico mora em dois lugares**: o array `history` no documento e a subcoleção
+`historyEntries`, que passa a valer assim que `historySubcollectionReady` fica true. O
+script lia só o array. E a rota pública de acompanhamento hidrata ANTES de filtrar —
+`readTicketHistoryFromSubcollection` **ignora o array embutido** quando a subcoleção
+existe.
+
+As duas OS afetadas (OS-0202 e OS-0355) têm a flag ligada. Rodar como estava teria
+reparado o campo que ninguém lê e deixado o vazamento de pé **exatamente na página que
+o reparo existe para proteger** — e teria reportado sucesso.
+
+O script passou a curar as duas fontes. Na subcoleção o aviso é a mesma entrada
+encurtada (mantém id, time e autor) e o motivo nasce como documento novo, `internal`.
+
+⚠️ **O motivo ganha 1ms.** No array, a posição ordena; na subcoleção a leitura é
+`orderBy('time','asc')`, e com o mesmo instante nos dois quem desempata é o nome do
+documento, que é um hash — o motivo podia aparecer ANTES do aviso que ele explica. 1ms
+é a menor distorção que torna a ordem determinística, e ela cai numa entrada interna.
+
+Testado no emulador primeiro, com o defeito semeado nas duas fontes e a flag ligada:
+depois do reparo, o filtro público devolve o aviso e não devolve o motivo. Rodado em
+produção em seguida — **2 OS, 2 entradas na subcoleção** —, conferido OS a OS pelo
+mesmo filtro que a rota usa, e a segunda passada acusa 0 nas duas fontes.
+
+Os motivos eram "duplicada" e "Solicitação incorreta" — inofensivos, como eu já tinha
+dito. O que não era inofensivo era o caminho.
+
 ## 2026-09-04 (volume por categoria — a pergunta que o dado respondia e a tela não)
 
 Veio de uma thread de e-mail entre Murilo, Larissa, Rafael e Cezar sobre o que falta
