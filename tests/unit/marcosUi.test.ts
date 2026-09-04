@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MARCOS_DA_OS, contarMarcos, lerMarcos } from '../../src/utils/marcos';
+import { MARCOS_DA_OS, contarAcontecidos, contarMarcos, lerMarcos } from '../../src/utils/marcos';
 
 /**
  * A RÉGUA DA TELA — seis marcos, e a ausência sendo dado.
@@ -62,5 +62,59 @@ describe('régua de marcos da OS', () => {
       },
     });
     expect(conta).toBe(3);
+  });
+});
+
+/**
+ * OS TRÊS ESTADOS — e a fronteira entre "não sei quando" e "não sei se".
+ *
+ * A leitura de duas cores dizia a mesma coisa para dois fatos diferentes: o marco que
+ * a OS ultrapassou sem ninguém registrar a data, e o marco onde a OS ainda não chegou.
+ * Medido em 03/09/2026: 100 das 220 OS tinham exatamente quatro marcos ultrapassados
+ * sem carimbo, e uma OS ENCERRADA aparecia como "2 de 6".
+ */
+describe('marco que aconteceu sem data', () => {
+  const AS = 'Aguardando Aprovação da Solução';
+  const OR = 'Aguardando Orçamento';
+  const EX = 'Em andamento';
+
+  it('separa os três estados', () => {
+    const lidos = lerMarcos({
+      marcos: { 'Aguardando Parecer Técnico': '2026-07-01T12:00:00.000Z' },
+      marcosSemData: [AS, OR],
+    });
+    expect(lidos.map(m => m.estado)).toEqual([
+      'com-data',
+      'sem-data',
+      'sem-data',
+      'vazio',
+      'vazio',
+      'vazio',
+    ]);
+  });
+
+  it('a data manda sobre a lista — lista velha não rebaixa marco conhecido', () => {
+    const lidos = lerMarcos({ marcos: { [EX]: '2026-08-01T12:00:00.000Z' }, marcosSemData: [EX] });
+    expect(lidos[4].estado).toBe('com-data');
+    expect(lidos[4].data).toBeInstanceOf(Date);
+  });
+
+  it('as duas contagens respondem perguntas diferentes', () => {
+    const os = { marcos: { 'Aguardando Parecer Técnico': '2026-07-01T12:00:00.000Z' }, marcosSemData: [AS, OR] };
+    // Quantas DATAS o sistema tem — é o que alimenta a régua dos Indicadores.
+    expect(contarMarcos(os)).toBe(1);
+    // Quanto a OS ANDOU — é o que a coluna da Gestão mostra.
+    expect(contarAcontecidos(os)).toBe(3);
+  });
+
+  it('OS sem o campo novo (as 220 de hoje) continua lendo dois estados', () => {
+    const lidos = lerMarcos({ marcos: { [EX]: '2026-08-01T12:00:00.000Z' } });
+    expect(lidos.filter(m => m.estado === 'sem-data')).toHaveLength(0);
+    expect(contarAcontecidos({ marcos: { [EX]: '2026-08-01T12:00:00.000Z' } })).toBe(1);
+  });
+
+  it('campo corrompido não quebra a leitura', () => {
+    expect(contarAcontecidos({ marcosSemData: null as never })).toBe(0);
+    expect(contarAcontecidos({ marcosSemData: 'AS' as never })).toBe(0);
   });
 });

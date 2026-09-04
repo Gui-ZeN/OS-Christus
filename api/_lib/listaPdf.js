@@ -111,6 +111,16 @@ export async function buildListaPdf(data) {
     // ── A fila ────────────────────────────────────────────────
     y = drawTable(doc, M, y, CW, COLUNAS, data.linhas, 'Nenhuma OS neste recorte.', A4_PAISAGEM);
 
+    // O asterisco da coluna Marcos precisa de legenda NO PAPEL: na tela ele tem
+    // tooltip, aqui não tem para onde apontar. Só aparece quando alguma linha o usa.
+    const temAsterisco = (data.linhas || []).some(linha =>
+      String(linha?.[7] ?? '').includes('*')
+    );
+    if (temAsterisco) {
+      doc.font('Helvetica').fontSize(7.5).fillColor(C.sub)
+        .text('* Inclui marco que aconteceu sem data registrada no sistema.', M, y + 8, { width: CW });
+    }
+
     // ── Rodapé em todas as páginas ────────────────────────────
     const total = doc.bufferedPageRange().count;
     for (let i = 0; i < total; i += 1) {

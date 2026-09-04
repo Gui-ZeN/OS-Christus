@@ -158,6 +158,46 @@ async function main() {
     Object.keys(d5.marcos || {}).join(' · ')
   );
 
+  /*
+   * --- 6. OS MARCOS QUE ACONTECERAM SEM DATA (03/09/2026)
+   *
+   * O unitário cobre a regra. Aqui prova-se o que só o servidor prova: que o campo
+   * atravessa a MESMA transação do carimbo, e que o cliente não o forja.
+   */
+  check(
+    'a transição marca os marcos anteriores que ficaram sem carimbo',
+    JSON.stringify(d1.marcosSemData) ===
+      JSON.stringify(['Aguardando Parecer Técnico', 'Aguardando Aprovação da Solução']),
+    JSON.stringify(d1.marcosSemData)
+  );
+  check(
+    'avançar acrescenta o que passou, e NÃO cita marco que tem data',
+    JSON.stringify(d2.marcosSemData) ===
+      JSON.stringify([
+        'Aguardando Parecer Técnico',
+        'Aguardando Aprovação da Solução',
+        'Aguardando Ações Preliminares',
+      ]),
+    JSON.stringify(d2.marcosSemData)
+  );
+  check(
+    'o marco que GANHOU carimbo sai da lista — a ressalva some sozinha',
+    !d5.marcosSemData?.includes('Aguardando Ações Preliminares'),
+    JSON.stringify(d5.marcosSemData)
+  );
+
+  const forjaSemData = await patch(token, {
+    status: 'Encerrada',
+    marcosSemData: ['Aguardando Orçamento', 'inventado'],
+  });
+  const d6 = await ler();
+  check('PATCH com marcosSemData forjado não é erro (o campo é ignorado)', forjaSemData.status === 200);
+  check(
+    'o cliente NÃO escreve marcosSemData — campo só-servidor, como marcos',
+    !d6.marcosSemData?.includes('inventado') && !d6.marcosSemData?.includes('Aguardando Orçamento'),
+    JSON.stringify(d6.marcosSemData)
+  );
+
   await db.collection('tickets').doc(OS_ID).delete();
 
   const falhas = results.filter(item => !item.pass).length;

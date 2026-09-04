@@ -92,6 +92,87 @@ export function addStageMarco(marcosAtuais, status, quando) {
   return { ...atuais, [etapa]: quando };
 }
 
+/**
+ * A RÉGUA, na ordem — espelho de `MARCOS_DA_OS` em `src/utils/marcos.ts`.
+ *
+ * Os dois lados existem porque o servidor é quem ESCREVE e a tela é quem DESENHA.
+ * Mudou um, muda o outro: `tests/unit/stageMarcos.test.ts` compara os dois.
+ */
+export const MARCOS_EM_ORDEM = [
+  TICKET_STATUS.WAITING_TECH_OPINION,
+  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
+  TICKET_STATUS.WAITING_BUDGET,
+  TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+  TICKET_STATUS.IN_PROGRESS,
+  TICKET_STATUS.CLOSED,
+];
+
+/**
+ * Até onde a etapa ATUAL diz que a OS chegou — índice do último marco ultrapassado.
+ *
+ * As sete etapas que não são marco também respondem, porque elas dizem posição: quem
+ * está em "Aguardando pagamento" já passou do início da execução, ainda que nunca
+ * tenha parado no marco "Em andamento". Sem isto, a OS que pula direto para o
+ * pagamento não marcaria a execução — e é justamente ela que precisa.
+ */
+const ATE_ONDE_CHEGOU = {
+  [TICKET_STATUS.NEW]: -1,
+  [TICKET_STATUS.WAITING_TECH_OPINION]: 0,
+  [TICKET_STATUS.WAITING_SOLUTION_APPROVAL]: 1,
+  [TICKET_STATUS.WAITING_BUDGET]: 2,
+  [TICKET_STATUS.WAITING_BUDGET_APPROVAL]: 2,
+  [TICKET_STATUS.WAITING_CONTRACT_UPLOAD]: 3,
+  [TICKET_STATUS.WAITING_CONTRACT_APPROVAL]: 3,
+  [TICKET_STATUS.WAITING_PRELIM_ACTIONS]: 3,
+  [TICKET_STATUS.IN_PROGRESS]: 4,
+  [TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL]: 4,
+  [TICKET_STATUS.WAITING_PAYMENT]: 4,
+  [TICKET_STATUS.CLOSED]: 5,
+  // Cancelada NÃO avança nada: a OS parou, não passou.
+};
+
+/**
+ * OS MARCOS QUE ACONTECERAM SEM O SISTEMA VER.
+ *
+ * ⚠️ ISTO AFIRMA QUE ACONTECEU, e a afirmação é do dono do produto (03/09/2026):
+ * *"a pessoa já fez isso tudo, só não tem a data"*. O dado sustenta: a planilha da
+ * coordenação registra 226 aprovações de solução, 177 orçamentos e 141 ações
+ * preliminares — contra 4, 4 e 5 datas dentro do Serv3, em 220 OS. Os marcos do meio
+ * não estão vazios porque o trabalho não houve; estão vazios porque o trabalho
+ * aconteceu por e-mail e telefone, antes de alguém mexer numa etapa aqui.
+ *
+ * Quem quiser a leitura estrita — "só sei o que carimbei" — tem ela intacta: este
+ * conjunto mora FORA de `marcos`, então `contarMarcos` e a régua dos Indicadores
+ * continuam contando só data de verdade, e as medianas de intervalo não veem nada
+ * disto. O que muda é o que a tela mostra sobre andamento.
+ *
+ * A data manda: se o marco já tem carimbo, ele não entra aqui — e se um dia ganhar
+ * carimbo, sai daqui (`removerDeSemData`).
+ *
+ * @param marcosAtuais  o mapa de datas DEPOIS do carimbo desta transição
+ * @returns a lista nova, ou `null` quando nada muda — assim a transição repetida não
+ *          reescreve o campo à toa, igual ao `addStageMarco`.
+ */
+export function aplicarMarcosSemData(marcosAtuais, semDataAtuais, status) {
+  const ate = ATE_ONDE_CHEGOU[String(status || '')];
+  const comData =
+    marcosAtuais && typeof marcosAtuais === 'object' && !Array.isArray(marcosAtuais) ? marcosAtuais : {};
+  const anteriores = Array.isArray(semDataAtuais) ? semDataAtuais.map(String) : [];
+
+  // Cancelada (e qualquer etapa fora do mapa) não avança nada: a OS parou, não passou.
+  // Mesmo assim a limpeza abaixo roda — um marco que ganhou data sai da lista.
+  const alcancados = ate === undefined || ate < 0 ? [] : MARCOS_EM_ORDEM.slice(0, ate + 1);
+
+  const uniao = new Set([...anteriores, ...alcancados]);
+  // A DATA MANDA: marco carimbado sai da lista "sem data". É o que faz a OS que
+  // finalmente registrou o orçamento parar de dizer "aconteceu, não sei quando".
+  const proxima = MARCOS_EM_ORDEM.filter(marco => uniao.has(marco) && !comData[marco]);
+
+  const igual =
+    proxima.length === anteriores.length && proxima.every((marco, i) => marco === anteriores[i]);
+  return igual ? null : proxima;
+}
+
 const FINISHED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 
 /**

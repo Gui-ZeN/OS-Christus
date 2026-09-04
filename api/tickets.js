@@ -47,7 +47,7 @@ import { enforceRateLimit } from './_lib/rateLimit.js';
 import { assertAllowedAttachmentContent } from './_lib/attachments.js';
 import { slugFilename } from './_lib/text.js';
 import { parseEmailList } from './_lib/email.js';
-import { TICKET_STATUS, addStageMarco, canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
+import { TICKET_STATUS, addStageMarco, aplicarMarcosSemData, canTransitionStatus, isRetiredStatus, isTicketOpen, isValidStatus } from './_lib/statusFlow.js';
 
 /** As duas saídas da fila. Cancelada conta: a OS deixa de ser pendência do mesmo jeito. */
 const CLOSED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
@@ -1666,6 +1666,8 @@ async function handleRevisaoSemanal(req, res) {
         else if (CLOSED_STATUSES.has(String(ticket.status || ''))) extras.closedAt = null;
         const marcos = addStageMarco(ticket.marcos, efeito.status, agora);
         if (marcos) extras.marcos = marcos;
+        const semData = aplicarMarcosSemData(marcos || ticket.marcos, ticket.marcosSemData, efeito.status);
+        if (semData) extras.marcosSemData = semData;
       }
 
       // Quem respondeu fica gravado em TODOS os casos: é o que faz a limpeza ter
@@ -2204,6 +2206,11 @@ export default async function handler(req, res) {
           // do PATCH (`ticketPatchScope.js`), então é campo só-servidor por construção.
           const marcos = addStageMarco(data.marcos, updates.status, payload.stageEnteredAt);
           if (marcos) payload.marcos = marcos;
+          // Os marcos ANTERIORES que a OS ultrapassou sem carimbo — "aconteceu, o
+          // sistema não sabe quando". Mesma transação, mesmo motivo do comentário
+          // acima, e também fora da allow-list do PATCH: campo só-servidor.
+          const semData = aplicarMarcosSemData(marcos || data.marcos, data.marcosSemData, updates.status);
+          if (semData) payload.marcosSemData = semData;
         }
 
         if (Array.isArray(updates.history)) {

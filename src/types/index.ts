@@ -265,6 +265,23 @@ export interface Ticket {
    */
   marcos?: Record<string, string | Date | null>;
   /**
+   * Os marcos que ACONTECERAM sem o sistema ver — sabemos que sim, não sabemos quando.
+   *
+   * Preenchido pelo servidor a cada transição, com os marcos que a etapa nova já
+   * deixou para trás e que não têm carimbo. Não é palpite: a planilha da coordenação
+   * registra 226 aprovações de solução e 177 orçamentos, contra 4 datas de cada
+   * dentro do Serv3 em 220 OS. O trabalho acontece por e-mail antes de alguém mexer
+   * numa etapa aqui, e uma OS em execução com 2 de 6 marcos parecia parada no começo.
+   *
+   * ⚠️ MORA FORA DE `marcos` DE PROPÓSITO. `contarMarcos` e a régua dos Indicadores
+   * continuam contando só data de verdade — as medianas de intervalo não veem nada
+   * disto. O que muda é o que a tela diz sobre ANDAMENTO, não o que ela sabe sobre
+   * DATAS. Ganhou carimbo, sai daqui.
+   *
+   * Só o SERVIDOR escreve, igual a `marcos`.
+   */
+  marcosSemData?: string[];
+  /**
    * Quando a OS saiu da fila (Encerrada ou Cancelada). `null` enquanto está viva.
    *
    * É o que torna possível responder "quantas abriram e quantas fecharam na semana

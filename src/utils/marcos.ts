@@ -46,25 +46,60 @@ export const MARCOS_DA_OS = [
   { chave: TICKET_STATUS.CLOSED, curto: 'CO', rotulo: 'Conclusão' },
 ] as const;
 
+/**
+ * TRÊS ESTADOS, não dois.
+ *
+ * `com-data` o sistema sabe quando aconteceu.
+ * `sem-data`  aconteceu — a OS já passou desta etapa —, mas ninguém registrou quando.
+ * `vazio`     a OS ainda não chegou aqui.
+ *
+ * O do meio existe porque o trabalho acontece por e-mail antes de alguém mexer numa
+ * etapa aqui: a planilha da coordenação tem 226 aprovações de solução e 177
+ * orçamentos, contra 4 datas de cada dentro do Serv3. Sem ele, uma OS em execução
+ * aparecia com 2 de 6 e se lia como parada no começo.
+ */
+export type EstadoDoMarco = 'com-data' | 'sem-data' | 'vazio';
+
 export type MarcoDaOs = {
   chave: string;
   curto: string;
   rotulo: string;
   data: Date | null;
+  estado: EstadoDoMarco;
 };
 
+type TicketComMarcos = Pick<Ticket, 'marcos' | 'marcosSemData'>;
+
 /** Os seis marcos da OS, na ordem da régua, com a data quando o sistema a conhece. */
-export function lerMarcos(ticket: Pick<Ticket, 'marcos'>): MarcoDaOs[] {
+export function lerMarcos(ticket: TicketComMarcos): MarcoDaOs[] {
   const mapa = ticket.marcos && typeof ticket.marcos === 'object' ? ticket.marcos : {};
-  return MARCOS_DA_OS.map(marco => ({
-    chave: marco.chave,
-    curto: marco.curto,
-    rotulo: marco.rotulo,
-    data: paraData(mapa[marco.chave]),
-  }));
+  const semData = new Set(Array.isArray(ticket.marcosSemData) ? ticket.marcosSemData : []);
+  return MARCOS_DA_OS.map(marco => {
+    const data = paraData(mapa[marco.chave]);
+    return {
+      chave: marco.chave,
+      curto: marco.curto,
+      rotulo: marco.rotulo,
+      data,
+      // A data manda: se há carimbo, o marco é `com-data` mesmo que a lista antiga
+      // ainda o cite. Evita que uma lista desatualizada rebaixe um marco conhecido.
+      estado: data ? 'com-data' : semData.has(marco.chave) ? 'sem-data' : 'vazio',
+    };
+  });
 }
 
-/** Quantos marcos o sistema já conhece — o "3 de 6" que a planilha mostra como %. */
-export function contarMarcos(ticket: Pick<Ticket, 'marcos'>): number {
+/**
+ * Quantos marcos o sistema já conhece — o "3 de 6" que a planilha mostra como %.
+ *
+ * ⚠️ CONTINUA CONTANDO SÓ DATA. É desta função que a régua dos Indicadores tira a
+ * cobertura e as medianas de intervalo; incluir os `sem-data` aqui encheria o
+ * indicador com marcos que não têm quando. Para andamento, use `contarAcontecidos`.
+ */
+export function contarMarcos(ticket: TicketComMarcos): number {
   return lerMarcos(ticket).filter(marco => marco.data).length;
+}
+
+/** Quantos marcos já aconteceram — com data ou sem. É o número de ANDAMENTO. */
+export function contarAcontecidos(ticket: TicketComMarcos): number {
+  return lerMarcos(ticket).filter(marco => marco.estado !== 'vazio').length;
 }
