@@ -21,7 +21,7 @@ import {
   statusDaEtapa,
 } from '../../api/_lib/etapas.js';
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import { mergeEmails, normalizeForMatching, parseEmailTokens } from './inbox/recipients';
+import { mergeEmails, normalizeForMatching, parseEmailTokens, sugerirInteressados } from './inbox/recipients';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { canTransitionStatus, getAllowedNextStatuses, type AppActorRole } from '../constants/statusFlow';
 import { notifyTicketDirectorReply, notifyTicketPublicReply, shouldNotifyRequesterForStatus } from '../services/ticketEmail';
@@ -1585,6 +1585,27 @@ export function InboxView() {
 
 
 
+  /**
+   * QUEM COSTUMA ENTRAR EM CÓPIA NESTA SEDE.
+   *
+   * O campo de interessados é uma caixa de texto vazia: para copiar alguém é preciso
+   * SABER e DIGITAR o endereço. Medido em produção: 239 das 244 OS têm interessados e
+   * 112 endereços distintos — o hábito existe e a tela não o lia.
+   *
+   * Sem consulta nova: sai de `tickets`, que já vive no contexto. Por sede, porque a
+   * medição mostrou que o global só devolve os quatro que já estão em tudo — em PQL1,
+   * apenas 2 das 5 sugestões coincidem, e as três que o global perde estão em 16 a 17
+   * das 21 OS da sede.
+   */
+  const sugestoesDeInteressados = useMemo(
+    () =>
+      sugerirInteressados(tickets, {
+        sede: activeTicket?.siteId || activeTicket?.sede,
+        jaEscolhidos: publicInterestedEmails,
+      }),
+    [tickets, activeTicket?.siteId, activeTicket?.sede, publicInterestedEmails]
+  );
+
   const addPublicInterestedEmails = (input: string) => {
     const parsed = parseEmailTokens(input);
     if (parsed.invalid.length > 0) {
@@ -2333,6 +2354,29 @@ export function InboxView() {
                         Adicionar
                       </button>
                     </div>
+                    {/* SUGESTÕES, não preenchimento automático. Quem decide quem
+                        recebe e-mail de OS é quem escreve — a tela só para de exigir
+                        que ela decore o endereço. O contador ("em 17 de 21") existe
+                        para a sugestão ser conferível: sem ele é palpite com cara de
+                        recomendação. */}
+                    {sugestoesDeInteressados.length > 0 && !isClosed && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] text-roman-text-sub">Costumam entrar nesta sede:</span>
+                        {sugestoesDeInteressados.map(sugestao => (
+                          <button
+                            key={`sugestao-${sugestao.email}`}
+                            type="button"
+                            onClick={() => setPublicInterestedEmails(current => mergeEmails(current, [sugestao.email]))}
+                            title={`Em ${sugestao.vezes} das ${sugestao.de} OS desta sede`}
+                            className="inline-flex items-center gap-1 rounded-sm border border-dashed border-roman-border px-2 py-1 text-xs text-roman-text-sub transition-colors hover:border-roman-primary hover:text-roman-text-main"
+                          >
+                            <Plus size={14} />
+                            {sugestao.email}
+                            <span className="text-roman-text-sub/70">{sugestao.vezes}/{sugestao.de}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {publicInterestedEmails.length > 0 ? (
                         publicInterestedEmails.map(email => (
