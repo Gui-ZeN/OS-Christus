@@ -26,3 +26,4 @@ coverage-rotas/
 # Relatorios de teste de mutacao (Stryker) - gerados, nao versionados
 reports/
 .stryker-tmp/
+graphify-out/
