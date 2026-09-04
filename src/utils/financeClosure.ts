@@ -108,20 +108,26 @@ export function buildClosureExportHtml(
     <head>
       <meta charset="UTF-8" />
       <title>Encerramento ${escapeHtml(ticket.id)}</title>
+      <!--
+        Mesma régua dos e-mails (api/_lib/emailTemplates.js, 03/09/2026): uma família
+        de fonte, sem cartão, sem fundo, sem borda em volta de nada. Aqui a régua
+        pára numa coisa: este documento é IMPRESSO, então as tabelas guardam um
+        filete embaixo de cada linha — no papel, sem a cor de fundo do cabeçalho para
+        ancorar a vista, uma tabela sem nenhuma régua vira lista solta.
+      -->
       <style>
-        body { font-family: Georgia, serif; color: #1f1712; margin: 32px; line-height: 1.5; }
-        h1, h2, h3 { margin: 0 0 12px; }
-        h1 { font-size: 28px; }
-        h2 { font-size: 18px; border-bottom: 1px solid #d6cdc4; padding-bottom: 6px; margin-top: 28px; }
-        .meta, .grid { display: grid; gap: 12px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2328; margin: 32px; line-height: 1.55; font-size: 14px; }
+        h1, h2 { margin: 0; font-weight: 600; }
+        h1 { font-size: 20px; margin-bottom: 16px; }
+        h2 { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: #5a626b; margin: 28px 0 8px; }
+        .meta, .grid { display: grid; gap: 8px 24px; }
         .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 18px; }
-        .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .card { border: 1px solid #d6cdc4; padding: 12px; border-radius: 4px; background: #faf7f2; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { border: 1px solid #d6cdc4; padding: 8px; text-align: left; font-size: 13px; vertical-align: top; }
-        th { background: #f2ece4; }
-        ul { padding-left: 18px; }
-        .muted { color: #6f6257; }
+        .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        th, td { padding: 6px 12px 6px 0; text-align: left; font-size: 13px; vertical-align: top; border-bottom: 1px solid #e6e8eb; }
+        th { font-weight: 600; color: #5a626b; }
+        ul { padding-left: 18px; margin: 4px 0 0; }
+        .muted { color: #5a626b; }
       </style>
     </head>
     <body>
@@ -136,9 +142,9 @@ export function buildClosureExportHtml(
       </div>
 
       <div class="grid">
-        <div class="card"><strong>Fornecedor</strong><br />${escapeHtml(contract?.vendor || payments[0]?.vendor || 'Não definido')}</div>
-        <div class="card"><strong>Previsto</strong><br />${escapeHtml(formatCurrency(plannedValue))}</div>
-        <div class="card"><strong>Pago</strong><br />${escapeHtml(formatCurrency(paidValue))}</div>
+        <div><strong>Fornecedor</strong><br />${escapeHtml(contract?.vendor || payments[0]?.vendor || 'Não definido')}</div>
+        <div><strong>Previsto</strong><br />${escapeHtml(formatCurrency(plannedValue))}</div>
+        <div><strong>Pago</strong><br />${escapeHtml(formatCurrency(paidValue))}</div>
       </div>
 
       <h2>Encerramento e garantia</h2>
@@ -149,7 +155,7 @@ export function buildClosureExportHtml(
         <div><strong>Aprovação técnica 2:</strong> ${ticket.closureChecklist?.infrastructureApprovalSecondary ? 'Sim' : 'Não'}</div>
         <div><strong>Garantia:</strong> ${escapeHtml(formatDateLabel(ticket.guarantee?.startAt))} até ${escapeHtml(formatDateLabel(ticket.guarantee?.endAt))}</div>
       </div>
-      <div class="card"><strong>Observações finais</strong><br /><span class="muted">${escapeHtml(ticket.closureChecklist?.closureNotes || 'Sem observações registradas.')}</span></div>
+      <div><strong>Observações finais</strong><br /><span class="muted">${escapeHtml(ticket.closureChecklist?.closureNotes || 'Sem observações registradas.')}</span></div>
 
       <h2>Escopo contratado</h2>
       <table>
