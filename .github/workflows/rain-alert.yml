@@ -45,6 +45,25 @@ on:
         type: boolean
         required: false
         default: false
+      # Ordem no formulário do Actions: simular, forcar, para.
+      para:
+        # ⚠️ SEM ISTO, TESTAR CUSTA UM E-MAIL PARA CADA MARCADO. São 10 pessoas hoje,
+        # e o teste chegava na caixa das dez — de madrugada, se fosse o caso. A rota
+        # já aceitava `?para=`, mas só o `curl` à mão alcançava o parâmetro; pela
+        # tela do Actions não havia como reduzir o alcance.
+        #
+        # A rota IGNORA `para` fora de simulação (`api/mail.js`: `simular ? ... : ''`),
+        # e é essa trava que impede a rota de virar relay para endereço arbitrário
+        # com a identidade do Serv3. Aqui a trava continua valendo: sem `simular`,
+        # este campo não faz nada.
+        #
+        # ⚠️ E SÓ DESVIA O E-MAIL. Discord e Telegram são canais únicos, independentes
+        # de `destinos` — eles saem para o canal de qualquer jeito. É justamente o que
+        # se quer ao testar o Telegram: a mensagem chega no grupo, e o e-mail vai só
+        # para quem está testando.
+        description: "Mandar o e-mail só para este endereço (exige simular)"
+        required: false
+        default: ""
 
 concurrency:
   # Duas execuções ao mesmo tempo poderiam ler o mesmo estado e mandar dois e-mails.
@@ -75,9 +94,17 @@ jobs:
           RAIN_ALERT_URL: ${{ secrets.RAIN_ALERT_URL || format('{0}/api/mail?route=rain-alert', vars.APP_BASE_URL || 'https://serv3.vercel.app') }}
           SIMULAR: ${{ inputs.simular }}
           FORCAR: ${{ inputs.forcar }}
+          PARA: ${{ inputs.para }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "Falta o secret CRON_SECRET."
+            exit 1
+          fi
+
+          # `para` sem `simular` não faz nada na rota — avisar aqui evita o teste que
+          # "não funcionou" porque o e-mail foi para as dez pessoas assim mesmo.
+          if [ -n "$PARA" ] && [ -z "$SIMULAR" ]; then
+            echo "O campo 'para' exige 'simular' — a rota o ignora fora de simulação."
             exit 1
           fi
 
@@ -88,6 +115,10 @@ jobs:
           fi
           if [ "$FORCAR" = "true" ]; then
             QUERY="${QUERY:+$QUERY&}forcar=1"
+          fi
+          if [ -n "$PARA" ]; then
+            QUERY="${QUERY:+$QUERY&}para=$(printf %s "$PARA" | sed 's/@/%40/g')"
+            echo "E-mail desviado para: $PARA (Discord/Telegram saem para o canal do mesmo jeito)"
           fi
           if [ -n "$QUERY" ]; then
             URL="$URL?$QUERY"
