@@ -3,6 +3,59 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-10 (o Painel Financeiro passa a responder a pergunta que fazem)
+
+Fui medir antes de desenhar. Das **281 OS de produção**: **zero** cotações, **zero**
+contratos, **zero** medições, **zero** pagamentos, **zero** diretores designados,
+**zero** e-mails de pagamento disparados. O painel anterior tinha 2.293 linhas para
+acompanhar medição e liberação de contratos que nunca existiram.
+
+⚠️ **E deixava gente presa.** Oito OS esperando aprovação de uma diretoria que nunca
+foi cadastrada: 5 em "Aguardando Aprovação do Orçamento", 3 em "Aguardando Aprovação
+da Solução". Mais 12 em "Aguardando Orçamento", esperando um orçamento sem lugar para
+ser registrado.
+
+A pergunta que a operação faz está escrita na thread de 04/09 — Larissa: *"registrar
+todos os custos envolvidos... parâmetros para comparar serviços da mesma categoria"*.
+O painel respondia "quanto já liberei desta medição". São perguntas diferentes.
+
+A tela nova é **tabela, no formato da Gestão**, por causa dessa frase: comparar exige
+ver muitas OS ao mesmo tempo, e o acordeão mostrava uma por vez. Dois campos por
+linha, editáveis na própria linha — orçado e realizado. Sem aprovação, sem diretoria.
+
+⚠️ **VAZIO NÃO É ZERO, e é o assunto do arquivo inteiro.** Uma OS orçada em R$ 2.000 e
+ainda não paga, com o vazio virando zero, apareceria como "-100%, economizou tudo" — e
+toda OS em andamento faria isso ao mesmo tempo, somando na economia do período. A
+variação só existe com os DOIS lados preenchidos.
+
+⚠️ **A "DIFERENÇA COMPARÁVEL" SÓ CONTA AS OS COM OS DOIS LADOS, e o denominador vai à
+vista.** Subtrair o cartão "realizado" do "orçado" dá a diferença entre duas amostras
+diferentes, não a economia. E sem o "em N OS", um "R$ 0,00" não distingue "bateu
+certinho" de "não havia o que comparar".
+
+⚠️ **CAMPO APAGADO GRAVA `null`, não some do objeto.** O merge do Firestore com a
+chave ausente mantém o valor velho: quem limpasse o realizado veria o número voltar no
+reload, sem erro nenhum. Conferido no emulador — limpar grava `realizado: null`.
+
+⚠️ **SALVA AO SAIR DO CAMPO E SÓ SE MUDOU.** Por tecla mandaria "2", "24", "240" ao
+servidor; sem a segunda guarda, passar com Tab carimbaria `atualizadoPor` em toda OS
+que o cursor tocasse.
+
+O campo entrou na allow-list do PATCH como **operacional**, não territorial: registrar
+custo não move a OS de sede, então o Gestor grava — dentro do território dele, que o
+`canUserAccessTicket` do handler já confere. O **Diretor não entra**: dar escrita a
+quem só aprovava seria reconstruir o fluxo que acabou de ser tirado.
+
+As quatro regras de conta foram provadas contra mutação (vazio→zero, divisão por zero,
+soma de meia-preenchida, apagar que não apaga): as quatro reprovam.
+
+Verificado no emulador ponta a ponta: 3 OS preenchidas dão -220, +140 e 0, o resumo
+mostra **-R$ 80,00 em 3 OS**, e os valores estão no Firestore com quem gravou e quando.
+
+⚠️ **O CÓDIGO ANTIGO NÃO FOI APAGADO** — só a tela foi trocada. Ver a nota no fim
+desta entrada: o aparelho financeiro tem ~5.700 linhas e alcança o editor de Cotações
+da Inbox e os gráficos de fornecedor dos Indicadores, não as 3.200 de uma tela só.
+
 ## 2026-09-10 (o aviso de chuva mandava a goteira dos outros)
 
 Todo mundo recebia a lista inteira. Medido em produção antes de mexer: **10 pessoas

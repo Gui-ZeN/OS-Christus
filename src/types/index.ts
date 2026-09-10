@@ -242,6 +242,38 @@ export interface QuoteProposalHeader {
   totalEstimatedValue?: string | null;
 }
 
+/**
+ * O DINHEIRO DA OS — dois valores, e o resto é conta.
+ *
+ * ⚠️ NASCE SUBSTITUINDO um aparato que nunca rodou. Medido em produção em
+ * 10/09/2026: das 281 OS, **zero** têm cotação, contrato, medição ou pagamento, e
+ * zero têm diretor designado. O Painel Financeiro respondia "quanto já liberei desta
+ * medição"; a pergunta que a operação faz — por escrito, na thread de 04/09 — é
+ * "quanto custou esta OS, e como isso se compara com as outras da mesma categoria".
+ *
+ * ⚠️ TEXTO, NÃO NÚMERO, pelo mesmo motivo que `Quote.value` é texto: o que a pessoa
+ * digitou é o dado, e a conversão para número é feita por `parseCurrency`, que
+ * devolve `null` quando a entrada não é um valor único ("R$ 1.500 a R$ 2.000" é coisa
+ * que se digita num orçamento). Guardar número obrigaria a decidir na entrada o que
+ * fazer com isso, e a decisão silenciosa seria zero.
+ *
+ * ⚠️ VAZIO NÃO É ZERO. "Orçamento não informado" e "orçamento de R$ 0,00" levam a
+ * decisões opostas, e a variação só existe quando os DOIS lados existem — senão a
+ * tela mostraria "-100%" para toda OS que ainda não foi paga.
+ */
+export interface OrcamentoDaOs {
+  /** O que se esperava gastar. Como a pessoa digitou. */
+  previsto?: string | null;
+  /** O que se gastou de fato. */
+  realizado?: string | null;
+  /** ISO. String e não `Date` de propósito: campo aninhado não passa pelo
+   *  desserializador de datas do ticket, e um `Date` aqui chegaria como texto na
+   *  metade dos caminhos. */
+  atualizadoEm?: string | null;
+  /** Nome de quem mexeu por último — a tela mostra, e o papel não. */
+  atualizadoPor?: string | null;
+}
+
 export interface Ticket {
   id: string;
   trackingToken: string;
@@ -361,6 +393,7 @@ export interface Ticket {
   attachments?: TicketAttachment[];
   guarantee?: GuaranteeInfo;
   executionProgress?: ExecutionProgress;
+  orcamento?: OrcamentoDaOs;
 
   // ——— agenda operacional (versão nova) ———
   /**

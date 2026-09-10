@@ -1,2293 +1,288 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, ChevronDown, ClipboardList, DollarSign, FileText, Loader2, Mail, Plus, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DollarSign, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useAttachmentPreview } from '../context/AttachmentPreviewContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { FloatingToast } from '../components/ui/FloatingToast';
-import { ModalShell } from '../components/ui/ModalShell';
+import { FiltroMultiplo, type OpcaoDeFiltro } from '../components/ui/FiltroMultiplo';
 import { useToast } from '../hooks/useToast';
-import { TICKET_STATUS } from '../constants/ticketStatus';
-import { isTicketOpen } from '../constants/ticketLifecycle';
-import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
-import type { ClosureChecklist, ContractRecord, GuaranteeInfo, MeasurementRecord, PaymentRecord, Ticket } from '../types';
-import { fetchProcurementData, savePayment } from '../services/procurementApi';
-import {
-  fetchFinanceOutbox,
-  runFinanceCommand,
-  type FinanceEmailOutboxItem,
-} from '../services/financeApi';
-import { fetchSettings } from '../services/settingsApi';
-import { deleteTicketAttachment, uploadClosureDocument, uploadMeasurementAttachment, uploadPaymentAttachment } from '../services/ticketStorage';
-import { dispatchPaymentOutbox } from '../services/ticketEmail';
-import { mergeClosureChecklist } from '../utils/closureChecklist';
-import { getNextMilestonePercentByProgress, getPaymentFlowMilestones } from '../utils/executionFlow';
-import { buildProcurementClassification } from '../utils/procurementClassification';
-import { formatDateTimeSafe } from '../utils/date';
-import { formatCurrency, normalizeCurrencyInput, parseCurrency, sanitizeCurrencyTypingInput } from '../utils/currency';
+import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
+import { getTicketSiteLabel } from '../utils/ticketTerritory';
 import { mensagemDeErro } from '../utils/errorMessage';
-// Encerramento da OS: checklist, bloqueios do lançamento final e relatório HTML.
-import {
-  buildClosureExportHtml,
-  createClosureFormState,
-  getFinalInstallmentBlockingReasons,
-  type ClosureFormState,
-} from '../utils/financeClosure';
-// Regras puras de cálculo/rótulo do fluxo financeiro (extraídas desta view).
-import {
-  calculateProgressPercentFromGross,
-  formatDateLabel,
-  getAttachmentPreviewKind,
-  getBudgetSourceLabel,
-  getEffectiveDynamicPayments,
-  getFinanceNextActionLabel,
-  getGuaranteeDaysRemaining,
-  isTicketInGuarantee,
-  normalizeStatusLabel,
-  resolveAccumulatedGross,
-  resolveExpectedBaselineValue,
-  roundProgressPercent,
-  sumPaidValue,
-  sumPlannedValue,
-  sumReleasedPercent,
-  upsertDynamicPayment,
-} from '../utils/finance';
-import { UserFacingError } from '../utils/errorMessage';
-interface MeasurementFormState {
-  label: string;
-  grossAmount: string;
-  budgetSource: 'initial' | 'additive';
-  notes: string;
-  reportFiles: File[];
-}
+import { repairMojibake } from '../utils/text';
+import { matchesSearch } from '../utils/search';
+import { formatCurrency } from '../utils/currency';
+import { isTicketOpen } from '../constants/ticketLifecycle';
+import { etapaDe as etapaDoStatus, ORDEM_DAS_ETAPAS } from '../../api/_lib/etapas.js';
+import { passaNoRecorte } from './osboard/recorte';
+import { CampoDeValor, Variacao } from './financeiro/LinhaDeOrcamento';
+import { orcamentoParaGravar, resumoDoOrcamento } from './financeiro/orcamento';
+import type { Ticket } from '../types';
 
-interface PaymentSettlementDraft {
-  grossValue: string;
-  taxValue: string;
-}
+/**
+ * PAINEL FINANCEIRO — o que cada OS custou.
+ *
+ * ⚠️ SUBSTITUI UM PAINEL QUE NUNCA RODOU. Medido em produção em 10/09/2026: das 281
+ * OS, **zero** têm cotação, contrato, medição ou pagamento; zero têm diretor
+ * designado; zero e-mails de pagamento foram disparados. O painel anterior tinha
+ * 2.293 linhas para acompanhar medição e liberação de pagamento de contratos que
+ * nunca existiram — e deixava 8 OS paradas esperando a aprovação de uma diretoria
+ * que nunca foi cadastrada.
+ *
+ * A pergunta que a operação faz está escrita na thread de 04/09:
+ *
+ *   Larissa: "registrar todos os custos envolvidos, permitindo uma análise mais
+ *   precisa do custo real de cada serviço... parâmetros para comparar serviços da
+ *   mesma categoria"
+ *
+ * ⚠️ FORMATO DE TABELA, E NÃO O ACORDEÃO DE ANTES, por causa dessa frase: comparar
+ * exige ver muitas OS ao mesmo tempo. O acordeão mostrava uma por vez.
+ *
+ * ⚠️ SEM APROVAÇÃO, SEM DIRETORIA. Registrar não é pedir permissão. Quem tem acesso à
+ * OS registra o valor dela, e o território é conferido pelo servidor — o mesmo
+ * `canUserAccessTicket` de todo o resto.
+ */
 
-interface PaymentEmailModalState {
-  ticketId: string;
-  payment: PaymentRecord;
-  grossAmount: number;
-  taxAmount: number;
-  netAmount: number;
-  recipients: string[];
-  newRecipient: string;
-  isSending: boolean;
-  sendFeedbackType: 'success' | 'error' | null;
-  sendFeedbackMessage: string;
-}
-
-const FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY = 'serv3-finance-payment-recipients';
-
-function normalizeRecipientEmail(value: string) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function mergeRecipientEmails(...groups: Array<string[] | undefined>) {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const group of groups) {
-    for (const item of group || []) {
-      const normalized = normalizeRecipientEmail(item);
-      if (!normalized || !normalized.includes('@') || seen.has(normalized)) continue;
-      seen.add(normalized);
-      result.push(normalized);
-    }
-  }
-  return result;
-}
-
-function readStoredFinanceRecipients() {
-  if (typeof window === 'undefined') return [];
-  const raw = window.localStorage.getItem(FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? mergeRecipientEmails(parsed.map(value => String(value || ''))) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeStoredFinanceRecipients(recipients: string[]) {
-  if (typeof window === 'undefined') return;
-  const normalized = mergeRecipientEmails(recipients);
-  window.localStorage.setItem(FINANCE_PAYMENT_RECIPIENTS_STORAGE_KEY, JSON.stringify(normalized));
-}
-
-type FinanceTab = 'execution' | 'financial' | 'guarantee' | 'documents';
-type PaymentFlowListTab = 'pending' | 'paid';
-
-function FinanceSection({
-  title,
-  description,
-  icon,
-  children,
-}: {
-  title: string;
-  description?: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-roman-border bg-roman-bg/60 p-4">
-      <div className="mb-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-roman-text-main">
-          {icon}
-          <span>{title}</span>
-        </div>
-        {description ? <p className="mt-1 text-xs text-roman-text-sub">{description}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
+const NENHUMA_ETAPA: string[] = [];
+const comoOpcoes = (valores: string[]): OpcaoDeFiltro[] => valores.map(v => ({ value: v, label: v }));
+const STATUS_ORDER = ORDEM_DAS_ETAPAS as string[];
 
 export function FinanceView() {
-  const { activeTicketId, currentView, updateTicket, tickets, currentUser, refreshTickets } = useApp();
-  const { openAttachment } = useAttachmentPreview();
-  const canAccess = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
-  const canPay = canAccess;
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const { tickets, ticketsLoading, currentUser, updateTicket } = useApp();
   const { toast, showToast } = useToast();
-  const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
-  const [measurementsByTicket, setMeasurementsByTicket] = useState<Record<string, MeasurementRecord[]>>({});
-  const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
-  const [emailOutboxByTicket, setEmailOutboxByTicket] = useState<Record<string, FinanceEmailOutboxItem[]>>({});
-  const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
-  const [measurementDraftByTicket, setMeasurementDraftByTicket] = useState<Record<string, MeasurementFormState>>({});
-  const [measurementFormOpen, setMeasurementFormOpen] = useState<Record<string, boolean>>({});
-  const [paymentDraftByKey, setPaymentDraftByKey] = useState<Record<string, PaymentSettlementDraft>>({});
-  const [closureDraftByTicket, setClosureDraftByTicket] = useState<Record<string, ClosureFormState>>({});
-  const [uploadingTicketId, setUploadingTicketId] = useState<string | null>(null);
-  const [uploadingPaymentKey, setUploadingPaymentKey] = useState<string | null>(null);
-  const autoScrollKeyRef = useRef<string>('');
-  const [financeSection, setFinanceSection] = useState<'open' | 'history'>('open');
-  const [historyGuaranteeFilter, setHistoryGuaranteeFilter] = useState<'all' | 'in_guarantee' | 'expiring_30'>('all');
-  const [collapsedTickets, setCollapsedTickets] = useState<Record<string, boolean>>({});
-  const [financeTabs, setFinanceTabs] = useState<Record<string, FinanceTab>>({});
-  const [paymentFlowTabByTicket, setPaymentFlowTabByTicket] = useState<Record<string, PaymentFlowListTab>>({});
-  const [paymentEmailModal, setPaymentEmailModal] = useState<PaymentEmailModalState | null>(null);
-  const financeCommandKeysRef = useRef<Map<string, string>>(new Map());
+  const [busca, setBusca] = useState('');
+  const [sede, setSede] = useState<string[]>([]);
+  const [servico, setServico] = useState<string[]>([]);
+  const [equipe, setEquipe] = useState<string[]>([]);
+  const [etapa, setEtapa] = useState<string[]>(NENHUMA_ETAPA);
+  const [soSemRegistro, setSoSemRegistro] = useState(false);
+  const [mostrarEncerradas, setMostrarEncerradas] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
-  const getFinanceCommandKey = (scope: string) => {
-    const existing = financeCommandKeysRef.current.get(scope);
-    if (existing) return existing;
-    const next = crypto.randomUUID();
-    financeCommandKeysRef.current.set(scope, next);
-    return next;
-  };
-
-  const refreshFinanceState = useCallback(async () => {
-    await refreshTickets({ silent: true });
-    const [data, outbox] = await Promise.all([
-      fetchProcurementData(),
-      fetchFinanceOutbox(),
-    ]);
-    setPaymentsByTicket(data.paymentsByTicket);
-    setMeasurementsByTicket(data.measurementsByTicket);
-    setContractsByTicket(data.contractsByTicket);
-    setEmailOutboxByTicket(outbox);
-  }, [refreshTickets]);
+  const podeAcessar = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelado = false;
     (async () => {
       try {
-        const catalog = await fetchCatalog();
-        const [data, outbox] = await Promise.all([
-          fetchProcurementData(),
-          fetchFinanceOutbox(),
-        ]);
-        if (!cancelled) {
-          setRegions(catalog.regions);
-          setSites(catalog.sites);
-          setPaymentsByTicket(data.paymentsByTicket);
-          setMeasurementsByTicket(data.measurementsByTicket);
-          setContractsByTicket(data.contractsByTicket);
-          setEmailOutboxByTicket(outbox);
-        }
+        const catalogo = await fetchCatalog();
+        if (!cancelado) setSites(catalogo.sites);
       } catch {
-        if (!cancelled) {
-          setRegions([]);
-          setSites([]);
-          setPaymentsByTicket({});
-          setMeasurementsByTicket({});
-          setContractsByTicket({});
-          setEmailOutboxByTicket({});
-        }
+        if (!cancelado) setSites([]);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelado = true; };
   }, []);
 
-  useEffect(() => {
-    if (currentView !== 'finance') return undefined;
-
-    let cancelled = false;
-    const runSilentRefresh = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      await refreshTickets({ silent: true });
-      try {
-        const [data, outbox] = await Promise.all([
-          fetchProcurementData(),
-          fetchFinanceOutbox(),
-        ]);
-        if (!cancelled) {
-          setPaymentsByTicket(data.paymentsByTicket);
-          setMeasurementsByTicket(data.measurementsByTicket);
-          setContractsByTicket(data.contractsByTicket);
-          setEmailOutboxByTicket(outbox);
-        }
-      } catch {
-        // Mantém o estado atual quando a sincronização silenciosa falhar.
-      }
-    };
-
-    void runSilentRefresh();
-
-    const interval = window.setInterval(() => {
-      void runSilentRefresh();
-    }, 10_000);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void runSilentRefresh();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [currentView, refreshTickets]);
-
-  useEffect(() => {
-    setClosureDraftByTicket(prev => {
-      const next = { ...prev };
-      for (const ticket of tickets) {
-        const current = next[ticket.id];
-        const seeded = createClosureFormState(ticket.closureChecklist, ticket.guarantee);
-        next[ticket.id] = current
-          ? {
-              ...current,
-              serviceStartedAt: current.serviceStartedAt || seeded.serviceStartedAt,
-              serviceCompletedAt: current.serviceCompletedAt || seeded.serviceCompletedAt,
-            }
-          : seeded;
-      }
-      return next;
-    });
-  }, [tickets]);
-
-  const financeTickets = useMemo(
+  const decorados = useMemo(
     () =>
-      tickets
-        .filter(ticket => {
-          const hasFinancialContext =
-            Boolean(ticket.executionProgress?.paymentFlowParts) ||
-            Boolean(contractsByTicket[ticket.id]) ||
-            (paymentsByTicket[ticket.id]?.length || 0) > 0 ||
-            (measurementsByTicket[ticket.id]?.length || 0) > 0;
-
-          return hasFinancialContext && ([
-            TICKET_STATUS.IN_PROGRESS,
-            TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
-            TICKET_STATUS.WAITING_PAYMENT,
-            TICKET_STATUS.CLOSED,
-            TICKET_STATUS.CANCELED,
-          ] as Ticket['status'][]).includes(ticket.status);
-        })
-        .map(ticket => {
-          const rawPayments = paymentsByTicket[ticket.id] || [];
-          const measurements = measurementsByTicket[ticket.id] || [];
-          const contract = contractsByTicket[ticket.id];
-          const flowParts = Number(ticket.executionProgress?.paymentFlowParts || 0);
-          const vendor = contract?.vendor || rawPayments[0]?.vendor || ticket.assignedTeam || 'Fornecedor não definido';
-          const payments = getEffectiveDynamicPayments(rawPayments, measurements, vendor, flowParts);
-          const expectedBaselineValue = resolveExpectedBaselineValue(contract, payments);
-          const totalValue = parseCurrency(contract?.realizedValue || contract?.value || payments[0]?.value || '0');
-          const totalReleased = sumReleasedPercent(payments);
-          const plannedValue = expectedBaselineValue > 0 ? expectedBaselineValue : totalValue > 0 ? totalValue : payments.length > 0 ? sumPlannedValue(payments) : 0;
-          const paidValue = sumPaidValue(payments);
-          const remainingValue = plannedValue - paidValue;
-          const pendingInstallments = payments.filter(payment => payment.status !== 'paid');
-          const nextPendingInstallment = pendingInstallments[0] || null;
-          const nextMilestonePercent = ticket.executionProgress?.paymentFlowParts
-            ? getNextMilestonePercentByProgress(
-                ticket.executionProgress.paymentFlowParts,
-                Number(ticket.executionProgress?.currentPercent || 0)
-              )
-            : null;
-
-          return {
-            ticket,
-            payments,
-            measurements,
-            contract,
-            expectedBaselineValue,
-            totalValue,
-            totalReleased,
-            plannedValue,
-            paidValue,
-            remainingValue,
-            pendingInstallments,
-            nextPendingInstallment,
-            nextMilestonePercent,
-          };
-        }),
-    [contractsByTicket, measurementsByTicket, paymentsByTicket, tickets]
+      tickets.map(ticket => ({
+        ticket,
+        siteLabel: getTicketSiteLabel(ticket, sites),
+        macro: repairMojibake(ticket.macroServiceName || ''),
+        service: repairMojibake(ticket.serviceCatalogName || ''),
+        team: repairMojibake(ticket.assignedTeam || ''),
+        etapa: etapaDoStatus(ticket.status) as string,
+      })),
+    [tickets, sites]
   );
 
-  const financeSummary = useMemo(() => {
-    return financeTickets.reduce(
-      (acc, entry) => {
-        acc.tickets += 1;
-        acc.planned += entry.plannedValue;
-        acc.paid += entry.paidValue;
-        acc.remaining += entry.remainingValue;
-        return acc;
-      },
-      { tickets: 0, planned: 0, paid: 0, remaining: 0 }
-    );
-  }, [financeTickets]);
+  const distintos = (valores: string[]) =>
+    [...new Set(valores.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const opcoesDeSede = useMemo(() => distintos(decorados.map(d => d.siteLabel)), [decorados]);
+  const opcoesDeServico = useMemo(() => distintos(decorados.map(d => d.service)), [decorados]);
+  const opcoesDeEquipe = useMemo(() => distintos(decorados.map(d => d.team)), [decorados]);
+  const opcoesDeEtapa = useMemo(() => {
+    const presentes = new Set(decorados.map(d => d.etapa));
+    return [...STATUS_ORDER.filter(s => presentes.has(s)), ...[...presentes].filter(s => !STATUS_ORDER.includes(s)).sort()];
+  }, [decorados]);
 
-  const isFinanceEntryHistorical = useCallback((entry: (typeof financeTickets)[number]) => {
-    // Etapa final NÃO basta. `!isTicketOpen(status)` mandava a OS para o Histórico na
-    // hora em que ela era encerrada ou cancelada, com parcela em aberto e tudo — e o
-    // contador da aba se chama "Quitadas". O saldo continuava nos totais gerais
-    // enquanto a OS sumia justamente de onde alguém iria procurá-la.
-    //
-    // Hoje isto não pega ninguém (0 OS finalizadas com parcela pendente na produção),
-    // e é por isso que passou despercebido: o defeito espera o primeiro caso real.
-    const pendentes = entry.payments.filter(payment => payment.status !== 'paid').length;
-    if (pendentes > 0 || entry.remainingValue > 0) return false;
+  const recortadas = useMemo(() => {
+    const escolhas = { sede, macroService: [], service: servico, team: equipe, status: etapa, responsible: [] };
+    return decorados
+      .filter(d => {
+        if (!passaNoRecorte(
+          { siteLabel: d.siteLabel, macro: d.macro, service: d.service, team: d.team, etapa: d.etapa, responsibleEmail: d.ticket.responsible?.email },
+          escolhas
+        )) return false;
+        // Encerradas ficam fora por padrão, como na Gestão — a não ser que a pessoa
+        // tenha filtrado por uma etapa final de propósito.
+        if (!mostrarEncerradas && etapa.length === 0 && !isTicketOpen(d.ticket.status)) return false;
+        // ⚠️ O ATALHO QUE FAZ O PAINEL SER USADO: "o que ainda não tem valor". Sem
+        // ele, achar as OS por preencher é rolar a lista inteira procurando traço.
+        if (soSemRegistro && (d.ticket.orcamento?.previsto || d.ticket.orcamento?.realizado)) return false;
+        const palheiro = `${d.ticket.id} ${repairMojibake(d.ticket.subject)} ${d.siteLabel} ${d.ticket.sede || ''}`;
+        return matchesSearch(palheiro, busca);
+      })
+      .sort((a, b) => a.ticket.id.localeCompare(b.ticket.id));
+  }, [decorados, sede, servico, equipe, etapa, busca, mostrarEncerradas, soSemRegistro]);
 
-    if (!isTicketOpen(entry.ticket.status)) return true;
-    return entry.payments.length > 0 && entry.payments.every(payment => payment.status === 'paid');
-  }, []);
+  const resumo = useMemo(() => resumoDoOrcamento(recortadas.map(d => d.ticket)), [recortadas]);
 
-  const openFinanceTickets = useMemo(
-    () => financeTickets.filter(entry => !isFinanceEntryHistorical(entry)),
-    [financeTickets, isFinanceEntryHistorical]
-  );
-
-  const historicalFinanceTickets = useMemo(
-    () => financeTickets.filter(entry => isFinanceEntryHistorical(entry)),
-    [financeTickets, isFinanceEntryHistorical]
-  );
-
-  const historicalGuaranteeCounts = useMemo(() => {
-    const inGuarantee = historicalFinanceTickets.filter(entry => isTicketInGuarantee(entry.ticket.guarantee)).length;
-    const expiring30 = historicalFinanceTickets.filter(entry => {
-      const days = getGuaranteeDaysRemaining(entry.ticket.guarantee);
-      return days != null && days >= 0 && days <= 30;
-    }).length;
-    return {
-      all: historicalFinanceTickets.length,
-      inGuarantee,
-      expiring30,
-    };
-  }, [historicalFinanceTickets]);
-
-  const visibleFinanceTickets = useMemo(() => {
-    if (financeSection === 'open') return openFinanceTickets;
-    if (historyGuaranteeFilter === 'in_guarantee') {
-      return historicalFinanceTickets.filter(entry => isTicketInGuarantee(entry.ticket.guarantee));
-    }
-    if (historyGuaranteeFilter === 'expiring_30') {
-      return historicalFinanceTickets.filter(entry => {
-        const days = getGuaranteeDaysRemaining(entry.ticket.guarantee);
-        return days != null && days >= 0 && days <= 30;
-      });
-    }
-    return historicalFinanceTickets;
-  }, [financeSection, historyGuaranteeFilter, historicalFinanceTickets, openFinanceTickets]);
-
-  useEffect(() => {
-    if (currentView !== 'finance' || !activeTicketId) return;
-
-    const autoScrollKey = `${currentView}:${financeSection}:${activeTicketId}`;
-    if (autoScrollKeyRef.current === autoScrollKey) return;
-    autoScrollKeyRef.current = autoScrollKey;
-
-    const timer = window.setTimeout(() => {
-      document.getElementById(`finance-ticket-${activeTicketId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 120);
-
-    return () => window.clearTimeout(timer);
-  }, [activeTicketId, currentView, financeSection]);
-
-  useEffect(() => {
-    setCollapsedTickets(prev => {
-      const next = { ...prev };
-      for (const entry of financeTickets) {
-        if (!(entry.ticket.id in next)) {
-          next[entry.ticket.id] = financeSection === 'history';
-        }
-      }
-      return next;
-    });
-  }, [financeSection, financeTickets]);
-
-  useEffect(() => {
-    setFinanceTabs(prev => {
-      const next = { ...prev };
-      for (const entry of financeTickets) {
-        if (!(entry.ticket.id in next)) {
-          next[entry.ticket.id] = 'financial';
-        }
-      }
-      return next;
-    });
-  }, [financeTickets]);
-
-  useEffect(() => {
-    setPaymentFlowTabByTicket(prev => {
-      const next = { ...prev };
-      for (const entry of financeTickets) {
-        if (!(entry.ticket.id in next)) {
-          next[entry.ticket.id] = 'pending';
-        }
-      }
-      return next;
-    });
-  }, [financeTickets]);
-
-  const getMeasurementDraft = (ticketId: string): MeasurementFormState =>
-    measurementDraftByTicket[ticketId] || {
-      label: '',
-      grossAmount: '',
-      budgetSource: 'initial',
-      notes: '',
-      reportFiles: [],
-    };
-
-  const setMeasurementDraft = (ticketId: string, updates: Partial<MeasurementFormState>) => {
-    setMeasurementDraftByTicket(prev => ({
-      ...prev,
-      [ticketId]: {
-        ...getMeasurementDraft(ticketId),
-        ...updates,
-      },
-    }));
-  };
-
-  const clearMeasurementDraft = (ticketId: string) => {
-    setMeasurementDraftByTicket(prev => {
-      const next = { ...prev };
-      delete next[ticketId];
-      return next;
-    });
-  };
-
-  const getMeasurementReleasePreview = (ticket: Ticket, grossInput: string) => {
-    if (!ticket.executionProgress?.paymentFlowParts) {
-      return { progressPercent: 0, releasePercent: 0 };
-    }
-
-    const grossAmount = parseCurrency(grossInput);
-    const existingPayments = paymentsByTicket[ticket.id] || [];
-    const contract = contractsByTicket[ticket.id];
-    const baselineValue = resolveExpectedBaselineValue(contract, existingPayments);
-    const currentProgress = Math.max(0, Number(ticket.executionProgress?.currentPercent || 0));
-    // Mesma base do save (resolveAccumulatedGross): sem isto o preview mostraria
-    // 99,99% enquanto o save grava 100,00% (drift só no preview).
-    const currentAccumulatedGross = resolveAccumulatedGross(
-      measurementsByTicket[ticket.id] || [],
-      baselineValue,
-      currentProgress
-    );
-    const progressPercent = calculateProgressPercentFromGross(currentAccumulatedGross + grossAmount, baselineValue);
-    const releasePercent = Math.max(0, roundProgressPercent(progressPercent - currentProgress));
-    return {
-      progressPercent,
-      releasePercent,
-    };
-  };
-
-  const getPaymentDraftKey = (ticketId: string, paymentId: string) => `${ticketId}:${paymentId}`;
-
-  const getPaymentDraft = (ticketId: string, payment: PaymentRecord): PaymentSettlementDraft => {
-    const key = getPaymentDraftKey(ticketId, payment.id);
-    const current = paymentDraftByKey[key];
-    if (current) return current;
-
-    return {
-      grossValue: payment.grossValue || '',
-      taxValue: payment.taxValue || '',
-    };
-  };
-
-  const setPaymentDraft = (ticketId: string, payment: PaymentRecord, updates: Partial<PaymentSettlementDraft>) => {
-    const key = getPaymentDraftKey(ticketId, payment.id);
-    setPaymentDraftByKey(prev => {
-      const base = prev[key] || {
-        grossValue: payment.grossValue || '',
-        taxValue: payment.taxValue || '',
-      };
-      return {
-        ...prev,
-        [key]: {
-          ...base,
-          ...updates,
-        },
-      };
-    });
-  };
-
-  const clearPaymentDraft = (ticketId: string, paymentId: string) => {
-    const key = getPaymentDraftKey(ticketId, paymentId);
-    setPaymentDraftByKey(prev => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  };
-
-  const getClosureDraft = (ticketId: string, closureChecklist?: ClosureChecklist, guarantee?: GuaranteeInfo): ClosureFormState =>
-    closureDraftByTicket[ticketId] || createClosureFormState(closureChecklist, guarantee);
-
-  const setClosureDraft = (ticketId: string, updates: Partial<ClosureFormState>) => {
-    setClosureDraftByTicket(prev => ({
-      ...prev,
-      [ticketId]: {
-        ...getClosureDraft(ticketId),
-        ...updates,
-      },
-    }));
-  };
-
-  const handleClosureDocumentUpload = async (ticketId: string, file: File | null) => {
-    if (!file) return;
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-    if (!targetTicket) return;
-
-    setUploadingTicketId(ticketId);
+  const salvar = async (ticket: Ticket, campo: 'previsto' | 'realizado', valor: string) => {
+    const quem = currentUser?.name || currentUser?.email || '';
+    const orcamento = orcamentoParaGravar(ticket.orcamento, { [campo]: valor }, quem);
     try {
-      const uploaded = await uploadClosureDocument(ticketId, file);
-      const currentDocuments = targetTicket.closureChecklist?.documents || [];
-      const persisted = await updateTicket(ticketId, {
-        closureChecklist: mergeClosureChecklist(targetTicket, { documents: [uploaded, ...currentDocuments] }),
-        history: [
-          ...targetTicket.history,
-          {
-            id: crypto.randomUUID(),
-            type: 'system',
-            sender: 'Financeiro',
-            time: new Date(),
-            text: `Documento de encerramento anexado: ${uploaded.name}.`,
-            visibility: 'internal',
-          },
-        ],
-      });
-      if (!persisted) throw new UserFacingError('O arquivo foi enviado, mas não foi possível registrar o documento na OS.');
-      showToast(`Documento ${uploaded.name} anexado com sucesso.`, 3000);
-    } catch (error) {
-      showToast(`Erro: ${mensagemDeErro(error, 'falha no upload do documento.')}`, 4000);
-    } finally {
-      setUploadingTicketId(null);
+      const salvou = await updateTicket(ticket.id, { orcamento });
+      // ⚠️ `updateTicket` devolve false sem lançar. Sem esta checagem, apagar um valor
+      // e ver o campo continuar vazio na tela pareceria sucesso — e o número velho
+      // voltaria no próximo carregamento.
+      if (!salvou) showToast(`Não foi possível salvar o valor da ${ticket.id}. Verifique a conexão.`, 5000);
+    } catch (erro) {
+      showToast(mensagemDeErro(erro, `Falha ao salvar o valor da ${ticket.id}.`), 5000);
     }
   };
 
-  const handleClosureDocumentRemove = async (ticketId: string, documentId: string) => {
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-    if (!targetTicket) return;
-
-    const currentDocuments = targetTicket.closureChecklist?.documents || [];
-    const targetDocument = currentDocuments.find(document => document.id === documentId);
-    if (!targetDocument) return;
-
-    setUploadingTicketId(ticketId);
-    try {
-      // O servidor remove a referência (transacional) e só então apaga o objeto.
-      // A tela não mexe mais no closureChecklist: fazer isso aqui era o que
-      // deixava referência órfã quando a segunda chamada falhava.
-      await deleteTicketAttachment(targetDocument.path);
-      const persisted = await updateTicket(ticketId, {
-        history: [
-          ...targetTicket.history,
-          {
-            id: crypto.randomUUID(),
-            type: 'system',
-            sender: 'Financeiro',
-            time: new Date(),
-            text: `Documento de encerramento removido: ${targetDocument.name}.`,
-            visibility: 'internal',
-          },
-        ],
-      });
-      if (!persisted) {
-        showToast(
-          `Documento ${targetDocument.name} removido, mas o registro no histórico falhou.`,
-          5000
-        );
-        return;
-      }
-      showToast(`Documento ${targetDocument.name} removido com sucesso.`, 3000);
-    } catch (error) {
-      showToast(`Erro: ${mensagemDeErro(error, 'falha ao remover o documento.')}`, 4000);
-    } finally {
-      setUploadingTicketId(null);
-    }
-  };
-
-  const handleExportClosureHtml = (
-    ticket: Ticket,
-    contract: ContractRecord | undefined,
-    measurements: MeasurementRecord[],
-    payments: PaymentRecord[],
-    plannedValue: number,
-    paidValue: number
-  ) => {
-    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue, regions, sites);
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${ticket.id}-encerramento.html`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const handlePrintClosure = (
-    ticket: Ticket,
-    contract: ContractRecord | undefined,
-    measurements: MeasurementRecord[],
-    payments: PaymentRecord[],
-    plannedValue: number,
-    paidValue: number
-  ) => {
-    const html = buildClosureExportHtml(ticket, contract, measurements, payments, plannedValue, paidValue, regions, sites);
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
-    if (!printWindow) {
-      showToast('Erro: não foi possível abrir a janela de impressão.', 3000);
-      return;
-    }
-
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
-  };
-
-  const handleAddMeasurement = async (ticketId: string) => {
-    if (processingId === ticketId) return; // evita duplo clique gravando 2 medições
-    const draft = getMeasurementDraft(ticketId);
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-
-    if (!targetTicket) return;
-
-    const grossAmount = parseCurrency(draft.grossAmount || '');
-    const budgetSource = draft.budgetSource === 'additive' ? 'additive' : 'initial';
-    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      showToast('Erro: informe o valor bruto do lançamento/etapa.', 3000);
-      return;
-    }
-
-    const rawPayments = paymentsByTicket[ticketId] || [];
-    const existingMeasurements = measurementsByTicket[ticketId] || [];
-    const baselineValue = resolveExpectedBaselineValue(contractsByTicket[ticketId], rawPayments);
-    if (baselineValue <= 0) {
-      showToast('Erro: valor previsto da obra não encontrado para calcular o andamento.', 3000);
-      return;
-    }
-
-    const currentProgress = Number(targetTicket.executionProgress?.currentPercent || 0);
-    const currentAccumulatedGross = resolveAccumulatedGross(existingMeasurements, baselineValue, currentProgress);
-    const accumulatedGross = currentAccumulatedGross + grossAmount;
-    const progressPercent = calculateProgressPercentFromGross(accumulatedGross, baselineValue);
-    if (!targetTicket.executionProgress?.paymentFlowParts) {
-      showToast('Erro: inicie a execução e defina o fluxo de pagamento antes de registrar o andamento.', 3000);
-      return;
-    }
-
-    const vendor =
-      contractsByTicket[ticketId]?.vendor ||
-      rawPayments[0]?.vendor ||
-      targetTicket.assignedTeam ||
-      'Fornecedor não definido';
-    const effectiveExistingPayments = getEffectiveDynamicPayments(
-      rawPayments,
-      existingMeasurements,
-      vendor,
-      Number(targetTicket.executionProgress?.paymentFlowParts || 0)
-    );
-    if (progressPercent < currentProgress) {
-      showToast('Erro: o andamento informado é menor do que o percentual já registrado.', 3000);
-      return;
-    }
-
-    const now = new Date();
-    const classification = buildProcurementClassification(targetTicket);
-    const expectedBaselineFormatted = formatCurrency(baselineValue);
-    const normalizedProgress = progressPercent;
-    const progressDelta = Math.max(0, roundProgressPercent(normalizedProgress - currentProgress));
-    const nextInstallmentNumber = effectiveExistingPayments.length + 1;
-    const configuredFlowParts = Number(targetTicket.executionProgress.paymentFlowParts || 0);
-    const formattedGrossAmount = formatCurrency(grossAmount);
-    const paymentLabel = `Lançamento ${nextInstallmentNumber}`;
-    const commandScope = `recordMeasurement:${ticketId}`;
-    const commandKey = getFinanceCommandKey(commandScope);
-    const measurementId = `measurement-${commandKey}`;
-    const dueAt = new Date(now.getTime() + Math.max(0, nextInstallmentNumber - 1) * 7 * 24 * 60 * 60 * 1000);
-    const nextPayment: PaymentRecord = {
-      id: `payment-${commandKey}-${nextInstallmentNumber}`,
-      vendor,
-      value: formattedGrossAmount,
-      grossValue: formattedGrossAmount,
-      budgetSource,
-      taxValue: '',
-      netValue: formattedGrossAmount,
-      progressPercent: normalizedProgress,
-      expectedBaselineValue: expectedBaselineFormatted,
-      status: 'approved',
-      label: paymentLabel,
-      installmentNumber: nextInstallmentNumber,
-      totalInstallments: configuredFlowParts > 0 ? configuredFlowParts : null,
-      dueAt,
-      measurementId,
-      releasedPercent: progressDelta,
-      milestonePercent: normalizedProgress,
-      attachments: [],
-      receiptFileName: null,
-    };
-    const measurement: MeasurementRecord = {
-      id: measurementId,
-      label:
-        draft.label.trim() ||
-        `Andamento atualizado para ${normalizedProgress}% (bruto ${formattedGrossAmount} | acumulado ${formatCurrency(accumulatedGross)})`,
-      progressPercent: normalizedProgress,
-      releasePercent: progressDelta,
-      status: 'approved',
-      grossValue: formattedGrossAmount,
-      budgetSource,
-      notes: draft.notes.trim(),
-      requestedAt: now,
-      approvedAt: now,
-    };
-    const reportFiles: File[] = Array.isArray(draft.reportFiles)
-      ? draft.reportFiles.filter((file): file is File => file instanceof File)
-      : [];
-
-    setProcessingId(ticketId);
-    try {
-      const uploadedMeasurementAttachments = [];
-      for (const file of reportFiles) {
-        const uploaded = await uploadMeasurementAttachment(ticketId, measurementId, file);
-        uploadedMeasurementAttachments.push(uploaded);
-      }
-      measurement.attachments = uploadedMeasurementAttachments;
-      await runFinanceCommand({
-        action: 'recordMeasurement',
-        ticketId,
-        idempotencyKey: commandKey,
-        payment: nextPayment,
-        measurement,
-        classification,
-      });
-      await refreshFinanceState();
-      financeCommandKeysRef.current.delete(commandScope);
-      clearMeasurementDraft(ticketId);
-      setMeasurementFormOpen(prev => ({ ...prev, [ticketId]: false }));
-      showToast(`${paymentLabel} registrada e liberada para pagamento.`, 3000);
-    } catch (error) {
-      showToast(mensagemDeErro(error, 'Falha ao salvar andamento da obra.'), 4000);
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handlePaymentAttachmentUpload = async (ticketId: string, payment: PaymentRecord, files: FileList | null) => {
-    if (!canPay) return;
-    if (!files || files.length === 0) return;
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-    if (!targetTicket) return;
-
-    const paymentKey = getPaymentDraftKey(ticketId, payment.id);
-    setUploadingPaymentKey(paymentKey);
-    try {
-      const uploadedItems = await Promise.all(
-        Array.from(files).map(file => uploadPaymentAttachment(ticketId, payment.id, file))
-      );
-      const nextPayment: PaymentRecord = {
-        ...payment,
-        attachments: [...(payment.attachments || []), ...uploadedItems],
-      };
-      await savePayment(ticketId, nextPayment, buildProcurementClassification(targetTicket));
-      setPaymentsByTicket(prev => ({
-        ...prev,
-        [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
-      }));
-      showToast(`${uploadedItems.length} anexo(s) vinculados a ${payment.label || 'lançamento'}.`, 3000);
-    } catch (error) {
-      showToast(`Erro: ${mensagemDeErro(error, 'falha ao enviar anexos do lançamento.')}`, 4000);
-    } finally {
-      setUploadingPaymentKey(null);
-    }
-  };
-
-  const handlePaymentAttachmentRemove = async (ticketId: string, payment: PaymentRecord, attachmentId: string) => {
-    if (!canPay) return;
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-    if (!targetTicket) return;
-
-    const attachment = (payment.attachments || []).find(item => item.id === attachmentId);
-    if (!attachment) return;
-
-    const paymentKey = getPaymentDraftKey(ticketId, payment.id);
-    setUploadingPaymentKey(paymentKey);
-    try {
-      // Com path, o servidor tira a referência do lançamento junto com o objeto —
-      // e recusa se o lançamento já estiver pago/liberado. Sem path (anexo legado
-      // sem arquivo), só resta limpar a lista aqui.
-      if (attachment.path) {
-        await deleteTicketAttachment(attachment.path);
-      } else {
-        await savePayment(
-          ticketId,
-          {
-            ...payment,
-            attachments: (payment.attachments || []).filter(item => item.id !== attachmentId),
-          },
-          buildProcurementClassification(targetTicket)
-        );
-      }
-      const nextPayment: PaymentRecord = {
-        ...payment,
-        attachments: (payment.attachments || []).filter(item => item.id !== attachmentId),
-      };
-      setPaymentsByTicket(prev => ({
-        ...prev,
-        [ticketId]: upsertDynamicPayment(prev[ticketId] || [], nextPayment),
-      }));
-      showToast(`Anexo removido de ${payment.label || 'lançamento'}.`, 3000);
-    } catch (error) {
-      showToast(`Erro: ${mensagemDeErro(error, 'falha ao remover anexo do lançamento.')}`, 4000);
-    } finally {
-      setUploadingPaymentKey(null);
-    }
-  };
-
-  const handleRetryPaymentEmail = async (ticketId: string, outboxKey: string) => {
-    const processingKey = `email:${ticketId}:${outboxKey}`;
-    setProcessingId(processingKey);
-    try {
-      await dispatchPaymentOutbox(ticketId, outboxKey);
-      await refreshFinanceState();
-      showToast('E-mail financeiro enviado com sucesso.', 3000);
-    } catch (error) {
-      await refreshFinanceState().catch(() => undefined);
-      showToast(
-        `Pagamento preservado, mas o e-mail continua pendente: ${
-          mensagemDeErro(error, 'falha desconhecida.')
-        }`,
-        5000
-      );
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handlePayInstallment = async (ticketId: string, payment: PaymentRecord) => {
-    if (!canPay) return;
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-    if (!targetTicket) return;
-    if (payment.status !== 'approved') {
-      showToast('Erro: o lançamento ainda não foi liberado pelo andamento da obra.', 3000);
-      return;
-    }
-
-    const settlementDraft = getPaymentDraft(ticketId, payment);
-    const grossAmount = parseCurrency(settlementDraft.grossValue || payment.grossValue || '');
-    const taxAmount = parseCurrency(settlementDraft.taxValue || payment.taxValue || '0');
-    if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-      showToast('Erro: informe o valor bruto do lançamento antes de confirmar o pagamento.', 3000);
-      return;
-    }
-    if (!Number.isFinite(taxAmount) || taxAmount < 0) {
-      showToast('Erro: informe um valor de imposto válido.', 3000);
-      return;
-    }
-    if (taxAmount > grossAmount) {
-      showToast('Erro: o imposto não pode ser maior do que o valor bruto.', 3000);
-      return;
-    }
-    const netAmount = Math.max(0, grossAmount - taxAmount);
-
-    const rawPayments = paymentsByTicket[ticketId] || [];
-    const existingMeasurements = measurementsByTicket[ticketId] || [];
-    const vendorForFlow =
-      contractsByTicket[ticketId]?.vendor ||
-      payment.vendor ||
-      targetTicket.assignedTeam ||
-      'Fornecedor não definido';
-    const existingPayments = getEffectiveDynamicPayments(
-      rawPayments,
-      existingMeasurements,
-      vendorForFlow,
-      Number(targetTicket.executionProgress?.paymentFlowParts || 0)
-    );
-    const pendingPayments = existingPayments.filter(item => item.status !== 'paid');
-    const isFinalInstallment = pendingPayments.length === 1 && pendingPayments[0].id === payment.id;
-    const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
-    const finalInstallmentBlockingReasons = isFinalInstallment
-      ? getFinalInstallmentBlockingReasons(targetTicket, closureDraft)
-      : [];
-
-    if (finalInstallmentBlockingReasons.length > 0) {
-      showToast(`Erro: último lançamento bloqueado. ${finalInstallmentBlockingReasons.join(' | ')}`, 4000);
-      return;
-    }
-
-    let templateRecipients: string[] = [];
-    try {
-      const settings = await fetchSettings();
-      const paymentTemplate = settings.emailTemplates.find(t => t.trigger === 'EMAIL-FINANCEIRO-PAGAMENTO');
-      if (paymentTemplate?.recipients?.trim()) {
-        templateRecipients = paymentTemplate.recipients
-          .split(/[,;\s]+/)
-          .map(e => e.trim())
-          .filter(e => e.includes('@'));
-      }
-    } catch {
-      // Fallback to empty recipients list; user can add manually.
-    }
-    const storedRecipients = readStoredFinanceRecipients();
-    const defaultRecipients = mergeRecipientEmails(templateRecipients, storedRecipients);
-
-    setPaymentEmailModal({
-      ticketId,
-      payment,
-      grossAmount,
-      taxAmount,
-      netAmount,
-      recipients: defaultRecipients,
-      newRecipient: '',
-      isSending: false,
-      sendFeedbackType: null,
-      sendFeedbackMessage: '',
-    });
-  };
-
-  const handleConfirmPaymentEmail = async () => {
-    if (!paymentEmailModal) return;
-    const { ticketId, payment, grossAmount, taxAmount, recipients } = paymentEmailModal;
-    if (recipients.length === 0) {
-      showToast('Erro: adicione pelo menos um destinatário antes de enviar.', 3000);
-      return;
-    }
-
-    const targetTicket = tickets.find(ticket => ticket.id === ticketId);
-    if (!targetTicket) return;
-
-    const closureDraft = getClosureDraft(ticketId, targetTicket.closureChecklist, targetTicket.guarantee);
-    const commandScope = `settlePayment:${ticketId}:${payment.id}`;
-    const commandKey = getFinanceCommandKey(commandScope);
-
-    setPaymentEmailModal(prev => prev ? { ...prev, isSending: true, sendFeedbackType: null, sendFeedbackMessage: '' } : null);
-    setProcessingId(`${ticketId}:${payment.id}`);
-    let paymentRecorded = false;
-    try {
-      const result = await runFinanceCommand({
-        action: 'settlePayment',
-        ticketId,
-        idempotencyKey: commandKey,
-        paymentId: payment.id,
-        payment,
-        grossAmount,
-        taxAmount,
-        recipients,
-        closureDraft,
-      });
-      paymentRecorded = true;
-      writeStoredFinanceRecipients(recipients);
-      if (!result.outboxKey) throw new UserFacingError('Pagamento registrado sem chave de entrega do e-mail.');
-      await dispatchPaymentOutbox(ticketId, result.outboxKey);
-      await refreshFinanceState();
-      financeCommandKeysRef.current.delete(commandScope);
-      clearPaymentDraft(ticketId, payment.id);
-      setPaymentEmailModal(prev =>
-        prev
-          ? {
-              ...prev,
-              isSending: false,
-              sendFeedbackType: 'success',
-              sendFeedbackMessage: `E-mail enviado com sucesso para: ${recipients.join(', ')}`,
-            }
-          : null
-      );
-      window.setTimeout(() => {
-        setPaymentEmailModal(current =>
-          current?.ticketId === ticketId && current?.payment.id === payment.id ? null : current
-        );
-      }, 1400);
-      showToast(
-        result.closed
-          ? `Pagamento final confirmado. OS ${ticketId} encerrada com sucesso.`
-          : `${payment.label || 'Lançamento'} confirmado e e-mail disparado.`
-      , 3000);
-    } catch (error) {
-      const errorMessage = mensagemDeErro(error, 'falha desconhecida.');
-      if (!paymentRecorded) {
-        const outbox = await fetchFinanceOutbox().catch(() => null);
-        paymentRecorded = Boolean(
-          outbox?.[ticketId]?.some(item => item.id === commandKey)
-        );
-      }
-      await refreshFinanceState().catch(() => undefined);
-      showToast(
-        paymentRecorded
-          ? `Pagamento registrado, mas o e-mail ficou pendente: ${errorMessage}`
-          : `Erro ao processar pagamento: ${errorMessage}`,
-        5000
-      );
-      setPaymentEmailModal(prev =>
-        prev
-          ? {
-              ...prev,
-              isSending: false,
-              sendFeedbackType: 'error',
-              sendFeedbackMessage: paymentRecorded
-                ? `Pagamento já registrado. Tente novamente para reenviar somente o e-mail: ${errorMessage}`
-                : `Falha ao registrar pagamento: ${errorMessage}`,
-            }
-          : null
-      );
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  if (!canAccess) {
+  if (!podeAcessar) {
     return (
-      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8">
-        <div className="max-w-4xl mx-auto min-h-[60vh]">
-          <EmptyState
-            icon={DollarSign}
-            title="Acesso restrito"
-            description="Apenas Gestor e Admin podem acessar o painel financeiro."
-          />
+      <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-6">
+        <div className="mx-auto max-w-4xl min-h-[60vh]">
+          <EmptyState icon={DollarSign} title="Acesso restrito" description="Apenas Gestor e Admin podem acessar o painel financeiro." />
         </div>
       </div>
     );
   }
 
+  const filtrosAtivos = [sede.length > 0, servico.length > 0, equipe.length > 0, etapa.length > 0, soSemRegistro, mostrarEncerradas].filter(Boolean).length;
+  const selectClass = 'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
+  const limpar = () => {
+    setSede([]); setServico([]); setEquipe([]); setEtapa([]);
+    setSoSemRegistro(false); setMostrarEncerradas(false); setBusca('');
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-5 xl:p-6 2xl:p-8 relative">
+    <div className="flex-1 overflow-y-auto bg-roman-bg p-4 md:p-6">
       <FloatingToast message={toast} />
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-5 rounded-xl border border-roman-border bg-roman-surface px-5 py-5 shadow-sm md:px-6">
-          <h1 className="text-[2rem] font-serif font-medium text-roman-text-main mb-1.5">Painel Financeiro</h1>
-          <p className="text-sm text-roman-text-sub font-serif italic">Medições, liberação de lançamentos e confirmação de pagamentos das ordens de serviço em execução e fechamento.</p>
+      <div className="mx-auto max-w-[1600px]">
+        <header className="mb-4">
+          <h1 className="font-serif text-2xl font-medium text-roman-text-main">Painel Financeiro</h1>
+          <p className="mt-1 text-sm text-roman-text-sub">
+            O que cada OS custou: o valor orçado e o realizado. Registro, sem aprovação.
+          </p>
         </header>
 
-        <div className="mb-5 grid gap-3 xl:grid-cols-2">
-          <div className="rounded-xl border border-roman-border bg-roman-surface p-4 shadow-sm">
-            <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-text-sub">Status financeiro</div>
-            <div className="mt-2 text-lg font-semibold text-roman-text-main">{financeSummary.tickets} OS em acompanhamento</div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
-              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Em aberto: {openFinanceTickets.length}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Quitadas: {historicalFinanceTickets.length}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-bg px-3 py-2">Pendências: {financeSummary.remaining > 0 ? 'Sim' : 'Não'}</div>
+        {/* ⚠️ O QUE FALTA VEM PRIMEIRO. Num painel que nasce vazio, "R$ 0,00 previsto"
+            se lê como "não gastamos nada" em vez de "ninguém preencheu ainda". */}
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+            <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Sem valor registrado</div>
+            <div className="mt-1 text-lg font-semibold text-roman-text-main">
+              {resumo.semRegistro} <span className="text-sm font-normal text-roman-text-sub">de {recortadas.length}</span>
             </div>
           </div>
-          <div className="rounded-xl border border-roman-primary/35 bg-roman-primary/8 p-4 shadow-sm">
-            {/* Texto principal, não acento: a sobrancelha fica DENTRO de um bloco
-                tingido de acento, e dourado sobre dourado mede 4,19:1 num tamanho
-                de 11px, que exige 4,5. O bloco já é o sinal; o texto só precisa ler. */}
-            <div className="text-[11px] font-serif uppercase tracking-[0.22em] text-roman-text-main">Saldo a liberar</div>
-            <div className="mt-2 text-lg font-semibold text-roman-text-main">{formatCurrency(financeSummary.remaining)}</div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3 text-xs text-roman-text-sub">
-              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Previsto: {formatCurrency(financeSummary.planned)}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Pago: {formatCurrency(financeSummary.paid)}</div>
-              <div className="rounded-xl border border-roman-border bg-roman-surface/70 px-3 py-2">Ação: liberar ou quitar lançamentos</div>
+          <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+            <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Orçado</div>
+            <div className="mt-1 text-lg font-semibold text-roman-text-main">{formatCurrency(resumo.previsto)}</div>
+          </div>
+          <div className="rounded-sm border border-roman-border bg-roman-surface p-3">
+            <div className="text-[11px] uppercase tracking-widest text-roman-text-sub">Realizado</div>
+            <div className="mt-1 text-lg font-semibold text-roman-text-main">{formatCurrency(resumo.realizado)}</div>
+          </div>
+          {/* ⚠️ A DIFERENÇA SÓ CONTA AS OS COM OS DOIS LADOS, e o denominador vai à
+              vista: sem ele, "R$ 0,00" não distingue "bateu certinho" de "não havia o
+              que comparar". Subtrair os dois cartões acima daria a diferença entre
+              duas amostras diferentes, que não é economia nenhuma. */}
+          <div className="rounded-sm border border-roman-primary/35 bg-roman-primary/8 p-3">
+            <div className="text-[11px] uppercase tracking-widest text-roman-text-main">Diferença comparável</div>
+            <div className="mt-1 text-lg font-semibold text-roman-text-main">
+              {resumo.comparaveis > 0 ? formatCurrency(resumo.diferencaComparavel) : '—'}
+            </div>
+            <div className="text-xs text-roman-text-sub">
+              {resumo.comparaveis > 0 ? `em ${resumo.comparaveis} OS com orçado e realizado` : 'nenhuma OS tem os dois valores'}
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-roman-border bg-roman-surface px-4 py-3 shadow-sm">
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => {
-                  setFinanceSection('open');
-                  setHistoryGuaranteeFilter('all');
-                }}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${financeSection === 'open' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
-              >
-                Em aberto ({openFinanceTickets.length})
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative w-full md:w-auto">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-roman-text-sub" />
+            <input
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar OS, assunto ou sede"
+              aria-label="Buscar"
+              className={`${selectClass} w-full pl-8 md:w-64`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setFiltrosAbertos(a => !a)}
+            aria-expanded={filtrosAbertos}
+            className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm md:hidden ${
+              filtrosAtivos > 0 ? 'border-roman-primary/45 bg-roman-primary/10 text-roman-text-main' : 'border-roman-border bg-roman-surface text-roman-text-sub'
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            Filtros{filtrosAtivos > 0 ? ` (${filtrosAtivos})` : ''}
+          </button>
+          <div className={`${filtrosAbertos ? 'flex' : 'hidden'} w-full flex-wrap items-center gap-2 md:contents`}>
+            <FiltroMultiplo rotulo="Sede" todos="todas" className={selectClass} opcoes={comoOpcoes(opcoesDeSede)} selecionados={sede} onChange={setSede} />
+            <FiltroMultiplo rotulo="Serviço" todos="todos" className={selectClass} opcoes={comoOpcoes(opcoesDeServico)} selecionados={servico} onChange={setServico} />
+            <FiltroMultiplo rotulo="Equipe" todos="todas" className={selectClass} opcoes={comoOpcoes(opcoesDeEquipe)} selecionados={equipe} onChange={setEquipe} />
+            <FiltroMultiplo rotulo="Etapa" todos="todas" className={selectClass} opcoes={comoOpcoes(opcoesDeEtapa)} selecionados={etapa} onChange={setEtapa} />
+            <button
+              type="button"
+              onClick={() => setSoSemRegistro(v => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm transition-colors ${
+                soSemRegistro ? 'border-roman-primary/45 bg-roman-primary/12 text-roman-text-main' : 'border-roman-border bg-roman-surface text-roman-text-sub hover:border-roman-primary/40'
+              }`}
+            >
+              Falta preencher
+            </button>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-roman-text-sub">
+              <input type="checkbox" checked={mostrarEncerradas} onChange={e => setMostrarEncerradas(e.target.checked)} className="h-3.5 w-3.5 accent-roman-primary" />
+              Mostrar encerradas
+            </label>
+            {(filtrosAtivos > 0 || busca) && (
+              <button onClick={limpar} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-sub hover:text-roman-text-main">
+                <X size={13} /> Limpar
               </button>
-              <button
-                onClick={() => setFinanceSection('history')}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${financeSection === 'history' ? 'bg-roman-sidebar text-white' : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'}`}
-              >
-                Histórico ({historicalFinanceTickets.length})
-              </button>
-            </div>
-            <div className="text-xs text-roman-text-sub">
-              {financeSection === 'open'
-                ? 'OS com lançamentos pendentes, liberações em andamento ou checklist final aberto.'
-                : 'OS quitadas para consulta histórica.'}
-            </div>
-            {financeSection === 'history' && (
-              <div className="w-full flex flex-wrap gap-2 pt-2 border-t border-roman-border/60">
-                <button
-                  type="button"
-                  onClick={() => setHistoryGuaranteeFilter('all')}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    historyGuaranteeFilter === 'all'
-                      ? 'bg-roman-sidebar text-white'
-                      : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'
-                  }`}
-                >
-                  Todas ({historicalGuaranteeCounts.all})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHistoryGuaranteeFilter('in_guarantee')}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    historyGuaranteeFilter === 'in_guarantee'
-                      ? 'bg-roman-sidebar text-white'
-                      : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'
-                  }`}
-                >
-                  Em garantia ({historicalGuaranteeCounts.inGuarantee})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHistoryGuaranteeFilter('expiring_30')}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    historyGuaranteeFilter === 'expiring_30'
-                      ? 'bg-roman-sidebar text-white'
-                      : 'border border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary'
-                  }`}
-                >
-                  Vencendo em 30 dias ({historicalGuaranteeCounts.expiring30})
-                </button>
-              </div>
             )}
           </div>
+        </div>
 
-          {visibleFinanceTickets.map(({ ticket, payments, measurements, contract, expectedBaselineValue, totalValue, totalReleased, plannedValue, paidValue, remainingValue, nextMilestonePercent }) => {
-            const ticketProcessing = processingId === ticket.id || processingId?.startsWith(`${ticket.id}:`);
-            const vendor = contract?.vendor || payments[0]?.vendor || 'Fornecedor a confirmar';
-            const contractValue = contract?.value || payments[0]?.value || 'Valor a confirmar';
-            const measurementDraft = getMeasurementDraft(ticket.id);
-            const closureDraft = getClosureDraft(ticket.id, ticket.closureChecklist, ticket.guarantee);
-            const closureDocuments = ticket.closureChecklist?.documents || [];
-            const progressPercent = Math.max(0, Number(ticket.executionProgress?.currentPercent || 0));
-            const progressBarPercent = Math.min(100, progressPercent);
-            const releasePreview = getMeasurementReleasePreview(ticket, measurementDraft.grossAmount);
-            const currentAccumulatedGross = expectedBaselineValue > 0 ? (expectedBaselineValue * progressPercent) / 100 : 0;
-            const projectedAccumulatedGross = currentAccumulatedGross + parseCurrency(measurementDraft.grossAmount || '');
-            const isCollapsed = collapsedTickets[ticket.id] ?? financeSection === 'history';
-            const activeTab = financeTabs[ticket.id] || 'financial';
-            const guaranteeDaysRemaining = getGuaranteeDaysRemaining(ticket.guarantee);
-            const guaranteeBadgeLabel =
-              guaranteeDaysRemaining == null
-                ? 'Garantia não informada'
-                : guaranteeDaysRemaining < 0
-                  ? `Garantia expirada há ${Math.abs(guaranteeDaysRemaining)} dia(s)`
-                  : `Garantia: ${guaranteeDaysRemaining} dia(s) restantes`;
-            return (
-              <div
-                key={ticket.id}
-                id={`finance-ticket-${ticket.id}`}
-                className={`bg-roman-surface border rounded-xl p-4 shadow-sm relative overflow-hidden ${
-                  ticket.id === activeTicketId
-                    ? 'border-roman-primary/60 ring-1 ring-roman-primary/20 bg-roman-primary/5'
-                    : 'border-roman-border'
-                }`}
-              >
-                {ticketProcessing && (
-                  <div className="absolute inset-0 bg-roman-surface/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-xl">
-                    <Loader2 size={32} className="text-roman-primary animate-spin mb-4" />
-                    <span className="font-serif text-roman-text-main font-medium">Atualizando fluxo financeiro...</span>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-roman-border bg-roman-surface/80 px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">OS em acompanhamento</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-roman-text-main">{ticket.id}</span>
-                      <span className="rounded-full border border-roman-border bg-roman-bg px-2 py-0.5 text-xs text-roman-text-sub">
-                        {ticket.status}
-                      </span>
-                      {financeSection === 'history' && (
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${
-                          guaranteeDaysRemaining == null
-                            ? 'border-roman-border bg-roman-bg text-roman-text-sub'
-                            : guaranteeDaysRemaining < 0
-                              ? 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
-                              : guaranteeDaysRemaining <= 30
-                                ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main'
-                                : 'border-roman-success/35 bg-roman-success/12 text-roman-success'
-                        }`}>
-                          {guaranteeBadgeLabel}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-roman-text-main">{ticket.subject}</div>
-                    <p className="mt-1 text-xs text-roman-text-sub">
-                      Fornecedor: {vendor} | Próxima ação: {getFinanceNextActionLabel(ticket)}
-                    </p>
-                    {ticket.executionProgress?.measurementSheetUrl && (
-                      <a
-                        href={ticket.executionProgress.measurementSheetUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex text-xs text-roman-primary hover:underline"
-                      >
-                        Planilha de medição
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCollapsedTickets(prev => ({ ...prev, [ticket.id]: !isCollapsed }))}
-                      className="inline-flex items-center gap-2 rounded-full border border-roman-border bg-roman-bg px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                    >
-                      <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '' : 'rotate-180'}`} />
-                      {isCollapsed ? 'Expandir' : 'Recolher'}
-                    </button>
-                  </div>
-                </div>
-
-                {!isCollapsed && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-roman-border bg-roman-bg/60 p-3">
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-xs text-roman-text-sub">
-                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Classificação</div>
-                        <div className="mt-1 font-medium text-roman-text-main">{ticket.serviceCatalogName || ticket.macroServiceName || 'Não definida'}</div>
-                      </div>
-                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Fluxo</div>
-                        <div className="mt-1 font-medium text-roman-text-main">
-                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'Não definido'}
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Andamento</div>
-                        <div className="mt-1 font-medium text-roman-text-main">{progressPercent}%</div>
-                      </div>
-                      <div className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-[0.18em] text-roman-text-sub">Contrato</div>
-                        <div className="mt-1 font-medium text-roman-text-main">{contractValue}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-roman-border bg-roman-bg/60 p-3">
-                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex flex-wrap gap-2">
-                          {([
-                            ['execution', 'Execução'],
-                            ['financial', 'Financeiro'],
-                            ['guarantee', 'Garantia'],
-                            ['documents', 'Documentos'],
-                          ] as [FinanceTab, string][]).map(([tab, label]) => (
-                            <button
-                              key={tab}
-                              type="button"
-                              onClick={() => setFinanceTabs(prev => ({ ...prev, [ticket.id]: tab }))}
-                              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                                activeTab === tab
-                                  ? 'bg-roman-sidebar text-white'
-                                  : 'border border-roman-border bg-roman-surface text-roman-text-main hover:border-roman-primary'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => openAttachment(`Nota Fiscal: ${vendor}`, 'pdf')}
-                            className="inline-flex items-center justify-center gap-2 rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                          >
-                            <FileText size={14} /> Ver NF / Recibo
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExportClosureHtml(ticket, contract, measurements, payments, plannedValue, paidValue)}
-                            className="rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                          >
-                            HTML
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePrintClosure(ticket, contract, measurements, payments, plannedValue, paidValue)}
-                            className="rounded-full border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main transition-colors hover:border-roman-primary"
-                          >
-                            PDF
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFinanceTabs(prev => ({ ...prev, [ticket.id]: 'execution' }));
-                              setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }));
-                            }}
-                            className="inline-flex items-center justify-center gap-2 rounded-full border border-roman-primary/30 bg-roman-primary/5 px-3 py-2 text-sm font-medium text-roman-primary transition-colors hover:bg-roman-primary/10"
-                          >
-                            <Plus size={14} /> Atualizar andamento
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {activeTab === 'execution' && (
-                      <>
-                    <FinanceSection
-                      title="Andamento da obra"
-                      description="Execução acumulada e marcos liberados."
-                      icon={<ClipboardList size={14} />}
-                    >
-                      <div className="mb-3 flex items-center justify-between text-xs text-roman-text-sub">
-                        <span>Fluxo definido</span>
-                        <strong className="text-roman-text-main">
-                          {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'Não definido'}
-                        </strong>
-                      </div>
-
-                      <div className="rounded-xl border border-roman-border bg-roman-surface px-4 py-4">
-                        <div className="flex items-center justify-between text-sm text-roman-text-main mb-2">
-                          <span>Execução acumulada</span>
-                          <span className="font-semibold">{progressPercent}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-roman-border-light overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-roman-sidebar transition-all"
-                            style={{ width: `${progressBarPercent}%` }}
-                          />
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-3 text-xs text-roman-text-sub">
-                          <span>Marcos liberados: {totalReleased}%</span>
-                          <span>
-                            Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'Todos liberados'}
-                          </span>
-                          {ticket.executionProgress?.measurementSheetUrl && (
-                            <span>
-                              Planilha:{' '}
-                              <a
-                                href={ticket.executionProgress.measurementSheetUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-roman-primary hover:underline"
-                              >
-                                abrir link
-                              </a>
-                            </span>
-                          )}
-                          <span>
-                            Última atualização: {formatDateTimeSafe(ticket.executionProgress?.lastUpdatedAt || ticket.time)}
-                          </span>
-                        </div>
-                      </div>
-                    </FinanceSection>
-
-                    <FinanceSection
-                      title="Atualizações de andamento"
-                      description="Cada avanço registra um novo lançamento para o financeiro."
-                      icon={<Plus size={14} />}
-                    >
-                      <div className="mb-3 flex items-center justify-end">
-                        <button
-                          onClick={() => setMeasurementFormOpen(prev => ({ ...prev, [ticket.id]: !prev[ticket.id] }))}
-                          className="text-xs font-medium text-roman-primary hover:underline flex items-center gap-1"
-                        >
-                          <Plus size={14} /> {measurementFormOpen[ticket.id] ? 'Fechar atualização' : 'Atualizar andamento'}
-                        </button>
-                      </div>
-
-                      {measurementFormOpen[ticket.id] && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 border border-roman-border rounded-sm p-3 bg-roman-surface">
-                          <div className="md:col-span-2">
-                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Descrição da atualização</label>
-                            <input
-                              type="text"
-                              value={measurementDraft.label}
-                              onChange={e => setMeasurementDraft(ticket.id, { label: e.target.value })}
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              placeholder="Ex: cobertura finalizada e pintura iniciada"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto deste lançamento/etapa</label>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={measurementDraft.grossAmount}
-                              onChange={event => setMeasurementDraft(ticket.id, { grossAmount: sanitizeCurrencyTypingInput(event.target.value) })}
-                              onBlur={() => setMeasurementDraft(ticket.id, { grossAmount: normalizeCurrencyInput(measurementDraft.grossAmount) })}
-                              placeholder="Ex: 12500,00"
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            />
-                            <div className="mt-2">
-                              <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Origem do valor</label>
-                              <select
-                                value={measurementDraft.budgetSource}
-                                onChange={event => setMeasurementDraft(ticket.id, { budgetSource: event.target.value === 'additive' ? 'additive' : 'initial' })}
-                                className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              >
-                                <option value="initial">Orçamento inicial</option>
-                                <option value="additive">Aditivo</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
-                            <div className="font-medium text-roman-text-main mb-1">Percentual calculado</div>
-                            <div>{releasePreview.progressPercent}%</div>
-                            <div className="mt-1">Andamento atual salvo: {progressPercent}%</div>
-                            <div className="mt-1">Bruto acumulado projetado: {formatCurrency(projectedAccumulatedGross)}</div>
-                          </div>
-                          {expectedBaselineValue > 0 && (
-                            <div className="md:col-span-2">
-                              <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Atalhos por marco</label>
-                              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                              {getPaymentFlowMilestones(ticket.executionProgress?.paymentFlowParts || 1).map(milestone => {
-                                const milestoneGross = (expectedBaselineValue * milestone) / 100;
-                                const projectedGross = Math.max(0, milestoneGross - currentAccumulatedGross);
-                                const isCompleted = milestone <= progressPercent;
-                                return (
-                                  <button
-                                    key={milestone}
-                                    type="button"
-                                    onClick={() => setMeasurementDraft(ticket.id, { grossAmount: formatCurrency(projectedGross) })}
-                                    className={[
-                                      'rounded-sm border px-3 py-3 text-left transition-colors',
-                                      isCompleted
-                                        ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
-                                        : 'border-roman-border bg-roman-bg text-roman-text-main hover:border-roman-primary/40',
-                                    ].join(' ')}
-                                  >
-                                    <div className="text-[11px] font-serif uppercase tracking-widest opacity-75">Marco</div>
-                                    <div className="mt-1 text-base font-semibold">{milestone}%</div>
-                                    <div className="mt-1 text-[11px]">{formatCurrency(projectedGross)}</div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          )}
-                          <div>
-                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">% liberado nesta atualização</label>
-                            <input
-                              type="text"
-                              value={`${releasePreview.releasePercent}%`}
-                              disabled
-                              className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações</label>
-                            <textarea
-                              value={measurementDraft.notes}
-                              onChange={e => setMeasurementDraft(ticket.id, { notes: e.target.value })}
-                              className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                              placeholder="Ex: relatório com fotos enviado para liberação."
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Anexos do relatório (opcional)</label>
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <label className="inline-flex cursor-pointer items-center justify-center rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary">
-                                  Anexar arquivos
-                                  <input
-                                    type="file"
-                                    multiple
-                                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt"
-                                    className="hidden"
-                                    onChange={event => {
-                                      const files: File[] = Array.from(event.target.files || []);
-                                      if (files.length === 0) return;
-                                      const currentFiles: File[] = Array.isArray(measurementDraft.reportFiles)
-                                        ? measurementDraft.reportFiles.filter((file): file is File => file instanceof File)
-                                        : [];
-                                      setMeasurementDraft(ticket.id, { reportFiles: [...currentFiles, ...files] });
-                                      event.currentTarget.value = '';
-                                    }}
-                                  />
-                                </label>
-                                <span className="text-xs text-roman-text-sub">{measurementDraft.reportFiles.length} arquivo(s)</span>
-                              </div>
-                              {measurementDraft.reportFiles.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                  {measurementDraft.reportFiles.map((file, index) => (
-                                    <span key={`${file.name}-${file.size}-${index}`} className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main">
-                                      <FileText size={14} />
-                                      <span className="max-w-[220px] truncate">{file.name}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setMeasurementDraft(ticket.id, {
-                                            reportFiles: measurementDraft.reportFiles.filter((_, currentIndex) => currentIndex !== index),
-                                          })
-                                        }
-                                        className="text-roman-text-sub hover:text-roman-danger"
-                                        aria-label={`Remover arquivo ${file.name}`}
-                                      >
-                                        <X size={14} />
-                                      </button>
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="md:col-span-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-3 text-xs text-roman-text-sub">
-                            <div className="font-medium text-roman-text-main mb-1">Leitura do fluxo</div>
-                            <div>Fluxo: {ticket.executionProgress?.paymentFlowParts ? `${ticket.executionProgress.paymentFlowParts}x` : 'não definido'}</div>
-                            <div>Previsto inicial: {expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'não definido'}</div>
-                            <div>Bruto acumulado atual: {formatCurrency(currentAccumulatedGross)}</div>
-                            <div>Andamento atual salvo: {progressPercent}%</div>
-                            <div>Próximo marco: {nextMilestonePercent != null ? `${nextMilestonePercent}%` : 'todos os marcos liberados'}</div>
-                          </div>
-                          <div className="md:col-span-2 flex justify-end">
-                            <button
-                              onClick={() => handleAddMeasurement(ticket.id)}
-                              disabled={processingId === ticket.id}
-                              className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                              {processingId === ticket.id ? 'Salvando...' : 'Salvar andamento'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        {measurements.length === 0 ? (
-                          <p className="text-sm text-roman-text-sub font-serif italic">Nenhuma medição registrada.</p>
-                        ) : (
-                          measurements.map(measurement => (
-                            <div key={measurement.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                                <div>
-                              <div className="text-sm font-medium text-roman-text-main">{measurement.label}</div>
-                              <div className="text-xs text-roman-text-sub">
-                                    {measurement.progressPercent}% acumulado | {measurement.releasePercent}% liberado | Origem: {getBudgetSourceLabel(measurement.budgetSource)} | {normalizeStatusLabel(measurement.status)}
-                              </div>
-                                </div>
-                                <div className="text-xs text-roman-text-sub">
-                                  {measurement.requestedAt ? `Registrada em ${formatDateLabel(measurement.requestedAt)}` : 'Sem data'}
-                                </div>
-                              </div>
-                              {measurement.notes && <div className="mt-2 text-sm text-roman-text-sub">{measurement.notes}</div>}
-                              {Array.isArray(measurement.attachments) && measurement.attachments.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {measurement.attachments.map((attachment, index) => (
-                                    <button
-                                      key={`${measurement.id}-attachment-${attachment.id || index}`}
-                                      type="button"
-                                      onClick={() => openAttachment(
-                                        attachment.name || 'Anexo da medição',
-                                        getAttachmentPreviewKind(attachment.contentType, attachment.name),
-                                        {
-                                          url: attachment.url,
-                                          ticketId: ticket.id,
-                                          path: attachment.path,
-                                          driveFileId: attachment.driveFileId,
-                                        }
-                                      )}
-                                      className="inline-flex items-center gap-1 rounded-sm border border-roman-border bg-roman-bg px-2 py-1 text-[11px] text-roman-text-main transition-colors hover:border-roman-primary"
-                                    >
-                                      <FileText size={14} />
-                                      <span className="max-w-[220px] truncate">{attachment.name || 'Anexo'}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </FinanceSection>
-
-                    {contract?.items && contract.items.length > 0 && (
-                      <FinanceSection
-                        title="Escopo contratado"
-                        description="Itens aprovados na cotação vencedora."
-                        icon={<FileText size={14} />}
-                      >
-                        <div className="space-y-2">
-                          {contract.items.map(item => (
-                            <div key={item.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                              <div>
-                                <div className="text-sm font-medium text-roman-text-main">{item.description || item.materialName || 'Item sem descrição'}</div>
-                                <div className="text-xs text-roman-text-sub">
-                                  {(item.quantity ?? '-')}{item.unit ? ` ${item.unit}` : ''} | custo unitário {item.costUnitPrice || item.unitPrice || '-'}
-                                </div>
-                              </div>
-                              <div className="text-sm font-serif text-roman-text-main">{item.totalPrice || '-'}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </FinanceSection>
-                    )}
-                      </>
-                    )}
-
-                    {activeTab === 'financial' && (
-                      <>
-                    <FinanceSection
-                      title="Previsto x pago"
-                      description="Conciliação entre contrato, plano e pagamentos."
-                      icon={<DollarSign size={14} />}
-                    >
-                      <div className={`mb-3 inline-flex text-xs font-medium px-2 py-1 rounded-sm border ${
-                        remainingValue > 0
-                          ? 'bg-roman-primary/12 text-roman-text-main border-roman-primary/35'
-                          : remainingValue < 0
-                            ? 'bg-roman-bg text-roman-text-sub border-roman-border'
-                            : 'bg-roman-success/12 text-roman-success border-roman-success/35'
-                      }`}>
-                        {remainingValue > 0 ? 'Saldo pendente' : remainingValue < 0 ? 'Pagamento acima do previsto' : 'Quitado'}
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Previsto inicial</div>
-                          <div className="text-lg font-serif text-roman-text-main">{expectedBaselineValue > 0 ? formatCurrency(expectedBaselineValue) : 'Não informado'}</div>
-                        </div>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Realizado (previsto + aditivos)</div>
-                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(totalValue)}</div>
-                        </div>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Valor pago</div>
-                          <div className="text-lg font-serif text-roman-text-main">{formatCurrency(paidValue)}</div>
-                        </div>
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3">
-                          <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Aderência ao contrato</div>
-                          <div className="text-lg font-serif text-roman-text-main">
-                            {plannedValue > 0 ? `${roundProgressPercent((paidValue / plannedValue) * 100)}%` : '0%'}
-                          </div>
-                          <div className="mt-1 text-xs text-roman-text-sub">
-                            {remainingValue >= 0
-                              ? `Saldo: ${formatCurrency(remainingValue)}`
-                              : `Excedente: ${formatCurrency(Math.abs(remainingValue))}`}
-                          </div>
-                        </div>
-                      </div>
-                    </FinanceSection>
-                    <FinanceSection
-                      title="Fluxo de pagamento"
-                      description="Os lançamentos surgem conforme os registros de valor bruto no andamento."
-                      icon={<DollarSign size={14} />}
-                    >
-                      <div className="mb-3 text-xs text-roman-text-sub">
-                        O financeiro recebe um novo lançamento toda vez que o gestor registra valor bruto no andamento da obra.
-                      </div>
-
-                      {payments.length === 0 ? (
-                        <div className="text-sm text-roman-text-sub font-serif italic">
-                          {ticket.executionProgress?.paymentFlowParts
-                            ? `Fluxo definido em ${ticket.executionProgress.paymentFlowParts}x. Registre andamento para criar os lançamentos dinamicamente.`
-                            : 'Nenhum lançamento registrado ainda. Atualize o andamento para criar o primeiro lançamento.'}
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {(() => {
-                            const pendingPayments = payments.filter(item => item.status !== 'paid');
-                            const paidPayments = payments.filter(item => item.status === 'paid');
-                            const pendingEmailCount = (emailOutboxByTicket[ticket.id] || []).length;
-                            const selectedTab = paymentFlowTabByTicket[ticket.id] || 'pending';
-                            const visiblePayments = selectedTab === 'paid' ? paidPayments : pendingPayments;
-
-                            return (
-                              <>
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="inline-flex rounded-full border border-roman-border bg-roman-bg p-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setPaymentFlowTabByTicket(prev => ({ ...prev, [ticket.id]: 'pending' }))}
-                                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                                        selectedTab === 'pending'
-                                          ? 'bg-roman-sidebar text-white'
-                                          : 'text-roman-text-main hover:bg-roman-surface'
-                                      }`}
-                                    >
-                                      Pendentes ({pendingPayments.length})
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPaymentFlowTabByTicket(prev => ({ ...prev, [ticket.id]: 'paid' }))}
-                                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                                        selectedTab === 'paid'
-                                          ? 'bg-roman-sidebar text-white'
-                                          : 'text-roman-text-main hover:bg-roman-surface'
-                                      }`}
-                                    >
-                                      Pagos ({paidPayments.length})
-                                      {pendingEmailCount > 0 ? ` • E-mail (${pendingEmailCount})` : ''}
-                                    </button>
-                                  </div>
-                                  <div className="text-xs text-roman-text-sub">
-                                    Exibindo {selectedTab === 'paid' ? 'lançamentos pagos' : 'lançamentos pendentes'}
-                                  </div>
-                                </div>
-
-                                {visiblePayments.length === 0 && (
-                                  <div className="rounded-sm border border-dashed border-roman-border bg-roman-bg px-3 py-3 text-sm text-roman-text-sub font-serif italic">
-                                    {selectedTab === 'paid'
-                                      ? 'Nenhum lançamento pago ainda.'
-                                      : 'Nenhum lançamento pendente no momento.'}
-                                  </div>
-                                )}
-
-                                {visiblePayments.map(payment => (
-                            (() => {
-                              const pendingPaymentsForTicket = payments.filter(item => item.status !== 'paid');
-                              const isFinalInstallment = pendingPaymentsForTicket.length === 1 && pendingPaymentsForTicket[0].id === payment.id;
-                              const finalInstallmentBlockingReasons = isFinalInstallment
-                                ? getFinalInstallmentBlockingReasons(ticket, closureDraft)
-                                : [];
-                              const canConfirmPayment =
-                                canPay &&
-                                payment.status === 'approved' &&
-                                finalInstallmentBlockingReasons.length === 0;
-                              const paymentDraft = getPaymentDraft(ticket.id, payment);
-                              const grossPreview = parseCurrency(paymentDraft.grossValue || payment.grossValue || '0');
-                              const taxPreview = parseCurrency(paymentDraft.taxValue || payment.taxValue || '0');
-                              const netPreview = Math.max(0, grossPreview - taxPreview);
-                              const paymentKey = getPaymentDraftKey(ticket.id, payment.id);
-                              const isUploadingPaymentAttachment = uploadingPaymentKey === paymentKey;
-                              const paymentOutbox = (emailOutboxByTicket[ticket.id] || [])
-                                .find(item => item.paymentId === payment.id);
-                              const outboxProcessingKey = paymentOutbox
-                                ? `email:${ticket.id}:${paymentOutbox.id}`
-                                : '';
-
-                              return (
-                            <div key={payment.id} className="border border-roman-border rounded-sm bg-roman-surface px-4 py-3 space-y-3">
-                              <div className="flex-1">
-                                <div className="text-sm font-medium text-roman-text-main">{payment.label || `Lançamento ${payment.installmentNumber || 1}`}</div>
-                                <div className="text-xs text-roman-text-sub">
-                                  Marco registrado: {payment.milestonePercent || payment.releasedPercent || 0}% | Origem: {getBudgetSourceLabel(payment.budgetSource)} | Bruto: {payment.grossValue || '-'} | Impostos: {payment.taxValue || '-'} | Líquido: {payment.netValue || '-'} | vencimento {formatDateLabel(payment.dueAt)}
-                                </div>
-                                {payment.paidAt && <div className="text-xs text-roman-success mt-1">Pago em {formatDateLabel(payment.paidAt)}</div>}
-                                {payment.status === 'approved' && isFinalInstallment && finalInstallmentBlockingReasons.length > 0 && (
-                                  <div className="mt-2 rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-xs text-roman-text-main space-y-1">
-                                    <div className="font-medium">Último lançamento bloqueado até concluir o encerramento:</div>
-                                    {finalInstallmentBlockingReasons.map(reason => (
-                                      <div key={reason}>- {reason}</div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-roman-text-sub">
-                                <div>
-                                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Valor bruto</label>
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={paymentDraft.grossValue}
-                                    onChange={event => setPaymentDraft(ticket.id, payment, { grossValue: sanitizeCurrencyTypingInput(event.target.value) })}
-                                    onBlur={() => setPaymentDraft(ticket.id, payment, { grossValue: normalizeCurrencyInput(paymentDraft.grossValue) })}
-                                    disabled={payment.status === 'paid'}
-                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                                    placeholder="Ex: 1000,00"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Impostos</label>
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={paymentDraft.taxValue}
-                                    onChange={event => setPaymentDraft(ticket.id, payment, { taxValue: sanitizeCurrencyTypingInput(event.target.value) })}
-                                    onBlur={() => setPaymentDraft(ticket.id, payment, { taxValue: normalizeCurrencyInput(paymentDraft.taxValue) })}
-                                    disabled={payment.status === 'paid'}
-                                    className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                                    placeholder="Ex: 150,00"
-                                  />
-                                </div>
-                                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                                  <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Líquido calculado</div>
-                                  <div className="mt-1 text-sm font-semibold text-roman-text-main">{formatCurrency(netPreview)}</div>
-                                </div>
-                              </div>
-
-                                <div className="rounded-sm border border-roman-border bg-roman-bg px-3 py-3">
-                                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                  <div className="text-xs text-roman-text-sub">Anexos do lançamento (Excel, CSV, PDF, Word e imagens).</div>
-                                  <label className="inline-flex items-center gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
-                                    {isUploadingPaymentAttachment ? 'Enviando...' : 'Anexar arquivos'}
-                                    <input
-                                      type="file"
-                                      multiple
-                                      accept=".pdf,.doc,.docx,.csv,.xls,.xlsx,image/*"
-                                      className="hidden"
-                                      disabled={isUploadingPaymentAttachment || payment.status === 'paid'}
-                                      onChange={event => {
-                                        void handlePaymentAttachmentUpload(ticket.id, payment, event.target.files);
-                                        event.currentTarget.value = '';
-                                      }}
-                                    />
-                                  </label>
-                                </div>
-                                {(payment.attachments || []).length > 0 && (
-                                  <div className="mt-2 space-y-2">
-                                    {(payment.attachments || []).map(attachment => (
-                                      <div key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-xs">
-                                        <div className="min-w-0">
-                                          <div className="truncate font-medium text-roman-text-main">{attachment.name}</div>
-                                          <div className="text-roman-text-sub">{attachment.uploadedAt ? formatDateLabel(attachment.uploadedAt) : 'Sem data'}</div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                          <button
-                                            type="button"
-                                            onClick={() => openAttachment(
-                                              attachment.name || 'Anexo do pagamento',
-                                              getAttachmentPreviewKind(attachment.contentType, attachment.name),
-                                              {
-                                                url: attachment.url,
-                                                ticketId: ticket.id,
-                                                path: attachment.path,
-                                                driveFileId: attachment.driveFileId,
-                                              }
-                                            )}
-                                            className="text-roman-primary hover:underline"
-                                          >
-                                            Abrir
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => void handlePaymentAttachmentRemove(ticket.id, payment, attachment.id)}
-                                            disabled={isUploadingPaymentAttachment}
-                                            className="text-roman-danger hover:underline disabled:opacity-50"
-                                          >
-                                            Remover
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-
-                              {paymentOutbox && (
-                                <div className="flex flex-col gap-2 rounded-sm border border-roman-primary/35 bg-roman-primary/12 px-3 py-2 text-xs text-roman-text-main sm:flex-row sm:items-center sm:justify-between">
-                                  <div>
-                                    <div className="font-medium">
-                                      {paymentOutbox.status === 'processing'
-                                        ? 'E-mail financeiro em processamento'
-                                        : paymentOutbox.status === 'dead-letter'
-                                          ? 'E-mail exige intervenção administrativa'
-                                        : 'Pagamento registrado; e-mail financeiro pendente'}
-                                    </div>
-                                    <div className="mt-0.5 text-roman-primary">
-                                      {paymentOutbox.lastError ||
-                                        `Destinatários: ${paymentOutbox.recipients.join(', ')}`}
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleRetryPaymentEmail(ticket.id, paymentOutbox.id)}
-                                    disabled={
-                                      paymentOutbox.status === 'processing' ||
-                                      processingId === outboxProcessingKey
-                                    }
-                                    className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-sm border border-roman-primary/35 bg-roman-surface px-3 py-1.5 font-medium text-roman-text-main hover:bg-roman-primary/12 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {processingId === outboxProcessingKey ? (
-                                      <><Loader2 size={14} className="animate-spin" /> Reenviando...</>
-                                    ) : (
-                                      <><Mail size={14} /> Reenviar e-mail</>
-                                    )}
-                                  </button>
-                                </div>
-                              )}
-
-                              <div className="flex items-center justify-between gap-3">
-                                <span className={`text-xs font-medium px-2 py-1 rounded-sm border ${
-                                  payment.status === 'paid'
-                                    ? 'bg-roman-success/12 text-roman-success border-roman-success/35'
-                                    : payment.status === 'approved'
-                                      ? 'bg-roman-bg text-roman-text-sub border-roman-border'
-                                      : 'bg-roman-primary/12 text-roman-text-main border-roman-primary/35'
-                                }`}>
-                                  {payment.status === 'paid' ? 'Pago' : payment.status === 'approved' ? 'Liberada' : 'Pendente'}
-                                </span>
-                                <button
-                                  onClick={() => void handlePayInstallment(ticket.id, payment)}
-                                  disabled={!canConfirmPayment || processingId === `${ticket.id}:${payment.id}`}
-                                  className="px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {processingId === `${ticket.id}:${payment.id}` ? (
-                                    <><Loader2 size={14} className="animate-spin" /> Processando...</>
-                                  ) : payment.status === 'paid' ? (
-                                    <><CheckCircle size={14} /> Pago</>
-                                  ) : payment.status !== 'approved' ? (
-                                    <><DollarSign size={14} /> Aguardando avanço</>
-                                  ) : canConfirmPayment ? (
-                                    <><Mail size={14} /> Disparar Email</>
-                                  ) : isFinalInstallment && ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL ? (
-                                    <><DollarSign size={14} /> Aguardando solicitante</>
-                                  ) : isFinalInstallment && ticket.status === TICKET_STATUS.IN_PROGRESS ? (
-                                    <><DollarSign size={14} /> Aguardando conclusão</>
-                                  ) : (
-                                    <><DollarSign size={14} /> Preencher checklist</>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                              );
-                            })()
-                                ))}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </FinanceSection>
-                      </>
-                    )}
-
-                    {activeTab === 'guarantee' && (
-                    <FinanceSection
-                      title="Encerramento e garantia"
-                      description="Checklist final, laudos e período de garantia."
-                      icon={<CheckCircle size={14} />}
-                    >
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovalPrimary ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
-                          <input
-                            type="checkbox"
-                            checked={closureDraft.infrastructureApprovalPrimary}
-                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovalPrimary: e.target.checked })}
-                          />
-                          Aprovação de infraestrutura 1
-                        </label>
-                        <label className={`flex items-center gap-3 p-3 border rounded-sm text-sm ${closureDraft.infrastructureApprovalSecondary ? 'border-roman-primary bg-roman-primary/5 text-roman-primary' : 'border-roman-border text-roman-text-main'}`}>
-                          <input
-                            type="checkbox"
-                            checked={closureDraft.infrastructureApprovalSecondary}
-                            onChange={e => setClosureDraft(ticket.id, { infrastructureApprovalSecondary: e.target.checked })}
-                          />
-                          Aprovação de infraestrutura 2
-                        </label>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                        <div>
-                          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Início do serviço</label>
-                          <input
-                            type="date"
-                            value={closureDraft.serviceStartedAt}
-                            onChange={e => setClosureDraft(ticket.id, { serviceStartedAt: e.target.value })}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Término do serviço</label>
-                          <input
-                            type="date"
-                            value={closureDraft.serviceCompletedAt}
-                            onChange={e => setClosureDraft(ticket.id, { serviceCompletedAt: e.target.value })}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Garantia (meses)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="60"
-                            value={closureDraft.guaranteeMonths}
-                            onChange={e => setClosureDraft(ticket.id, { guaranteeMonths: e.target.value })}
-                            className="w-full border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1.5">Observações de encerramento</label>
-                        <textarea
-                          value={closureDraft.closureNotes}
-                          onChange={e => setClosureDraft(ticket.id, { closureNotes: e.target.value })}
-                          className="w-full min-h-24 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary resize-y"
-                          placeholder="Ex: laudo final anexado, direção comunicada, garantia de 12 meses para estrutura."
-                        />
-                      </div>
-
-                      {ticket.guarantee && (
-                        <div className="mt-4 border border-roman-border rounded-sm bg-roman-surface px-3 py-3 text-xs text-roman-text-sub">
-                          <div className="font-medium text-roman-text-main mb-1">Garantia atual</div>
-                          <div>Status: {ticket.guarantee.status === 'active' ? 'Ativa' : ticket.guarantee.status === 'expired' ? 'Expirada' : 'Pendente'}</div>
-                          <div>Início: {formatDateLabel(ticket.guarantee.startAt)}</div>
-                          <div>Fim: {formatDateLabel(ticket.guarantee.endAt)}</div>
-                        </div>
-                      )}
-                    </FinanceSection>
-                    )}
-
-                    {activeTab === 'documents' && (
-                      <FinanceSection
-                        title="Documentos do encerramento"
-                        description="Laudos, evidências e anexos da OS."
-                        icon={<FileText size={14} />}
-                      >
-                        <div className="border border-roman-border rounded-sm bg-roman-surface px-4 py-4">
-                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <div className="text-sm font-semibold text-roman-text-main">Laudos e anexos de encerramento</div>
-                              <div className="text-xs text-roman-text-sub mt-1">Envie PDF, Word, XML, planilhas e imagens para compor o encerramento.</div>
-                            </div>
-                            <label className="px-4 py-2 border border-roman-border rounded-sm text-sm font-medium text-roman-text-main hover:border-roman-primary cursor-pointer">
-                              {uploadingTicketId === ticket.id ? 'Enviando...' : 'Anexar documento'}
-                              <input
-                                type="file"
-                                accept=".pdf,.doc,.docx,.xml,.csv,.xls,.xlsx,.txt,image/*"
-                                className="hidden"
-                                disabled={uploadingTicketId === ticket.id}
-                                onChange={event => {
-                                  const file = event.target.files?.[0] || null;
-                                  void handleClosureDocumentUpload(ticket.id, file);
-                                  event.currentTarget.value = '';
-                                }}
-                              />
-                            </label>
-                          </div>
-
-                          {closureDocuments.length === 0 ? (
-                            <div className="mt-3 text-sm text-roman-text-sub font-serif italic">Nenhum laudo ou anexo vinculado ao encerramento.</div>
-                          ) : (
-                            <div className="mt-3 space-y-2">
-                              {closureDocuments.map(document => (
-                                <div key={document.id} className="border border-roman-border rounded-sm bg-roman-bg px-3 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                                  <div>
-                                    <div className="text-sm font-medium text-roman-text-main">{document.name}</div>
-                                    <div className="text-xs text-roman-text-sub">
-                                      {document.category === 'closure_report' ? 'Laudo / PDF' : 'Evidência'} | {document.size ? `${Math.round(document.size / 1024)} KB` : 'tamanho não informado'}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-xs text-roman-text-sub">{formatDateLabel(document.uploadedAt)}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => openAttachment(
-                                        document.name || 'Documento de encerramento',
-                                        getAttachmentPreviewKind(document.contentType, document.name),
-                                        {
-                                          url: document.url,
-                                          ticketId: ticket.id,
-                                          path: document.path,
-                                          driveFileId: document.driveFileId,
-                                        }
-                                      )}
-                                      className="text-sm font-medium text-roman-primary hover:underline"
-                                    >
-                                      Abrir
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleClosureDocumentRemove(ticket.id, document.id)}
-                                      disabled={uploadingTicketId === ticket.id}
-                                      className="inline-flex items-center gap-1 text-sm font-medium text-roman-danger hover:underline disabled:opacity-50"
-                                    >
-                                      <Trash2 size={14} />
-                                      Remover
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </FinanceSection>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {visibleFinanceTickets.length === 0 && (
-            <div className="text-center py-12 border border-dashed border-roman-border rounded-xl bg-roman-surface/70">
-              <CheckCircle size={32} className="mx-auto text-roman-border mb-4" />
-              <p className="text-roman-text-sub font-serif italic">
-                {financeSection === 'open'
-                  ? 'Nenhum fluxo financeiro pendente no momento.'
-                  : historyGuaranteeFilter === 'all'
-                    ? 'Nenhuma OS quitada no histórico financeiro.'
-                    : historyGuaranteeFilter === 'in_guarantee'
-                      ? 'Nenhuma OS quitada com garantia ativa no momento.'
-                      : 'Nenhuma OS quitada com garantia vencendo em 30 dias.'}
-              </p>
-            </div>
+        <div className="overflow-x-auto rounded-sm border border-roman-border bg-roman-surface">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead>
+              <tr className="border-b border-roman-border text-left text-[11px] uppercase tracking-widest text-roman-text-sub">
+                <th className="px-3 py-2 font-medium">OS</th>
+                <th className="px-3 py-2 font-medium">Assunto</th>
+                <th className="px-3 py-2 font-medium">Sede</th>
+                <th className="px-3 py-2 font-medium">Serviço</th>
+                <th className="px-3 py-2 font-medium">Etapa</th>
+                <th className="px-3 py-2 text-right font-medium">Orçado</th>
+                <th className="px-3 py-2 text-right font-medium">Realizado</th>
+                <th className="px-3 py-2 font-medium">Diferença</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recortadas.map(({ ticket, siteLabel, service, etapa: etapaDaLinha }) => (
+                <tr key={ticket.id} className="border-b border-roman-border/60 last:border-0 hover:bg-roman-bg/60">
+                  <td className="whitespace-nowrap px-3 py-2 font-medium text-roman-text-main">{ticket.id}</td>
+                  <td className="max-w-md px-3 py-2 text-roman-text-main">
+                    <span className="line-clamp-2">{repairMojibake(ticket.subject)}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-roman-text-sub">{siteLabel || '—'}</td>
+                  <td className="px-3 py-2 text-roman-text-sub">{service || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-roman-text-sub">{etapaDaLinha}</td>
+                  <td className="px-3 py-2 text-right">
+                    <CampoDeValor rotulo={`Valor orçado da ${ticket.id}`} valor={ticket.orcamento?.previsto} aoSalvar={v => salvar(ticket, 'previsto', v)} />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <CampoDeValor rotulo={`Valor realizado da ${ticket.id}`} valor={ticket.orcamento?.realizado} aoSalvar={v => salvar(ticket, 'realizado', v)} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2"><Variacao orcamento={ticket.orcamento} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {recortadas.length === 0 && (
+            <p className="px-3 py-6 text-center text-sm text-roman-text-sub">
+              {ticketsLoading ? 'Carregando…' : 'Nenhuma OS neste recorte.'}
+            </p>
           )}
         </div>
       </div>
-
-      <ModalShell
-        isOpen={paymentEmailModal !== null}
-        onClose={() => { if (!paymentEmailModal?.isSending) setPaymentEmailModal(null); }}
-        title="Disparar Email de Pagamento"
-        description={paymentEmailModal ? `${paymentEmailModal.ticketId} - Pagamento - ${paymentEmailModal.payment.label || `Lançamento ${paymentEmailModal.payment.installmentNumber || 1}`}` : ''}
-        maxWidthClass="max-w-lg"
-        footer={
-          paymentEmailModal && (
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPaymentEmailModal(null)}
-                disabled={paymentEmailModal.isSending}
-                className="w-full sm:w-auto px-4 py-2 border border-roman-border rounded-sm text-sm text-roman-text-main hover:bg-roman-bg transition-colors disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleConfirmPaymentEmail()}
-                disabled={paymentEmailModal.isSending || paymentEmailModal.recipients.length === 0 || paymentEmailModal.sendFeedbackType === 'success'}
-                className="w-full sm:w-auto px-4 py-2 bg-roman-sidebar hover:bg-roman-primary-hover text-white hover:text-roman-on-primary rounded-sm font-medium transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {paymentEmailModal.isSending ? (
-                  <><Loader2 size={14} className="animate-spin" /> Enviando...</>
-                ) : paymentEmailModal.sendFeedbackType === 'success' ? (
-                  <><CheckCircle size={14} /> Enviado</>
-                ) : (
-                  <><Mail size={14} /> Enviar Email e Confirmar</>
-                )}
-              </button>
-            </div>
-          )
-        }
-      >
-        {paymentEmailModal && (
-          <div className="space-y-4">
-            {paymentEmailModal.sendFeedbackType && (
-              <div
-                className={`rounded-sm border px-4 py-2 text-sm ${
-                  paymentEmailModal.sendFeedbackType === 'success'
-                    ? 'border-roman-success/35 bg-roman-success/12 text-roman-success'
-                    : 'border-roman-danger/35 bg-roman-danger/12 text-roman-danger'
-                }`}
-              >
-                {paymentEmailModal.sendFeedbackMessage}
-              </div>
-            )}
-            {/* Bruto, imposto e líquido são três valores empilhados que a pessoa
-                compara na vertical — é o caso em que a largura desigual dos dígitos
-                da Manrope (o "1" é 35% mais estreito que o "0") desalinha a coluna. */}
-            <div className="rounded-sm border border-roman-border bg-roman-bg px-4 py-3 space-y-1 text-sm tabular-nums">
-              <div className="flex justify-between">
-                <span className="text-roman-text-sub">Valor bruto</span>
-                <span className="font-medium text-roman-text-main">{formatCurrency(paymentEmailModal.grossAmount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-roman-text-sub">Imposto</span>
-                <span className="font-medium text-roman-text-main">{formatCurrency(paymentEmailModal.taxAmount)}</span>
-              </div>
-              <div className="flex justify-between border-t border-roman-border pt-1 mt-1">
-                <span className="text-roman-text-sub font-medium">Valor a pagar (líquido)</span>
-                <span className="font-semibold text-roman-text-main">{formatCurrency(paymentEmailModal.netAmount)}</span>
-              </div>
-              {(paymentEmailModal.payment.attachments || []).length > 0 && (
-                <div className="border-t border-roman-border pt-2 mt-1">
-                  <div className="text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-1">Anexos incluídos</div>
-                  {(paymentEmailModal.payment.attachments || []).map(attachment => (
-                    <div key={attachment.id} className="text-xs text-roman-text-sub truncate">• {attachment.name}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub mb-2">
-                Destinatários
-              </label>
-              <p className="mb-2 text-[11px] text-roman-text-sub">Pré-carrega os e-mails configurados e os últimos usados no financeiro.</p>
-              {paymentEmailModal.recipients.length === 0 && (
-                <p className="text-xs text-roman-primary mb-2">Nenhum destinatário configurado. Adicione ao menos um email.</p>
-              )}
-              <div className="space-y-1.5 mb-3">
-                {paymentEmailModal.recipients.map((email, index) => (
-                  <div key={index} className="flex items-center justify-between gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm">
-                    <span className="truncate text-roman-text-main">{email}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPaymentEmailModal(prev => {
-                          if (!prev) return null;
-                          const nextRecipients = prev.recipients.filter((_, i) => i !== index);
-                          writeStoredFinanceRecipients(nextRecipients);
-                          return {
-                            ...prev,
-                            recipients: nextRecipients,
-                          };
-                        })
-                      }
-                      disabled={paymentEmailModal.isSending}
-                      className="text-roman-danger hover:text-roman-danger transition-colors flex-shrink-0 disabled:opacity-50"
-                      aria-label={`Remover ${email}`}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={paymentEmailModal.newRecipient}
-                  onChange={e => setPaymentEmailModal(prev => prev ? { ...prev, newRecipient: e.target.value } : null)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const email = normalizeRecipientEmail(paymentEmailModal.newRecipient);
-                      if (!email || !email.includes('@')) return;
-                      setPaymentEmailModal(prev => {
-                        if (!prev) return null;
-                        const nextRecipients = mergeRecipientEmails(prev.recipients, [email]);
-                        writeStoredFinanceRecipients(nextRecipients);
-                        return { ...prev, recipients: nextRecipients, newRecipient: '' };
-                      });
-                    }
-                  }}
-                  disabled={paymentEmailModal.isSending}
-                  placeholder="email@exemplo.com"
-                  className="flex-1 min-w-0 border border-roman-border rounded-sm px-3 py-2 bg-roman-bg text-sm text-roman-text-main outline-none focus:border-roman-primary disabled:opacity-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const email = normalizeRecipientEmail(paymentEmailModal.newRecipient);
-                    if (!email || !email.includes('@')) return;
-                    setPaymentEmailModal(prev => {
-                      if (!prev) return null;
-                      const nextRecipients = mergeRecipientEmails(prev.recipients, [email]);
-                      writeStoredFinanceRecipients(nextRecipients);
-                      return { ...prev, recipients: nextRecipients, newRecipient: '' };
-                    });
-                  }}
-                  disabled={paymentEmailModal.isSending || !paymentEmailModal.newRecipient.trim().includes('@')}
-                  className="flex-shrink-0 px-3 py-2 border border-roman-border rounded-sm text-sm text-roman-text-main hover:bg-roman-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                >
-                  <Plus size={14} /> Adicionar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </ModalShell>
     </div>
   );
 }

@@ -50,6 +50,12 @@ export const ALLOWED_TICKET_PATCH_FIELDS = new Set([
   // do servidor — por isso o painel grava.
   'followUpRequestedAt',
   'preliminaryActions', 'closureChecklist', 'executionProgress', 'guarantee',
+  // Orçado e realizado da OS. OPERACIONAL, não territorial: registrar quanto custou
+  // não move a OS de sede, então o Gestor grava — e só dentro do território dele, que
+  // o `canUserAccessTicket` do handler já confere. O Diretor NÃO entra: o painel novo
+  // não tem aprovação, e dar escrita a quem só aprovava seria reconstruir o fluxo que
+  // acabou de ser tirado.
+  'orcamento',
   ...TERRITORY_PATCH_FIELDS,
 ]);
 

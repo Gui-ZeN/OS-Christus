@@ -1,0 +1,134 @@
+import { parseCurrencyOrNull } from '../../../api/_lib/currency.js';
+import type { OrcamentoDaOs, Ticket } from '../../types';
+
+/**
+ * A CONTA DO ORÇAMENTO — orçado, realizado, e a diferença entre os dois.
+ *
+ * Puro, sem tela e sem Firestore, porque é dinheiro: a regra tem que ser afirmável
+ * com objetos soltos. O painel anterior tinha 2.293 linhas e nenhum teste sobre o
+ * número que ele mostrava.
+ *
+ * ⚠️ `parseCurrencyOrNull` E NÃO `parseCurrency`. O segundo devolve 0 para entrada
+ * inválida, e aqui zero é uma resposta legítima ("custou nada") que não pode se
+ * confundir com "não deu para ler". A distinção é o assunto deste arquivo inteiro.
+ */
+
+/** O que a pessoa digitou, lido como número. `null` = vazio ou ilegível. */
+export const valorDe = (texto?: string | null): number | null => parseCurrencyOrNull(texto);
+
+export interface Variacao {
+  /** Realizado menos orçado. Negativo = gastou menos que o previsto. */
+  diferenca: number;
+  /** Fração, não porcentagem: 0.1 é 10% acima. `null` quando o orçado é zero. */
+  fracao: number | null;
+}
+
+/**
+ * ⚠️ SÓ EXISTE COM OS DOIS LADOS PREENCHIDOS.
+ *
+ * Faltando um, a resposta é `null` — e não zero, e não "-100%". Uma OS orçada em
+ * R$ 2.000 e ainda não paga mostraria "-100% (economizou tudo)" se o vazio virasse
+ * zero, e essa linha entraria na soma de economia do período. É o erro que faz um
+ * painel financeiro mentir para cima.
+ *
+ * ⚠️ E A FRAÇÃO É `null` QUANDO O ORÇADO É ZERO. Dividir por zero dá `Infinity`, que
+ * o `Intl` formata como "∞%" sem reclamar. A diferença em reais continua valendo:
+ * orçado 0 e realizado 500 é um gasto de R$ 500 que ninguém previu, e o número que
+ * conta ali é o 500.
+ */
+export function variacaoDe(orcamento?: OrcamentoDaOs | null): Variacao | null {
+  const previsto = valorDe(orcamento?.previsto);
+  const realizado = valorDe(orcamento?.realizado);
+  if (previsto === null || realizado === null) return null;
+  return {
+    diferenca: realizado - previsto,
+    fracao: previsto === 0 ? null : (realizado - previsto) / previsto,
+  };
+}
+
+/** Estado de preenchimento — é o que a tela usa para dizer o que falta. */
+export type EstadoDoOrcamento = 'vazio' | 'so-previsto' | 'so-realizado' | 'completo';
+
+export function estadoDoOrcamento(orcamento?: OrcamentoDaOs | null): EstadoDoOrcamento {
+  const temPrevisto = valorDe(orcamento?.previsto) !== null;
+  const temRealizado = valorDe(orcamento?.realizado) !== null;
+  if (temPrevisto && temRealizado) return 'completo';
+  if (temPrevisto) return 'so-previsto';
+  if (temRealizado) return 'so-realizado';
+  return 'vazio';
+}
+
+export interface ResumoDoOrcamento {
+  /** Quantas OS do recorte têm algum valor registrado. */
+  comRegistro: number;
+  /** Quantas não têm nada — o número que diz se o painel está sendo usado. */
+  semRegistro: number;
+  previsto: number;
+  realizado: number;
+  /** Só das OS com os DOIS lados. Somar variação de OS meia-preenchida seria somar ruído. */
+  diferencaComparavel: number;
+  /** Quantas entraram na conta acima. Sem isto, "diferença: R$ 0" não distingue
+   *  "bateu certinho" de "não havia nada para comparar". */
+  comparaveis: number;
+}
+
+/**
+ * ⚠️ AS SOMAS SÃO PARCIAIS DE PROPÓSITO, e a tela precisa dizer isso.
+ *
+ * `previsto` soma o que tem previsto; `realizado`, o que tem realizado. Os dois
+ * conjuntos podem ser diferentes, então subtrair um do outro NÃO dá a economia do
+ * período — dá a diferença entre duas amostras distintas. Quem quer a comparação usa
+ * `diferencaComparavel`, que só olha OS com os dois lados.
+ */
+export function resumoDoOrcamento(tickets: Array<Pick<Ticket, 'orcamento'>>): ResumoDoOrcamento {
+  const resumo: ResumoDoOrcamento = {
+    comRegistro: 0,
+    semRegistro: 0,
+    previsto: 0,
+    realizado: 0,
+    diferencaComparavel: 0,
+    comparaveis: 0,
+  };
+
+  for (const ticket of tickets) {
+    const previsto = valorDe(ticket.orcamento?.previsto);
+    const realizado = valorDe(ticket.orcamento?.realizado);
+    if (previsto === null && realizado === null) {
+      resumo.semRegistro += 1;
+      continue;
+    }
+    resumo.comRegistro += 1;
+    if (previsto !== null) resumo.previsto += previsto;
+    if (realizado !== null) resumo.realizado += realizado;
+    if (previsto !== null && realizado !== null) {
+      resumo.comparaveis += 1;
+      resumo.diferencaComparavel += realizado - previsto;
+    }
+  }
+  return resumo;
+}
+
+/**
+ * O que vai gravado quando alguém salva.
+ *
+ * ⚠️ CAMPO APAGADO VIRA `null`, e não some do objeto. `{...antigo, ...novo}` no
+ * Firestore com a chave ausente MANTÉM o valor velho — quem limpasse o realizado
+ * veria o número voltar no reload, sem erro nenhum.
+ */
+export function orcamentoParaGravar(
+  atual: OrcamentoDaOs | undefined,
+  entrada: { previsto?: string | null; realizado?: string | null },
+  quem: string,
+  agora: Date = new Date()
+): OrcamentoDaOs {
+  const limpo = (v?: string | null) => {
+    const texto = String(v ?? '').trim();
+    return texto ? texto : null;
+  };
+  return {
+    previsto: 'previsto' in entrada ? limpo(entrada.previsto) : (atual?.previsto ?? null),
+    realizado: 'realizado' in entrada ? limpo(entrada.realizado) : (atual?.realizado ?? null),
+    atualizadoEm: agora.toISOString(),
+    atualizadoPor: quem || null,
+  };
+}
