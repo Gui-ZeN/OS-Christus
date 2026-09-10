@@ -11,6 +11,7 @@ import { getTicketSiteLabel } from '../utils/ticketTerritory';
 import { ORDEM_DAS_ETAPAS, etapaDe as etapaDoStatus } from '../../api/_lib/etapas.js';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { FiltroMultiplo, type OpcaoDeFiltro } from '../components/ui/FiltroMultiplo';
 import { coerceDate, formatDateTimeSafe, formatShortDate } from '../utils/date';
 import { contarAcontecidos, contarMarcos, lerMarcos } from '../utils/marcos';
 import { matchesSearch } from '../utils/search';
@@ -19,11 +20,13 @@ import type { Ticket } from '../types';
 import { ConversaModal } from './osboard/ConversaModal';
 import { EtapaModal } from './osboard/EtapaModal';
 import { ProximaAcaoModal } from './osboard/ProximaAcaoModal';
+import { passaNoRecorte } from './osboard/recorte';
 import { ResponsavelModal } from './osboard/ResponsavelModal';
 import { repairMojibake } from '../utils/text';
 
-const ALL = 'all';
 const NONE = 'none';
+/** Sede, equipe e etapa são o próprio rótulo — só o responsável separa valor de nome. */
+const comoOpcoes = (valores: string[]): OpcaoDeFiltro[] => valores.map(v => ({ value: v, label: v }));
 // Ordem de leitura pelas SEIS etapas, não pelos treze status do banco.
 const STATUS_ORDER = ORDEM_DAS_ETAPAS as string[];
 
@@ -250,7 +253,12 @@ export function OsBoardView() {
       const r = d.ticket.responsible;
       if (r?.email) porEmail.set(r.email, r.name || r.email);
     });
-    return [...porEmail.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+    const gente = [...porEmail.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+    // "Sem responsável" encabeça a lista porque é a pergunta que o campo existe para
+    // responder, e agora ela SOMA com nomes: "as do Cezar e as de ninguém".
+    return [{ value: NONE, label: 'Sem responsável' }, ...gente];
   }, [decorated]);
   const statusOptions = useMemo(() => {
     // Etapa, não status: com treze opções a lista tinha nomes que a equipe não usa,
@@ -264,19 +272,22 @@ export function OsBoardView() {
   }, [tickets]);
 
   const filtered = useMemo(() => {
+    const escolhas = { sede, macroService, service, team, status, responsible };
+
     return decorated.filter(entry => {
-      if (sede !== ALL && entry.siteLabel !== sede) return false;
-      if (macroService !== ALL && entry.macro !== macroService) return false;
-      if (service !== ALL && entry.service !== service) return false;
-      if (team !== ALL && entry.team !== team) return false;
-      if (status !== ALL && etapaDoStatus(entry.ticket.status) !== status) return false;
-      // `none` é filtro de primeira classe: "quais OS ninguém assumiu" é a pergunta
-      // que o campo existe para responder, e ela não cabe numa lista de e-mails.
-      if (responsible === NONE && entry.ticket.responsible?.email) return false;
-      if (responsible !== ALL && responsible !== NONE && entry.ticket.responsible?.email !== responsible) return false;
+      // As seis categorias moram em `osboard/recorte.ts`: vazio-é-tudo, OU dentro da
+      // dimensão e E entre elas são três convenções que não gritam quando quebram.
+      if (!passaNoRecorte({
+        siteLabel: entry.siteLabel,
+        macro: entry.macro,
+        service: entry.service,
+        team: entry.team,
+        etapa: etapaDoStatus(entry.ticket.status),
+        responsibleEmail: entry.ticket.responsible?.email,
+      }, escolhas)) return false;
       // Encerrada/Cancelada só entram com a caixa marcada — a não ser que a pessoa
       // tenha filtrado explicitamente por uma delas, quando esconder seria absurdo.
-      if (!showClosed && status === ALL && !isTicketOpen(entry.ticket.status)) return false;
+      if (!showClosed && status.length === 0 && !isTicketOpen(entry.ticket.status)) return false;
       // A sede entra no que é vasculhado de propósito: colar o título do Gmail traz
       // junto o `[SUL 3]`, que foi removido do assunto ao criar a OS. Sem ela na
       // busca, o termo colado nunca casa. Ver src/utils/search.ts.
@@ -394,9 +405,11 @@ export function OsBoardView() {
         // afirmação falsa para quem recebe o arquivo sem ter visto a tela.
         filtros: {
           sede, macroServico: macroService, servico: service, equipe: team,
-          responsavel: responsible === NONE
-            ? 'sem responsável'
-            : (responsibleOptions.find(([email]) => email === responsible)?.[1] || responsible),
+          // Nomes, e não e-mails: o papel circula para quem não conhece o endereço
+          // de ninguém. `responsibleOptions` já traz "Sem responsável" como rótulo.
+          responsavel: responsible.map(
+            valor => responsibleOptions.find(o => o.value === valor)?.label || valor
+          ),
           etapa: status, busca: search, travadas: bloqueadas, agua,
           mostrarEncerradas: showClosed, ordem,
         },
@@ -418,7 +431,8 @@ export function OsBoardView() {
   };
 
   const hasActiveFilter =
-    sede !== ALL || macroService !== ALL || service !== ALL || team !== ALL || status !== ALL || responsible !== ALL || search.trim() !== '' || showClosed || bloqueadas || agua;
+    sede.length > 0 || macroService.length > 0 || service.length > 0 || team.length > 0 ||
+    status.length > 0 || responsible.length > 0 || search.trim() !== '' || showClosed || bloqueadas || agua;
   /*
    * Quantos filtros estão ligados — o número que o botão "Filtros" leva no telefone.
    *
@@ -427,19 +441,25 @@ export function OsBoardView() {
    * pessoa está enxergando, e o número existe justamente para avisar do que ela NÃO
    * está enxergando.
    */
+  /*
+   * ⚠️ CONTA DIMENSÕES LIGADAS, não valores marcados. Escolher três sedes é UM
+   * filtro — o botão diria "(3)" para uma pessoa que fez uma escolha só, e o número
+   * existe para dizer quantas perguntas estão estreitando a fila, não quantos
+   * cliques deram.
+   */
   const filtrosAtivos = [
-    sede !== ALL,
-    macroService !== ALL,
-    service !== ALL,
-    team !== ALL,
-    status !== ALL,
-    responsible !== ALL,
+    sede.length > 0,
+    macroService.length > 0,
+    service.length > 0,
+    team.length > 0,
+    status.length > 0,
+    responsible.length > 0,
     showClosed,
     bloqueadas,
     agua,
   ].filter(Boolean).length;
   const clearFilters = () =>
-    setOsBoardFilter({ search: '', sede: ALL, macroService: ALL, service: ALL, team: ALL, status: ALL, responsible: ALL, showClosed: false, bloqueadas: false, agua: false, ordem });
+    setOsBoardFilter({ search: '', sede: [], macroService: [], service: [], team: [], status: [], responsible: [], showClosed: false, bloqueadas: false, agua: false, ordem });
 
   const selectClass =
     'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
@@ -514,43 +534,18 @@ export function OsBoardView() {
         <div
           className={`${filtrosAbertos ? 'flex' : 'hidden'} w-full flex-wrap items-center gap-2 md:contents`}
         >
-        <select value={sede} onChange={e => setFilter({ sede: e.target.value })} className={selectClass} aria-label="Filtrar por sede">
-          <option value={ALL}>Sede: todas</option>
-          {sedeOptions.map(option => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-        <select value={macroService} onChange={e => setFilter({ macroService: e.target.value })} className={selectClass} aria-label="Filtrar por macroserviço">
-          <option value={ALL}>Macroserviço: todos</option>
-          {macroOptions.map(option => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-        <select value={service} onChange={e => setFilter({ service: e.target.value })} className={selectClass} aria-label="Filtrar por serviço">
-          <option value={ALL}>Serviço: todos</option>
-          {serviceOptions.map(option => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-        <select value={team} onChange={e => setFilter({ team: e.target.value })} className={selectClass} aria-label="Filtrar por equipe">
-          <option value={ALL}>Equipe: todas</option>
-          {teamOptions.map(option => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
-        <select value={responsible} onChange={e => setFilter({ responsible: e.target.value })} className={selectClass} aria-label="Filtrar por responsável">
-          <option value={ALL}>Responsável: todos</option>
-          <option value={NONE}>Sem responsável</option>
-          {responsibleOptions.map(([email, nome]) => (
-            <option key={email} value={email}>{nome}</option>
-          ))}
-        </select>
-        <select value={status} onChange={e => setFilter({ status: e.target.value })} className={selectClass} aria-label="Filtrar por status">
-          <option value={ALL}>Status: todos</option>
-          {statusOptions.map(option => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
+        <FiltroMultiplo rotulo="Sede" todos="todas" className={selectClass}
+          opcoes={comoOpcoes(sedeOptions)} selecionados={sede} onChange={v => setFilter({ sede: v })} />
+        <FiltroMultiplo rotulo="Macroserviço" todos="todos" className={selectClass}
+          opcoes={comoOpcoes(macroOptions)} selecionados={macroService} onChange={v => setFilter({ macroService: v })} />
+        <FiltroMultiplo rotulo="Serviço" todos="todos" className={selectClass}
+          opcoes={comoOpcoes(serviceOptions)} selecionados={service} onChange={v => setFilter({ service: v })} />
+        <FiltroMultiplo rotulo="Equipe" todos="todas" className={selectClass}
+          opcoes={comoOpcoes(teamOptions)} selecionados={team} onChange={v => setFilter({ team: v })} />
+        <FiltroMultiplo rotulo="Responsável" todos="todos" className={selectClass}
+          opcoes={responsibleOptions} selecionados={responsible} onChange={v => setFilter({ responsible: v })} />
+        <FiltroMultiplo rotulo="Etapa" todos="todas" className={selectClass}
+          opcoes={comoOpcoes(statusOptions)} selecionados={status} onChange={v => setFilter({ status: v })} />
         {/* Atalho, não mais um seletor: a pergunta "o que está travado" é a que a
             fila faz todo dia, e o selo de bloqueio na linha mostrava o problema um a
             um sem dar como juntá-los. Conta na hora — número fixo mente na semana

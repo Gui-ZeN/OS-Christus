@@ -4,6 +4,10 @@ import { AlertTriangle, BarChart2, Plus, Users } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { TICKET_STATUS } from '../constants/ticketStatus';
+// O cartão CONTA por status (é o que o banco grava) e ABRE a Gestão por etapa (é o
+// que a fila filtra). Os dois vocabulários convivem, e misturá-los é o defeito que
+// está descrito em `abrirGestao`.
+import { ETAPA } from '../../api/_lib/etapas.js';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
 import { formatDateTimeSafe } from '../utils/date';
@@ -44,16 +48,28 @@ export function HomeView() {
    * Abre a Gestão já filtrada. Limpa o resto do filtro de propósito: cartão que
    * herda seleção anterior mostra um número na tela inicial e outro na tabela, e
    * quem clicou conclui que o sistema perdeu OS.
+   *
+   * ⚠️ `status` AQUI É ETAPA, não status do banco (04/09/2026).
+   *
+   * Os cartões mandavam `TICKET_STATUS.WAITING_BUDGET` ("Aguardando Orçamento"),
+   * mas a Gestão compara com `etapaDe(status)` — "Em orçamento". Nunca casava:
+   * cinco dos seis cartões que filtram por status abriam uma lista VAZIA, e o único
+   * que funcionava era "Nova OS", cujo nome é igual nos dois vocabulários. Quem
+   * clicava num número diferente de zero via zero, e é assim que se conclui que o
+   * sistema perdeu OS — exatamente o que o parágrafo acima queria evitar.
+   *
+   * O cartão continua CONTANDO por status (é o que o banco grava); só o que ele
+   * manda para a fila virou etapa.
    */
   const abrirGestao = (patch: Partial<OsBoardFilter>) => {
     setOsBoardFilter({
       search: '',
-      sede: 'all',
-      macroService: 'all',
-      service: 'all',
-      team: 'all',
-      status: 'all',
-      responsible: 'all',
+      sede: [],
+      macroService: [],
+      service: [],
+      team: [],
+      status: [],
+      responsible: [],
       showClosed: false,
       bloqueadas: false,
       agua: false,
@@ -168,7 +184,7 @@ export function HomeView() {
         title: 'Aguardando orçamento',
         subtitle: 'esperando composição financeira.',
         count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
-        action: () => abrirGestao({ status: TICKET_STATUS.WAITING_BUDGET }),
+        action: () => abrirGestao({ status: [ETAPA.ORCAMENTO] }),
       } : null,
       canOperate ? {
         key: 'payment',
@@ -186,7 +202,7 @@ export function HomeView() {
           ticket.status === TICKET_STATUS.IN_PROGRESS ||
           ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
         ).length,
-        action: () => abrirGestao({ status: TICKET_STATUS.IN_PROGRESS }),
+        action: () => abrirGestao({ status: [ETAPA.EXECUCAO] }),
       } : null,
     ]
       .filter((item): item is NonNullable<typeof item> => Boolean(item) && item.count > 0)
@@ -277,7 +293,7 @@ export function HomeView() {
                 value={String(stats.aguardandoParecer)}
                 subtitle="a fila que segura o resto"
                 highlight
-                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.WAITING_TECH_OPINION }) : undefined}
+                onClick={canOperate ? () => abrirGestao({ status: [ETAPA.ANALISE] }) : undefined}
               />
             )}
             {stats.travadas > 0 && (
@@ -293,7 +309,7 @@ export function HomeView() {
                 title="Sem responsável"
                 value={String(stats.semResponsavel)}
                 subtitle="ninguém respondendo por elas"
-                onClick={canOperate ? () => abrirGestao({ responsible: 'none' }) : undefined}
+                onClick={canOperate ? () => abrirGestao({ responsible: ['none'] }) : undefined}
               />
             )}
             {stats.novas > 0 && (
@@ -301,7 +317,7 @@ export function HomeView() {
                 title="Novas OS"
                 value={String(stats.novas)}
                 subtitle="ainda não triadas"
-                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.NEW }) : undefined}
+                onClick={canOperate ? () => abrirGestao({ status: [ETAPA.NOVA] }) : undefined}
               />
             )}
           </div>
@@ -535,7 +551,12 @@ export function HomeView() {
                 title="Entrega aguardando aceite"
                 value={String(entregas.aguardandoAceite)}
                 subtitle="Obras prontas para fechamento"
-                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL }) : undefined}
+                // ⚠️ A LISTA VEM MAIS LARGA QUE O NÚMERO, e não há como não vir: a
+                // Gestão filtra por etapa, e "aguardando aprovação da manutenção"
+                // não é etapa — mora dentro de "Em execução" junto com o resto da
+                // obra. Superconjunto com o filtro à vista é pior que exato e
+                // melhor que a lista vazia que este cartão abria.
+                onClick={canOperate ? () => abrirGestao({ status: [ETAPA.EXECUCAO] }) : undefined}
               />
             )}
             {entregas.emCampo > 0 && (
@@ -543,7 +564,7 @@ export function HomeView() {
                 title="Obras em campo"
                 value={String(entregas.emCampo)}
                 subtitle="Execução ativa agora"
-                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.IN_PROGRESS }) : undefined}
+                onClick={canOperate ? () => abrirGestao({ status: [ETAPA.EXECUCAO] }) : undefined}
               />
             )}
             {entregas.finalizadas > 0 && (
@@ -551,11 +572,11 @@ export function HomeView() {
                 title="Entregas finalizadas"
                 value={String(entregas.finalizadas)}
                 subtitle="OS já encerradas"
-                // `showClosed` só esconde encerradas quando o status é "todos"
-                // (OsBoardView:136) — filtrar por Encerrada já as revela. Ligado
-                // mesmo assim para que limpar o status na tabela não faça a lista
-                // sumir na cara de quem acabou de chegar por este cartão.
-                onClick={canOperate ? () => abrirGestao({ status: TICKET_STATUS.CLOSED, showClosed: true }) : undefined}
+                // `showClosed` só esconde encerradas quando não há etapa escolhida —
+                // filtrar por Concluída já as revela. Ligado mesmo assim para que
+                // limpar a etapa na tabela não faça a lista sumir na cara de quem
+                // acabou de chegar por este cartão.
+                onClick={canOperate ? () => abrirGestao({ status: [ETAPA.CONCLUIDA], showClosed: true }) : undefined}
               />
             )}
           </div>

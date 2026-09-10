@@ -108,15 +108,27 @@ export interface TicketAttention {
   setAt?: Date;
 }
 
+/**
+ * ⚠️ OS SEIS CAMPOS DE CATEGORIA SÃO LISTAS, e lista vazia quer dizer TODAS.
+ *
+ * Eram `string` com o sentinela `'all'`, e isso decidia a pergunta que a fila
+ * conseguia fazer: dava para ver o Sul 1, não dava para ver "Sul 1 e Sul 3". Quem
+ * cuida de duas sedes filtrava uma, lia, filtrava a outra e somava de cabeça.
+ *
+ * Vazio-é-tudo, e não uma lista com todos os valores marcados, porque a lista de
+ * opções sai das OS existentes: com "todos marcados" gravado, a OS de uma sede nova
+ * nasceria escondida — ninguém marcou aquela sede, ela nunca existiu na tela.
+ * É a mesma convenção que o `InboxFilter` abaixo já usava.
+ */
 export interface OsBoardFilter {
   search: string;
-  sede: string;
-  macroService: string;
-  service: string;
-  team: string;
-  status: string;
-  /** E-mail do responsável, `all`, ou `none` para "sem responsável". */
-  responsible: string;
+  sede: string[];
+  macroService: string[];
+  service: string[];
+  team: string[];
+  /** E-mails dos responsáveis; `none` na lista significa "sem responsável". */
+  responsible: string[];
+  status: string[];
   showClosed: boolean;
   /**
    * Só o bloqueio que impede a OS de avançar. Filtro de primeira classe porque é a

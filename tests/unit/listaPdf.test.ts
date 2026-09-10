@@ -28,6 +28,27 @@ describe('o recorte escrito no cabeçalho', () => {
     expect(r.contagem).toBe('15 de 207 OS');
   });
 
+  it('escreve as várias escolhas da mesma dimensão numa linha só', () => {
+    // A tela virou múltipla escolha; o papel precisa dizer o recorte INTEIRO. "Sede:
+    // SUL 1" num documento gerado com duas sedes é uma afirmação falsa sobre a
+    // contagem, e é o documento que circula por e-mail sem a tela do lado.
+    const r = descreverRecorte(
+      { sede: ['SUL 1', 'SUL 3'], etapa: ['Em orçamento', 'Em execução'] },
+      { total: 207, exibidas: 31 },
+    );
+    expect(r.filtros).toContain('Sede: SUL 1, SUL 3');
+    expect(r.filtros).toContain('Etapa: Em orçamento, Em execução');
+  });
+
+  it('lista vazia é "não estreitou", e não uma linha em branco', () => {
+    // Vazio-é-tudo é a convenção da tela. Se o array vazio virasse texto por acaso,
+    // o cabeçalho anunciaria um filtro que ninguém ligou.
+    const r = descreverRecorte({ sede: [], equipe: [], etapa: ['Em orçamento'] }, { total: 207, exibidas: 15 });
+    expect(r.filtros).toContain('Etapa: Em orçamento');
+    expect(r.filtros).not.toContain('Sede:');
+    expect(r.filtros).not.toContain('Equipe:');
+  });
+
   it('diz que não há filtro em vez de deixar a linha em branco', () => {
     // Linha vazia se lê como "o filtro se perdeu"; a frase se lê como escopo inteiro.
     expect(descreverRecorte({}, { total: 207, exibidas: 207 }).filtros).toContain('Sem filtros');

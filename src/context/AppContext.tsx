@@ -66,12 +66,14 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const DEFAULT_OS_BOARD_FILTER: OsBoardFilter = {
   search: '',
-  sede: 'all',
-  macroService: 'all',
-  service: 'all',
-  team: 'all',
-  status: 'all',
-  responsible: 'all',
+  // Listas vazias = todas. Ver o comentário do tipo: com os valores todos marcados,
+  // a OS de uma sede nova nasceria fora da tela.
+  sede: [],
+  macroService: [],
+  service: [],
+  team: [],
+  status: [],
+  responsible: [],
   // Encerradas e canceladas ficam FORA por padrão: são 65 das 268 OS, e quem abre
   // a Gestão está olhando o que ainda dá trabalho.
   showClosed: false,

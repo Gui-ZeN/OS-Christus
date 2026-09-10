@@ -283,8 +283,8 @@ export function TodayView() {
    *  pessoa chegaria numa lista inteira sem entender por que clicou. */
   const abrirAgua = useCallback(() => {
     setOsBoardFilter({
-      search: '', sede: 'all', macroService: 'all', service: 'all', team: 'all',
-      status: 'all', responsible: 'all', showClosed: false, bloqueadas: false,
+      search: '', sede: [], macroService: [], service: [], team: [],
+      status: [], responsible: [], showClosed: false, bloqueadas: false,
       agua: true, ordem: 'parada',
     });
     navigateTo('os-board');
@@ -708,7 +708,7 @@ export function TodayView() {
             <button
               type="button"
               onClick={() => {
-                setOsBoardFilter({ ...osBoardFilter, responsible: 'none' });
+                setOsBoardFilter({ ...osBoardFilter, responsible: ['none'] });
                 navigateTo('os-board');
               }}
               className="inline-flex items-center gap-1.5 rounded-sm bg-roman-primary px-3 py-2 text-sm font-medium text-roman-on-primary hover:bg-roman-primary"

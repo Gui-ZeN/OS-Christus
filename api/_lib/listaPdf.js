@@ -27,9 +27,22 @@ export function descreverRecorte(filtros = {}, { total = 0, exibidas = 0 } = {})
   // a fila esconde encerradas por padrão e tem uma ordem. Misturar os dois fazia o
   // ramo "sem filtro" virar código morto, porque a lista nunca ficava vazia.
   const estreita = [];
+  /**
+   * ⚠️ ACEITA LISTA, porque a tela virou múltipla escolha (04/09/2026).
+   *
+   * "Sede: SUL 1, SUL 3" é o recorte inteiro numa linha. Sem tratar o array, o
+   * `String([...])` dá "SUL 1,SUL 3" sem espaço — e, pior, um array VAZIO viraria a
+   * string vazia por acaso e não por regra. Aqui vazio é "não estreitou", que é a
+   * mesma leitura da tela.
+   *
+   * O `'todas'/'todos'` continua reconhecido: o servidor recebe o que o cliente
+   * mandar, e um cliente antigo em cache ainda manda a string sentinela.
+   */
   const põe = (rotulo, valor) => {
-    const v = String(valor ?? '').trim();
-    if (v && v !== 'todas' && v !== 'todos') estreita.push(`${rotulo}: ${v}`);
+    const itens = (Array.isArray(valor) ? valor : [valor])
+      .map(v => String(v ?? '').trim())
+      .filter(v => v && v !== 'todas' && v !== 'todos');
+    if (itens.length) estreita.push(`${rotulo}: ${itens.join(', ')}`);
   };
   põe('Sede', filtros.sede);
   põe('Macroserviço', filtros.macroServico);
