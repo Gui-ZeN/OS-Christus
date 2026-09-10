@@ -3,6 +3,47 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-10 (classificar deixou de fechar quando a obra começa)
+
+Relato: "não tem como editar o Macro Serviço e o Serviço depois de aceitar a OS,
+correto?". Correto no efeito, **mas o corte não era a aceitação** — aceitar leva a
+"Aguardando Parecer Técnico", e ali o painel continuava aberto. Ele fechava na entrada
+da **execução**.
+
+A regra era uma lista de sete status escrita à mão (`TRIAGE_VISIBLE_STATUSES`).
+
+⚠️ **E ela nem batia com as próprias etapas.** "Aguardando Ações Preliminares" é da
+etapa **Contratação**, igual aos dois status logo acima dela — que tinham painel.
+Dentro de uma etapa só, dois editavam e um não. Isso é lista que ficou para trás
+quando as seis etapas nasceram, não decisão.
+
+Medido em produção antes de mexer: **de 131 OS vivas, 29 ficavam fora do painel** — 25
+"Em andamento", 2 "Ações Preliminares", 2 "aprovação da manutenção". Dessas, **8 sem
+classificação e sem caminho para ganhar uma**: OS-0380, 0383, 0387, 0409, 0419 e 0425
+com macroserviço E serviço vazios; OS-0163 e 0231 com macro e sem serviço. As outras 21
+estavam classificadas, mas **a correção também estava bloqueada**.
+
+Isso conversa com o que a Larissa levantou em 04/09 — "identificamos a necessidade de
+aprimorar essa categorização", com Estrutura Civil concentrando 59 de 90. Parte da
+distorção pode ser classificação que ninguém pôde ajustar depois que a obra começou.
+
+A lista virou `isTicketOpen(panelStatus)`: enquanto a OS está viva, os atributos dela
+podem ser corrigidos. Fecha em Encerrada e Cancelada.
+
+⚠️ **O SERVIDOR NUNCA BLOQUEOU ISTO.** `macroServiceId`, `serviceCatalogId` e os nomes
+estão na allow-list do PATCH desde sempre — a trava era só de tela. Abrir aqui não
+afrouxa autorização: o território e o papel seguem conferidos pelo `canUserAccessTicket`
+do handler.
+
+A triagem INICIAL (aceitar ou cancelar) continua presa a `Nova OS`, no bloco próprio:
+corrigir a classificação de uma obra em andamento é outra coisa que decidir se a OS
+entra.
+
+Verificado no emulador com OS "Em andamento": o painel aparece, Macroserviço e Serviço
+ficam editáveis, a cascata Macro→Serviço funciona, e gravou —
+`macroServiceName: "Elétrica"`, `serviceCatalogName: "Troca de luminárias"`, com o
+histórico registrando "Painel da OS atualizado: macroserviço · serviço."
+
 ## 2026-09-10 (os dois últimos fios do financeiro velho)
 
 Sobravam duas amarras depois que o editor de cotações saiu.

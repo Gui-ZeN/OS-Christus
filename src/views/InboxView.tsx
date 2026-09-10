@@ -70,16 +70,6 @@ const NOTEBOOK_CONTEXT_PANEL_BREAKPOINT = 1500;
  * quando o e-mail sai, porque perguntam à mesma função.
  */
 
-const TRIAGE_VISIBLE_STATUSES = [
-  TICKET_STATUS.NEW,
-  TICKET_STATUS.WAITING_TECH_OPINION,
-  TICKET_STATUS.WAITING_SOLUTION_APPROVAL,
-  TICKET_STATUS.WAITING_BUDGET,
-  TICKET_STATUS.WAITING_BUDGET_APPROVAL,
-  TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
-  TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
-] as const;
-
 function isFinalizedTicketStatus(status?: string | null) {
   return !isTicketOpen(status);
 }
@@ -672,7 +662,31 @@ export function InboxView() {
     }
   }, [isExternalTeam, showThirdPartyModal]);
   const panelStatus = (statusDraft || activeTicket.status || '').trim();
-  const showTriagePanel = TRIAGE_VISIBLE_STATUSES.includes(panelStatus as (typeof TRIAGE_VISIBLE_STATUSES)[number]);
+  /**
+   * ENQUANTO A OS ESTÁ VIVA, os atributos dela podem ser corrigidos.
+   *
+   * ⚠️ ERA UMA LISTA DE SETE STATUS ESCRITA À MÃO, e ela fechava na entrada da
+   * execução. Medido em produção em 10/09/2026: de 131 OS vivas, **29** ficavam fora
+   * do painel — e **8 delas sem classificação nenhuma**, sem caminho para ganhar uma.
+   * Seis estavam "Em andamento" com macroserviço E serviço vazios; outras duas com
+   * macro e sem serviço. As 21 restantes estavam classificadas, mas uma correção
+   * também estava bloqueada.
+   *
+   * ⚠️ A LISTA NEM BATIA COM AS PRÓPRIAS ETAPAS. "Aguardando Ações Preliminares" é da
+   * etapa Contratação, igual aos dois status logo acima dela, que tinham painel.
+   * Dentro de uma etapa só, dois editavam e um não — sinal de lista que ficou para
+   * trás quando as seis etapas nasceram, não de decisão.
+   *
+   * ⚠️ E O SERVIDOR NUNCA BLOQUEOU ISTO. `macroServiceId`, `serviceCatalogId` e os
+   * nomes estão na allow-list do PATCH desde sempre; a trava era só de tela. Abrir
+   * aqui não afrouxa autorização nenhuma — o território e o papel continuam sendo
+   * conferidos pelo `canUserAccessTicket` do handler.
+   *
+   * A triagem INICIAL (aceitar ou cancelar) continua presa a `Nova OS`, no bloco
+   * próprio logo abaixo: corrigir a classificação de uma obra em andamento é outra
+   * coisa que decidir se a OS entra.
+   */
+  const showTriagePanel = isTicketOpen(panelStatus);
   const availableAdminServiceItems = useMemo(() => {
     if (!ticketDetailsForm.macroServiceId) return [];
     return serviceCatalog.filter(item => item.macroServiceId === ticketDetailsForm.macroServiceId);
