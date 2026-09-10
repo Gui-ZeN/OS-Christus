@@ -150,8 +150,19 @@ check(
   `HTTP ${permitido.status} — ${permitido.json?.error || permitido.json?.ticketId || ''}`
 );
 
+/**
+ * ⚠️ A LIMPEZA INCLUI A OUTBOX, e isso não é zelo — é correção de um defeito que
+ * este teste causou. Criar OS pelo caminho de verdade ENFILEIRA o aviso ao gestor
+ * (`{id}__mgrnotify`). Deixado para trás, ele entra no lote de `outbox-starvation`,
+ * que seleciona 5 itens prontos: o item órfão ocupa uma vaga e aquele teste reprova
+ * com "encontrados=4 de 5" — vermelho num arquivo que não tem nada a ver com este.
+ */
 if (permitido.json?.ticketId) {
-  await db.collection('tickets').doc(permitido.json.ticketId).delete().catch(() => {});
+  const criada = permitido.json.ticketId;
+  await db.collection('tickets').doc(criada).delete().catch(() => {});
+  for (const d of (await db.collection('emailOutbox').where('ticketId', '==', criada).get()).docs) {
+    await d.ref.delete();
+  }
 }
 await db.collection('inboundDropped').doc(DROP).delete().catch(() => {});
 

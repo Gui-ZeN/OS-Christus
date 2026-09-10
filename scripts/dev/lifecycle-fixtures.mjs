@@ -140,11 +140,17 @@ export async function seedLifecycleFixtures(
       subject: 'Fixture E2E - parecer tecnico com diretor',
       directorEmail,
       now,
-      // A CONVERSA QUE PROVA O CORTE DO PDF.
+      // A CONVERSA QUE PROVA O CORTE DE VISIBILIDADE — uma publica, uma interna.
       //
-      // O retrato da OS em PDF (`?route=ticket-pdf`) e um arquivo: ele circula por
-      // e-mail e e impresso. Estas duas entradas existem para o E2E poder afirmar o
-      // corte abrindo o arquivo — uma tem que aparecer no papel, a outra nunca.
+      // ⚠️ O LEITOR QUE ESTAS FIXTURES SERVIAM NAO EXISTE MAIS. Elas nasceram para o
+      // E2E do retrato de UMA OS em PDF (`?route=ticket-pdf`), removido em 31/08
+      // (6fa8f00) quando a Lista da Gestao o superou. Nenhum spec vivo le
+      // NOTA_PUBLICA_DA_CONVERSA / NOTA_INTERNA_DA_CONVERSA hoje — so o reexport em
+      // `tests/e2e/lifecycle-state.ts`.
+      //
+      // Ficam porque o outro leitor do mesmo corte segue de pe: a pagina publica
+      // `?tracking=TOKEN`, que filtra por `visibility` em `_lib/historicoPublico.js`.
+      // Uma OS com as duas visibilidades e o material que um teste dessa pagina pede.
       history: [
         {
           id: `history-${LIFECYCLE_TICKET_IDS.parecer}-publica`,

@@ -1,5 +1,9 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+// O extrator que os testes de PDF já usam, importado como está: o Node 24 remove as
+// anotações de tipo sozinho. Copiar as ~60 linhas dele para cá seria um segundo
+// extrator, e o dia em que o pdfkit mudar de codificação só um dos dois é corrigido.
+import { textoDoPdf } from '../pdfTexto.ts';
 
 /**
  * AUTORIZAÇÃO NEGATIVA — a categoria de teste que a 4ª auditoria apontou como
@@ -138,44 +142,92 @@ async function main() {
     }
   }
 
-  // --- O PDF do estado da OS respeita o TERRITORIO --------------------------
+  // --- O PDF QUE CIRCULA respeita o TERRITORIO ------------------------------
   //
   // O papel ja e conferido (Admin+Gestor, na matriz). O que se afirma aqui e o
-  // segundo portao: uma rota de OS que nasce sem `canUserAccessTicket` entrega, num
+  // segundo portao: uma rota que nasce sem `canUserAccessTicket` entrega, num
   // arquivo pronto para circular, uma OS que a pessoa nao consegue nem abrir na
   // tela. Aconteceu neste repositorio — a rota de compromissos nasceu assim.
   //
+  // ⚠️ ESTE BLOCO APONTAVA PARA `?route=ticket-pdf`, REMOVIDA EM 31/08 (6fa8f00,
+  // "o retrato de uma OS em PDF, superado pela Lista"). A rota sumiu e o teste
+  // ficou: como rota desconhecida cai no handler generico de tickets, ele recebia
+  // 200 com a LISTA DE OS em JSON e reprovava por "nao e um PDF" — barulho que
+  // escondia o que ele existe para vigiar. Repontado para `lista-pdf`, que e o
+  // documento que circula hoje, e cuja protecao territorial nao tinha teste nenhum.
+  //
+  // ⚠️ E A LISTA NAO RECUSA COM 403 — ela CORTA. O corpo vem do cliente (as linhas
+  // que estao na tela), entao o servidor nao pode confiar nele: confere OS a OS e
+  // deixa de fora o que nao e daquela pessoa. Afirmar 403 aqui seria afirmar um
+  // comportamento que a rota nunca teve.
+  //
   // O Gestor do E2E esta vinculado a universidade/PQL3. OS-0003 e da regiao-sul.
-  for (const [ticketId, esperado, motivo] of [
-    ['OS-0001', 200, 'OS da sede do Gestor (PQL3)'],
-    ['OS-0003', 403, 'OS de outra regiao (SUL3)'],
-  ]) {
-    const token = await signIn('gestor.e2e@test.local');
-    const res = await fetch(`${API}/api/tickets?route=ticket-pdf&id=${ticketId}`, {
-      headers: { authorization: `Bearer ${token}` },
+  const linhaDaOs = id => [id, `Assunto de ${id}`, 'SEDE', 'Servico', 'Equipe', 'Alguem', 'Em analise', '1/6', '3 dias'];
+
+  async function listaEmPdf(token) {
+    const res = await fetch(`${API}/api/tickets?route=lista-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        linhas: [linhaDaOs('OS-0001'), linhaDaOs('OS-0003')],
+        filtros: {},
+        total: 2,
+      }),
     });
-    const corpo = Buffer.from(await res.arrayBuffer());
-    check(
-      `PDF de ${ticketId} para o Gestor responde ${esperado} — ${motivo}`,
-      res.status === esperado,
-      `HTTP ${res.status}`
-    );
-    if (esperado === 200) {
-      // O 200 tem que ser um PDF de verdade: `Content-Type` certo com corpo vazio e
-      // exatamente o defeito que esta familia ja produziu.
-      check(
-        `${ticketId} volta um PDF com conteudo`,
-        corpo.subarray(0, 5).toString('latin1') === '%PDF-' && corpo.length > 1000,
-        `${corpo.length} bytes`
-      );
-    } else {
-      check(
-        `a recusa de ${ticketId} nao devolve documento nenhum`,
-        corpo.subarray(0, 5).toString('latin1') !== '%PDF-',
-        corpo.subarray(0, 40).toString('latin1')
-      );
-    }
+    return { status: res.status, corpo: Buffer.from(await res.arrayBuffer()) };
   }
+
+  // O primeiro portao, o do PAPEL. Mora aqui e nao na matriz porque a matriz sonda
+  // com GET, e o GET desta rota responde 405 antes de olhar o papel — a linha diria
+  // "todos passaram" sem ter medido nada.
+  for (const [email, papel] of [['usuario.pe@test.local', 'Usuario'], ['diretor.e2e@test.local', 'Diretor']]) {
+    const recusa = await listaEmPdf(await signIn(email));
+    check(
+      `${papel} NAO gera a lista em PDF`,
+      recusa.status === 403,
+      `HTTP ${recusa.status}`
+    );
+    check(
+      `a recusa para ${papel} nao devolve documento nenhum`,
+      recusa.corpo.subarray(0, 5).toString('latin1') !== '%PDF-',
+      recusa.corpo.subarray(0, 60).toString('latin1')
+    );
+  }
+
+  const doGestor = await listaEmPdf(await signIn('gestor.e2e@test.local'));
+  check(
+    'a lista em PDF volta um documento de verdade para o Gestor',
+    doGestor.status === 200
+      && doGestor.corpo.subarray(0, 5).toString('latin1') === '%PDF-'
+      && doGestor.corpo.length > 1000,
+    `HTTP ${doGestor.status}, ${doGestor.corpo.length} bytes`
+  );
+
+  const textoDoGestor = textoDoPdf(doGestor.corpo);
+  check(
+    'a OS da sede do Gestor (PQL3) esta no papel',
+    textoDoGestor.includes('OS-0001'),
+    textoDoGestor.slice(0, 120)
+  );
+  check(
+    'a OS de outra regiao (SUL3) NAO esta no papel, mesmo pedida no corpo',
+    !textoDoGestor.includes('OS-0003')
+  );
+  check(
+    'e o documento DECLARA o corte, em vez de calar',
+    /fora do seu territ/i.test(textoDoGestor),
+    textoDoGestor.slice(0, 200)
+  );
+
+  // ⚠️ O CONTROLE QUE IMPEDE O TESTE DE PASSAR A TOA. Sem ele, "OS-0003 nao aparece"
+  // passaria tambem se o PDF viesse vazio, ou se o extrator lesse errado.
+  const doAdmin = await listaEmPdf(await signIn('admin@test.local'));
+  const textoDoAdmin = textoDoPdf(doAdmin.corpo);
+  check(
+    'controle: para o Admin as DUAS aparecem — a ausencia acima e o territorio, nao o extrator',
+    textoDoAdmin.includes('OS-0001') && textoDoAdmin.includes('OS-0003'),
+    textoDoAdmin.slice(0, 200)
+  );
 
   const falhas = results.filter(item => !item.pass).length;
   console.log(`\n=== ${results.length - falhas}/${results.length} OK ===`);

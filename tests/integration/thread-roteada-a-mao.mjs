@@ -105,6 +105,11 @@ async function limpar() {
   for (const id of [VIVA, MORTA, MORTA_ORFA]) {
     await db.collection('tickets').doc(id).delete().catch(() => {});
     await db.collection('deletedTickets').doc(id).delete().catch(() => {});
+    // A outbox junto: item deixado para tras ocupa vaga no lote de
+    // `outbox-starvation` e reprova aquele arquivo, que nao tem nada a ver com este.
+    for (const d of (await db.collection('emailOutbox').where('ticketId', '==', id).get()).docs) {
+      await d.ref.delete();
+    }
     const t = db.collection('emailThreads').doc(id);
     for (const d of (await t.collection('messages').get()).docs) await d.ref.delete();
     await t.delete().catch(() => {});

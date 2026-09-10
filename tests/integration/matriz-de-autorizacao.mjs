@@ -304,10 +304,19 @@ if (semToken.length === 0) {
     // Admin + Gestor: o par operacional do dia a dia.
     { rota: 'catalog:settings', permitidos: ['Admin', 'Gestor'] },
     { rota: 'mail:dropped-inbound', permitidos: ['Admin', 'Gestor'] },
-    // O PDF do estado da OS nasce na tela de Gestao, que e de Admin+Gestor. O papel
-    // e so o primeiro portao: o territorio da OS e conferido depois, e o corte esta
-    // em `authz-negativa.mjs`.
-    { rota: 'tickets:ticket-pdf', permitidos: ['Admin', 'Gestor'] },
+    /*
+     * ⚠️ AQUI HAVIA `tickets:ticket-pdf`, e a regra ficou ORFA quando a rota foi
+     * removida em 31/08 (6fa8f00) — o retrato de UMA OS em PDF, superado pela Lista.
+     * A guarda de regra orfa logo acima foi quem apontou.
+     *
+     * A funcao passou para `lista-pdf`, e ela NAO PODE SER AFIRMADA AQUI: esta matriz
+     * sonda com GET, e `lista-pdf` e POST — o GET responde 405 antes do portao de
+     * papel, para todo mundo, entao a linha diria "todos passaram" sem ter testado
+     * papel nenhum. Uma regra que passa sem medir e pior que regra nenhuma.
+     *
+     * O portao de papel de `lista-pdf` (Admin+Gestor) e o corte territorial dela
+     * estao em `authz-negativa.mjs`, que fala POST.
+     */
     // Dado financeiro: o solicitante de unidade nao ve contrato nem pagamento.
     { rota: 'procurement:finance', permitidos: ['Admin', 'Gestor'] },
     { rota: 'procurement:', permitidos: ['Admin', 'Gestor', 'Diretor'] },

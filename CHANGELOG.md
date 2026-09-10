@@ -3,6 +3,48 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-10 (a remoção de 31/08 deixou quatro pontas soltas)
+
+`authz-negativa.mjs` reprovava, e como a cadeia do `test:integration` usa `&&`, ela
+**parava ali** — os 13 arquivos seguintes nunca rodavam. Estava assim desde 31/08.
+
+A causa: o commit `6fa8f00` removeu o retrato de UMA OS em PDF ("superado pela
+Lista") e limpou o produto por completo — botão, cliente, rota, handler, `ticketPdf.js`
+inteiro. Ficaram quatro referências ao que não existe mais:
+
+1. `authz-negativa.mjs` afirmava território em `?route=ticket-pdf`. ⚠️ **Rota
+   desconhecida cai no handler genérico de tickets**, então ele recebia 200 com a
+   LISTA DE OS em JSON e reprovava por "não é um PDF" — barulho que escondia o que o
+   bloco existe para vigiar.
+2. `matriz-de-autorizacao.mjs` tinha a regra `tickets:ticket-pdf`. A guarda de regra
+   órfã dela **pegou certo** — foi ela que apontou.
+3. `package.json` citava `tests/exportar-pdf-da-os.e2e.spec.ts`, apagado no mesmo
+   commit, nos **três** scripts de e2e. `npm run test:e2e` não conseguia nem começar.
+4. `lifecycle-fixtures.mjs` descrevia o corte "do PDF" num comentário.
+
+**O bloco foi repontado para `lista-pdf`**, que é o documento que circula hoje — e
+cuja proteção territorial **não tinha teste nenhum**. Verificado: o Gestor recebe um
+PDF com "1 de 2 OS", sem a OS da região alheia que ele pediu no corpo, e com "1 OS
+fora do seu território" escrito no cabeçalho.
+
+⚠️ **A LISTA NÃO RECUSA COM 403 — ela CORTA.** O corpo vem do cliente, então o
+servidor confere OS a OS. Afirmar 403 ali seria afirmar um comportamento que a rota
+nunca teve.
+
+⚠️ **E TEM CONTROLE.** Para o Admin as duas OS aparecem: sem isso, "OS-0003 não está
+no papel" passaria também se o PDF viesse vazio ou o extrator lesse errado.
+
+O portão de papel (Admin+Gestor) ficou em `authz-negativa` e **não** na matriz: a
+matriz sonda com GET, e `lista-pdf` é POST — o GET responde 405 antes do portão, então
+a linha diria "todos passaram" sem ter medido papel nenhum.
+
+⚠️ **E OS TESTES NOVOS DE ONTEM POLUÍAM.** Criar OS pelo caminho de verdade enfileira
+o aviso ao gestor; deixado para trás, ele ocupava vaga no lote de `outbox-starvation`,
+que reprovava com "encontrados=4 de 5" — vermelho num arquivo sem relação nenhuma. Só
+apareceu ao rodar a suíte DUAS vezes seguidas, que é como está verificado agora.
+
+Suíte de integração inteira: **21 arquivos, verde, duas execuções seguidas.**
+
 ## 2026-09-10 (a conversa que nunca deixava de ser órfã)
 
 Relato: "ela enviou mensagem aos interessados mas não foi? tive que vincular uma
