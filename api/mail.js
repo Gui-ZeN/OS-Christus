@@ -80,7 +80,7 @@ import { detectRainTransition, stateToPersist } from './_lib/rainWatch.js';
 import { avaliarChuva, montarEmail, montarMensagemDeChat, selecionarPontosDeGoteira, sinalSimulado } from './_lib/rainAlert.js';
 import { enviarParaDiscord } from './_lib/discord.js';
 import { enviarParaTelegram } from './_lib/telegram.js';
-import { destinatariosDoAviso } from './_lib/avisoDeChuva.js';
+import { destinatariosDoAviso, goteirasPorDestinatario } from './_lib/avisoDeChuva.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 
 const GMAIL_SYNC_STATE_DOC = 'gmailSync';
@@ -3629,6 +3629,7 @@ async function handleRainAlert(req, res) {
        * O preço: destinatário mal configurado só aparece no dia em que chove. É o
        * mesmo dia em que ele importa, e o log da execução diz o motivo por extenso.
        */
+      let cadastroDosDestinos = new Map();
       if (paraDeTeste) {
         destinos = [paraDeTeste];
         origemDosDestinos = 'teste';
@@ -3640,11 +3641,42 @@ async function handleRainAlert(req, res) {
         );
         destinos = escolha.destinos;
         origemDosDestinos = escolha.origem;
+        cadastroDosDestinos = escolha.pessoas;
       }
 
       const quando = now.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
       const goteiras = await listarPontosDeGoteira(db, sede);
-      const email = montarEmail(sinal, quando, sede, goteiras);
+
+      /**
+       * O AVISO É RECORTADO PELO TERRITÓRIO DE QUEM RECEBE.
+       *
+       * ⚠️ Antes havia UM corpo para todos. Medido em produção em 10/09/2026: 10
+       * marcados, 7 pontos de goteira em 6 sedes, e 7 dos 10 são Gestores que
+       * respondem por 3 ou 4 deles. Quem cuida do Eusébio recebia a goteira do SUL1
+       * de madrugada.
+       *
+       * O território sai do MESMO `canUserAccessTicket` que decide o que a pessoa
+       * abre na tela: um aviso que mostra OS que ela não consegue abrir é um convite
+       * a procurar uma OS que, para ela, não existe.
+       *
+       * O catálogo só é lido aqui dentro — quando o aviso vai de fato sair —, pela
+       * mesma razão que a lista de destinatários: a rota roda o dia inteiro e em 99%
+       * dos ciclos não há transição.
+       */
+      const territorioDoAviso = cadastroDosDestinos.size > 0
+        ? await readTerritoryCatalog(db)
+        : { regions: [], sites: [] };
+      const porDestinatario = goteirasPorDestinatario(
+        destinos,
+        cadastroDosDestinos,
+        goteiras,
+        (pessoa, goteira) => canUserAccessTicket(
+          pessoa,
+          { id: goteira.id, sede: goteira.sede, siteId: goteira.siteId, regionId: goteira.regionId },
+          territorioDoAviso.regions,
+          territorioDoAviso.sites
+        )
+      );
 
       /**
        * UMA CHAVE POR DESTINATÁRIO, e um envio por vez.
@@ -3662,6 +3694,9 @@ async function handleRainAlert(req, res) {
         origemDosDestinos = origemDosDestinos === 'nao-consultado' ? 'ninguem-marcado' : origemDosDestinos;
       } else {
         for (const destino of destinos) {
+          // Um corpo POR PESSOA: a lista de goteiras é a dela. O resto do aviso — o
+          // sinal de chuva, as duas fontes, o horário — é o mesmo para todos.
+          const email = montarEmail(sinal, quando, sede, porDestinatario.get(destino) || []);
           const chaveEmail = chaveDeEnvio(['chuva', destino, sede || 'cidade', quando]);
           const saiu = await enviarUmaVez(db, chaveEmail, () => gmailSend({
             toEmail: destino,
@@ -3683,13 +3718,20 @@ async function handleRainAlert(req, res) {
        * canal/grupo vê, do jeito que um webhook e um bot funcionam — não há
        * equivalente de `avisoDeChuva` por usuário aqui.
        *
+       * ⚠️ E POR ISSO ESTES DOIS NÃO SÃO RECORTADOS POR TERRITÓRIO, enquanto o e-mail
+       * passou a ser. Não é esquecimento: um webhook não tem destinatário para
+       * consultar. Quem entra no canal vê a lista inteira — decisão de quem
+       * administra o canal, não do código. Hoje nenhum dos dois está configurado em
+       * produção; se forem, é isto que vale.
+       *
        * Cada canal só tenta se as suas próprias variáveis estiverem configuradas —
        * um ambiente pode ter só e-mail, só um dos dois, ou os três juntos.
        */
+      const avisoCompleto = montarEmail(sinal, quando, sede, goteiras);
       const webhookDiscord = process.env.RAIN_ALERT_DISCORD_WEBHOOK_URL;
       if (webhookDiscord) {
         const chaveDiscord = chaveDeEnvio(['chuva', 'discord', sede || 'cidade', quando]);
-        const texto = montarMensagemDeChat(email, LIMITE_MENSAGEM_DISCORD);
+        const texto = montarMensagemDeChat(avisoCompleto, LIMITE_MENSAGEM_DISCORD);
         discordEnviado = await enviarUmaVez(db, chaveDiscord, () => enviarParaDiscord(webhookDiscord, texto), now);
         if (discordEnviado) enviado = true;
       }
@@ -3698,7 +3740,7 @@ async function handleRainAlert(req, res) {
       const telegramChatId = process.env.RAIN_ALERT_TELEGRAM_CHAT_ID;
       if (telegramToken && telegramChatId) {
         const chaveTelegram = chaveDeEnvio(['chuva', 'telegram', sede || 'cidade', quando]);
-        const texto = montarMensagemDeChat(email, LIMITE_MENSAGEM_TELEGRAM);
+        const texto = montarMensagemDeChat(avisoCompleto, LIMITE_MENSAGEM_TELEGRAM);
         telegramEnviado = await enviarUmaVez(db, chaveTelegram, () => enviarParaTelegram(telegramToken, telegramChatId, texto), now);
         if (telegramEnviado) enviado = true;
       }

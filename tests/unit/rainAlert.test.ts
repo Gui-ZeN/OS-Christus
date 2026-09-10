@@ -272,7 +272,9 @@ describe('a lista de goteira no corpo do e-mail', () => {
  * que se testa com objetos soltos, sem precisar do emulador de pé.
  */
 describe('selecionarPontosDeGoteira — quem entra na lista', () => {
-  const os = (over: Partial<{ id: string; status: string; sede: string; subject: string }>) => ({
+  // `siteId`/`regionId` entram como opcionais: OS antiga foi gravada sem eles, e o
+  // recorte por território precisa saber o que acontece nos dois casos.
+  const os = (over: Partial<{ id: string; status: string; sede: string; subject: string; siteId?: string; regionId?: string }>) => ({
     id: 'OS-0001',
     status: 'Em andamento',
     sede: 'SUL1',
@@ -285,9 +287,26 @@ describe('selecionarPontosDeGoteira — quem entra na lista', () => {
     expect(selecionarPontosDeGoteira(tickets)).toEqual([]);
   });
 
-  it('OS aberta entra, e carrega sede e assunto', () => {
-    const tickets = [os({ id: 'OS-0001', sede: 'SUL1', subject: 'Goteira no vestiário' })];
-    expect(selecionarPontosDeGoteira(tickets)).toEqual([{ id: 'OS-0001', sede: 'SUL1', assunto: 'Goteira no vestiário' }]);
+  it('OS aberta entra, e carrega sede, assunto e os ids de território', () => {
+    /*
+     * ⚠️ `siteId` e `regionId` NÃO APARECEM NO PAPEL, e ainda assim são exigidos aqui.
+     * O aviso passou a ser recortado pelo território de quem recebe, e quem decide
+     * isso (`canUserAccessTicket`) casa primeiro por id — `sede` é o código, que ele
+     * aceita, mas por texto. Sem os ids, uma sede cujo código estivesse escrito
+     * diferente do catálogo sairia da lista de quem responde por ela: o oposto do
+     * recorte, e em silêncio.
+     */
+    const tickets = [os({ id: 'OS-0001', sede: 'SUL1', siteId: 'sul1', regionId: 'regiao-sul', subject: 'Goteira no vestiário' })];
+    expect(selecionarPontosDeGoteira(tickets)).toEqual([
+      { id: 'OS-0001', sede: 'SUL1', siteId: 'sul1', regionId: 'regiao-sul', assunto: 'Goteira no vestiário' },
+    ]);
+  });
+
+  it('OS sem os ids de território não quebra — os campos vêm nulos', () => {
+    // OS antiga, gravada antes de `siteId`/`regionId` existirem. `canUserAccessTicket`
+    // ainda casa pelo código da sede; o que não pode é a lista deixar de sair.
+    const tickets = [os({ id: 'OS-0001', sede: 'SUL1', siteId: undefined, regionId: undefined })];
+    expect(selecionarPontosDeGoteira(tickets)[0]).toMatchObject({ siteId: null, regionId: null, sede: 'SUL1' });
   });
 
   it('sem sede no aviso (cidade inteira), traz de TODAS as sedes', () => {
@@ -297,7 +316,9 @@ describe('selecionarPontosDeGoteira — quem entra na lista', () => {
 
   it('com sede no aviso, só as OS dessa sede — as outras não são o problema de quem vai olhar o telhado ali', () => {
     const tickets = [os({ id: 'OS-0001', sede: 'SUL1' }), os({ id: 'OS-0002', sede: 'ALD' })];
-    expect(selecionarPontosDeGoteira(tickets, 'SUL1')).toEqual([{ id: 'OS-0001', sede: 'SUL1', assunto: 'Goteira no telhado' }]);
+    expect(selecionarPontosDeGoteira(tickets, 'SUL1')).toEqual([
+      { id: 'OS-0001', sede: 'SUL1', siteId: null, regionId: null, assunto: 'Goteira no telhado' },
+    ]);
   });
 
   it('assunto ausente não vira célula vazia', () => {

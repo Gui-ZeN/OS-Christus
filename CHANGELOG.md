@@ -3,6 +3,45 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-10 (o aviso de chuva mandava a goteira dos outros)
+
+Todo mundo recebia a lista inteira. Medido em produção antes de mexer: **10 pessoas
+marcadas, 7 pontos de goteira abertos em 6 sedes, e 7 dos 10 são Gestores que
+respondem por 3 ou 4 deles.** Quem cuida do Eusébio recebia a goteira do SUL1 de
+madrugada — ruído que ensina a ignorar o alerta, e informação de sede que não é dela.
+
+O corpo passou a ser montado **por pessoa**, com a lista recortada pelo mesmo
+`canUserAccessTicket` que decide o que ela abre na tela. Um aviso que mostra OS que a
+pessoa não consegue abrir é um convite a procurar uma OS que, para ela, não existe.
+
+Conferido pelo caminho de produção, com o `montarEmail` de verdade: Thais recebe 4
+(ALD, DL, EUS), Rafael 3 (DT, DT2, SUL1), os dois Admin continuam com 7.
+
+⚠️ **QUEM NÃO TEM CADASTRO CONTINUA VENDO TUDO**, de propósito, e são dois casos: o
+endereço de `RAIN_ALERT_TO` — a rede que existe para o aviso não parar de sair no dia
+em que ninguém marcou a caixinha — e o `?para=` de simulação. Recortar por um
+território que não existe daria lista vazia, e a rede deixaria de ser rede exatamente
+quando é acionada.
+
+⚠️ **LISTA VAZIA NÃO CANCELA O AVISO.** Quem responde por sedes sem goteira marcada
+continua sendo avisado de que choveu, com "nenhuma OS marcada" escrito. É a regra que
+`linhasDeGoteira` já aplicava: ausência é dita, não omitida. Sumir com o e-mail faria a
+pessoa concluir que o alerta parou de funcionar.
+
+⚠️ **O ERRO CARO ERA "vazio = manda tudo"** — a mesma armadilha do filtro da Gestão com
+o sinal trocado. Lá lista vazia quer dizer "todas"; aqui querer dizer isso devolveria a
+goteira de todo mundo justamente para quem não tem nenhuma. Há teste para isso, e ele
+foi provado contra três mutações.
+
+⚠️ **`siteId` e `regionId` PASSARAM A VIAJAR no ponto de goteira**, sem aparecer no
+papel: `canUserAccessTicket` casa primeiro por id, e `sede` é o código, que ele aceita
+mas por texto. Sem os ids, uma sede com código escrito diferente do catálogo sairia da
+lista de quem responde por ela — em silêncio.
+
+⚠️ **DISCORD E TELEGRAM NÃO SÃO RECORTADOS**, e não é esquecimento: um webhook não tem
+destinatário para consultar. Quem entra no canal vê a lista inteira. Nenhum dos dois
+está configurado em produção hoje; se forem, é isto que vale.
+
 ## 2026-09-10 (a remoção de 31/08 deixou quatro pontas soltas)
 
 `authz-negativa.mjs` reprovava, e como a cadeia do `test:integration` usa `&&`, ela

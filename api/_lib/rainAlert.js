@@ -77,7 +77,20 @@ export function selecionarPontosDeGoteira(tickets, sede = null) {
   return tickets
     .filter(ticket => isTicketOpen(ticket.status))
     .filter(ticket => !sede || ticket.sede === sede)
-    .map(ticket => ({ id: ticket.id, sede: ticket.sede || null, assunto: ticket.subject || '(sem assunto)' }))
+    /*
+     * ⚠️ `siteId` e `regionId` VÃO JUNTO, mesmo sem aparecer no papel. O aviso passou
+     * a ser recortado pelo território de quem recebe, e `canUserAccessTicket` casa
+     * primeiro por id — `sede` é o código, que ele também aceita, mas por texto. Sem
+     * os ids, uma sede com código escrito diferente do catálogo sairia da lista de
+     * quem responde por ela, que é o oposto do recorte.
+     */
+    .map(ticket => ({
+      id: ticket.id,
+      sede: ticket.sede || null,
+      siteId: ticket.siteId || null,
+      regionId: ticket.regionId || null,
+      assunto: ticket.subject || '(sem assunto)',
+    }))
     .sort((a, b) => (a.sede || '').localeCompare(b.sede || '', 'pt-BR') || a.id.localeCompare(b.id));
 }
 
