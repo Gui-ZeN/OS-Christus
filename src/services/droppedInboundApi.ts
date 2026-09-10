@@ -31,9 +31,18 @@ async function pedir<T>(init: RequestInit): Promise<T> {
   return json as T;
 }
 
-export async function fetchDroppedInbound(): Promise<DroppedInboundItem[]> {
-  const json = await pedir<{ items: DroppedInboundItem[] }>({ method: 'GET' });
-  return json.items || [];
+/**
+ * A fila e as sedes que ESTA pessoa pode escolher como destino.
+ *
+ * ⚠️ AS SEDES VÊM DO SERVIDOR, não do catálogo do cliente. O seletor listava as 23
+ * sedes do catálogo para qualquer Gestor — a Thais tem acesso a 6 —, e criar a OS
+ * numa sede fora do território a fazia nascer invisível para quem a criou. Território
+ * se resolve por região OU por sede, e quem sabe essa regra é `buildAllowedScope`;
+ * refazê-la aqui seria uma segunda implementação da mesma coisa.
+ */
+export async function fetchDroppedInbound(): Promise<{ items: DroppedInboundItem[]; sedes: string[] }> {
+  const json = await pedir<{ items: DroppedInboundItem[]; sedes?: string[] }>({ method: 'GET' });
+  return { items: json.items || [], sedes: json.sedes || [] };
 }
 
 /**

@@ -22,15 +22,15 @@ import { mensagemDeErro } from '../../utils/errorMessage';
  *
  * Some da tela quando a fila está vazia — o normal é não ter nada aqui.
  */
-export function DroppedInboundQueue({
-  onLinked,
-  sedes = [],
-}: {
-  onLinked?: (ticketId: string) => void;
-  /** Códigos de sede do catálogo. É o único dado que faltava para virar OS. */
-  sedes?: string[];
-}) {
+export function DroppedInboundQueue({ onLinked }: { onLinked?: (ticketId: string) => void }) {
   const [itens, setItens] = useState<DroppedInboundItem[]>([]);
+  /**
+   * ⚠️ VEM DO SERVIDOR, junto com a fila — não é mais o catálogo inteiro passado de
+   * fora. Eram as 23 sedes para qualquer Gestor, e a Thais tem acesso a 6; escolher
+   * uma sede de fora criava uma OS que sumia da vista dela no mesmo instante. O
+   * servidor recusa a criação de qualquer forma: esta lista é o conforto, não a trava.
+   */
+  const [sedes, setSedes] = useState<string[]>([]);
   const [aberto, setAberto] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState('');
@@ -41,7 +41,9 @@ export function DroppedInboundQueue({
 
   const recarregar = useCallback(async () => {
     try {
-      setItens(await fetchDroppedInbound());
+      const { items, sedes: permitidas } = await fetchDroppedInbound();
+      setItens(items);
+      setSedes(permitidas);
       setErro('');
     } catch (e) {
       // Falha aqui não pode derrubar a Inbox: a fila é um extra sobre a tela que a
@@ -65,8 +67,7 @@ export function DroppedInboundQueue({
    * este aviso, e a releitura da lista em vez de tirar só o item clicado.
    */
   const concluir = async (resultado: { ticketId: string; irmasVinculadas: number }) => {
-    setItens(await fetchDroppedInbound().catch(() => []));
-    setErro('');
+    await recarregar();
     setAviso(
       resultado.irmasVinculadas > 0
         ? `${resultado.irmasVinculadas + 1} mensagens da mesma conversa foram para a ${resultado.ticketId}.`

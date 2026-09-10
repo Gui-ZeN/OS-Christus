@@ -361,7 +361,16 @@ export function KpiView() {
   const groupOptions = useMemo(
     () => {
       const values: string[] = periodTickets.map(ticket => getTicketGroupLabel(ticket, regions, sites));
-      const fallbackValues: string[] = regions.map(region => rotuloDoGrupo(region.group));
+      /*
+       * ⚠️ O RECUO SAI DAS OS, NÃO DO CATÁLOGO.
+       *
+       * Ele existe para o seletor não ficar vazio quando o período escolhido não tem
+       * OS nenhuma. Lendo `regions`, oferecia o catálogo INTEIRO — inclusive grupos
+       * que esta pessoa não acessa: quem tem duas regiões via as onze só por escolher
+       * um mês vazio. `tickets` já vem escopado pelo servidor, então recuar para ele
+       * mantém o seletor útil sem mostrar o que não é dela.
+       */
+      const fallbackValues: string[] = tickets.map(ticket => getTicketGroupLabel(ticket, regions, sites));
       const source = values.length ? values : fallbackValues;
       return [...new Set(source)].filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
@@ -376,9 +385,10 @@ export function KpiView() {
       const doGrupo = (ticket: Ticket) =>
         selectedGroup === 'all' || getTicketGroupLabel(ticket, regions, sites) === selectedGroup;
       const values: string[] = periodTickets.filter(doGrupo).map(ticket => getTicketRegionLabel(ticket, regions, sites)).filter((value): value is string => Boolean(value));
-      const fallbackValues: string[] = regions
-        .filter(region => selectedGroup === 'all' || rotuloDoGrupo(region.group) === selectedGroup)
-        .map(region => region.name)
+      // Mesmo motivo do grupo: recuar para as OS da pessoa, e não para o catálogo.
+      const fallbackValues: string[] = tickets
+        .filter(doGrupo)
+        .map(ticket => getTicketRegionLabel(ticket, regions, sites))
         .filter((value): value is string => Boolean(value));
       const source = values.length ? values : fallbackValues;
       return [...new Set(source)].sort((a, b) => a.localeCompare(b, 'pt-BR'));

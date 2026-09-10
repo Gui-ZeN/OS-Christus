@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { requireAuthenticatedUser, requireUserWithRoles, secretsMatch } from './_lib/authz.js';
-import { canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
+import { buildAllowedScope, canUserAccessTicket, readTerritoryCatalog } from './_lib/ticketAccess.js';
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
@@ -2291,6 +2291,82 @@ async function varrerIrmasDaThread(db, col, { item, exceto, ticketId, user }) {
   return pendentes.length;
 }
 
+/**
+ * A CONVERSA PASSA A SER DA OS — a decisão de quem triou vale para as PRÓXIMAS.
+ *
+ * ⚠️ SEM ISTO, A MESMA THREAD CAI NA FILA PARA SEMPRE. Medido em produção em
+ * 09/09/2026: a thread `19f901f8f9dfa3b9` pertencia à OS-0263, apagada em 12/08. A
+ * lápide continuou dona dela. Três mensagens da MESMA conversa caíram na fila —
+ * 12/08, 07/09 e 09/09 —, a segunda virou a OS-0417 e a terceira ainda assim foi
+ * descartada como "OS apagada", porque anexar a mensagem nunca transferiu a posse
+ * da conversa. Alguém teve que anexar à mão de novo. Das 65 mensagens soltas da
+ * base, 30 têm esse motivo.
+ *
+ * A regra da lápide continua inteira: ela só é consultada quando NENHUMA OS viva
+ * responde pela thread, que é o caso das 105 OS da universidade que ela nasceu para
+ * proteger. O que muda é que uma conversa já roteada por uma pessoa deixa de ser
+ * órfã.
+ *
+ * ⚠️ DOCUMENTO PRÓPRIO, não `emailThreads/{ticketId}`. Uma OS pode participar de
+ * DUAS conversas — a humana original e a que o Serv3 abriu ao responder (a OS-0417
+ * tem as duas). Escrever no documento da OS sobrescreveria o `gmailThreadId` da
+ * outra, e as respostas da conversa sobrescrita passariam a se perder. O leitor
+ * (`resolveTicketIdByGmailThread`) já procura por campo, não por id, e o caminho de
+ * entrada já sabe escolher entre vários documentos da mesma OS.
+ *
+ * Id determinístico: reanexar a mesma conversa reescreve o mesmo documento em vez
+ * de acumular vínculos concorrentes. A última decisão humana é a que vale.
+ */
+async function registrarThreadDaFila(db, { threadId, messageId, ticketId }) {
+  const thread = String(threadId || '').trim();
+  if (!thread || !ticketId) return false;
+  await db
+    .collection('emailThreads')
+    .doc(`thread-${thread}`)
+    .set(
+      {
+        ticketId,
+        gmailThreadId: thread,
+        // O id da mensagem entra em `references` porque o primeiro resolvedor
+        // procura por ele: resposta que cite só esta mensagem casa sem depender de
+        // o Gmail mandar o mesmo threadId.
+        ...(messageId ? { references: FieldValue.arrayUnion(String(messageId)) } : {}),
+        origem: 'fila-de-mensagens-soltas',
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+  return true;
+}
+
+/**
+ * AS SEDES QUE ESTA PESSOA PODE USAR — quem manda é o servidor.
+ *
+ * ⚠️ A LISTA DE SEDES DA FILA VINHA DO CATÁLOGO INTEIRO. Medido em 09/09/2026: um
+ * Gestor via as 23 sedes do catálogo no seletor da fila de mensagens soltas, e a
+ * Thais tem acesso a 6. Não era só ruído visual: criar a OS numa sede fora do
+ * território fazia a OS nascer e sumir da vista de quem a criou no mesmo instante.
+ *
+ * ⚠️ A FILA CONTINUA SEM ESCOPO, e isso é de propósito — mensagem que ainda não
+ * virou OS não tem território, e quem tria precisa ver o que chegou. O que ganha
+ * escopo é o DESTINO: para onde a mensagem pode ir.
+ *
+ * Calculado aqui e não no cliente porque território se resolve por região OU por
+ * sede, e `buildAllowedScope` é quem sabe a regra. Recalculá-la no navegador seria
+ * uma segunda implementação — e as duas divergem no dia em que só uma mudar.
+ */
+async function sedesPermitidasPara(db, user) {
+  const territory = await readTerritoryCatalog(db);
+  if (user?.role === 'Admin') {
+    return territory.sites.map(site => site.code || site.name).filter(Boolean);
+  }
+  const scope = buildAllowedScope(user, territory.regions, territory.sites);
+  return territory.sites
+    .filter(site => scope.allowedSiteIds.includes(site.id))
+    .map(site => site.code || site.name)
+    .filter(Boolean);
+}
+
 async function handleDroppedInbound(req, res) {
   try {
     const user = await requireUserWithRoles(req, ['Admin', 'Gestor']);
@@ -2315,7 +2391,7 @@ async function handleDroppedInbound(req, res) {
           receivedAt: toDateOrNull(item.receivedAt || item.createdAt)?.toISOString() || null,
           createdAt: toDateOrNull(item.createdAt)?.toISOString() || null,
         }));
-      return sendJson(res, 200, { ok: true, items });
+      return sendJson(res, 200, { ok: true, items, sedes: await sedesPermitidasPara(db, user) });
     }
 
     if (req.method !== 'POST') {
@@ -2349,6 +2425,14 @@ async function handleDroppedInbound(req, res) {
     if (acao === 'criar') {
       const sede = String(body?.sede || '').trim();
       if (!sede) return sendJson(res, 400, { ok: false, error: 'Escolha a sede da nova OS.' });
+
+      // ⚠️ A RECUSA MORA AQUI, e não no seletor. Esconder a sede da lista é conforto;
+      // sem esta checagem bastava forjar o corpo do POST — e, mesmo sem má intenção,
+      // a OS criada fora do território sumia da vista de quem acabou de criá-la.
+      const permitidas = await sedesPermitidasPara(db, user);
+      if (!permitidas.some(codigo => normalizeKey(codigo) === normalizeKey(sede))) {
+        return sendJson(res, 403, { ok: false, error: `Sem acesso à sede "${sede}".` });
+      }
 
       // REUSA o fluxo que já sabe nascer OS de e-mail: número, token, anexos, cópia,
       // detecção de água, histórico e e-mail de confirmação. O que faltava na
@@ -2384,6 +2468,15 @@ async function handleDroppedInbound(req, res) {
         resolvedAt: new Date(),
       }, { merge: true });
 
+      // A OS nasce DONA da conversa. `createTicketFromInbound` recebe um assunto
+      // remontado e não conhece o threadId da mensagem original — foi assim que a
+      // OS-0417 nasceu órfã da própria thread.
+      await registrarThreadDaFila(db, {
+        threadId: item.threadId,
+        messageId: item.messageId,
+        ticketId: criada.id,
+      });
+
       const irmasDaNova = await varrerIrmasDaThread(db, col, {
         item,
         exceto: id,
@@ -2413,6 +2506,12 @@ async function handleDroppedInbound(req, res) {
     }
 
     await anexarMensagemDaFila(db, { dropRef: ref, dropId: id, item, ticketRef, ticketId, user });
+    // Quem anexou decidiu de quem é a conversa. A próxima resposta entra sozinha.
+    await registrarThreadDaFila(db, {
+      threadId: item.threadId,
+      messageId: item.messageId,
+      ticketId,
+    });
     const irmas = await varrerIrmasDaThread(db, col, { item, exceto: id, ticketId, user });
     await recomputeOperationalAttention(db, ticketId);
 

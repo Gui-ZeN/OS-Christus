@@ -1991,10 +1991,9 @@ export function InboxView() {
         {/* Mensagens que entraram e não casaram com OS nenhuma. Fica aqui, e não
             na tela de Saúde de E-mail, porque isto é TRIAGEM — e a tela de saúde
             nem abre para o papel Gestor. Some sozinha quando a fila está vazia. */}
-        <DroppedInboundQueue
-          onLinked={handleSelectTicket}
-          sedes={catalogSites.map(site => site.code).filter(Boolean)}
-        />
+        {/* As sedes do destino vêm com a fila, do servidor — passar o catálogo daqui
+            oferecia as 23 sedes a quem tem acesso a 6. */}
+        <DroppedInboundQueue onLinked={handleSelectTicket} />
 
         {/* Ticket List */}
         <div className="min-h-0 flex-1 overflow-y-auto">

@@ -3,6 +3,74 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-10 (a conversa que nunca deixava de ser órfã)
+
+Relato: "ela enviou mensagem aos interessados mas não foi? tive que vincular uma
+resposta sendo que já existia". Fui à produção, na OS-0417. **São dois fatos, e só um
+é bug.**
+
+**A mensagem FOI enviada.** Log: `19:53:45 outbound success` para o solicitante com os
+8 interessados em cópia. O que confundiu foi o RELÓGIO: o histórico marca a hora do
+NAVEGADOR de quem escreveu, e a máquina dela está 9min19s adiantada — defasagem
+idêntica nas duas entradas dela (comparando `time` com o `updatedAt` do servidor) e
+zero na do Guilherme. O histórico dizia 20:03; o servidor gravou 19:53:42 e o e-mail
+saiu 3 segundos depois. ⚠️ **A linha do tempo da OS não é uma linha do tempo** quando
+duas pessoas com relógios diferentes escrevem nela — aqui chegou a inverter a ordem
+dos fatos. Não consertado ainda; fica anotado.
+
+**O bug é o vínculo.** Existem DUAS threads: `19f901f8…`, a conversa humana, que
+pertencia à OS-0263 **apagada em 12/08**, e `1a087bbc…`, a que o Serv3 abriu ao
+responder. A OS-0417 nasceu da conversa antiga e **nunca tomou posse dela** — medido,
+`emailThreads` não tinha documento nenhum apontando aquela thread para OS viva alguma.
+Aí os quatro caminhos de vínculo falharam todos e sobrou o quinto: a lápide.
+
+Anexar uma mensagem solta NUNCA transferia a posse da conversa. Três mensagens da
+mesma thread caíram na fila — 12/08, 07/09 e 09/09 —, a segunda virou a OS-0417 e a
+terceira ainda assim foi descartada. **Das 65 mensagens soltas da base, 30 têm esse
+motivo.** A thread estava condenada a cair na fila para sempre.
+
+Agora anexar (ou criar OS a partir de) uma mensagem solta registra a thread na OS de
+destino: a decisão de quem triou passa a valer para as próximas.
+
+⚠️ **DOCUMENTO PRÓPRIO, não `emailThreads/{ticketId}`.** Uma OS participa de duas
+conversas; escrever no documento da OS sobrescreveria o `gmailThreadId` da outra e as
+respostas dela passariam a se perder — seria trocar de bug.
+
+⚠️ **A LÁPIDE NÃO AFROUXOU**, e duas das cinco verificações do teste existem só para
+provar isso: thread de OS apagada SEM OS viva continua caindo na fila e não ressuscita
+como OS nova. É a regra que nasceu das 105 OS da universidade.
+
+O teste ficou vermelho antes, com a mensagem exata de produção (`motivo: os-apagada`).
+
+## 2026-09-10 (os filtros mostravam sede que a pessoa não acessa)
+
+Suspeita: "a Thais vê nos filtros um monte de sede que ela nem tem acesso". Medi com a
+função real de acesso contra a base: **Gestão e Inbox já estavam certos** — os dois
+derivam da lista de OS, que o servidor escopa na carga inicial E no delta. Thais vê 60
+de 281 OS, 6 sedes; o catálogo tem 23.
+
+Mas a suspeita estava certa em dois outros lugares:
+
+**A fila de mensagens soltas** oferecia `catalogSites` inteiro — as 23 sedes — a
+qualquer Gestor. E o buraco não era o seletor: **o POST não conferia nada.** Medido no
+teste vermelho, o Gestor de PQL3 criou uma OS em SUL3 e recebeu **HTTP 201**. A OS
+nasce e sai da vista de quem a criou no mesmo instante, porque toda leitura passa por
+`canUserAccessTicket`.
+
+⚠️ **A recusa mora no servidor, não no seletor.** Esconder a sede da lista é conforto
+de tela e não vale como controle — bastava forjar o corpo do POST. As sedes permitidas
+passam a vir do servidor junto com a fila, calculadas por `buildAllowedScope`: refazer
+essa regra no navegador seria uma segunda implementação, e as duas divergem no dia em
+que só uma mudar.
+
+⚠️ **A FILA CONTINUA SEM ESCOPO** — isso é de propósito. Mensagem que ainda não virou
+OS não tem território, e quem tria precisa ver o que chegou. O que ganhou escopo é para
+ONDE ela pode ir.
+
+**Nos Indicadores**, o recuo dos seletores de grupo e região lia o catálogo inteiro
+quando o período escolhido não tinha OS: quem tem duas regiões via as onze só por
+escolher um mês vazio. Agora recua para as OS da própria pessoa, que já vêm escopadas.
+
 ## 2026-09-04 (a lista da Gestão desenhava OS por cima de OS)
 
 Relato: "as OS tão sendo comidas, uma em cima da outra, provavelmente quando o título
