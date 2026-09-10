@@ -1,6 +1,6 @@
 ﻿import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { ApiError, expectApiJson, readApiJson, resolveApiError } from './apiClient';
-import { ClosureChecklist, ContractRecord, ExecutionProgress, GuaranteeInfo, HistoryItem, MeasurementRecord, PaymentRecord, PreliminaryActions, Ticket } from '../types';
+import { ClosureChecklist, ExecutionProgress, GuaranteeInfo, HistoryItem, PreliminaryActions, Ticket } from '../types';
 import { coerceDate } from '../utils/date';
 import { repairMojibake } from '../utils/text';
 import { UserFacingError } from '../utils/errorMessage';
@@ -72,37 +72,8 @@ type ApiTicket = Omit<
   } | null;
 };
 
-type ApiMeasurement = Omit<MeasurementRecord, 'requestedAt' | 'approvedAt'> & {
-  requestedAt?: string | null;
-  approvedAt?: string | null;
-  attachments?: Array<{
-    id: string;
-    name: string;
-    path: string;
-    url: string;
-    contentType?: string | null;
-    size?: number | null;
-    uploadedAt?: string | null;
-    category?: 'closure_report' | 'closure_evidence' | 'attachment';
-  }> | null;
-};
-
-type ApiPayment = Omit<PaymentRecord, 'dueAt' | 'paidAt'> & {
-  dueAt?: string | null;
-  paidAt?: string | null;
-};
-
-type ApiContract = ContractRecord;
-
-export interface TrackingProcurementSummary {
-  contract: ContractRecord | null;
-  measurements: MeasurementRecord[];
-  payments: PaymentRecord[];
-}
-
 export interface TrackingTicketPayload {
   ticket: Ticket;
-  procurement: TrackingProcurementSummary;
 }
 
 /**
@@ -279,28 +250,6 @@ export function hydrateTicket(ticket: ApiTicket): Ticket {
   };
 }
 
-function hydrateMeasurement(item: ApiMeasurement): MeasurementRecord {
-  return {
-    ...item,
-    attachments: Array.isArray(item.attachments)
-      ? item.attachments.map(attachment => ({
-          ...attachment,
-          uploadedAt: attachment.uploadedAt ? coerceDate(attachment.uploadedAt) : null,
-        }))
-      : [],
-    requestedAt: item.requestedAt ? coerceDate(item.requestedAt) : null,
-    approvedAt: item.approvedAt ? coerceDate(item.approvedAt) : null,
-  };
-}
-
-function hydratePayment(item: ApiPayment): PaymentRecord {
-  return {
-    ...item,
-    dueAt: item.dueAt ? coerceDate(item.dueAt) : null,
-    paidAt: item.paidAt ? coerceDate(item.paidAt) : null,
-  };
-}
-
 export interface TicketsFetchResult {
   tickets: Ticket[];
   /** Relógio do servidor no início da leitura; reenviado como `since` no próximo poll. */
@@ -344,15 +293,6 @@ export async function fetchTrackingDetailsFromApi(trackingToken: string): Promis
 
   return {
     ticket: hydrateTicket(json.ticket as ApiTicket),
-    procurement: {
-      contract: (json.procurement?.contract as ApiContract | null) || null,
-      measurements: Array.isArray(json.procurement?.measurements)
-        ? json.procurement.measurements.map((item: ApiMeasurement) => hydrateMeasurement(item))
-        : [],
-      payments: Array.isArray(json.procurement?.payments)
-        ? json.procurement.payments.map((item: ApiPayment) => hydratePayment(item))
-        : [],
-    },
   };
 }
 

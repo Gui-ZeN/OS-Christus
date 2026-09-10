@@ -12,9 +12,7 @@ import {
   createTicketDetailsFormState,
 } from '../../src/views/inbox/ticketForms';
 import { formatInputDate, formatInputDateTime } from '../../src/utils/date';
-import type { QuoteDraft } from '../../src/views/inbox/types';
 import type { Ticket } from '../../src/types';
-import { formatCurrency } from '../../src/utils/currency';
 
 function checklistCompleto(): PreliminaryFormState {
   return {
@@ -28,10 +26,6 @@ function checklistCompleto(): PreliminaryFormState {
     plannedStartAt: '',
     blockerNotes: '',
   };
-}
-
-function draft(overrides: Partial<QuoteDraft> = {}): QuoteDraft {
-  return { vendor: '', value: '', laborValue: '', materialValue: '', totalValue: '', items: [], ...overrides };
 }
 
 describe('arePreliminaryActionsReady', () => {

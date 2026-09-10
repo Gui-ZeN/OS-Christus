@@ -7,23 +7,16 @@ import {
   esperaDaFila,
   filaTravada,
   tempoDeResolucao,
-  custoPor,
   envelhecimentoDaFila,
   esperaMaisLonga,
   esperaNaEtapaAtual,
-  fornecedorMaisAcionado,
-  fornecedoresComSaldo,
-  maiorObra,
   media,
-  porFornecedor,
   reguaDosMarcos,
-  resumoFinanceiro,
   urgenciaDaFila,
-  valorDaOs,
   volumeDoPeriodo,
   volumeAgrupado,
 } from '../../src/views/kpi/calculos';
-import type { ContractRecord, PaymentRecord, Ticket } from '../../src/types';
+import type { Ticket } from '../../src/types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
 
 /**
@@ -254,125 +247,13 @@ describe('volumeAgrupado — "Concluídas" deixou de incluir cancelada', () => {
 
 // ── DINHEIRO ────────────────────────────────────────────────────────────────
 
-const contrato = (valor: string, vendor = 'Fornecedor A'): ContractRecord =>
-  ({ id: 'C1', vendor, value: valor, status: 'signed' }) as ContractRecord;
 
-const pagamento = (valor: string, status = 'pending'): PaymentRecord =>
-  ({ id: 'P1', vendor: 'Fornecedor A', value: valor, status }) as PaymentRecord;
 
-describe('valorDaOs — uma fórmula, não três', () => {
-  it('o previsto prefere os lançamentos ao contrato — é o lançamento que segue o aditivo', () => {
-    // ⚠️ `value` preferia o contrato e `previsto` preferia os lançamentos, em cards
-    // vizinhos. Com aditivo, a mesma sede aparecia com dois números no mesmo scroll.
-    const [entrada] = valorDaOs([os()], { 'OS-0001': contrato('100000') }, { 'OS-0001': [pagamento('120000')] });
-    expect(entrada.previsto).toBe(120000);
-    expect(entrada.contratado).toBe(100000);
-  });
 
-  it('sem lançamento, cai para o contrato', () => {
-    const [entrada] = valorDaOs([os()], { 'OS-0001': contrato('100000') }, {});
-    expect(entrada.previsto).toBe(100000);
-  });
 
-  it('sem contrato e sem lançamento, o previsto é null — "não informado" não é R$ 0', () => {
-    const [entrada] = valorDaOs([os()], {}, {});
-    expect(entrada.previsto).toBeNull();
-    expect(entrada.contratado).toBeNull();
-  });
 
-  it('OS CANCELADA não entra no dinheiro — trabalho que não houve não é compromisso', () => {
-    // ⚠️ Obra cancelada com contrato assinado somava valor cheio em "Compromisso
-    // previsto", "Base contratada" e "Custo por sede".
-    const valores = valorDaOs(
-      [os({ id: 'A' }), os({ id: 'B', status: 'Cancelada' })],
-      { A: contrato('1000'), B: contrato('999999') },
-      {}
-    );
-    expect(valores).toHaveLength(1);
-    expect(valores[0].ticket.id).toBe('A');
-  });
 
-  it('só o que está pago conta como pago', () => {
-    const [entrada] = valorDaOs([os()], {}, { 'OS-0001': [pagamento('300', 'paid'), pagamento('700')] });
-    expect(entrada.pago).toBe(300);
-    expect(entrada.previsto).toBe(1000);
-    expect(entrada.saldo).toBe(700);
-  });
-});
 
-describe('resumoFinanceiro — o card e a soma das barras têm que fechar', () => {
-  it('o saldo do total é exatamente a soma dos saldos por OS', () => {
-    /**
-     * ⚠️ ERA ESTE O DEFEITO. O clamp `Math.max(0, …)` era aplicado em NÍVEIS
-     * diferentes — global no card, por OS no gráfico ao lado —, e bastava isso para
-     * os dois discordarem. Agora as duas somas saem da mesma subtração.
-     */
-    const valores = valorDaOs(
-      [os({ id: 'A' }), os({ id: 'B' })],
-      {},
-      { A: [pagamento('100', 'paid')], B: [pagamento('50'), pagamento('80', 'paid')] }
-    );
-    const resumo = resumoFinanceiro(valores);
-    expect(resumo.saldo).toBe(valores.reduce((soma, valor) => soma + valor.saldo, 0));
-    expect(resumo.pago).toBe(180);
-    expect(resumo.previsto).toBe(230);
-  });
-});
-
-describe('maiorObra — deixou de anunciar uma lâmpada de R$ 0 como a maior obra', () => {
-  it('sem nenhum valor lançado, devolve null', () => {
-    // ⚠️ A trava só olhava lista vazia. Com 40 OS e nenhuma com valor, todas
-    // empatavam em zero, a primeira do sort vencia, e o card mostrava "R$ 0 —
-    // Lâmpada queimada na recepção" com selo vermelho de urgência.
-    expect(maiorObra(valorDaOs([os(), os({ id: 'B' })], {}, {}), sede)).toBeNull();
-  });
-
-  it('com valor, devolve a maior', () => {
-    const valores = valorDaOs([os({ id: 'A' }), os({ id: 'B' })], { A: contrato('500'), B: contrato('9000') }, {});
-    expect(maiorObra(valores, sede)).toMatchObject({ id: 'B', valor: 9000 });
-  });
-});
-
-describe('fornecedor — "mais acionado" passou a ser por número de contratos', () => {
-  it('quarenta contratos pequenos ganham de um contrato grande', () => {
-    // ⚠️ O card dizia "mais acionado" e ordenava por valor.
-    const tickets = [
-      ...Array.from({ length: 3 }, (_, i) => os({ id: `P${i}` })),
-      os({ id: 'G' }),
-    ];
-    const contratos: Record<string, ContractRecord> = {
-      P0: contrato('1000', 'Pequeno'),
-      P1: contrato('1000', 'Pequeno'),
-      P2: contrato('1000', 'Pequeno'),
-      G: contrato('500000', 'Grande'),
-    };
-    const fornecedores = porFornecedor(valorDaOs(tickets, contratos, {}), contratos);
-    expect(fornecedorMaisAcionado(fornecedores)?.name).toBe('Pequeno');
-  });
-
-  it('sem contrato nenhum, não inventa um vencedor', () => {
-    expect(fornecedorMaisAcionado(porFornecedor(valorDaOs([os()], {}, {}), {}))).toBeNull();
-  });
-});
-
-describe('fornecedoresComSaldo — contava fornecedor sem saldo, e contava a lista cortada', () => {
-  it('quem está quitado não entra na conta', () => {
-    const tickets = [os({ id: 'A' }), os({ id: 'B' })];
-    const contratos: Record<string, ContractRecord> = { A: contrato('100', 'Quitado'), B: contrato('100', 'Devendo') };
-    const pagamentos: Record<string, PaymentRecord[]> = { A: [pagamento('100', 'paid')] };
-    const resultado = fornecedoresComSaldo(porFornecedor(valorDaOs(tickets, contratos, pagamentos), contratos));
-    expect(resultado.itens.map(f => f.name)).toEqual(['Devendo']);
-    expect(resultado.total).toBe(1);
-  });
-});
-
-describe('custoPor — declara quantas OS não têm valor lançado', () => {
-  it('separa "custou zero" de "não sabemos quanto custou"', () => {
-    const valores = valorDaOs([os({ id: 'A', sede: 'SUL1' }), os({ id: 'B', sede: 'SUL1' })], { A: contrato('500') }, {});
-    const [grupo] = custoPor(valores, sede);
-    expect(grupo).toMatchObject({ name: 'SUL1', custo: 500, osComValor: 1, osSemValor: 1 });
-  });
-});
 
 describe('auxiliares', () => {
   it('media de lista vazia é null', () => {

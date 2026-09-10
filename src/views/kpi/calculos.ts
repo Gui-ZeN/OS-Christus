@@ -1,10 +1,9 @@
-import type { ContractRecord, PaymentRecord, Ticket } from '../../types';
+import type { Ticket } from '../../types';
 import { TICKET_STATUS } from '../../constants/ticketStatus';
 import { isTicketOpen } from '../../constants/ticketLifecycle';
 // `parseCurrencyOrNull` mora no módulo compartilhado com o servidor. `src/utils/
 // currency.ts` só reexporta a versão que já converte ausência em zero — que é
 // exatamente o atalho que este arquivo não pode tomar.
-import { parseCurrencyOrNull } from '../../../api/_lib/currency.js';
 import { repairMojibake } from '../../utils/text';
 import { coerceDate } from '../../utils/date';
 import { ETAPA, ORDEM_DAS_ETAPAS, etapaDe } from '../../../api/_lib/etapas.js';
@@ -284,178 +283,20 @@ export type ValorDaOs = {
   saldo: number;
 };
 
-/**
- * O dinheiro de cada OS — UMA fórmula, usada por todos os cards de dinheiro.
- *
- * ⚠️ HAVIA TRÊS. `value` preferia o contrato e caía para os lançamentos; `previsto`
- * fazia o contrário; o ranking de fornecedor usava só o contrato. Com um aditivo
- * lançado, "Custo total por sede" e "Previsto x pago por sede" mostravam números
- * diferentes para a mesma sede, no mesmo scroll.
- *
- * A escolhida é a dos LANÇAMENTOS primeiro: é o lançamento que acompanha aditivo,
- * medição e parcela. O contrato é o valor de quando se assinou.
- *
- * ⚠️ OS CANCELADA NÃO ENTRA. Uma obra cancelada com contrato assinado somava valor
- * cheio em "Compromisso previsto", "Base contratada" e "Custo por sede" — trabalho
- * que não houve, contado como compromisso.
- *
- * ⚠️ `null` É "NÃO INFORMADO", não zero. `parseCurrencyOrNull` existe exatamente para
- * isso, e a tela inteira usava o atalho que converte ausência em `0`.
- */
-export function valorDaOs(
-  tickets: Ticket[],
-  contratoPorTicket: Record<string, ContractRecord | undefined>,
-  pagamentosPorTicket: Record<string, PaymentRecord[] | undefined>
-): ValorDaOs[] {
-  return tickets
-    .filter(ticket => ticket.status !== TICKET_STATUS.CANCELED)
-    .map(ticket => {
-      const contrato = contratoPorTicket[ticket.id];
-      const pagamentos = pagamentosPorTicket[ticket.id] || [];
-
-      const contratado = parseCurrencyOrNull(contrato?.value || '');
-      const somaDosLancamentos = pagamentos.reduce<number | null>((soma, pagamento) => {
-        const valor = parseCurrencyOrNull(pagamento.value);
-        if (valor === null) return soma;
-        return (soma || 0) + valor;
-      }, null);
-      const pago = pagamentos
-        .filter(pagamento => pagamento.status === 'paid')
-        .reduce((soma, pagamento) => soma + (parseCurrencyOrNull(pagamento.value) || 0), 0);
-
-      const previsto = somaDosLancamentos !== null && somaDosLancamentos > 0 ? somaDosLancamentos : contratado;
-
-      return { ticket, contratado, previsto, pago, saldo: (previsto || 0) - pago };
-    });
-}
 
 export type ResumoFinanceiro = { contratado: number; previsto: number; pago: number; saldo: number };
 
-/**
- * Os totais do painel financeiro.
- *
- * ⚠️ O `Math.max(0, …)` SAIU, e o motivo não é o que parecia. A suspeita da auditoria
- * era que ele escondia OS paga a maior; ao escrever o teste, não deu para construir
- * esse caso — o pago é subconjunto dos lançamentos, então o saldo já é não-negativo
- * por construção e o clamp nunca disparava.
- *
- * O defeito real era outro e continua consertado: o clamp era aplicado em NÍVEIS
- * diferentes — global no card, por OS no gráfico ao lado — e bastava isso para o
- * card e a soma das barras poderem discordar. Agora as duas somas saem da mesma
- * subtração, e um estorno lançado como valor negativo apareceria em vez de sumir.
- */
-export function resumoFinanceiro(valores: ValorDaOs[]): ResumoFinanceiro {
-  return valores.reduce(
-    (acc, entrada) => {
-      acc.contratado += entrada.contratado || 0;
-      acc.previsto += entrada.previsto || 0;
-      acc.pago += entrada.pago;
-      acc.saldo += entrada.saldo;
-      return acc;
-    },
-    { contratado: 0, previsto: 0, pago: 0, saldo: 0 }
-  );
-}
 
 export type MaiorObra = { id: string; subject: string; valor: number; sede: string } | null;
 
-/**
- * A obra de maior valor do recorte. `null` quando nenhuma tem valor.
- *
- * ⚠️ A TRAVA SÓ OLHAVA LISTA VAZIA. Com 40 OS e nenhuma com contrato ou lançamento,
- * todos os valores empatavam em zero, a primeira do sort vencia, e o card anunciava
- * "R$ 0 — Lâmpada queimada na recepção" com selo vermelho de urgência.
- */
-export function maiorObra(
-  valores: ValorDaOs[],
-  rotuloDaSede: (ticket: Ticket) => string
-): MaiorObra {
-  const maior = [...valores].sort((a, b) => (b.previsto || 0) - (a.previsto || 0))[0];
-  if (!maior || !maior.previsto || maior.previsto <= 0) return null;
-  return {
-    id: maior.ticket.id,
-    subject: maior.ticket.subject,
-    valor: maior.previsto,
-    sede: rotuloDaSede(maior.ticket),
-  };
-}
 
 export type Fornecedor = { name: string; contratos: number; previsto: number; pago: number; saldo: number };
 
-/** Agrupa o dinheiro por fornecedor. Uma passada; o ranking decide o corte depois. */
-export function porFornecedor(
-  valores: ValorDaOs[],
-  contratoPorTicket: Record<string, ContractRecord | undefined>
-): Fornecedor[] {
-  const grupos = new Map<string, Fornecedor>();
-  for (const entrada of valores) {
-    const contrato = contratoPorTicket[entrada.ticket.id];
-    const name = contrato?.vendor || 'Fornecedor não informado';
-    if (!grupos.has(name)) grupos.set(name, { name, contratos: 0, previsto: 0, pago: 0, saldo: 0 });
-    const atual = grupos.get(name)!;
-    if (contrato) atual.contratos += 1;
-    atual.previsto += entrada.previsto || 0;
-    atual.pago += entrada.pago;
-    atual.saldo += entrada.saldo;
-  }
-  return [...grupos.values()];
-}
 
-/**
- * Quem tem saldo em aberto — só quem tem.
- *
- * ⚠️ O CARD "Fornecedores com saldo" CONTAVA FORNECEDOR SEM SALDO, e ainda por cima
- * o `.length` de uma lista cortada em 8. Contava errado duas vezes na mesma linha.
- */
-export function fornecedoresComSaldo(fornecedores: Fornecedor[]): ListaComTeto<Fornecedor> {
-  const comSaldo = fornecedores
-    .filter(fornecedor => fornecedor.saldo > 0)
-    .sort((a, b) => b.saldo - a.saldo || a.name.localeCompare(b.name, 'pt-BR'));
-  return comTeto(comSaldo);
-}
 
-/**
- * O fornecedor mais ACIONADO — por número de contratos.
- *
- * ⚠️ O CARD DIZIA "mais acionado" E ORDENAVA POR VALOR. Um fornecedor com um
- * contrato de R$ 500 mil ganhava de outro com quarenta de R$ 1 mil. São duas
- * perguntas diferentes e o card respondia a que não perguntou.
- */
-export function fornecedorMaisAcionado(fornecedores: Fornecedor[]): Fornecedor | null {
-  const comContrato = fornecedores.filter(fornecedor => fornecedor.contratos > 0);
-  if (comContrato.length === 0) return null;
-  return [...comContrato].sort(
-    (a, b) => b.contratos - a.contratos || b.previsto - a.previsto || a.name.localeCompare(b.name, 'pt-BR')
-  )[0];
-}
 
 export type CustoAgrupado = { name: string; custo: number; osComValor: number; osSemValor: number };
 
-/**
- * Custo por chave (sede, serviço…), declarando quantas OS não têm valor lançado.
- *
- * ⚠️ "SEM VALOR" NÃO É "R$ 0". Um agrupamento onde metade das OS não tem lançamento
- * mostra um custo que parece completo e não é. `osSemValor` existe para a tela poder
- * dizer isso em vez de deixar quem lê concluir que a sede é barata.
- */
-export function custoPor(
-  valores: ValorDaOs[],
-  chave: (ticket: Ticket) => string
-): CustoAgrupado[] {
-  const grupos = new Map<string, CustoAgrupado>();
-  for (const entrada of valores) {
-    const name = chave(entrada.ticket);
-    if (!grupos.has(name)) grupos.set(name, { name, custo: 0, osComValor: 0, osSemValor: 0 });
-    const atual = grupos.get(name)!;
-    if (entrada.previsto && entrada.previsto > 0) {
-      atual.custo += entrada.previsto;
-      atual.osComValor += 1;
-    } else {
-      atual.osSemValor += 1;
-    }
-  }
-  return [...grupos.values()].sort((a, b) => b.custo - a.custo || a.name.localeCompare(b.name, 'pt-BR'));
-}
 
 // ── DESEMPENHO E DISCIPLINA ──────────────────────────────────────────────────
 

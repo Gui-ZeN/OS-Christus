@@ -1,11 +1,9 @@
 import { TICKET_STATUS } from '../constants/ticketStatus';
-import { ContractRecord, Quote, Ticket, TicketAttachment } from '../types';
+import { Ticket, TicketAttachment } from '../types';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { fetchCatalog } from './catalogApi';
 import { fetchDirectory } from './directoryApi';
-import { fetchProcurementData } from './procurementApi';
 import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerritory';
-import { formatCurrency, parseCurrency as parseCurrencyInput } from '../utils/currency';
 import { UserFacingError } from '../utils/errorMessage';
 import {
   copiaParaDiretoria,
@@ -175,151 +173,6 @@ function buildDirectorEmailBody(ticket: Ticket, isApprovalStatus: boolean, summa
     '',
     summaryList,
   ].join('\n');
-}
-
-function normalizeRoundCategory(value: unknown): 'initial' | 'additive' {
-  return value === 'additive' ? 'additive' : 'initial';
-}
-
-function normalizeQuoteStatus(value: unknown): string {
-  return String(value || '').trim().toLowerCase();
-}
-
-function resolveQuoteDisplayValue(quote: Quote) {
-  const raw = String(quote.totalValue || quote.value || '').trim();
-  if (raw) return raw;
-  const numeric = parseCurrencyInput(raw);
-  return numeric > 0 ? formatCurrency(numeric) : '-';
-}
-
-async function buildDirectorBudgetContext(ticket: Ticket) {
-  const measurementSheetUrl = String(ticket.executionProgress?.measurementSheetUrl || '').trim();
-  const buildQuoteCard = (quote: Quote, index: number) => ({
-    title: `Cotação ${index + 1}`,
-    rows: [
-      { label: 'Fornecedor', value: quote.vendor || 'Fornecedor não informado' },
-      { label: 'Valor total', value: resolveQuoteDisplayValue(quote) },
-      { label: 'Material', value: quote.materialValue || '-' },
-      { label: 'Mão de obra', value: quote.laborValue || '-' },
-    ],
-  });
-  try {
-    const procurement = await fetchProcurementData();
-    const allQuotes = Array.isArray(procurement.quotesByTicket?.[ticket.id]) ? procurement.quotesByTicket[ticket.id] : [];
-    if (allQuotes.length === 0) {
-      return {
-        roundTypeLabel: 'Orçamento inicial - rodada 1',
-        additiveReason: null as string | null,
-        quoteBlocks: [] as string[],
-        quoteCards: [] as Array<{ title: string; rows: Array<{ label: string; value: string }> }>,
-        measurementSheetUrl,
-      };
-    }
-
-    const pendingQuotes = allQuotes.filter(quote => normalizeQuoteStatus((quote as Quote).status) === 'pending');
-    const sourceQuotes = pendingQuotes.length > 0 ? pendingQuotes : allQuotes;
-    const additivePending = sourceQuotes.filter(quote => normalizeRoundCategory((quote as Quote).category) === 'additive');
-
-    if (additivePending.length > 0) {
-      const additiveIndexes = additivePending
-        .map(quote => Number((quote as Quote).additiveIndex || 0))
-        .filter(value => Number.isFinite(value) && value > 0);
-      const additiveIndex = additiveIndexes.length > 0 ? Math.max(...additiveIndexes) : 1;
-      const roundQuotes = additivePending.filter(quote => Number((quote as Quote).additiveIndex || 0) === additiveIndex);
-      const additiveReason = String((roundQuotes[0] as Quote)?.additiveReason || '').trim() || null;
-      const quoteBlocks = roundQuotes.map((quote, index) => {
-        const normalized = quote as Quote;
-        return [
-          `- Cotação ${index + 1}`,
-          `- Fornecedor: ${normalized.vendor || 'Fornecedor não informado'}`,
-          `- Valor total: ${resolveQuoteDisplayValue(normalized)}`,
-          `- Material: ${normalized.materialValue || '-'}`,
-          `- Mão de obra: ${normalized.laborValue || '-'}`,
-        ].join('\n');
-      });
-      return {
-        roundTypeLabel: `Aditivo ${additiveIndex}`,
-        additiveReason,
-        quoteBlocks,
-        quoteCards: roundQuotes.map((quote, index) => buildQuoteCard(quote as Quote, index)),
-        measurementSheetUrl,
-      };
-    }
-
-    const initialQuotes = sourceQuotes.filter(quote => normalizeRoundCategory((quote as Quote).category) === 'initial');
-    const initialRoundIndex = Math.max(
-      1,
-      ...initialQuotes.map(quote => Number((quote as Quote).initialRoundIndex || 1)).filter(value => Number.isFinite(value) && value > 0)
-    );
-    const roundQuotes = initialQuotes.filter(quote => Number((quote as Quote).initialRoundIndex || 1) === initialRoundIndex);
-    const quoteBlocks = roundQuotes.map((quote, index) => {
-      const normalized = quote as Quote;
-      return [
-        `- Cotação ${index + 1}`,
-        `- Fornecedor: ${normalized.vendor || 'Fornecedor não informado'}`,
-        `- Valor total: ${resolveQuoteDisplayValue(normalized)}`,
-        `- Material: ${normalized.materialValue || '-'}`,
-        `- Mão de obra: ${normalized.laborValue || '-'}`,
-      ].join('\n');
-    });
-    return {
-      roundTypeLabel: `Orçamento inicial - rodada ${initialRoundIndex}`,
-      additiveReason: null as string | null,
-      quoteBlocks,
-      quoteCards: roundQuotes.map((quote, index) => buildQuoteCard(quote as Quote, index)),
-      measurementSheetUrl,
-    };
-  } catch {
-    return {
-      roundTypeLabel: 'Orçamento inicial - rodada 1',
-      additiveReason: null as string | null,
-      quoteBlocks: [] as string[],
-      quoteCards: [] as Array<{ title: string; rows: Array<{ label: string; value: string }> }>,
-      measurementSheetUrl,
-    };
-  }
-}
-
-async function buildDirectorContractContext(ticket: Ticket) {
-  try {
-    const procurement = await fetchProcurementData();
-    const contract = (procurement.contractsByTicket?.[ticket.id] || null) as ContractRecord | null;
-    if (!contract) {
-      return {
-        contractBlock: '',
-        attachments: [] as ReturnType<typeof normalizeEmailAttachments>,
-      };
-    }
-
-    const attachmentSource: TicketAttachment[] =
-      contract.signedFileName || contract.signedFileUrl || contract.signedFilePath
-        ? [
-            {
-              id: `contract-${ticket.id}`,
-              name: contract.signedFileName || 'Contrato anexado',
-              path: contract.signedFilePath || '',
-              url: contract.signedFileUrl || '',
-              contentType: contract.signedFileContentType || 'application/pdf',
-              size: contract.signedFileSize ?? null,
-            },
-          ]
-        : [];
-
-    return {
-      contractBlock: [
-        'Contrato em aprovação:',
-        `- Fornecedor: ${contract.vendor || 'Não informado'}`,
-        `- Valor do contrato: ${contract.value || 'Não informado'}`,
-        `- Arquivo anexado: ${contract.signedFileName || 'Não informado'}`,
-      ].join('\n'),
-      attachments: normalizeEmailAttachments(attachmentSource),
-    };
-  } catch {
-    return {
-      contractBlock: '',
-      attachments: [] as ReturnType<typeof normalizeEmailAttachments>,
-    };
-  }
 }
 
 function buildAttachmentList(attachments: TicketAttachment[]) {
@@ -707,32 +560,28 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
   if (DIRECTOR_FLOW_STATUSES.has(ticket.status) && hasInvolvedDirectors(ticket)) {
     const directorTab = resolveDirectorApprovalTab(ticket.status);
     const isApprovalStatus = directorTab !== 'solutions';
-    const budgetContext = directorTab === 'budgets' ? await buildDirectorBudgetContext(ticket) : null;
-    const contractContext = directorTab === 'contracts' ? await buildDirectorContractContext(ticket) : null;
     const latestInternalTechEntry = resolveLatestInternalTechEntry(ticket);
     const latestAttachments = Array.isArray(latestInternalTechEntry?.attachments) ? latestInternalTechEntry.attachments : [];
     const technicalBlock = directorTab === 'solutions' && latestInternalTechEntry?.text
       ? `Parecer técnico:\n${latestInternalTechEntry.text}`
       : '';
-    const budgetBlock =
-      budgetContext
-        ? [
-            budgetContext.measurementSheetUrl ? `Planilha de medição: ${budgetContext.measurementSheetUrl}` : null,
-          ]
-            .flat()
-            .filter(Boolean)
-            .join('\n')
-        : '';
-    const contractBlock = contractContext?.contractBlock || '';
+    /*
+     * ⚠️ O E-MAIL NÃO CARREGA MAIS COTAÇÃO NEM CONTRATO (10/09/2026).
+     *
+     * Os dois blocos vinham de `fetchProcurementData`, e o aparelho que os alimentava
+     * saiu junto com o Painel Financeiro antigo. Não é perda de conteúdo: as
+     * subcoleções estavam vazias em todas as 281 OS, então `buildDirectorBudgetContext`
+     * já devolvia lista vazia e `buildDirectorContractContext`, bloco vazio — os
+     * `metricRows`, os `detailCards` e a linha do contrato NUNCA chegaram a sair num
+     * e-mail de produção.
+     *
+     * O aviso à Diretoria continua igual no que ele de fato entregava: o corpo, o
+     * parecer técnico quando existe, e as fotos da OS.
+     */
     // Fotos anexadas na OS (abertura) sempre acompanham o e-mail ao diretor.
-    // Antes só iam anexos de parecer/contrato, então a foto do solicitante sumia.
+    // Antes só iam anexos de parecer, então a foto do solicitante sumia.
     const ticketPhotos = normalizeEmailAttachments(Array.isArray(ticket.attachments) ? ticket.attachments : []);
-    const flowAttachments =
-      directorTab === 'solutions'
-        ? normalizeEmailAttachments(latestAttachments)
-        : directorTab === 'contracts'
-          ? (contractContext?.attachments || [])
-          : [];
+    const flowAttachments = directorTab === 'solutions' ? normalizeEmailAttachments(latestAttachments) : [];
     const seenAttachmentKeys = new Set<string>();
     const directorAttachments = [...ticketPhotos, ...flowAttachments].filter(item => {
       const key = String(item?.path || item?.url || item?.id || '').trim();
@@ -740,7 +589,7 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       seenAttachmentKeys.add(key);
       return true;
     });
-    const directorBody = [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), budgetBlock, contractBlock, technicalBlock].filter(Boolean).join('\n\n');
+    const directorBody = [buildDirectorEmailBody(ticket, isApprovalStatus, directorSummary), technicalBlock].filter(Boolean).join('\n\n');
     await sendToConfiguredFlowRecipients({
       ticketId: ticket.id,
       trackingToken: ticket.trackingToken,
@@ -755,23 +604,14 @@ export async function notifyTicketStatusChange(ticket: Ticket, previousStatus: s
       variables,
       templateData: {
         title: isApprovalStatus
-          ? (budgetContext ? `${budgetContext.roundTypeLabel} em aprovação da Diretoria` : 'Etapa em aprovação da Diretoria')
+          ? 'Etapa em aprovação da Diretoria'
           : 'Nova demanda para avaliação da Diretoria',
         intro: isApprovalStatus
-          ? (budgetContext
-            ? `${ticket.id} está em ${budgetContext.roundTypeLabel.toLowerCase()} e requer aprovação da Diretoria.`
-            : `${ticket.id} já está pronta para revisão da Diretoria.`)
+          ? `${ticket.id} já está pronta para revisão da Diretoria.`
           : `${ticket.id} entrou na etapa de solução e requer acompanhamento da Diretoria.`,
         ticketSubject: ticket.subject,
         status: ticket.status,
         bodyText: directorBody,
-        metricRows: budgetContext
-          ? [
-              { label: 'Rodada', value: budgetContext.roundTypeLabel },
-              ...(budgetContext.additiveReason ? [{ label: 'Motivo do aditivo', value: budgetContext.additiveReason }] : []),
-            ]
-          : [],
-        detailCards: budgetContext?.quoteCards || [],
         ctaUrl: buildTrackingUrl(ticket),
         ctaLabel: 'Acompanhar a OS',
       },

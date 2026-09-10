@@ -3,6 +3,40 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-10 (os dois últimos fios do financeiro velho)
+
+Sobravam duas amarras depois que o editor de cotações saiu.
+
+**Indicadores.** A aba Financeira e o filtro de Fornecedor liam contratos e
+pagamentos. ⚠️ **O `tsc` guiou a remoção**: fixar `perspective` como constante
+`'managerial'` fez o compilador listar cada comparação impossível — cinco pontos, em
+vez de caçar 23 ocorrências à mão. Saíram a aba, os gráficos financeiros, o filtro de
+Fornecedor (que sem contrato só oferecia "Todos os fornecedores") e, em cascata pelo
+eslint, os quinze cálculos que só eles usavam. **KpiView: 2.159 → 1.561 linhas.**
+
+**E-mail à Diretoria.** O corpo montava cotações e contrato via `fetchProcurementData`.
+Não é perda de conteúdo: com as subcoleções vazias em todas as 281 OS, os `metricRows`,
+os `detailCards` e o bloco do contrato **nunca chegaram a sair num e-mail**. O aviso
+continua igual no que de fato entregava — corpo, parecer técnico e as fotos da OS.
+
+Com os dois cortados, caiu o resto: `api/procurement.js`, `financeCommands.js`,
+`procurementAccess.js`, `procurementApi.ts`, `executionFlow.ts`,
+`procurementClassification.ts`, `inbox/types.ts`, sete tipos financeiros, a hidratação
+de contrato/medição/pagamento no `ticketsApi` (⚠️ conferido: o payload de
+`TrackingProcurementSummary` **não era consumido por tela nenhuma** — a página pública
+só lê `.ticket`), as rotas `/api/approvals` e `/api/finance` do `vercel.json`, e quatro
+arquivos de teste.
+
+⚠️ **O QUE FICOU DE PROPÓSITO.** A tela de Auditoria mantém os rótulos das 235 ações
+(`procurement.quotes.save` e as outras três) — são texto, não dependem do código
+removido, e sem eles o histórico viraria linha sem nome. `auditLogs` é coleção própria
+e não foi tocada.
+
+Verificado no navegador contra o emulador: Indicadores abre como "Painel Executivo",
+14 gráficos, 18 SVGs, **zero erro de console**, sem aba Financeira e sem menção a
+fornecedor. 1358 unitários, tsc limpo, build verde, e o eslint do projeto saiu de 32
+para 30 erros (todos pré-existentes, nenhum meu).
+
 ## 2026-09-10 (o Painel Financeiro passa a responder a pergunta que fazem)
 
 Fui medir antes de desenhar. Das **281 OS de produção**: **zero** cotações, **zero**

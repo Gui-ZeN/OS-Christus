@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Tooltip, CartesianGrid, XAxis, YAxis, BarChart, Bar, Cell, Legend, LabelList, ComposedChart, Area, ReferenceLine } from 'recharts';
-import { Briefcase, DollarSign, TrendingUp, Download } from 'lucide-react';
+import { Briefcase, TrendingUp, Download } from 'lucide-react';
 import type { KpiReportData } from './kpi/reportTypes';
 import { getAuthenticatedActorHeaders } from '../services/actorHeaders';
 import { PeriodPicker, type PeriodMode } from './kpi/PeriodPicker';
@@ -9,30 +9,20 @@ import { usePaletaDeGraficos } from './kpi/paletaDeGraficos';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
 import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
-import { fetchProcurementData } from '../services/procurementApi';
-import type { ContractRecord, PaymentRecord, Ticket } from '../types';
+import type { Ticket } from '../types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
-import { PAPEIS_COM_INDICADORES_LABEL, podeVerFinanceiro, podeVerIndicadores } from '../constants/acessoIndicadores';
+import { PAPEIS_COM_INDICADORES_LABEL, podeVerIndicadores } from '../constants/acessoIndicadores';
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import { granularidadeSugerida, resumoDoFluxo, serieDeFluxo } from '../utils/fluxoDemandas';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { getTicketGroupLabel, getTicketRegionLabel, getTicketSiteLabel, rotuloDoGrupo } from '../utils/ticketTerritory';
-import { formatCurrency, parseCurrency } from '../utils/currency';
-import { getItemUnitPrice, parseCurrencyOrNull } from '../../api/_lib/currency.js';
 import {
   backlogPorEquipe as calcBacklogPorEquipe,
   backlogPorEtapa as calcBacklogPorEtapa,
-  custoPor,
   envelhecimentoDaFila,
   esperaMaisLonga,
   esperaNaEtapaAtual,
-  fornecedorMaisAcionado,
-  fornecedoresComSaldo,
-  maiorObra,
-  porFornecedor,
-  resumoFinanceiro,
   urgenciaDaFila,
-  valorDaOs,
   volumeDoPeriodo,
   volumeAgrupado,
   coberturaDaProximaAcao,
@@ -46,20 +36,6 @@ import { repairMojibake } from '../utils/text';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import { activeSuspension } from '../utils/agenda';
 import { lerMarcos } from '../utils/marcos';
-/**
- * ⚠️ ESTA TELA TINHA QUATRO FORMAS DE ESCREVER DINHEIRO — uma local sem casas
- * decimais, uma inline com `toLocaleString`, e duas de eixo com e sem
- * arredondar. R$ 1.234,50 saía como "R$ 1.234,5" num card e "R$ 1.234,00" no
- * resto do sistema. Agora é `formatCurrency`, a mesma do Financeiro e dos
- * e-mails; aqui ficam só os rótulos curtos de eixo e de barra.
- */
-/**
- * Eixo de dinheiro. Abaixo de mil, escreve o valor inteiro: arredondar para o
- * milhar numa escala pequena imprime "R$ 1k, R$ 1k, R$ 0k" em ticks vizinhos —
- * três rótulos iguais para três valores diferentes.
- */
-const emMilhares = (valor: number) =>
-  Math.abs(valor) >= 1000 ? `R$ ${Math.round(valor / 1000)}k` : formatCurrency(valor);
 
 /**
  * Rótulo de barra de DINHEIRO. `compactChartValue` arredonda para o milhar mais
@@ -73,12 +49,6 @@ function rotuloDeDias(value: number | string | null) {
   return `${n}d`;
 }
 
-function rotuloDeDinheiro(value: number | string) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '';
-  if (Math.abs(n) >= 1000) return emMilhares(n);
-  return formatCurrency(n);
-}
 
 // Rótulo de dados dos gráficos: compacto (esconde zeros; 15k / 1.2M pros valores altos).
 /** Severidade, para ordenar o filtro. Produção hoje usa só as três primeiras.
@@ -96,51 +66,7 @@ function compactChartValue(value: number | string) {
   return `${n}`;
 }
 
-function buildMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
 
-function buildMonthBuckets(
-  start: Date,
-  end: Date,
-  formatter: Intl.DateTimeFormat
-) {
-  const normalizedStart = new Date(start.getFullYear(), start.getMonth(), 1);
-  const normalizedEnd = new Date(end.getFullYear(), end.getMonth(), 1);
-  const buckets: Array<{ key: string; label: string }> = [];
-  const cursor = new Date(normalizedStart);
-
-  while (cursor.getTime() <= normalizedEnd.getTime()) {
-    buckets.push({
-      key: buildMonthKey(cursor),
-      label: formatter.format(cursor).replace('.', ''),
-    });
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-
-  return buckets;
-}
-
-/**
- * O valor de uma linha de item — `null` quando não dá para saber.
- *
- * ⚠️ ERA A QUINTA CÓPIA DESTA LÓGICA. `api/_lib/currency.js` documenta que ela já
- * existia em quatro lugares com três comportamentos e foi unificada em
- * `getItemUnitPrice`; esta continuou de fora, com um detalhe pior: caía em `0`, e
- * material caro sem preço lançado sumia do ranking em vez de aparecer como "preço
- * não informado".
- */
-function valorDoItem(
-  item: { totalPrice?: string | null; unitPrice?: string | null; quantity?: number | null }
-): number | null {
-  const total = parseCurrencyOrNull(item.totalPrice);
-  if (total !== null && total > 0) return total;
-
-  const unitario = getItemUnitPrice(item);
-  const quantidade = item.quantity ?? 0;
-  if (unitario !== null && quantidade > 0) return unitario * quantidade;
-  return null;
-}
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -169,61 +95,26 @@ export function KpiView() {
   // Mesma fonte que acende o ícone na barra lateral: duas listas escritas à mão
   // divergiam em silêncio, e o sintoma era ver o ícone e levar "acesso restrito".
   const canAccess = podeVerIndicadores(currentUser?.role);
-  const canViewFinancials = podeVerFinanceiro(currentUser?.role);
   const [period, setPeriod] = useState<PeriodMode>('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [perspective, setPerspective] = useState<'managerial' | 'financial'>('managerial');
   // O degrau acima da região: Colégio ou Universidade. Até aqui a tela só sabia
   // recortar UMA região por vez, e "todas as OS do Colégio" — 209 das 224 — não
   // tinha como ser perguntado.
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSite, setSelectedSite] = useState('all');
-  const [selectedVendor, setSelectedVendor] = useState('all');
   // Status, urgência e equipe entraram por pedido de quem usa: o relatório saía
   // sempre com tudo, e a pergunta real é "o que está parado na sede X".
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedPriority, setSelectedPriority] = useState('all');
   const [selectedTeam, setSelectedTeam] = useState('all');
-  const [contractsByTicket, setContractsByTicket] = useState<Record<string, ContractRecord>>({});
-  const [paymentsByTicket, setPaymentsByTicket] = useState<Record<string, PaymentRecord[]>>({});
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
   const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    // Quem não pode ver dados financeiros também não os busca: o backend recusa
-    // (403) e a chamada só produziria um erro silencioso a cada carga da tela.
-    if (!canViewFinancials) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await fetchProcurementData();
-        if (!cancelled) {
-          setContractsByTicket(data.contractsByTicket);
-          setPaymentsByTicket(data.paymentsByTicket);
-        }
-      } catch {
-        if (!cancelled) {
-          setContractsByTicket({});
-          setPaymentsByTicket({});
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    /**
-     * ⚠️ `canViewFinancials` PRECISA ESTAR AQUI. O efeito lia a permissão e declarava
-     * `[]`: se o papel do usuário chegar depois da primeira renderização — ou mudar
-     * na sessão —, a busca nunca reexecuta e a aba Financeira fica em R$ 0 para
-     * sempre. Sem erro, sem carregando, sem aviso: exatamente o modo de falhar que
-     * este painel já teve em outros números.
-     */
-  }, [canViewFinancials]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,18 +155,8 @@ export function KpiView() {
         dates.push(fechadaEm);
       }
     }
-    for (const payments of Object.values(paymentsByTicket) as PaymentRecord[][]) {
-      for (const payment of payments) {
-        if (payment.dueAt instanceof Date && !Number.isNaN(payment.dueAt.getTime())) {
-          dates.push(payment.dueAt);
-        }
-        if (payment.paidAt instanceof Date && !Number.isNaN(payment.paidAt.getTime())) {
-          dates.push(payment.paidAt);
-        }
-      }
-    }
     return dates;
-  }, [paymentsByTicket, tickets]);
+  }, [tickets]);
 
   const latestBalanceDate = useMemo(() => {
     if (timelineDates.length === 0) return new Date();
@@ -374,7 +255,10 @@ export function KpiView() {
       const source = values.length ? values : fallbackValues;
       return [...new Set(source)].filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
-    [periodTickets, regions, sites]
+    // `tickets` entra porque o RECUO lê dele. Na prática `periodTickets` já deriva
+    // de `tickets` e recalcularia junto — mas dependência que o código usa e o array
+    // não declara é a que engana quem mexer aqui depois.
+    [periodTickets, tickets, regions, sites]
   );
 
   const regionOptions = useMemo(
@@ -393,7 +277,8 @@ export function KpiView() {
       const source = values.length ? values : fallbackValues;
       return [...new Set(source)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
-    [periodTickets, regions, selectedGroup, sites]
+    // `tickets` pelo mesmo motivo do grupo acima: o recuo lê dele.
+    [periodTickets, tickets, regions, selectedGroup, sites]
   );
 
   const selectedRegionId = useMemo(() => {
@@ -426,15 +311,6 @@ export function KpiView() {
     [periodTickets, selectedGroup, selectedRegion, selectedRegionId, regions, sites]
   );
 
-  const vendorOptions = useMemo(
-    () => {
-      const values: string[] = periodTickets
-        .map(ticket => contractsByTicket[ticket.id]?.vendor || '')
-        .filter((value): value is string => Boolean(value));
-      return [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    },
-    [contractsByTicket, periodTickets]
-  );
 
   useEffect(() => {
     if (selectedGroup !== 'all' && !groupOptions.includes(selectedGroup)) {
@@ -454,12 +330,6 @@ export function KpiView() {
     }
   }, [selectedSite, siteOptions]);
 
-  useEffect(() => {
-    if (selectedVendor !== 'all' && !vendorOptions.includes(selectedVendor)) {
-      setSelectedVendor('all');
-    }
-  }, [selectedVendor, vendorOptions]);
-
   /** Os filtros de recorte, sem o período — que cada quadro aplica ao seu jeito. */
   const passaNosFiltros = useCallback(
     (ticket: Ticket) => {
@@ -473,13 +343,9 @@ export function KpiView() {
       if (selectedStatus !== 'all' && etapaDe(String(ticket.status)) !== selectedStatus) return false;
       if (selectedPriority !== 'all' && ticket.priority !== selectedPriority) return false;
       if (selectedTeam !== 'all' && repairMojibake(ticket.assignedTeam || '') !== selectedTeam) return false;
-      if (selectedVendor !== 'all') {
-        const vendor = contractsByTicket[ticket.id]?.vendor || '';
-        if (vendor !== selectedVendor) return false;
-      }
       return true;
     },
-    [contractsByTicket, regions, selectedGroup, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor, sites]
+    [regions, selectedGroup, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, sites]
   );
 
   /** FLUXO: o que aconteceu no período. Recorta por data de abertura. */
@@ -514,11 +380,10 @@ export function KpiView() {
       selectedSite === 'all' &&
       selectedStatus === 'all' &&
       selectedPriority === 'all' &&
-      selectedTeam === 'all' &&
-      selectedVendor === 'all';
+      selectedTeam === 'all';
     if (semFiltro) return null;
     return tickets.filter(passaNosFiltros).map(ticket => ticket.id);
-  }, [passaNosFiltros, tickets, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam, selectedVendor]);
+  }, [passaNosFiltros, tickets, selectedRegion, selectedSite, selectedStatus, selectedPriority, selectedTeam]);
 
   const statusOptions = useMemo(() => {
     const presentes = new Set<string>(periodTickets.map(ticket => etapaDe(String(ticket.status))).filter(Boolean));
@@ -603,13 +468,9 @@ export function KpiView() {
       if (selectedSite !== 'all' && getTicketSiteLabel(ticket, sites) !== selectedSite) return false;
       if (selectedPriority !== 'all' && ticket.priority !== selectedPriority) return false;
       if (selectedTeam !== 'all' && repairMojibake(ticket.assignedTeam || '') !== selectedTeam) return false;
-      if (selectedVendor !== 'all') {
-        const vendor = contractsByTicket[ticket.id]?.vendor || '';
-        if (vendor !== selectedVendor) return false;
-      }
       return true;
     });
-  }, [contractsByTicket, regions, selectedGroup, selectedRegion, selectedSite, selectedPriority, selectedTeam, selectedVendor, sites, tickets]);
+  }, [regions, selectedGroup, selectedRegion, selectedSite, selectedPriority, selectedTeam, sites, tickets]);
 
   const fluxoDemandas = useMemo(
     () => serieDeFluxo(ticketsDoEscopo, { inicio: periodRange.start, fim: periodRange.end }),
@@ -640,74 +501,12 @@ export function KpiView() {
 
   const distribuicaoUrgencia = useMemo(() => urgenciaDaFila(ticketsDaFila), [ticketsDaFila]);
 
-  const contractValues = useMemo(
-    () => valorDaOs(filteredTickets, contractsByTicket, paymentsByTicket),
-    [contractsByTicket, filteredTickets, paymentsByTicket]
-  );
 
-  const fornecedores = useMemo(
-    () => porFornecedor(contractValues, contractsByTicket),
-    [contractValues, contractsByTicket]
-  );
 
-  const topFornecedor = useMemo(() => fornecedorMaisAcionado(fornecedores), [fornecedores]);
 
-  const maiorCusto = useMemo(
-    () => maiorObra(contractValues, ticket => getTicketSiteLabel(ticket, sites)),
-    [contractValues, sites]
-  );
 
-  const custoPorSede = useMemo(
-    () => custoPor(contractValues, ticket => getTicketSiteLabel(ticket, sites)),
-    [contractValues, sites]
-  );
 
-  /**
-   * ⚠️ USA A MESMA FÓRMULA DE "CUSTO" DO GRÁFICO DE SEDES. Antes somava só o
-   * `contract.value` e pulava OS sem contrato, enquanto o de sedes usava o valor
-   * com fallback — dois gráficos de custo, lado a lado, que não fechavam entre si.
-   */
-  const custoPorServico = useMemo(
-    () =>
-      custoPor(contractValues, ticket =>
-        repairMojibake(
-          ticket.serviceCatalogName || ticket.macroServiceName || 'Não classificado'
-        )
-      ),
-    [contractValues]
-  );
 
-  const custoPorMaterial = useMemo(() => {
-    const grouped = new Map<string, { name: string; custo: number; usos: number; semPreco: number; unit?: string | null }>();
-
-    for (const ticket of filteredTickets) {
-      const contract = contractsByTicket[ticket.id];
-      if (!contract?.items?.length) continue;
-
-      for (const item of contract.items) {
-        // Normaliza o nome: sem isto, "Cimento CP-II" e "cimento cp2" viram dois
-        // materiais e o ranking conta o mesmo item duas vezes.
-        const bruto = repairMojibake(item.materialName || item.description || '') || 'Material não identificado';
-        const materialName = bruto.trim();
-        const chave = materialName.toLowerCase();
-        if (!grouped.has(chave)) {
-          grouped.set(chave, { name: materialName, custo: 0, usos: 0, semPreco: 0, unit: item.unit || null });
-        }
-
-        const current = grouped.get(chave)!;
-        const valor = valorDoItem(item);
-        // ⚠️ "SEM PREÇO" NÃO É "DE GRAÇA". Contado à parte, para a tela poder dizer.
-        if (valor === null) current.semPreco += 1;
-        else current.custo += valor;
-        // `quantity`, e não `+= 1`: o rótulo dizia "ocorrências" contando LINHAS, e
-        // uma linha com quantidade 50 valia o mesmo que uma com quantidade 1.
-        current.usos += Number(item.quantity) > 0 ? Number(item.quantity) : 1;
-        if (!current.unit && item.unit) current.unit = item.unit;
-      }
-    }
-
-    return [...grouped.values()].sort((a, b) => b.custo - a.custo).slice(0, 10);
-  }, [contractsByTicket, filteredTickets]);
 
   const pendingPaymentsCount = useMemo(
     () => ticketsDaFila.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
@@ -770,87 +569,11 @@ export function KpiView() {
   const espera = useMemo(() => esperaDaFila(ticketsDaFila, activeSuspension), [ticketsDaFila]);
   const regua = useMemo(() => reguaDosMarcos(ticketsFechadosNoPeriodo, lerMarcos), [ticketsFechadosNoPeriodo]);
 
-  const financialOverview = useMemo(() => resumoFinanceiro(contractValues), [contractValues]);
 
-  const financialBalance = financialOverview.saldo;
 
-  const financeiroPorSede = useMemo(() => {
-    const grupos = new Map<string, { name: string; previsto: number; pago: number; saldo: number }>();
-    for (const entrada of contractValues) {
-      const name = getTicketSiteLabel(entrada.ticket, sites);
-      if (!grupos.has(name)) grupos.set(name, { name, previsto: 0, pago: 0, saldo: 0 });
-      const atual = grupos.get(name)!;
-      atual.previsto += entrada.previsto || 0;
-      atual.pago += entrada.pago;
-      // Sem `Math.max(0, …)` por OS: era o clamp em nível diferente do card que
-      // fazia o total e a soma das barras discordarem.
-      atual.saldo += entrada.saldo;
-    }
-    return [...grupos.values()].sort((a, b) => b.saldo - a.saldo);
-  }, [contractValues, sites]);
 
-  const financeiroPorFornecedor = useMemo(() => fornecedoresComSaldo(fornecedores), [fornecedores]);
 
-  const calendarioFinanceiro = useMemo(() => {
-    const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' });
-    const monthBuckets = buildMonthBuckets(periodRange.start, periodRange.end, formatter);
-    const grouped = new Map<string, { name: string; previsto: number; pago: number }>(
-      monthBuckets.map(bucket => [bucket.key, { name: bucket.label, previsto: 0, pago: 0 }])
-    );
 
-    const ensureBucket = (date: Date) => grouped.get(buildMonthKey(date));
-
-    // ⚠️ O QUE CAI FORA DA JANELA É CONTADO, NÃO DESCARTADO EM SILÊNCIO. Um
-    // lançamento que vence mês que vem, de uma OS aberta no recorte, simplesmente
-    // sumia do gráfico — e o total do calendário não fechava com os cards acima
-    // sem nada na tela explicando a diferença.
-    let foraDaJanela = 0;
-    for (const ticket of filteredTickets) {
-      const payments = (paymentsByTicket[ticket.id] || []) as PaymentRecord[];
-      for (const payment of payments) {
-        if (payment.dueAt instanceof Date) {
-          const dueBucket = ensureBucket(payment.dueAt);
-          if (dueBucket) dueBucket.previsto += parseCurrency(payment.value);
-          else foraDaJanela += 1;
-        }
-        if (payment.status === 'paid' && payment.paidAt instanceof Date) {
-          const paidBucket = ensureBucket(payment.paidAt);
-          if (paidBucket) paidBucket.pago += parseCurrency(payment.value);
-        }
-      }
-    }
-
-    return {
-      meses: monthBuckets.map(bucket => grouped.get(bucket.key) || { name: bucket.label, previsto: 0, pago: 0 }),
-      foraDaJanela,
-    };
-  }, [filteredTickets, paymentsByTicket, periodRange.end, periodRange.start]);
-
-  const maioresSaldosPendentes = useMemo(() => {
-    return contractValues
-      .map(entry => {
-        const saldo = entry.saldo;
-        const nextDueDate = (paymentsByTicket[entry.ticket.id] || [])
-          .filter(payment => payment.status !== 'paid')
-          .sort((a, b) => {
-            const aTime = a.dueAt instanceof Date ? a.dueAt.getTime() : Number.POSITIVE_INFINITY;
-            const bTime = b.dueAt instanceof Date ? b.dueAt.getTime() : Number.POSITIVE_INFINITY;
-            return aTime - bTime;
-          })[0]?.dueAt;
-
-        return {
-          id: entry.ticket.id,
-          subject: entry.ticket.subject,
-          site: getTicketSiteLabel(entry.ticket, sites),
-          vendor: contractsByTicket[entry.ticket.id]?.vendor || 'Fornecedor não informado',
-          saldo,
-          nextDueDate,
-        };
-      })
-      .filter(entry => entry.saldo > 0)
-      .sort((a, b) => b.saldo - a.saldo)
-      .slice(0, 6);
-  }, [contractValues, contractsByTicket, paymentsByTicket, sites]);
 
   const periodLabel = useMemo(() => {
     if (period === 'month') return 'Últimos 30 dias';
@@ -900,7 +623,6 @@ export function KpiView() {
       ...(selectedStatus !== 'all' ? [{ label: 'Etapa', value: selectedStatus }] : []),
       ...(selectedPriority !== 'all' ? [{ label: 'Urgência', value: selectedPriority }] : []),
       ...(selectedTeam !== 'all' ? [{ label: 'Equipe', value: selectedTeam }] : []),
-      ...(selectedVendor !== 'all' ? [{ label: 'Fornecedor', value: selectedVendor }] : []),
     ];
     return {
       filtros,
@@ -919,7 +641,7 @@ export function KpiView() {
       distribuicaoUrgencia,
       backlogPorEquipe: backlogPorEquipe.itens,
     };
-  }, [filteredTickets, volume, periodLabel, selectedSite, selectedRegion, selectedStatus, selectedPriority, selectedTeam, selectedVendor, urgentOpenCount, esperaAberta, osPorSede, backlogPorEtapa, agingBuckets, esperaPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
+  }, [filteredTickets, volume, periodLabel, selectedSite, selectedRegion, selectedStatus, selectedPriority, selectedTeam, urgentOpenCount, esperaAberta, osPorSede, backlogPorEtapa, agingBuckets, esperaPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
 
   const handleExportPdf = async () => {
     if (generating) return;
@@ -976,15 +698,12 @@ export function KpiView() {
                 Grupo Christus · Indicadores
               </div>
               <h1 className="font-serif text-2xl font-medium leading-tight text-roman-text-main md:text-[1.9rem]">
-                {perspective === 'managerial' ? 'Painel Executivo' : 'Painel Financeiro'}
+                Painel Executivo
               </h1>
               <p className="mt-1.5 max-w-xl font-serif text-sm italic text-roman-text-sub">
-                {perspective === 'managerial'
-                  ? 'Leitura consolidada da operação: volume, risco, decisões pendentes e pressão da fila.'
-                  : 'Leitura de compromisso financeiro: desembolso, saldo a liberar e concentração de custo por recorte.'}
+                Leitura consolidada da operação: volume, risco, decisões pendentes e pressão da fila.
               </p>
             </div>
-            {perspective === 'managerial' && (
               <button
                 onClick={handleExportPdf}
                 disabled={generating}
@@ -993,30 +712,13 @@ export function KpiView() {
               >
                 <Download size={16} /> {generating ? 'Gerando…' : 'Exportar PDF'}
               </button>
-            )}
           </div>
 
           {/* Barra de filtros unificada */}
           <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-roman-border bg-roman-surface p-2 shadow-sm">
-            <div className="flex shrink-0 rounded-sm border border-roman-border bg-roman-bg p-0.5">
-              <button
-                onClick={() => setPerspective('managerial')}
-                className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'managerial' ? 'bg-roman-primary text-roman-on-primary shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
-              >
-                Gerencial
-              </button>
-              {canViewFinancials && (
-                <button
-                  onClick={() => setPerspective('financial')}
-                  className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${perspective === 'financial' ? 'bg-roman-primary text-roman-on-primary shadow-sm' : 'text-roman-text-sub hover:text-roman-text-main'}`}
-                >
-                  Financeira
-                </button>
-              )}
-            </div>
-
-            <span className="mx-0.5 hidden h-6 w-px bg-roman-border sm:block" />
-
+            {/* O par Gerencial/Financeira saiu com a aba financeira: com uma
+                perspectiva só, um seletor de uma opção é ruído que ocupa o lugar
+                onde os filtros de verdade começam. */}
             <PeriodPicker
               period={period}
               selectedMonth={selectedMonth}
@@ -1118,27 +820,16 @@ export function KpiView() {
               </select>
             )}
 
-            {perspective === 'financial' && (
-              <select
-                value={selectedVendor}
-                onChange={event => setSelectedVendor(event.target.value)}
-                className="rounded-sm border border-roman-border bg-roman-bg px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                aria-label="Filtrar por fornecedor"
-              >
-                <option value="all">Todos os fornecedores</option>
-                {vendorOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            )}
+            {/* O filtro de Fornecedor saiu junto: o nome vinha de
+                `contractsByTicket[id].vendor`, e sem contrato a lista era sempre
+                vazia — um seletor que só oferecia "Todos os fornecedores". */}
 
-            {(selectedRegion !== 'all' || selectedSite !== 'all' || selectedVendor !== 'all' || selectedStatus !== 'all' || selectedPriority !== 'all' || selectedTeam !== 'all') && (
+            {(selectedRegion !== 'all' || selectedSite !== 'all' || selectedStatus !== 'all' || selectedPriority !== 'all' || selectedTeam !== 'all') && (
               <button
                 type="button"
                 onClick={() => {
                   setSelectedRegion('all');
                   setSelectedSite('all');
-                  setSelectedVendor('all');
                   setSelectedStatus('all');
                   setSelectedPriority('all');
                   setSelectedTeam('all');
@@ -1151,7 +842,6 @@ export function KpiView() {
           </div>
         </header>
 
-        {perspective === 'managerial' ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
@@ -1334,122 +1024,6 @@ export function KpiView() {
               </div>
             </div>
           </>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Compromisso previsto</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{formatCurrency(financialOverview.previsto)}</div>
-                <div className="text-sm text-roman-text-sub">Lançamentos previstos das OS abertas no período (obra cancelada não entra)</div>
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Desembolso realizado</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{formatCurrency(financialOverview.pago)}</div>
-                {/* Diz QUANDO foi pago em relação ao recorte: é dinheiro já quitado
-                    dessas OS, em qualquer data — não o que saiu do caixa no período.
-                    O calendário financeiro abaixo é que responde a segunda pergunta. */}
-                <div className="text-sm text-roman-text-sub">Já quitado nessas OS, em qualquer data</div>
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Saldo a liberar</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{formatCurrency(financialBalance)}</div>
-                <div className="text-sm text-roman-text-sub">Diferença entre compromisso previsto e pagamento realizado</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <DollarSign size={64} />
-                </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior obra do recorte</h3>
-                {/* ⚠️ `null` QUANDO NENHUMA OS TEM VALOR. A trava antiga só olhava lista
-                    vazia: com 40 OS e nenhuma com contrato, todas empatavam em zero, a
-                    primeira do sort vencia, e o card anunciava "R$ 0 — Lâmpada queimada
-                    na recepção" com selo vermelho de urgência. */}
-                <div className="text-2xl font-medium text-roman-text-main mb-1">
-                  {maiorCusto ? formatCurrency(maiorCusto.valor) : '—'}
-                </div>
-                <div className="text-sm text-roman-text-sub truncate mb-4" title={maiorCusto?.subject || ''}>
-                  {maiorCusto?.subject || 'Nenhuma OS com valor lançado no recorte'}
-                </div>
-                {maiorCusto && (
-                  <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-                    <TrendingUp size={14} /> {maiorCusto.id} • {maiorCusto.sede}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Briefcase size={64} />
-                </div>
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fornecedor mais acionado</h3>
-                {/* "Mais acionado" agora ordena por NÚMERO DE CONTRATOS. Ordenava por
-                    valor: um fornecedor com um contrato de R$ 500 mil ganhava de outro
-                    com quarenta de R$ 1 mil — o card respondia a pergunta que não fez. */}
-                <div className="text-xl font-medium text-roman-text-main mb-1 truncate" title={topFornecedor?.name || ''}>
-                  {topFornecedor?.name || '—'}
-                </div>
-                <div className="text-sm text-roman-text-sub mb-4">
-                  {topFornecedor ? `${topFornecedor.contratos} contrato(s) no recorte` : 'Nenhum contrato no recorte'}
-                </div>
-                {topFornecedor && (
-                  <div className="flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
-                    Previsto: {formatCurrency(topFornecedor.previsto)}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Base contratada</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{formatCurrency(financialOverview.contratado)}</div>
-                <div className="text-sm text-roman-text-sub">Valor consolidado dos contratos fechados no período</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Fornecedores com saldo</h3>
-                {/* Contava errado duas vezes na mesma linha: incluía fornecedor já
-                    quitado, e lia o tamanho de uma lista cortada em 8. */}
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{financeiroPorFornecedor.total}</div>
-                <div className="text-sm text-roman-text-sub">
-                  {financeiroPorFornecedor.itens[0]
-                    ? `${financeiroPorFornecedor.itens[0].name} lidera o saldo em aberto`
-                    : 'Sem fornecedores com pendência'}
-                </div>
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Maior saldo em aberto</h3>
-                <div className="text-2xl font-medium text-roman-text-main mb-1">
-                  {maioresSaldosPendentes[0] ? formatCurrency(maioresSaldosPendentes[0].saldo) : '—'}
-                </div>
-                <div className="text-sm text-roman-text-sub truncate" title={maioresSaldosPendentes[0]?.subject || ''}>
-                  {maioresSaldosPendentes[0] ? `${maioresSaldosPendentes[0].id} · ${maioresSaldosPendentes[0].subject}` : 'Nenhuma pendência financeira no recorte'}
-                </div>
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Lançamentos pendentes</h3>
-                {/* ⚠️ LIA O SISTEMA INTEIRO e dizia "no recorte filtrado". Era o único
-                    card da tela que não passava pela lista filtrada: mexer em qualquer
-                    filtro deixava este número imóvel. */}
-                <div className="text-2xl font-medium text-roman-text-main mb-1">
-                  {contractValues.reduce(
-                    (total, entrada) =>
-                      total + (paymentsByTicket[entrada.ticket.id] || []).filter(p => p.status !== 'paid').length,
-                    0
-                  )}
-                </div>
-                <div className="text-sm text-roman-text-sub">Títulos ainda não quitados no recorte filtrado</div>
-              </div>
-            </div>
-          </>
-        )}
 
         {/*
           VOLUME POR CATEGORIA — largura cheia, e só no Gerencial.
@@ -1461,7 +1035,6 @@ export function KpiView() {
           Deitado porque os nomes são longos ("Acabamentos e Divisórias"): em pé eles
           se atropelam ou giram, e o de sedes ao lado já usa rótulo curto.
         */}
-        {perspective === 'managerial' && (
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0 mb-6">
             <h2 className="font-serif text-lg font-medium text-roman-text-main">Volume de OS por categoria</h2>
             <p className="mb-6 font-serif italic text-sm text-roman-text-sub">
@@ -1496,16 +1069,15 @@ export function KpiView() {
               </ResponsiveContainer>
             </div>
           </div>
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">
-              {perspective === 'managerial' ? 'Volume de OS por sede' : 'Custo total por sede'}
+              Volume de OS por sede
             </h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={perspective === 'managerial' ? osPorSede : custoPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={osPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
                   <YAxis
@@ -1513,35 +1085,25 @@ export function KpiView() {
                     tickLine={false}
                     tick={{ fontSize: 12, fill: paleta.eixo }}
                     dx={-10}
-                    tickFormatter={perspective === 'managerial' ? undefined : emMilhares}
                   />
                   <Tooltip
                     cursor={{ fill: paleta.cursor }}
                     contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
                     itemStyle={{ color: paleta.textoDica }}
-                    formatter={perspective === 'managerial' ? undefined : ((value: number) => [formatCurrency(value), 'Custo'])}
                   />
-                  {perspective === 'managerial' ? (
-                    <>
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
-                      <Bar dataKey="abertas" name="Em aberto" stackId="a" fill={paleta.serieC} barSize={40}>
-                        <LabelList dataKey="abertas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
-                      </Bar>
-                      {/* ⚠️ TRÊS SÉRIES, NÃO DUAS. A barra "Concluídas" somava as
-                          encerradas COM as canceladas — obra cancelada aparecia como
-                          entrega, e a legenda dizia o contrário do que a barra era. */}
-                      <Bar dataKey="concluidas" name="Concluídas" stackId="a" fill={paleta.serieA} barSize={40}>
-                        <LabelList dataKey="concluidas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.superficie, fontWeight: 600 }} />
-                      </Bar>
-                      <Bar dataKey="canceladas" name="Canceladas" stackId="a" fill={paleta.grade} radius={[2, 2, 0, 0]} barSize={40}>
-                        <LabelList dataKey="canceladas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
-                      </Bar>
-                    </>
-                  ) : (
-                    <Bar dataKey="custo" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={40}>
-                      <LabelList dataKey="custo" position="top" formatter={rotuloDeDinheiro} style={CHART_LABEL_STYLE} />
-                    </Bar>
-                  )}
+                  <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
+                  <Bar dataKey="abertas" name="Em aberto" stackId="a" fill={paleta.serieC} barSize={40}>
+                    <LabelList dataKey="abertas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
+                  </Bar>
+                  {/* ⚠️ TRÊS SÉRIES, NÃO DUAS. A barra "Concluídas" somava as
+                      encerradas COM as canceladas — obra cancelada aparecia como
+                      entrega, e a legenda dizia o contrário do que a barra era. */}
+                  <Bar dataKey="concluidas" name="Concluídas" stackId="a" fill={paleta.serieA} barSize={40}>
+                    <LabelList dataKey="concluidas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.superficie, fontWeight: 600 }} />
+                  </Bar>
+                  <Bar dataKey="canceladas" name="Canceladas" stackId="a" fill={paleta.grade} radius={[2, 2, 0, 0]} barSize={40}>
+                    <LabelList dataKey="canceladas" position="center" formatter={compactChartValue} style={{ fontSize: 10, fill: paleta.textoDica, fontWeight: 600 }} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1549,32 +1111,28 @@ export function KpiView() {
 
           <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
             <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">
-              {perspective === 'managerial' ? 'Espera média na etapa atual' : 'Custo por serviço (top 8)'}
+              Espera média na etapa atual
             </h2>
             <div className="h-72 min-w-0 min-h-[18rem]">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <BarChart data={perspective === 'managerial' ? esperaPorEtapa : custoPorServico.slice(0, 8)} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={esperaPorEtapa} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={paleta.grade} />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={perspective === 'managerial' ? undefined : emMilhares} />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} width={130} />
                   <Tooltip
                     cursor={{ fill: paleta.cursor }}
                     contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
                     itemStyle={{ color: paleta.textoDica }}
-                    formatter={
-                      perspective === 'managerial'
-                        ? ((value: number) => [value == null ? 'sem OS na etapa' : `${value} dias`, 'Espera média'])
-                        : ((value: number) => [formatCurrency(value), 'Custo'])
-                    }
+                    formatter={(value: number) => [value == null ? 'sem OS na etapa' : `${value} dias`, 'Espera média']}
                   />
-                  {/* Um gráfico, duas unidades: dias na visão gerencial, dinheiro na
-                      financeira. O rótulo tem que trocar junto, senão a espera média
-                      sai escrita como "R$ 18,70". */}
-                  <Bar dataKey={perspective === 'managerial' ? 'dias' : 'custo'} fill={paleta.serieB} radius={[0, 2, 2, 0]} barSize={20}>
+                  {/* Este gráfico já teve duas unidades — dias aqui, dinheiro na visão
+                      financeira que saiu. Com uma só, o rótulo deixa de poder escrever
+                      a espera média como "R$ 18,70". */}
+                  <Bar dataKey="dias" fill={paleta.serieB} radius={[0, 2, 2, 0]} barSize={20}>
                     <LabelList
-                      dataKey={perspective === 'managerial' ? 'dias' : 'custo'}
+                      dataKey="dias"
                       position="right"
-                      formatter={perspective === 'managerial' ? rotuloDeDias : rotuloDeDinheiro}
+                      formatter={rotuloDeDias}
                       style={CHART_LABEL_STYLE}
                     />
                   </Bar>
@@ -1584,7 +1142,6 @@ export function KpiView() {
           </div>
         </div>
 
-        {perspective === 'managerial' && (
           <>
             <PainelDeCobranca inicio={periodRange.start} fim={periodRange.end} ticketIds={idsDoRecorte} />
 
@@ -1994,162 +1551,7 @@ export function KpiView() {
               </div>
             </div>
           </>
-        )}
 
-        {perspective === 'financial' && (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Previsto x pago por sede</h2>
-                <div className="h-72 min-w-0 min-h-[18rem]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <BarChart data={financeiroPorSede} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={emMilhares} />
-                      <Tooltip
-                        cursor={{ fill: paleta.cursor }}
-                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: paleta.textoDica }}
-                        formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                      />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
-                      <Bar dataKey="previsto" name="Previsto" fill={paleta.serieC} radius={[2, 2, 0, 0]} barSize={24}>
-                        <LabelList dataKey="previsto" position="top" formatter={rotuloDeDinheiro} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                      <Bar dataKey="pago" name="Pago" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={24}>
-                        <LabelList dataKey="pago" position="top" formatter={rotuloDeDinheiro} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-6">Saldo por fornecedor</h2>
-                <div className="h-72 min-w-0 min-h-[18rem]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <BarChart data={financeiroPorFornecedor.itens} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={paleta.grade} />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={emMilhares} />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} width={130} />
-                      <Tooltip
-                        cursor={{ fill: paleta.cursor }}
-                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: paleta.textoDica }}
-                        formatter={(value: number) => [formatCurrency(value), 'Saldo']}
-                      />
-                      <Bar dataKey="saldo" fill={paleta.serieB} radius={[0, 2, 2, 0]} barSize={20}>
-                        <LabelList dataKey="saldo" position="right" formatter={rotuloDeDinheiro} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm min-w-0">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main mb-1">Calendário financeiro</h2>
-                {/* Omissão calada se lê como ausência: sem esta linha, um lançamento
-                    que vence fora da janela some do gráfico e o total não fecha com
-                    os cards acima, sem nada explicando a diferença. */}
-                <div className="text-xs text-roman-text-sub mb-5">
-                  {calendarioFinanceiro.foraDaJanela > 0
-                    ? `${calendarioFinanceiro.foraDaJanela} lançamento(s) vencem fora deste período e não aparecem aqui.`
-                    : 'Todos os lançamentos do recorte vencem dentro deste período.'}
-                </div>
-                <div className="h-72 min-w-0 min-h-[18rem]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <BarChart data={calendarioFinanceiro.meses} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={paleta.grade} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: paleta.eixo }} tickFormatter={emMilhares} />
-                      <Tooltip
-                        cursor={{ fill: paleta.cursor }}
-                        contentStyle={{ backgroundColor: paleta.superficie, border: `1px solid ${paleta.borda}`, borderRadius: '2px', fontSize: '12px' }}
-                        itemStyle={{ color: paleta.textoDica }}
-                        formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                      />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={valor => <span style={{ color: paleta.textoDica }}>{valor}</span>} />
-                      <Bar dataKey="previsto" name="Previsto" fill={paleta.serieC} radius={[2, 2, 0, 0]} barSize={24}>
-                        <LabelList dataKey="previsto" position="top" formatter={rotuloDeDinheiro} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                      <Bar dataKey="pago" name="Pago" fill={paleta.serieA} radius={[2, 2, 0, 0]} barSize={24}>
-                        <LabelList dataKey="pago" position="top" formatter={rotuloDeDinheiro} style={CHART_LABEL_STYLE} />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <div className="flex items-center justify-between gap-4 mb-6">
-                  <h2 className="font-serif text-lg font-medium text-roman-text-main">Maiores saldos pendentes</h2>
-                  <div className="text-xs text-roman-text-sub">Leitura rápida do passivo financeiro atual</div>
-                </div>
-                <div className="space-y-3">
-                  {maioresSaldosPendentes.length === 0 ? (
-                    <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
-                      Nenhuma OS com saldo financeiro pendente no recorte atual.
-                    </div>
-                  ) : (
-                    maioresSaldosPendentes.map(item => (
-                      <div key={item.id} className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-medium text-roman-text-main">{item.id} · {item.subject}</div>
-                            <div className="text-xs text-roman-text-sub">{item.site} · {item.vendor}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium text-roman-text-main">{formatCurrency(item.saldo)}</div>
-                            <div className="text-xs text-roman-text-sub">
-                              {item.nextDueDate instanceof Date ? `Próx. venc.: ${item.nextDueDate.toLocaleDateString('pt-BR')}` : 'Sem vencimento futuro'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4 mb-6">
-                <h2 className="font-serif text-lg font-medium text-roman-text-main">Materiais com maior custo</h2>
-                <div className="text-xs text-roman-text-sub">Baseada no escopo contratado das OS do período</div>
-              </div>
-              {custoPorMaterial.length === 0 ? (
-                <div className="border border-dashed border-roman-border rounded-sm p-6 bg-roman-bg text-sm text-roman-text-sub">
-                  Ainda não há itens de contrato suficientes para consolidar custo por material.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {custoPorMaterial.map(item => (
-                    <div key={item.name} className="border border-roman-border rounded-sm bg-roman-bg px-4 py-3">
-                      <div className="text-sm font-medium text-roman-text-main">{item.name}</div>
-                      {/* "quantidade", e não "ocorrências": o número contava LINHAS de
-                          item, então uma linha com quantidade 50 valia o mesmo que uma
-                          com quantidade 1. */}
-                      <div className="text-[11px] text-roman-text-sub">
-                        {item.usos} {item.unit || 'un'}
-                      </div>
-                      <div className="mt-2 text-lg font-serif text-roman-text-main">{formatCurrency(item.custo)}</div>
-                      {/* Material caro sem preço lançado sumia do ranking como se fosse
-                          de graça. Agora o card diz que o valor está incompleto. */}
-                      {item.semPreco > 0 && (
-                        <div className="text-[11px] text-roman-text-sub mt-1">
-                          {item.semPreco} lançamento(s) sem preço — o custo acima está incompleto
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

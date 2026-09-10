@@ -233,15 +233,6 @@ export interface ExecutionProgress {
   lastUpdatedAt?: Date | null;
 }
 
-export interface QuoteProposalHeader {
-  unitName?: string | null;
-  location?: string | null;
-  folderLink?: string | null;
-  contractedVendor?: string | null;
-  totalQuantity?: string | null;
-  totalEstimatedValue?: string | null;
-}
-
 /**
  * O DINHEIRO DA OS — dois valores, e o resto é conta.
  *
@@ -471,109 +462,6 @@ export interface AttentionOverride {
   resolution?: 'feito' | 'adiado' | 'nao-se-aplica';
   changedBy?: string;
   changedAt?: Date | null;
-}
-
-export interface QuoteItem {
-  id: string;
-  section?: string | null;
-  description: string;
-  materialId?: string | null;
-  materialName?: string | null;
-  unit?: string | null;
-  quantity?: number | null;
-  costUnitPrice?: string | null;
-  unitPrice?: string | null;
-  totalPrice?: string | null;
-}
-
-export interface Quote {
-  id: number | string;
-  vendor: string;
-  value: string;
-  laborValue?: string | null;
-  materialValue?: string | null;
-  totalValue?: string | null;
-  category?: 'initial' | 'additive';
-  initialRoundIndex?: number | null;
-  additiveIndex?: number | null;
-  additiveReason?: string | null;
-  recommended: boolean;
-  status?: string;
-  attachmentName?: string | null;
-  attachmentUrl?: string | null;
-  attachmentPath?: string | null;
-  proposalHeader?: QuoteProposalHeader | null;
-  items?: QuoteItem[];
-  classification?: ProcurementClassificationSnapshot;
-}
-
-export interface ContractRecord {
-  id: string;
-  vendor: string;
-  value: string;
-  initialPlannedValue?: string | null;
-  realizedValue?: string | null;
-  status: string;
-  viewingBy?: string | null;
-  signedFileName?: string | null;
-  signedFileUrl?: string | null;
-  signedFilePath?: string | null;
-  signedFileContentType?: string | null;
-  signedFileSize?: number | null;
-  items?: QuoteItem[];
-  classification?: ProcurementClassificationSnapshot;
-}
-
-export interface MeasurementRecord {
-  id: string;
-  label: string;
-  progressPercent: number;
-  releasePercent: number;
-  grossValue?: string | null;
-  budgetSource?: 'initial' | 'additive' | null;
-  status: 'pending' | 'approved' | 'paid';
-  notes?: string;
-  attachments?: TicketAttachment[];
-  requestedAt?: Date | null;
-  approvedAt?: Date | null;
-  classification?: ProcurementClassificationSnapshot;
-}
-
-export interface PaymentRecord {
-  id: string;
-  vendor: string;
-  value: string;
-  grossValue?: string | null;
-  budgetSource?: 'initial' | 'additive' | null;
-  taxValue?: string | null;
-  netValue?: string | null;
-  progressPercent?: number | null;
-  expectedBaselineValue?: string | null;
-  status: string;
-  label?: string | null;
-  installmentNumber?: number | null;
-  totalInstallments?: number | null;
-  dueAt?: Date | null;
-  measurementId?: string | null;
-  releasedPercent?: number | null;
-  milestonePercent?: number | null;
-  receiptFileName?: string | null;
-  attachments?: TicketAttachment[];
-  paidAt?: Date | null;
-  classification?: ProcurementClassificationSnapshot;
-}
-
-export interface ProcurementClassificationSnapshot {
-  ticketType?: string | null;
-  macroServiceId?: string | null;
-  macroServiceName?: string | null;
-  serviceCatalogId?: string | null;
-  serviceCatalogName?: string | null;
-  regionId?: string | null;
-  regionName?: string | null;
-  siteId?: string | null;
-  siteName?: string | null;
-  sector?: string | null;
 }
 
 export interface User {
