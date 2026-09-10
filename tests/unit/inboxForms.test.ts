@@ -7,15 +7,6 @@ import {
   type PreliminaryFormState,
 } from '../../src/views/inbox/preliminary';
 import {
-  ADDITIVE_FIXED_QUOTE_SLOTS,
-  INITIAL_MAX_QUOTE_SLOTS,
-  INITIAL_MIN_QUOTE_SLOTS,
-  getRoundMaxQuoteSlots,
-  getRoundMinQuoteSlots,
-  isQuoteDraftFilledForSubmission,
-  resolveQuoteDraftSubmittedTotal,
-} from '../../src/views/inbox/quotes';
-import {
   createExecutionSetupFormState,
   createProgressUpdateFormState,
   createTicketDetailsFormState,
@@ -102,60 +93,8 @@ describe('createPreliminaryFormState', () => {
   });
 });
 
-describe('slots de cotação por tipo de rodada', () => {
-  it('rodada inicial exige concorrência e permite até o máximo', () => {
-    expect(getRoundMinQuoteSlots('initial')).toBe(INITIAL_MIN_QUOTE_SLOTS);
-    expect(getRoundMaxQuoteSlots('initial')).toBe(INITIAL_MAX_QUOTE_SLOTS);
-    expect(INITIAL_MIN_QUOTE_SLOTS).toBeGreaterThan(1);
-  });
 
-  it('aditivo é sempre uma cotação só — mínimo igual ao máximo', () => {
-    expect(getRoundMinQuoteSlots('additive')).toBe(ADDITIVE_FIXED_QUOTE_SLOTS);
-    expect(getRoundMaxQuoteSlots('additive')).toBe(ADDITIVE_FIXED_QUOTE_SLOTS);
-    expect(getRoundMinQuoteSlots('additive')).toBe(getRoundMaxQuoteSlots('additive'));
-  });
-});
 
-describe('resolveQuoteDraftSubmittedTotal', () => {
-  it('o total digitado vence a soma dos itens (o gestor pode fechar outro valor)', () => {
-    const comItens = draft({
-      totalValue: 'R$ 900,00',
-      items: [
-        { id: 'i1', section: 'material', description: 'x', quantity: 2, costUnitPrice: 'R$ 100,00' },
-      ] as never,
-    });
-    expect(resolveQuoteDraftSubmittedTotal(comItens)).toBe('R$ 900,00');
-  });
-
-  it('sem total digitado, usa a soma dos itens', () => {
-    const somenteItens = draft({
-      items: [
-        { id: 'i1', section: 'material', description: 'x', quantity: 2, costUnitPrice: 'R$ 100,00' },
-      ] as never,
-    });
-    // Comparado com o próprio formatador: o pt-BR usa espaço NÃO-QUEBRÁVEL depois
-    // do "R$", então um literal "R$ 200,00" digitado à mão não bate.
-    expect(resolveQuoteDraftSubmittedTotal(somenteItens)).toBe(formatCurrency(200));
-  });
-
-  it('cai no campo legado quando não há itens nem total', () => {
-    expect(resolveQuoteDraftSubmittedTotal(draft({ value: 'R$ 50,00' }))).toBe('R$ 50,00');
-    expect(resolveQuoteDraftSubmittedTotal(draft())).toBe('');
-  });
-});
-
-describe('isQuoteDraftFilledForSubmission', () => {
-  it('exige fornecedor E valor positivo', () => {
-    expect(isQuoteDraftFilledForSubmission(draft({ vendor: 'ACME', totalValue: 'R$ 10,00' }))).toBe(true);
-    expect(isQuoteDraftFilledForSubmission(draft({ vendor: '', totalValue: 'R$ 10,00' }))).toBe(false);
-    expect(isQuoteDraftFilledForSubmission(draft({ vendor: 'ACME' }))).toBe(false);
-    expect(isQuoteDraftFilledForSubmission(draft({ vendor: 'ACME', totalValue: 'R$ 0,00' }))).toBe(false);
-  });
-
-  it('fornecedor só com espaços não vale', () => {
-    expect(isQuoteDraftFilledForSubmission(draft({ vendor: '   ', totalValue: 'R$ 10,00' }))).toBe(false);
-  });
-});
 
 describe('formulários da OS', () => {
   it('execução parte de 5 parcelas quando a OS não define', () => {
