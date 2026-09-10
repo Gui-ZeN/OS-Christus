@@ -4,6 +4,8 @@ import {
   orcamentoParaGravar,
   resumoDoOrcamento,
   variacaoDe,
+  previstoEfetivo,
+  totalDosItens,
 } from '../../src/views/financeiro/orcamento';
 
 /**
@@ -135,5 +137,88 @@ describe('o que vai gravado', () => {
     // gravação apagaria a entrada original sem ela ter pedido.
     const gravado = orcamentoParaGravar(undefined, { previsto: 'R$ 2.400,00' }, 'Rafael');
     expect(gravado.previsto).toBe('R$ 2.400,00');
+  });
+});
+
+/**
+ * O ORÇADO DIGITADO LINHA A LINHA.
+ *
+ * O modal aceita duas formas: anexar o PDF do fornecedor ou lançar material e valor
+ * à mão. O PDF NÃO é lido pelo sistema — o número que entra na conta é sempre o que
+ * alguém digitou. Extrair valor de PDF e apresentar como dado seria inventar precisão.
+ */
+describe('a soma das linhas manda no total', () => {
+  const item = (descricao: string, valor: string) => ({ id: descricao, descricao, valor });
+
+  it('sem linhas, vale o total digitado', () => {
+    expect(previstoEfetivo({ previsto: '2000' })).toBe(2000);
+  });
+
+  it('com linhas, vale a soma delas', () => {
+    const o = { itens: [item('Gesseiro', '380'), item('Placas', '1150'), item('Pintura', '650')] };
+    expect(totalDosItens(o.itens)).toBe(2180);
+    expect(previstoEfetivo(o)).toBe(2180);
+  });
+
+  it('⚠️ a soma GANHA do total digitado quando os dois existem', () => {
+    /*
+     * O caso que faria a tabela dizer dois números ao mesmo tempo: alguém digita
+     * R$ 2.000 no total, depois lança as linhas e elas somam R$ 2.350. Se o total
+     * escrito vencesse, a variação sairia calculada em cima de um número que o
+     * próprio detalhamento contradiz.
+     */
+    const o = { previsto: '2000', itens: [item('a', '1200'), item('b', '1150')] };
+    expect(previstoEfetivo(o)).toBe(2350);
+    expect(variacaoDe({ ...o, realizado: '2350' })?.diferenca).toBe(0);
+  });
+
+  it('linha sem valor legível fica de fora, e não zera a soma', () => {
+    // Quem digitou o material e ainda não pôs o preço não pode derrubar o total.
+    const o = { itens: [item('Gesseiro', '380'), item('Placas — orçar', '')] };
+    expect(previstoEfetivo(o)).toBe(380);
+  });
+
+  it('nenhuma linha com valor devolve null, e aí o total digitado volta a valer', () => {
+    expect(totalDosItens([item('Placas — orçar', ''), item('Frete', 'a combinar')])).toBeNull();
+    expect(previstoEfetivo({ previsto: '900', itens: [item('Placas', '')] })).toBe(900);
+  });
+
+  it('o resumo do recorte usa o mesmo orçado da linha', () => {
+    const r = resumoDoOrcamento([
+      { orcamento: { itens: [item('a', '1200'), item('b', '1150')], realizado: '2000' } },
+      { orcamento: { previsto: '500', realizado: '500' } },
+    ]);
+    expect(r.previsto).toBe(2850);
+    expect(r.diferencaComparavel).toBe(-350);
+    expect(r.comparaveis).toBe(2);
+  });
+});
+
+describe('o que o modal grava', () => {
+  it('⚠️ linha em branco não é gravada', () => {
+    // O modal começa com uma linha vazia para haver onde digitar; abrir e fechar sem
+    // escrever gravaria uma linha fantasma que reaparece toda vez.
+    const g = orcamentoParaGravar(undefined, {
+      itens: [{ id: '1', descricao: 'Gesseiro', valor: '380' }, { id: '2', descricao: '', valor: '' }],
+    }, 'Larissa');
+    expect(g.itens).toHaveLength(1);
+  });
+
+  it('linha só com descrição é gravada — é orçamento em andamento', () => {
+    const g = orcamentoParaGravar(undefined, {
+      itens: [{ id: '1', descricao: 'Placas de gesso — pedir preço', valor: '' }],
+    }, 'Larissa');
+    expect(g.itens).toHaveLength(1);
+  });
+
+  it('o anexo entra e sai sem levar o resto junto', () => {
+    const pdf = { id: 'a1', name: 'proposta.pdf', path: 'attachments/tickets/orcamentos/OS-1/x.pdf' } as never;
+    const comAnexo = orcamentoParaGravar({ previsto: '900' }, { anexo: pdf }, 'Thais');
+    expect(comAnexo.anexo).toBe(pdf);
+    expect(comAnexo.previsto).toBe('900');
+
+    const semAnexo = orcamentoParaGravar(comAnexo, { anexo: null }, 'Thais');
+    expect(semAnexo.anexo).toBeNull();
+    expect(semAnexo.previsto).toBe('900');
   });
 });

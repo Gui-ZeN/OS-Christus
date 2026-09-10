@@ -261,9 +261,33 @@ export interface QuoteProposalHeader {
  * decisões opostas, e a variação só existe quando os DOIS lados existem — senão a
  * tela mostraria "-100%" para toda OS que ainda não foi paga.
  */
+/** Uma linha do orçamento digitado à mão: material/serviço e quanto custa. */
+export interface ItemDoOrcamento {
+  id: string;
+  descricao: string;
+  /** Texto, como a pessoa digitou — mesma razão de `previsto`. */
+  valor: string;
+}
+
 export interface OrcamentoDaOs {
-  /** O que se esperava gastar. Como a pessoa digitou. */
+  /**
+   * O total esperado, como a pessoa digitou.
+   *
+   * ⚠️ QUANDO HÁ `itens`, QUEM MANDA É A SOMA DELES — ver `previstoEfetivo`. Um
+   * total digitado à mão que não bate com as próprias linhas é uma tabela dizendo
+   * dois números ao mesmo tempo, e o que aparece na variação seria o errado.
+   */
   previsto?: string | null;
+  /** O orçamento digitado linha a linha. Vazio quando veio só o PDF ou só o total. */
+  itens?: ItemDoOrcamento[];
+  /**
+   * A proposta do fornecedor, em PDF ou foto.
+   *
+   * ⚠️ NÃO É LIDO PELO SISTEMA. O arquivo fica anexado para quem quiser conferir; o
+   * número que entra na conta continua sendo o que alguém digitou. Extrair valor de
+   * PDF e apresentar como dado seria inventar precisão.
+   */
+  anexo?: TicketAttachment | null;
   /** O que se gastou de fato. */
   realizado?: string | null;
   /** ISO. String e não `Date` de propósito: campo aninhado não passa pelo

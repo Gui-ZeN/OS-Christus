@@ -14,9 +14,10 @@ import { formatCurrency } from '../utils/currency';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { etapaDe as etapaDoStatus, ORDEM_DAS_ETAPAS } from '../../api/_lib/etapas.js';
 import { passaNoRecorte } from './osboard/recorte';
-import { CampoDeValor, Variacao } from './financeiro/LinhaDeOrcamento';
+import { BotaoDeOrcado, CampoDeValor, Variacao } from './financeiro/LinhaDeOrcamento';
+import { ModalDeOrcamento } from './financeiro/ModalDeOrcamento';
 import { orcamentoParaGravar, resumoDoOrcamento } from './financeiro/orcamento';
-import type { Ticket } from '../types';
+import type { ItemDoOrcamento, OrcamentoDaOs, Ticket } from '../types';
 
 /**
  * PAINEL FINANCEIRO — o que cada OS custou.
@@ -58,6 +59,8 @@ export function FinanceView() {
   const [soSemRegistro, setSoSemRegistro] = useState(false);
   const [mostrarEncerradas, setMostrarEncerradas] = useState(false);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  /** A OS cujo orçamento está aberto. Um modal para a tabela inteira. */
+  const [orcamentoDe, setOrcamentoDe] = useState<Ticket | null>(null);
 
   const podeAcessar = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
 
@@ -119,9 +122,12 @@ export function FinanceView() {
 
   const resumo = useMemo(() => resumoDoOrcamento(recortadas.map(d => d.ticket)), [recortadas]);
 
-  const salvar = async (ticket: Ticket, campo: 'previsto' | 'realizado', valor: string) => {
+  const gravar = async (
+    ticket: Ticket,
+    entrada: { previsto?: string; realizado?: string; itens?: ItemDoOrcamento[]; anexo?: OrcamentoDaOs['anexo'] }
+  ) => {
     const quem = currentUser?.name || currentUser?.email || '';
-    const orcamento = orcamentoParaGravar(ticket.orcamento, { [campo]: valor }, quem);
+    const orcamento = orcamentoParaGravar(ticket.orcamento, entrada, quem);
     try {
       const salvou = await updateTicket(ticket.id, { orcamento });
       // ⚠️ `updateTicket` devolve false sem lançar. Sem esta checagem, apagar um valor
@@ -266,10 +272,10 @@ export function FinanceView() {
                   <td className="px-3 py-2 text-roman-text-sub">{service || '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-roman-text-sub">{etapaDaLinha}</td>
                   <td className="px-3 py-2 text-right">
-                    <CampoDeValor rotulo={`Valor orçado da ${ticket.id}`} valor={ticket.orcamento?.previsto} aoSalvar={v => salvar(ticket, 'previsto', v)} />
+                    <BotaoDeOrcado orcamento={ticket.orcamento} onAbrir={() => setOrcamentoDe(ticket)} />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <CampoDeValor rotulo={`Valor realizado da ${ticket.id}`} valor={ticket.orcamento?.realizado} aoSalvar={v => salvar(ticket, 'realizado', v)} />
+                    <CampoDeValor rotulo={`Valor realizado da ${ticket.id}`} valor={ticket.orcamento?.realizado} aoSalvar={v => gravar(ticket, { realizado: v })} />
                   </td>
                   <td className="whitespace-nowrap px-3 py-2"><Variacao orcamento={ticket.orcamento} /></td>
                 </tr>
@@ -282,6 +288,14 @@ export function FinanceView() {
             </p>
           )}
         </div>
+
+        <ModalDeOrcamento
+          ticket={orcamentoDe}
+          onFechar={() => setOrcamentoDe(null)}
+          onSalvar={async entrada => {
+            if (orcamentoDe) await gravar(orcamentoDe, entrada);
+          }}
+        />
       </div>
     </div>
   );

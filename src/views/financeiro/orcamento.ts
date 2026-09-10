@@ -1,5 +1,5 @@
 import { parseCurrencyOrNull } from '../../../api/_lib/currency.js';
-import type { OrcamentoDaOs, Ticket } from '../../types';
+import type { ItemDoOrcamento, OrcamentoDaOs, Ticket } from '../../types';
 
 /**
  * A CONTA DO ORÇAMENTO — orçado, realizado, e a diferença entre os dois.
@@ -15,6 +15,35 @@ import type { OrcamentoDaOs, Ticket } from '../../types';
 
 /** O que a pessoa digitou, lido como número. `null` = vazio ou ilegível. */
 export const valorDe = (texto?: string | null): number | null => parseCurrencyOrNull(texto);
+
+/**
+ * A soma das linhas digitadas à mão. `null` quando não há linha alguma com valor.
+ *
+ * ⚠️ LINHA SEM VALOR LEGÍVEL NÃO ZERA A SOMA — ela fica de fora. Quem digitou o
+ * material e ainda não pôs o preço não pode fazer o total despencar; o total some
+ * só quando NENHUMA linha tem valor.
+ */
+export function totalDosItens(itens?: ItemDoOrcamento[] | null): number | null {
+  const valores = (Array.isArray(itens) ? itens : [])
+    .map(item => valorDe(item?.valor))
+    .filter((v): v is number => v !== null);
+  if (valores.length === 0) return null;
+  return valores.reduce((soma, v) => soma + v, 0);
+}
+
+/**
+ * O ORÇADO QUE VALE — a soma das linhas quando elas existem, senão o total digitado.
+ *
+ * ⚠️ A SOMA GANHA DO TOTAL DIGITADO, sempre. Alguém digita R$ 2.000 no total, depois
+ * lança as linhas e elas somam R$ 2.350: se o total escrito vencesse, a tabela
+ * mostraria um número que o próprio detalhamento dela contradiz — e a variação
+ * sairia errada em cima disso. O campo `previsto` continua guardado como foi
+ * escrito; o que muda é qual dos dois a conta usa.
+ */
+export function previstoEfetivo(orcamento?: OrcamentoDaOs | null): number | null {
+  const daSoma = totalDosItens(orcamento?.itens);
+  return daSoma !== null ? daSoma : valorDe(orcamento?.previsto);
+}
 
 export interface Variacao {
   /** Realizado menos orçado. Negativo = gastou menos que o previsto. */
@@ -37,7 +66,7 @@ export interface Variacao {
  * conta ali é o 500.
  */
 export function variacaoDe(orcamento?: OrcamentoDaOs | null): Variacao | null {
-  const previsto = valorDe(orcamento?.previsto);
+  const previsto = previstoEfetivo(orcamento);
   const realizado = valorDe(orcamento?.realizado);
   if (previsto === null || realizado === null) return null;
   return {
@@ -50,7 +79,7 @@ export function variacaoDe(orcamento?: OrcamentoDaOs | null): Variacao | null {
 export type EstadoDoOrcamento = 'vazio' | 'so-previsto' | 'so-realizado' | 'completo';
 
 export function estadoDoOrcamento(orcamento?: OrcamentoDaOs | null): EstadoDoOrcamento {
-  const temPrevisto = valorDe(orcamento?.previsto) !== null;
+  const temPrevisto = previstoEfetivo(orcamento) !== null;
   const temRealizado = valorDe(orcamento?.realizado) !== null;
   if (temPrevisto && temRealizado) return 'completo';
   if (temPrevisto) return 'so-previsto';
@@ -91,7 +120,8 @@ export function resumoDoOrcamento(tickets: Array<Pick<Ticket, 'orcamento'>>): Re
   };
 
   for (const ticket of tickets) {
-    const previsto = valorDe(ticket.orcamento?.previsto);
+    // O mesmo orçado que a linha mostra: a soma das linhas quando elas existem.
+    const previsto = previstoEfetivo(ticket.orcamento);
     const realizado = valorDe(ticket.orcamento?.realizado);
     if (previsto === null && realizado === null) {
       resumo.semRegistro += 1;
@@ -117,7 +147,12 @@ export function resumoDoOrcamento(tickets: Array<Pick<Ticket, 'orcamento'>>): Re
  */
 export function orcamentoParaGravar(
   atual: OrcamentoDaOs | undefined,
-  entrada: { previsto?: string | null; realizado?: string | null },
+  entrada: {
+    previsto?: string | null;
+    realizado?: string | null;
+    itens?: ItemDoOrcamento[] | null;
+    anexo?: OrcamentoDaOs['anexo'];
+  },
   quem: string,
   agora: Date = new Date()
 ): OrcamentoDaOs {
@@ -125,9 +160,20 @@ export function orcamentoParaGravar(
     const texto = String(v ?? '').trim();
     return texto ? texto : null;
   };
+  /**
+   * ⚠️ LINHA SEM DESCRIÇÃO E SEM VALOR NÃO É GRAVADA. O modal começa com uma linha
+   * em branco para haver onde digitar; sem esta limpeza, abrir e fechar sem escrever
+   * nada gravaria uma linha fantasma que aparece vazia toda vez que alguém reabre.
+   */
+  const itens = 'itens' in entrada
+    ? (entrada.itens || []).filter(i => String(i?.descricao ?? '').trim() || String(i?.valor ?? '').trim())
+    : (atual?.itens ?? []);
+
   return {
     previsto: 'previsto' in entrada ? limpo(entrada.previsto) : (atual?.previsto ?? null),
     realizado: 'realizado' in entrada ? limpo(entrada.realizado) : (atual?.realizado ?? null),
+    itens,
+    anexo: 'anexo' in entrada ? (entrada.anexo ?? null) : (atual?.anexo ?? null),
     atualizadoEm: agora.toISOString(),
     atualizadoPor: quem || null,
   };

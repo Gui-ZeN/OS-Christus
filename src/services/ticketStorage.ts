@@ -23,7 +23,7 @@ function resolveContentType(file: File, fallback = 'application/octet-stream') {
   return fallback;
 }
 
-type AttachmentUploadScope = 'closure' | 'payment' | 'measurement' | 'quote' | 'contract' | 'message';
+type AttachmentUploadScope = 'closure' | 'payment' | 'measurement' | 'quote' | 'contract' | 'message' | 'orcamento';
 
 interface AttachmentUploadOptions {
   paymentId?: string;
@@ -104,6 +104,17 @@ export async function uploadMessageAttachment(
   file: File
 ): Promise<TicketAttachment> {
   return uploadProtectedAttachment(ticketId, 'message', file, { channel });
+}
+
+/**
+ * A proposta do fornecedor anexada ao orçamento da OS.
+ *
+ * Pasta própria (`attachments/tickets/orcamentos/`) e não `messages/`: o arquivo
+ * pertence ao valor da OS, não a uma conversa. O servidor recusa o que não for PDF
+ * ou imagem.
+ */
+export async function uploadOrcamentoAttachment(ticketId: string, file: File): Promise<TicketAttachment> {
+  return uploadProtectedAttachment(ticketId, 'orcamento', file);
 }
 
 export async function deleteTicketAttachment(path: string) {

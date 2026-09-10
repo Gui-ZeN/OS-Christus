@@ -30,7 +30,7 @@ const ATTACHMENT_UPLOAD_LIMITS = Object.freeze({
   maxRequestSizeBytes: 26 * 1024 * 1024,
 });
 
-const UPLOAD_SCOPES = new Set(['closure', 'payment', 'measurement', 'quote', 'contract', 'message']);
+const UPLOAD_SCOPES = new Set(['closure', 'payment', 'measurement', 'quote', 'contract', 'message', 'orcamento']);
 
 function safePathSegment(value, label) {
   const normalized = String(value || '').trim();
@@ -83,6 +83,24 @@ function resolveUploadTarget(ticketId, scope, contentType, filename, fields) {
       }
       return {
         path: `attachments/tickets/contracts/${safeTicketId}/${uniqueName}`,
+        category: 'attachment',
+      };
+    /**
+     * O ORÇAMENTO EM PDF — a proposta que o fornecedor mandou.
+     *
+     * ⚠️ PDF OU IMAGEM, e não qualquer arquivo. Orçamento chega como PDF do
+     * fornecedor ou como foto de um papel; aceitar o resto abriria a porta para
+     * planilha, .docx e executável num campo que ninguém revisa.
+     *
+     * Pasta própria e não `messages/`: o anexo pertence ao valor da OS, não a uma
+     * conversa. Misturar faria a limpeza de anexos órfãos varrer o orçamento junto.
+     */
+    case 'orcamento':
+      if (!image && contentType !== 'application/pdf') {
+        throw new HttpError(400, 'O orçamento deve ser enviado em PDF ou imagem.');
+      }
+      return {
+        path: `attachments/tickets/orcamentos/${safeTicketId}/${uniqueName}`,
         category: 'attachment',
       };
     case 'message': {

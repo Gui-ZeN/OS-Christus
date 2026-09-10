@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Paperclip } from 'lucide-react';
 import { formatCurrency, sanitizeCurrencyTypingInput } from '../../utils/currency';
-import { valorDe, variacaoDe } from './orcamento';
+import { previstoEfetivo, valorDe, variacaoDe } from './orcamento';
 import type { OrcamentoDaOs } from '../../types';
 
 /**
@@ -80,11 +80,37 @@ export function CampoDeValor({
   );
 }
 
+/**
+ * A CÉLULA DO ORÇADO — mostra o valor e abre o detalhamento.
+ *
+ * Não é campo de digitar como o realizado: o orçado tem linhas de material e a
+ * proposta do fornecedor anexada, e isso não cabe numa célula. O que aparece aqui é
+ * o `previstoEfetivo` — a soma das linhas quando elas existem.
+ */
+export function BotaoDeOrcado({ orcamento, onAbrir }: { orcamento?: OrcamentoDaOs | null; onAbrir: () => void }) {
+  const valor = previstoEfetivo(orcamento);
+  const linhas = orcamento?.itens?.filter(i => valorDe(i.valor) !== null).length || 0;
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className="inline-flex items-center gap-1.5 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-sm text-roman-text-main hover:border-roman-primary/50"
+      title="Abrir o orçamento desta OS"
+    >
+      <span className={valor === null ? 'text-roman-text-sub' : ''}>{valor === null ? '—' : formatCurrency(valor)}</span>
+      {/* Os dois sinais do que existe atrás do número, sem abrir: quantas linhas
+          foram lançadas e se a proposta está anexada. */}
+      {linhas > 0 && <span className="text-[10px] text-roman-text-sub">{linhas} ln</span>}
+      {orcamento?.anexo && <Paperclip size={11} className="text-roman-text-sub" />}
+    </button>
+  );
+}
+
 /** A variação, quando ela existe. Ver `variacaoDe`: meia-preenchida não vira "-100%". */
 export function Variacao({ orcamento }: { orcamento?: OrcamentoDaOs | null }) {
   const v = variacaoDe(orcamento);
   if (!v) {
-    const falta = valorDe(orcamento?.previsto) === null ? 'orçado' : 'realizado';
+    const falta = previstoEfetivo(orcamento) === null ? 'orçado' : 'realizado';
     return <span className="text-xs text-roman-text-sub">falta o {falta}</span>;
   }
   const acima = v.diferenca > 0;
