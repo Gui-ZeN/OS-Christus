@@ -3,6 +3,57 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-11 (desativar item do catálogo — e a classificação parar de sumir junto)
+
+Relato: a Larissa tentou excluir um item do catálogo e recebeu "Falha ao excluir item do
+catálogo." — sem motivo nenhum. Ela é gestora e **pode** excluir; a recusa não era de
+permissão.
+
+Medido em produção antes de mexer: **16 dos 20 macroserviços e 23 dos 27 serviços não
+podem ser excluídos**, e **12 dos 12 materiais** também não. Estão vinculados a OS ou têm
+filhos, e esse vínculo é permanente por desenho — apagar o item deixaria a OS antiga
+apontando para o nada. Ou seja: para quase todo o catálogo, "Excluir" nunca foi o caminho
+de limpeza. Era só o botão que existia.
+
+O caminho é **desativar**: o item sai dos seletores e as OS antigas continuam legíveis.
+O campo `active` já existia e o `readCatalog` já filtrava por ele — faltava o botão.
+
+⚠️ **MAS LIGAR O BOTÃO ASSIM APAGARIA CLASSIFICAÇÃO EM SILÊNCIO.** A InboxView resolvia a
+classificação com `catalogo.find(...)?.id || ''`. Item que o catálogo não conhece mais
+vira **vazio** no próximo "Salvar painel" — a OS perde macroserviço e serviço, e o
+histórico registra como se alguém tivesse editado. A armadilha estava adormecida só
+porque nenhum item de produção está inativo hoje; desativar o primeiro é exatamente o que
+dispara.
+
+A regra saiu de dentro da tela para `src/views/inbox/classificacao.ts`, com 9 testes: **o
+catálogo manda enquanto conhece o item; quando não conhece mais, o que a OS já registrou
+fica.** Três limites que os testes prendem:
+- vazio continua vazio — "Definir na triagem" é uma escolha, e apagar de propósito vale;
+- **o nome só sobrevive junto com o id** — nome antigo sob id novo daria uma OS dizendo
+  "Elétrica" e apontando para outro macroserviço, pior que perder a classificação, porque
+  parece certo;
+- serviço não sobrevive sozinho se o macroserviço caiu — classificação pela metade é pior
+  para somar por categoria do que nenhuma.
+
+Nos dois seletores, `opcoesComOAtual` acrescenta o item que a OS já tem marcado como
+"(fora do catálogo)". Sem isso o campo aparece em branco numa OS classificada, e quem
+olha conclui que ela nunca foi classificada.
+
+Na tela de Configurações: botões Desativar/Reativar nas três listas, nome riscado quando
+inativo, e o catálogo daquela tela passa a ler `?incluirInativos=1` (só Admin/Gestor) —
+senão o item desativado sumiria da própria tela que o desativou.
+
+De quebra, as 12 recusas de vínculo do `api/catalog.js` viraram `409` com o motivo escrito
+("Não é possível excluir: existem serviços vinculados a este macroserviço."), e o
+`catalogApi` deixa 409/404 chegarem à tela como `UserFacingError`. A Larissa passa a ler
+por que não deu, em vez de "falha inesperada".
+
+Verificado no emulador, OS-0006 classificada em Elétrica com o macroserviço desativado: o
+seletor oferece 6 macroserviços **sem Elétrica**, a OS mostra "Elétrica (fora do
+catálogo)" com "Troca de luminárias", e depois de "Salvar painel" o Firestore continua com
+`macroServiceId: "eletrica"` / `serviceCatalogId: "troca-luminarias"` — que é o salvamento
+que antes zerava os quatro campos.
+
 ## 2026-09-10 (classificar deixou de fechar quando a obra começa)
 
 Relato: "não tem como editar o Macro Serviço e o Serviço depois de aceitar a OS,

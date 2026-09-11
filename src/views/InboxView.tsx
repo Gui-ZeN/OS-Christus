@@ -49,6 +49,7 @@ import {
   createTicketDetailsFormState,
   type TicketDetailsFormState,
 } from './inbox/ticketForms';
+import { opcoesComOAtual, resolverClassificacao } from './inbox/classificacao';
 
 
 
@@ -753,20 +754,19 @@ export function InboxView() {
     }
   };
 
-  const resolveClassificationSelection = () => {
-    const nextMacroService = catalogMacroServices.find(item => item.id === ticketDetailsForm.macroServiceId) || null;
-    const nextService =
-      serviceCatalog.find(
-        item => item.id === ticketDetailsForm.serviceCatalogId && item.macroServiceId === (nextMacroService?.id || '')
-      ) || null;
-
-    return {
-      macroServiceId: nextMacroService?.id || '',
-      macroServiceName: nextMacroService?.name || '',
-      serviceCatalogId: nextService?.id || '',
-      serviceCatalogName: nextService?.name || '',
-    };
-  };
+  /**
+   * ⚠️ A REGRA SAIU DAQUI PARA `inbox/classificacao.ts`, e o motivo é o que ela fazia
+   * antes: `catalogo.find(...)?.id || ''` APAGAVA a classificação quando o catálogo
+   * não conhecia mais o item. A armadilha só está adormecida porque nenhum item de
+   * produção está inativo — e desativar é o único caminho de limpeza que sobra, já
+   * que 16 dos 20 macroserviços não podem ser excluídos.
+   */
+  const resolveClassificationSelection = () =>
+    resolverClassificacao(
+      { macroServiceId: ticketDetailsForm.macroServiceId, serviceCatalogId: ticketDetailsForm.serviceCatalogId },
+      { macroServices: catalogMacroServices, servicos: serviceCatalog },
+      activeTicket
+    );
 
   const buildStatusSideEffects = (nextStatus: string, when: Date) => {
     const nextPreliminaryActions =
@@ -2889,7 +2889,13 @@ export function InboxView() {
                         disabled={isSending || !canEditQuickPanel}
                       >
                         <option value="">Definir na triagem</option>
-                        {catalogMacroServices.map(item => (
+                        {/* O que a OS já tem entra na lista mesmo se saiu do catálogo:
+                            sem isso o campo aparece em branco numa OS classificada, e
+                            quem olha conclui que ela nunca foi classificada. */}
+                        {opcoesComOAtual(catalogMacroServices, {
+                          id: activeTicket.macroServiceId,
+                          name: activeTicket.macroServiceName,
+                        }).map(item => (
                           <option key={`triage-macro-${item.id}`} value={item.id}>{item.name}</option>
                         ))}
                       </select>
@@ -2924,7 +2930,12 @@ export function InboxView() {
                         disabled={isSending || !canEditQuickPanel || !ticketDetailsForm.macroServiceId}
                       >
                         <option value="">{ticketDetailsForm.macroServiceId ? 'Definir serviço' : 'Selecione primeiro o macroserviço'}</option>
-                        {availableAdminServiceItems.map(item => (
+                        {/* Mesma regra do macroserviço: o serviço que a OS tem aparece
+                            ainda que o catálogo não ofereça mais. */}
+                        {opcoesComOAtual(availableAdminServiceItems, {
+                          id: activeTicket.serviceCatalogId,
+                          name: activeTicket.serviceCatalogName,
+                        }).map(item => (
                           <option key={`triage-service-${item.id}`} value={item.id}>{item.name}</option>
                         ))}
                       </select>

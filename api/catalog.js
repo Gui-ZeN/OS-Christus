@@ -33,13 +33,25 @@ function assertCatalogMutationAllowed(user, entity) {
   throw error;
 }
 
-async function readCatalog(db) {
+/**
+ * ⚠️ `incluirInativos` EXISTE PARA UMA TELA SÓ — a de Configurações.
+ *
+ * O catálogo esconde inativo de todo mundo, e é isso que faz desativar valer como
+ * limpeza: o item some dos seletores e as OS antigas continuam legíveis pelo nome
+ * que elas já guardam. Mas, escondido de TODOS, ele sumiria também da tela que
+ * deveria reativá-lo — desativar viraria caminho de mão única.
+ *
+ * Quem pede os inativos é só quem administra o catálogo. O formulário público, a
+ * triagem e os relatórios continuam vendo apenas o que está ativo.
+ */
+async function readCatalog(db, { incluirInativos = false } = {}) {
+  const somenteAtivos = col => (incluirInativos ? db.collection(col).get() : db.collection(col).where('active', '==', true).get());
   const [regionsSnap, sitesSnap, macroServicesSnap, serviceCatalogSnap, materialsSnap, vendorPreferenceEventsSnap] = await Promise.all([
-    db.collection('regions').where('active', '==', true).get(),
-    db.collection('sites').where('active', '==', true).get(),
-    db.collection('macroServices').where('active', '==', true).get(),
-    db.collection('serviceCatalog').where('active', '==', true).get(),
-    db.collection('materials').where('active', '==', true).get(),
+    somenteAtivos('regions'),
+    somenteAtivos('sites'),
+    somenteAtivos('macroServices'),
+    somenteAtivos('serviceCatalog'),
+    somenteAtivos('materials'),
     db.collection('vendorPreferenceEvents').get(),
   ]);
 
@@ -633,7 +645,10 @@ export default async function handler(req, res) {
         }
       }
 
-      let catalog = await readCatalog(db);
+      // Só quem administra o catálogo enxerga o que está desativado — e só se pedir.
+      const incluirInativos = String(req.query?.incluirInativos || '') === '1'
+        && Boolean(user) && ['Admin', 'Gestor'].includes(String(user.role || ''));
+      let catalog = await readCatalog(db, { incluirInativos });
       const isEmpty =
         catalog.regions.length === 0 ||
         catalog.sites.length === 0 ||
@@ -643,7 +658,7 @@ export default async function handler(req, res) {
       // Seed só por usuário autenticado: anônimo não dispara escrita no catálogo.
       if (isEmpty && user) {
         await seedDefaults(db);
-        catalog = await readCatalog(db);
+        catalog = await readCatalog(db, { incluirInativos });
       }
 
       if (!user) {

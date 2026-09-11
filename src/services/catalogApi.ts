@@ -64,11 +64,17 @@ export interface CatalogVendorPreference {
   macroServiceName?: string | null;
 }
 
-export async function fetchCatalog() {
+/**
+ * @param incluirInativos só a tela de Configurações pede — é ela que precisa ver o
+ *   que está desativado para poder reativar. Em todo o resto do sistema o catálogo
+ *   devolve apenas o ativo, que é o que faz desativar valer como limpeza.
+ */
+export async function fetchCatalog({ incluirInativos = false } = {}) {
   // Envia headers de auth quando o usuário está logado (assim recebe materiais e
   // preferências de fornecedor). No formulário público segue anônimo.
   const authHeaders = await getAuthenticatedActorHeaders().catch(() => ({}));
-  const response = await fetch('/api/catalog', { headers: { ...authHeaders } });
+  const url = incluirInativos ? '/api/catalog?incluirInativos=1' : '/api/catalog';
+  const response = await fetch(url, { headers: { ...authHeaders } });
   const json = await expectApiJson<any>(response, 'Falha ao buscar catálogo operacional.');
   if (!json.ok || !Array.isArray(json.regions) || !Array.isArray(json.sites)) {
     throw new UserFacingError('Resposta inválida do catálogo.');

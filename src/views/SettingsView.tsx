@@ -466,7 +466,10 @@ export function SettingsView() {
     setCatalogError(null);
 
     try {
-      const catalog = await fetchCatalog();
+      // A tela do catálogo é a única que precisa enxergar o desativado — sem isso,
+      // desativar seria caminho de mão única: o item sumiria daqui também, e não
+      // haveria de onde reativá-lo.
+      const catalog = await fetchCatalog({ incluirInativos: true });
       setRegions(catalog.regions);
       setSites(catalog.sites);
       setMacroServices(catalog.macroServices);
@@ -679,6 +682,42 @@ export function SettingsView() {
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
       setCatalogError(mensagemDeErro(error, 'Falha ao salvar sede.'));
+    } finally {
+      setCatalogSavingEntity(null);
+    }
+  };
+
+  /**
+   * DESATIVAR É A LIMPEZA POSSÍVEL — excluir, na maioria dos casos, não é.
+   *
+   * ⚠️ Medido em produção em 11/09/2026: **16 dos 20 macroserviços e 23 dos 27
+   * serviços não podem ser excluídos**, porque estão vinculados a OS ou têm filhos —
+   * e vínculo com OS é permanente, já que a classificação fica na OS para sempre.
+   * Dos 12 materiais, nenhum. Quem quer reorganizar as categorias não tem como, e
+   * era isso que a tela dizia com "Falha ao excluir item do catálogo".
+   *
+   * Desativado some dos seletores (o catálogo filtra por `active`) e as OS antigas
+   * continuam legíveis — elas guardam o NOME junto com o id. O resgate de quem já
+   * usa o item está em `inbox/classificacao.ts`.
+   *
+   * ⚠️ RECARREGA EM VEZ DE USAR A RESPOSTA. O POST devolve o catálogo ATIVO — é o que
+   * a Inbox consome quando cria macroserviço na hora. Usar essa resposta aqui faria
+   * o item recém-desativado sumir da própria tela que acabou de desativá-lo.
+   */
+  const handleToggleCatalogActive = async (
+    entity: 'macroServices' | 'serviceCatalog' | 'materials',
+    item: { id: string; name: string; code?: string; active?: boolean; macroServiceId?: string; suggestedMaterialIds?: string[]; unit?: string | null }
+  ) => {
+    const ativando = item.active === false;
+    setCatalogSavingEntity(entity);
+    setCatalogError(null);
+    try {
+      await saveCatalogEntry(entity, { ...item, active: ativando });
+      await loadCatalog();
+      setCatalogSaved(ativando ? 'Item reativado.' : 'Item desativado — sai dos seletores e as OS antigas continuam legíveis.');
+      setTimeout(() => setCatalogSaved(null), 4000);
+    } catch (error) {
+      setCatalogError(mensagemDeErro(error, ativando ? 'Falha ao reativar o item.' : 'Falha ao desativar o item.'));
     } finally {
       setCatalogSavingEntity(null);
     }
@@ -1332,7 +1371,7 @@ export function SettingsView() {
                                 <div key={item.id} className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                      <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
+                                      <div className={`text-sm font-medium truncate ${item.active === false ? 'text-roman-text-sub line-through' : 'text-roman-text-main'}`}>{item.name}</div>
                                       <div className="text-[11px] text-roman-text-sub">{item.code || item.id}</div>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
@@ -1342,6 +1381,15 @@ export function SettingsView() {
                                         className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={catalogSavingEntity === 'macroServices'}
+                                        onClick={() => handleToggleCatalogActive('macroServices', item)}
+                                        className="inline-flex min-h-6 items-center text-xs font-medium text-roman-text-sub hover:text-roman-text-main hover:underline disabled:opacity-50"
+                                        title={item.active === false ? 'Voltar a oferecer nos seletores' : 'Tira dos seletores; as OS antigas continuam legíveis'}
+                                      >
+                                        {item.active === false ? 'Reativar' : 'Desativar'}
                                       </button>
                                       <button
                                         type="button"
@@ -1406,7 +1454,7 @@ export function SettingsView() {
                                 <div key={item.id} className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                      <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
+                                      <div className={`text-sm font-medium truncate ${item.active === false ? 'text-roman-text-sub line-through' : 'text-roman-text-main'}`}>{item.name}</div>
                                       <div className="text-[11px] text-roman-text-sub">
                                         {(macroServices.find(macro => macro.id === item.macroServiceId)?.name || item.macroServiceId)} · {item.code || item.id}
                                       </div>
@@ -1426,6 +1474,15 @@ export function SettingsView() {
                                         className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={catalogSavingEntity === 'serviceCatalog'}
+                                        onClick={() => handleToggleCatalogActive('serviceCatalog', item)}
+                                        className="inline-flex min-h-6 items-center text-xs font-medium text-roman-text-sub hover:text-roman-text-main hover:underline disabled:opacity-50"
+                                        title={item.active === false ? 'Voltar a oferecer nos seletores' : 'Tira dos seletores; as OS antigas continuam legíveis'}
+                                      >
+                                        {item.active === false ? 'Reativar' : 'Desativar'}
                                       </button>
                                       <button
                                         type="button"
@@ -1522,7 +1579,7 @@ export function SettingsView() {
                                 <div key={item.id} className="rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                      <div className="text-sm font-medium text-roman-text-main truncate">{item.name}</div>
+                                      <div className={`text-sm font-medium truncate ${item.active === false ? 'text-roman-text-sub line-through' : 'text-roman-text-main'}`}>{item.name}</div>
                                       <div className="text-[11px] text-roman-text-sub">{item.code || item.id}{item.unit ? ` · ${item.unit}` : ''}</div>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
@@ -1539,6 +1596,15 @@ export function SettingsView() {
                                         className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={catalogSavingEntity === 'materials'}
+                                        onClick={() => handleToggleCatalogActive('materials', item)}
+                                        className="inline-flex min-h-6 items-center text-xs font-medium text-roman-text-sub hover:text-roman-text-main hover:underline disabled:opacity-50"
+                                        title={item.active === false ? 'Voltar a oferecer nos seletores' : 'Tira dos seletores; as OS antigas continuam legíveis'}
+                                      >
+                                        {item.active === false ? 'Reativar' : 'Desativar'}
                                       </button>
                                       <button
                                         type="button"
