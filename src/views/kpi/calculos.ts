@@ -244,6 +244,35 @@ export function volumeDoPeriodo(ticketsDoPeriodo: Ticket[]): VolumeDoPeriodo {
 export type VolumeAgrupado = { name: string; abertas: number; concluidas: number; canceladas: number };
 
 /**
+ * O RÓTULO DA CATEGORIA NO GRÁFICO — pelo id, não pelo nome gravado.
+ *
+ * ⚠️ AGRUPAR POR `macroServiceName` PARTIA UMA CATEGORIA EM DUAS BARRAS. O nome é um
+ * retrato tirado no dia em que a OS foi classificada, e renomear o item do catálogo
+ * não reescreve os retratos antigos. Medido em produção em 11/09/2026: **seis
+ * macroserviços renomeados, 176 das 287 OS carregando o nome velho** —
+ * `estrutura-civil` aparecia como "Estrutura Civil" (121 OS) E "Civil e Estrutural",
+ * `moveis` como "Móveis" (16) e "Mobiliário", `coberta-fachada` como "Coberta e
+ * Fachada" (14) e "Cobertura e Imperamibilização".
+ *
+ * Isso é o próprio número que a operação levantou em 04/09 — "Estrutura Civil
+ * concentrando 59 de 90" saiu de uma soma que não sabia que as duas barras eram o
+ * mesmo id.
+ *
+ * O id manda; o catálogo dá o nome de hoje. O nome gravado só entra quando o id não
+ * está mais no catálogo (excluído ou desativado) — aí ele é a única memória que
+ * sobrou, a mesma regra que `resolverClassificacao` usa na Inbox.
+ */
+export function rotuloDeCategoria(
+  ticket: Pick<Ticket, 'macroServiceId' | 'macroServiceName'>,
+  nomesDoCatalogo: Map<string, string>
+): string {
+  const id = String(ticket.macroServiceId || '').trim();
+  const gravado = String(ticket.macroServiceName || '').trim();
+  const nome = (id && nomesDoCatalogo.get(id)) || gravado;
+  return repairMojibake(nome) || 'Não classificada';
+}
+
+/**
  * Volume por qualquer recorte — a sede é só o primeiro que existiu.
  *
  * ⚠️ CHAMAVA-SE `volumePorSede` E JÁ ERA GENÉRICA: o agrupador sempre veio por

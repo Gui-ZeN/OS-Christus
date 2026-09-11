@@ -3,6 +3,56 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-11 (o gráfico de categorias parava de partir a mesma categoria em duas)
+
+Pedido: classificar as 8 OS que tinham ficado sem macroserviço enquanto o painel
+esteve fechado. Ao conferir o resultado, apareceu outra coisa.
+
+**O `KpiView` agrupava por `macroServiceName`.** O nome é um retrato tirado no dia em
+que a OS foi classificada, e renomear o item do catálogo não reescreve os retratos
+antigos. Medido em produção em 11/09/2026: **seis macroserviços renomeados, 176 das 287
+OS com o nome velho gravado**.
+
+```
+[estrutura-civil]  catálogo: "Civil e Estrutural"     nas OS: "Estrutura Civil"×121
+[moveis]           catálogo: "Mobiliário"             nas OS: "Móveis"×16
+[portoes]          catálogo: "Serralheria"            nas OS: "Portões"×15
+[coberta-fachada]  catálogo: "Cobertura e Imperm..."  nas OS: "Coberta e Fachada"×14
+[esquadrias]       catálogo: "Esquadrias e Vidraças"  nas OS: "Esquadrias"×7
+[paisagismo-poda]  catálogo: "Aréas Externas"         nas OS: "Paisagismo e Poda"×3
+```
+
+⚠️ **Isso é o próprio número que a operação levantou.** A Larissa escreveu em 04/09
+"identificamos a necessidade de aprimorar essa categorização", com Estrutura Civil
+concentrando 59 de 90 — e esse 59 saiu de uma soma que não sabia que "Estrutura Civil" e
+"Civil e Estrutural" são o mesmo id. O painel desenhava 21 barras para 18 categorias.
+
+A regra virou `rotuloDeCategoria` em `src/views/kpi/calculos.ts`, com 5 testes: **o id
+manda, o catálogo dá o nome de hoje**, e o nome gravado só entra quando o id não está
+mais no catálogo — a mesma regra que `resolverClassificacao` usa na Inbox. "Não
+classificada" continua à vista.
+
+Provado em vermelho antes: com o agrupamento por nome, dois dos cinco testes falham
+(duas OS do mesmo id caíam em barras separadas, e o nome velho vencia o do catálogo).
+
+**Backfill das 8 OS**, com nota no histórico de cada uma dizendo que foi backfill e por
+quê, para a decisão poder ser conferida sem reler o e-mail:
+
+| OS | ficou | base |
+|---|---|---|
+| OS-0380 | Segurança e Proteção | câmeras da sede, equipe Redes |
+| OS-0383 | Civil e Estrutural / Reforma | remanejar porta dupla dos laboratórios, vão de 1,88 m |
+| OS-0387 | Hidráulica | "Manutenção Banheiros"; serviço em aberto — a conversa não diz qual material |
+| OS-0409 | Mobiliário / Reposição de móveis | compra das lousas da coordenação |
+| OS-0419 | Civil e Estrutural / Reforma | demolir balcão, iluminação, pontos de rede |
+| OS-0425 | Hidráulica | laudo de potabilidade do reservatório |
+| OS-0163 | Civil e Estrutural / Estrutura de concreto | tampa 58x58, forma de ferro + concreto |
+| OS-0231 | **Cobertura e Impermeabilização** / Recuperação de coberta | goteiras em pátio são coberta, não estrutura |
+
+⚠️ **E não eram 8 OS sem classificação, eram 30.** As 8 eram as que estavam *presas* pelo
+painel fechado; as outras 22 sempre puderam ser classificadas e ninguém classificou.
+Seguem em aberto.
+
 ## 2026-09-11 (desativar item do catálogo — e a classificação parar de sumir junto)
 
 Relato: a Larissa tentou excluir um item do catálogo e recebeu "Falha ao excluir item do

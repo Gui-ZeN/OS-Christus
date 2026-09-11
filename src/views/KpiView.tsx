@@ -8,7 +8,12 @@ import { PainelDeCobranca } from './kpi/PainelDeCobranca';
 import { usePaletaDeGraficos } from './kpi/paletaDeGraficos';
 import { useApp } from '../context/AppContext';
 import { EmptyState } from '../components/ui/EmptyState';
-import { fetchCatalog, type CatalogRegion, type CatalogSite } from '../services/catalogApi';
+import {
+  fetchCatalog,
+  type CatalogMacroService,
+  type CatalogRegion,
+  type CatalogSite,
+} from '../services/catalogApi';
 import type { Ticket } from '../types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
 import { PAPEIS_COM_INDICADORES_LABEL, podeVerIndicadores } from '../constants/acessoIndicadores';
@@ -25,6 +30,7 @@ import {
   urgenciaDaFila,
   volumeDoPeriodo,
   volumeAgrupado,
+  rotuloDeCategoria,
   coberturaDaProximaAcao,
   esperaDaFila,
   filaTravada,
@@ -113,6 +119,11 @@ export function KpiView() {
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [sites, setSites] = useState<CatalogSite[]>([]);
+  /**
+   * O nome de HOJE de cada macroserviço, para o gráfico de categorias não agrupar
+   * pelo retrato que a OS tirou no dia em que foi classificada.
+   */
+  const [macroServices, setMacroServices] = useState<CatalogMacroService[]>([]);
   const [generating, setGenerating] = useState(false);
 
 
@@ -124,11 +135,13 @@ export function KpiView() {
         if (!cancelled) {
           setRegions(catalog.regions);
           setSites(catalog.sites);
+          setMacroServices(catalog.macroServices);
         }
       } catch {
         if (!cancelled) {
           setRegions([]);
           setSites([]);
+          setMacroServices([]);
         }
       }
     })();
@@ -435,13 +448,18 @@ export function KpiView() {
    * SEM TETO, ao contrário dos rankings. São 14 macroserviços e o gráfico vizinho já
    * desenha 18 sedes sem apertar — e cortar a cauda numa pergunta que é "quantas em
    * cada categoria" seria responder outra coisa.
+   *
+   * ⚠️ O RÓTULO SAI DO ID, não do nome gravado na OS — ver `rotuloDeCategoria`. Este
+   * gráfico partia uma categoria em duas barras toda vez que o catálogo era renomeado.
    */
+  const nomesDeMacroservico = useMemo(
+    () => new Map(macroServices.map(item => [item.id, item.name])),
+    [macroServices]
+  );
+
   const osPorCategoria = useMemo(
-    () =>
-      volumeAgrupado(filteredTickets, ticket =>
-        repairMojibake(ticket.macroServiceName || '') || 'Não classificada'
-      ),
-    [filteredTickets]
+    () => volumeAgrupado(filteredTickets, ticket => rotuloDeCategoria(ticket, nomesDeMacroservico)),
+    [filteredTickets, nomesDeMacroservico]
   );
 
   const volume = useMemo(() => volumeDoPeriodo(filteredTickets), [filteredTickets]);

@@ -15,6 +15,7 @@ import {
   urgenciaDaFila,
   volumeDoPeriodo,
   volumeAgrupado,
+  rotuloDeCategoria,
 } from '../../src/views/kpi/calculos';
 import type { Ticket } from '../../src/types';
 import { ORDEM_DAS_ETAPAS, etapaDe } from '../../api/_lib/etapas.js';
@@ -441,5 +442,52 @@ describe('reguaDosMarcos — buraco é informação, nunca pendência', () => {
     expect(regua.coorte).toBe(0);
     expect(regua.marcos).toEqual([]);
     expect(regua.intervalos).toEqual([]);
+  });
+});
+
+describe('⚠️ renomear o catálogo não pode partir a categoria em duas barras', () => {
+  /**
+   * Medido em produção em 11/09/2026: seis macroserviços renomeados e 176 das 287 OS
+   * com o nome velho gravado. O gráfico agrupava por NOME, então `estrutura-civil`
+   * saía como "Estrutura Civil" (121 OS) numa barra e "Civil e Estrutural" noutra.
+   */
+  const catalogo = new Map([
+    ['estrutura-civil', 'Civil e Estrutural'],
+    ['moveis', 'Mobiliário'],
+  ]);
+
+  it('duas OS do mesmo id caem na MESMA barra, ainda que tenham nomes diferentes gravados', () => {
+    const antiga = os({ macroServiceId: 'estrutura-civil', macroServiceName: 'Estrutura Civil' });
+    const nova = os({ macroServiceId: 'estrutura-civil', macroServiceName: 'Civil e Estrutural' });
+    const barras = volumeAgrupado([antiga, nova], t => rotuloDeCategoria(t, catalogo));
+    expect(barras).toHaveLength(1);
+    expect(barras[0].name).toBe('Civil e Estrutural');
+  });
+
+  it('o nome do catálogo GANHA do nome gravado', () => {
+    expect(
+      rotuloDeCategoria({ macroServiceId: 'moveis', macroServiceName: 'Móveis' }, catalogo)
+    ).toBe('Mobiliário');
+  });
+
+  it('id fora do catálogo cai no nome que a OS guardou', () => {
+    // Item excluído ou desativado: o retrato antigo é a única memória que sobrou.
+    expect(
+      rotuloDeCategoria({ macroServiceId: 'pelicula', macroServiceName: 'pelicula' }, catalogo)
+    ).toBe('pelicula');
+  });
+
+  it('OS sem classificação continua aparecendo como "Não classificada"', () => {
+    // ⚠️ Ela não pode sumir do gráfico: categoria não preenchida é o que o painel
+    // mais precisa mostrar.
+    expect(rotuloDeCategoria({ macroServiceId: '', macroServiceName: '' }, catalogo)).toBe(
+      'Não classificada'
+    );
+  });
+
+  it('id vazio com nome gravado ainda rotula pelo nome', () => {
+    expect(rotuloDeCategoria({ macroServiceId: '', macroServiceName: 'Elétrica' }, catalogo)).toBe(
+      'Elétrica'
+    );
   });
 });
