@@ -95,7 +95,9 @@ export async function saveCatalogEntry(
   });
   const json = await expectApiJson<any>(response, 'Falha ao salvar item do catálogo.');
   if (!json.ok) {
-    throw new Error(json.error || 'Resposta inválida ao salvar catálogo.');
+    // Mesmo corte do excluir: salvar também recusa por conflito (código repetido,
+    // por exemplo), e o motivo é tão útil aqui quanto lá.
+    throw erroDoCatalogo(response.status, json, 'Falha ao salvar item do catálogo.');
   }
   return {
     regions: json.regions as CatalogRegion[],
@@ -105,6 +107,27 @@ export async function saveCatalogEntry(
     materials: (json.materials || []) as CatalogMaterial[],
     vendorPreferences: (json.vendorPreferences || []) as CatalogVendorPreference[],
   };
+}
+
+/**
+ * O MOTIVO DA RECUSA CHEGA NA TELA — mas só quando ele foi escrito para alguém ler.
+ *
+ * ⚠️ ANTES A TELA DIZIA SÓ "Falha ao excluir item do catálogo.". Reproduzido contra o
+ * emulador em 11/09/2026: apagar um macroserviço que ainda tem serviços vinculados
+ * devolve **400 com o motivo por extenso**, e o cliente jogava o texto fora porque
+ * `mensagemDeErro` só deixa passar `UserFacingError`. A pessoa via "falhou" e não
+ * tinha como saber que bastava tirar os serviços primeiro.
+ *
+ * ⚠️ E NÃO É "MOSTRE O QUE O SERVIDOR MANDAR". O `catch` do handler devolve
+ * `error.message` de QUALQUER erro — inclusive os do SDK do Firestore, em inglês.
+ * Mostrar todos reabriria exatamente o buraco que o `UserFacingError` fechou.
+ *
+ * O corte é o STATUS: 409 é recusa deliberada (o item está em uso), 404 é "sumiu".
+ * Os dois carregam frase escrita para gente; o resto cai no texto de quem chamou.
+ */
+export function erroDoCatalogo(status: number, json: unknown, fallback: string): Error {
+  const mensagem = resolveApiError(json, fallback);
+  return status === 409 || status === 404 ? new UserFacingError(mensagem) : new Error(mensagem);
 }
 
 export async function deleteCatalogEntry(
@@ -119,7 +142,7 @@ export async function deleteCatalogEntry(
   });
   const json = await readApiJson<any>(response);
   if (!response.ok || !json?.ok) {
-    throw new Error(resolveApiError(json, 'Falha ao excluir item do catálogo.'));
+    throw erroDoCatalogo(response.status, json, 'Falha ao excluir item do catálogo.');
   }
   return {
     regions: json.regions as CatalogRegion[],

@@ -251,13 +251,13 @@ function normalizeCatalogRecord(entity, record) {
     };
   }
 
-  throw new Error('Entidade de catalogo invalida.');
+  throw new HttpError(400, 'Tipo de item do catálogo inválido.');
 }
 
 async function upsertCatalogEntry(db, entity, record) {
   const collection = ENTITY_COLLECTION_MAP[entity];
   if (!collection) {
-    throw new Error('Entidade de catalogo invalida.');
+    throw new HttpError(400, 'Tipo de item do catálogo inválido.');
   }
 
   const normalized = normalizeCatalogRecord(entity, record);
@@ -288,9 +288,9 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('tickets').where('regionId', '==', id).limit(1).get(),
     ]);
 
-    if (!sitesSnap.empty) throw new Error('Nao e possivel excluir a regiao enquanto existirem sedes vinculadas.');
-    if (!usersSnap.empty) throw new Error('Nao e possivel excluir a regiao enquanto houver usuarios vinculados.');
-    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir a regiao porque ela ja esta vinculada a tickets.');
+    if (!sitesSnap.empty) throw new HttpError(409, 'Não dá para excluir a região enquanto existirem sedes vinculadas a ela.');
+    if (!usersSnap.empty) throw new HttpError(409, 'Não dá para excluir a região enquanto houver usuários vinculados a ela.');
+    if (!ticketsSnap.empty) throw new HttpError(409, 'Não dá para excluir a região: já existem OS vinculadas a ela.');
     return;
   }
 
@@ -300,8 +300,8 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('tickets').where('siteId', '==', id).limit(1).get(),
     ]);
 
-    if (!usersSnap.empty) throw new Error('Nao e possivel excluir a sede enquanto houver usuarios vinculados.');
-    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir a sede porque ela ja esta vinculada a tickets.');
+    if (!usersSnap.empty) throw new HttpError(409, 'Não dá para excluir a sede enquanto houver usuários vinculados a ela.');
+    if (!ticketsSnap.empty) throw new HttpError(409, 'Não dá para excluir a sede: já existem OS vinculadas a ela.');
     return;
   }
 
@@ -312,15 +312,15 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('vendorPreferenceEvents').where('scopeId', '==', id).limit(25).get(),
     ]);
 
-    if (!servicesSnap.empty) throw new Error('Nao e possivel excluir o macroservico enquanto houver servicos vinculados.');
-    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir o macroservico porque ele ja esta vinculado a tickets.');
+    if (!servicesSnap.empty) throw new HttpError(409, 'Não dá para excluir o macroserviço enquanto houver serviços vinculados a ele. Exclua ou mova os serviços primeiro.');
+    if (!ticketsSnap.empty) throw new HttpError(409, 'Não dá para excluir o macroserviço: já existem OS classificadas nele.');
     if (
       vendorScopeSnap.docs.some(doc => {
         const scopeType = String(doc.data()?.scopeType || '').trim();
         return scopeType === 'macroService';
       })
     ) {
-      throw new Error('Nao e possivel excluir o macroservico porque ele ja possui historico de fornecedores.');
+      throw new HttpError(409, 'Não dá para excluir o macroserviço: ele já tem histórico de fornecedores.');
     }
     return;
   }
@@ -332,15 +332,15 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('vendorPreferenceEvents').where('scopeId', '==', id).limit(25).get(),
     ]);
 
-    if (!ticketsSnap.empty) throw new Error('Nao e possivel excluir o servico porque ele ja esta vinculado a tickets.');
-    if (!vendorServiceSnap.empty) throw new Error('Nao e possivel excluir o servico porque ele ja possui historico de fornecedores.');
+    if (!ticketsSnap.empty) throw new HttpError(409, 'Não dá para excluir o serviço: já existem OS classificadas nele.');
+    if (!vendorServiceSnap.empty) throw new HttpError(409, 'Não dá para excluir o serviço: ele já tem histórico de fornecedores.');
     if (
       vendorScopeSnap.docs.some(doc => {
         const scopeType = String(doc.data()?.scopeType || '').trim();
         return scopeType === 'service';
       })
     ) {
-      throw new Error('Nao e possivel excluir o servico porque ele ja possui historico de fornecedores.');
+      throw new HttpError(409, 'Não dá para excluir o serviço: ele já tem histórico de fornecedores.');
     }
     return;
   }
@@ -352,28 +352,28 @@ async function assertCatalogEntryCanDelete(db, entity, id) {
       db.collection('vendorPreferenceEvents').where('scopeId', '==', id).limit(25).get(),
     ]);
 
-    if (!serviceSnap.empty) throw new Error('Nao e possivel excluir o material enquanto ele estiver sugerido em servicos.');
-    if (!vendorMaterialSnap.empty) throw new Error('Nao e possivel excluir o material porque ele ja possui historico de fornecedores.');
+    if (!serviceSnap.empty) throw new HttpError(409, 'Não dá para excluir o material enquanto ele estiver sugerido em algum serviço.');
+    if (!vendorMaterialSnap.empty) throw new HttpError(409, 'Não dá para excluir o material: ele já tem histórico de fornecedores.');
     if (
       vendorScopeSnap.docs.some(doc => {
         const scopeType = String(doc.data()?.scopeType || '').trim();
         return scopeType === 'material';
       })
     ) {
-      throw new Error('Nao e possivel excluir o material porque ele ja possui historico de fornecedores.');
+      throw new HttpError(409, 'Não dá para excluir o material: ele já tem histórico de fornecedores.');
     }
   }
 }
 async function deleteCatalogEntry(db, entity, id) {
   const collection = ENTITY_COLLECTION_MAP[entity];
   if (!collection) {
-    throw new Error('Entidade de catalogo invalida.');
+    throw new HttpError(400, 'Tipo de item do catálogo inválido.');
   }
 
   const ref = db.collection(collection).doc(id);
   const snapshot = await ref.get();
   if (!snapshot.exists) {
-    throw new Error('Registro do catalogo nao encontrado.');
+    throw new HttpError(404, 'Este item do catálogo não existe mais. Atualize a tela.');
   }
 
   await assertCatalogEntryCanDelete(db, entity, id);
