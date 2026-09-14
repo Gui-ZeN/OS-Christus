@@ -3,6 +3,47 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-14 (a tela para de ser cúmplice: criar e editar viram modal)
+
+Do dono: *"tem que melhorar a tela, eu vou culpar a tela em vez do usuário nessa"*.
+Ele tem razão, e dá para apontar as três coisas que, juntas, produziram as 83
+sobrescritas.
+
+**1. O formulário era um só, fixo embaixo da lista, servindo criar E editar.** O único
+sinal de que você estava editando era o texto do botão mudar de "Criar serviço" para
+"Salvar serviço" — embaixo de uma caixa de rolagem de 256px, fora do campo de visão de
+quem acabou de clicar "Editar" lá em cima. Com 122 itens na lista, esse botão fica a
+uma rolagem inteira de distância do que você clicou.
+
+**2. Nada dizia QUAL item estava carregado.** Sem destaque na linha, sem o nome no
+formulário. A pergunta "estou mexendo em qual?" não tinha resposta na tela.
+
+**3. E o campo "Código opcional" era, calado, a chave primária.** O id saía de
+`slugify(code || name)`. A operação usou o código como código de CATEGORIA — "CIV" em
+todo serviço civil — e cada item novo caía no mesmo documento.
+
+O servidor já parou de sobrescrever (`idLivre`, `aabf142`). Isto fecha a outra metade:
+
+- **"+ Novo" no cabeçalho de cada lista** abre um modal limpo. ⚠️ Ele LIMPA o rascunho
+  antes de abrir — senão "Novo" herdaria o `id` de uma edição anterior, e o que parece
+  criação viraria sobrescrita, que é o defeito de novo com outra roupa.
+- **"Editar" abre o mesmo modal**, titulado "Editar serviço" e com o nome do item na
+  descrição: *Alterando "Alvenaria". O item continua o mesmo; muda o que está escrito
+  nele.* A criação, em contrapartida, promete: *Nenhum item existente é alterado.*
+- **O campo código ganhou rótulo e a verdade por escrito**: "Só uma sigla para a lista.
+  Pode repetir entre itens — não é o que identifica o registro." Que passou a ser
+  verdade com o `idLivre`, e antes não era.
+- Os campos ganharam `<label>`; antes havia só `placeholder`, que some quando você
+  digita — parte de por que ninguém sabia o que o segundo campo fazia.
+- O erro do servidor aparece DENTRO do modal, onde a pessoa está olhando.
+
+Reaproveita o `ModalShell` que já existia (trava de foco, Esc, scroll lock) em vez de
+montar outro.
+
+`src/views/configuracoes/modalDeCatalogo.ts` + 7 testes prendem os rótulos: título por
+modo, o nome do item na descrição da edição, e nome só de espaços contando como vazio —
+para a tela não anunciar "Editar" um item sem nome.
+
 ## 2026-09-14 (restauração: 83 serviços que a sobrescrita tinha engolido)
 
 Com o defeito de id consertado, sobrou o estrago. A auditoria guarda `before` e `after`

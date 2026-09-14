@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Boxes, CheckCircle, Database, Loader2, Mail, MapPinned, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
+import { AlertCircle, Boxes, CheckCircle, Database, Loader2, Mail, MapPinned, Plus, RefreshCw, ShieldCheck, Trash2, TriangleAlert, Users, Wrench } from 'lucide-react';
 import {
   runAttachmentSecurityMigration,
   runFirestoreLegacyBackfill,
@@ -28,6 +28,12 @@ import { buildEmailPreviewHtml, getTemplateTriggerLabel, SAMPLE_EMAIL_VARIABLES 
 import { EmailHealthView } from './EmailHealthView';
 import { UsersView } from './UsersView';
 import { ModalShell } from '../components/ui/ModalShell';
+import {
+  descricaoDoModal,
+  rotuloDoBotaoSalvar,
+  tituloDoModal,
+  type EntidadeDeCatalogo,
+} from './configuracoes/modalDeCatalogo';
 import { DirectoryVendor, fetchDirectory, upsertVendor } from '../services/directoryApi';
 import { mensagemDeErro } from '../utils/errorMessage';
 type SettingsSection = 'access' | 'territory' | 'catalog' | 'templates' | 'priorities' | 'integrations';
@@ -397,6 +403,13 @@ export function SettingsView() {
   const [macroDraft, setMacroDraft] = useState({ id: '', code: '', name: '' });
   const [serviceDraft, setServiceDraft] = useState({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] });
   const [materialDraft, setMaterialDraft] = useState({ id: '', code: '', name: '', unit: '' });
+  /**
+   * Qual entidade o modal está editando, e o nome do item carregado ('' = item novo).
+   * O nome fica aqui, e não é lido do rascunho, porque o rascunho MUDA enquanto a
+   * pessoa digita — o título viraria um espelho do campo em vez de dizer em que item
+   * ela entrou.
+   */
+  const [catalogModal, setCatalogModal] = useState<null | { entity: EntidadeDeCatalogo; editando: string }>(null);
   const [pendingCatalogDelete, setPendingCatalogDelete] = useState<{
     entity: 'regions' | 'sites' | 'macroServices' | 'serviceCatalog' | 'materials';
     id: string;
@@ -591,6 +604,38 @@ export function SettingsView() {
     }
   };
 
+  const VAZIO = {
+    macroServices: { id: '', code: '', name: '' },
+    serviceCatalog: { id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] as string[] },
+    materials: { id: '', code: '', name: '', unit: '' },
+  };
+
+  /**
+   * ⚠️ LIMPA O RASCUNHO ANTES DE ABRIR. Sem isto, "Novo" herdaria o `id` de uma edição
+   * anterior e o que parece criação viraria sobrescrita — que é literalmente o defeito
+   * que este modal existe para impedir.
+   */
+  const abrirNovoItem = (entity: EntidadeDeCatalogo) => {
+    setCatalogError(null);
+    if (entity === 'macroServices') setMacroDraft(VAZIO.macroServices);
+    if (entity === 'serviceCatalog') setServiceDraft(VAZIO.serviceCatalog);
+    if (entity === 'materials') setMaterialDraft(VAZIO.materials);
+    setCatalogModal({ entity, editando: '' });
+  };
+
+  const nomeDoRascunho = (entity: EntidadeDeCatalogo) =>
+    entity === 'macroServices' ? macroDraft.name : entity === 'serviceCatalog' ? serviceDraft.name : materialDraft.name;
+
+  const codigoDoRascunho = (entity: EntidadeDeCatalogo) =>
+    entity === 'macroServices' ? macroDraft.code : entity === 'serviceCatalog' ? serviceDraft.code : materialDraft.code;
+
+  const fecharModalDeCatalogo = () => {
+    setCatalogModal(null);
+    setMacroDraft(VAZIO.macroServices);
+    setServiceDraft(VAZIO.serviceCatalog);
+    setMaterialDraft(VAZIO.materials);
+  };
+
   const handleSaveMacroService = async () => {
     setCatalogSavingEntity('macroServices');
     try {
@@ -600,7 +645,8 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setMacroDraft({ id: '', code: '', name: '' });
+      setMacroDraft(VAZIO.macroServices);
+      setCatalogModal(null);
       setCatalogSaved('Macroserviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -619,7 +665,8 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setServiceDraft({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] });
+      setServiceDraft(VAZIO.serviceCatalog);
+      setCatalogModal(null);
       setCatalogSaved('Serviço salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -638,7 +685,8 @@ export function SettingsView() {
       setMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
       setMaterials(catalog.materials);
-      setMaterialDraft({ id: '', code: '', name: '', unit: '' });
+      setMaterialDraft(VAZIO.materials);
+      setCatalogModal(null);
       setCatalogSaved('Material salvo.');
       setTimeout(() => setCatalogSaved(null), 3000);
     } catch (error) {
@@ -1362,9 +1410,19 @@ export function SettingsView() {
                         {catalogSubSection === 'catalog' && (
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
                           <section className="rounded-xl border border-roman-border bg-roman-bg p-4 space-y-4">
-                            <div>
-                              <h3 className="font-serif text-lg text-roman-text-main">Macroserviços</h3>
-                              <p className="text-xs text-roman-text-sub mt-1">Classificação macro da manutenção.</p>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h3 className="font-serif text-lg text-roman-text-main">Macroserviços</h3>
+                                <p className="text-xs text-roman-text-sub mt-1">Classificação macro da manutenção.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => abrirNovoItem('macroServices')}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary hover:text-roman-primary"
+                              >
+                                <Plus size={13} />
+                                Novo
+                              </button>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {macroServices.map(item => (
@@ -1377,7 +1435,11 @@ export function SettingsView() {
                                     <div className="flex items-center gap-2 shrink-0">
                                       <button
                                         type="button"
-                                        onClick={() => setMacroDraft({ id: item.id, name: item.name || '', code: item.code || '' })}
+                                        onClick={() => {
+                                          setCatalogError(null);
+                                          setMacroDraft({ id: item.id, name: item.name || '', code: item.code || '' });
+                                          setCatalogModal({ entity: 'macroServices', editando: item.name || item.id });
+                                        }}
                                         className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
@@ -1409,45 +1471,22 @@ export function SettingsView() {
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
-                              <input
-                                type="text"
-                                value={macroDraft.name}
-                                onChange={event => setMacroDraft(current => ({ ...current, name: event.target.value }))}
-                                placeholder="Nome do macroserviço"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <input
-                                type="text"
-                                value={macroDraft.code}
-                                onChange={event => setMacroDraft(current => ({ ...current, code: event.target.value }))}
-                                placeholder="Código opcional"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <button
-                                onClick={() => void handleSaveMacroService()}
-                                disabled={catalogSavingEntity === 'macroServices'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {catalogSavingEntity === 'macroServices' ? <Loader2 size={14} className="animate-spin" /> : null}
-                                {catalogSavingEntity === 'macroServices' ? 'Salvando...' : macroDraft.id ? 'Salvar macroserviço' : 'Criar macroserviço'}
-                              </button>
-                              {macroDraft.id && (
-                                <button
-                                  type="button"
-                                  onClick={() => setMacroDraft({ id: '', code: '', name: '' })}
-                                  className="inline-flex w-full items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
-                                >
-                                  Cancelar edição
-                                </button>
-                              )}
-                            </div>
                           </section>
 
                           <section className="rounded-xl border border-roman-border bg-roman-bg p-4 space-y-4">
-                            <div>
-                              <h3 className="font-serif text-lg text-roman-text-main">Serviços</h3>
-                              <p className="text-xs text-roman-text-sub mt-1">Detalham o tipo real de intervenção.</p>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h3 className="font-serif text-lg text-roman-text-main">Serviços</h3>
+                                <p className="text-xs text-roman-text-sub mt-1">Detalham o tipo real de intervenção.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => abrirNovoItem('serviceCatalog')}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary hover:text-roman-primary"
+                              >
+                                <Plus size={13} />
+                                Novo
+                              </button>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {serviceCatalog.map(item => (
@@ -1462,15 +1501,17 @@ export function SettingsView() {
                                     <div className="flex items-center gap-2 shrink-0">
                                       <button
                                         type="button"
-                                        onClick={() =>
+                                        onClick={() => {
+                                          setCatalogError(null);
                                           setServiceDraft({
                                             id: item.id,
                                             name: item.name || '',
                                             code: item.code || '',
                                             macroServiceId: item.macroServiceId || '',
                                             suggestedMaterialIds: Array.isArray(item.suggestedMaterialIds) ? item.suggestedMaterialIds : [],
-                                          })
-                                        }
+                                          });
+                                          setCatalogModal({ entity: 'serviceCatalog', editando: item.name || item.id });
+                                        }}
                                         className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
@@ -1502,77 +1543,22 @@ export function SettingsView() {
                                 </div>
                               ))}
                             </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
-                              <input
-                                type="text"
-                                value={serviceDraft.name}
-                                onChange={event => setServiceDraft(current => ({ ...current, name: event.target.value }))}
-                                placeholder="Nome do serviço"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <input
-                                type="text"
-                                value={serviceDraft.code}
-                                onChange={event => setServiceDraft(current => ({ ...current, code: event.target.value }))}
-                                placeholder="Código opcional"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <select
-                                value={serviceDraft.macroServiceId}
-                                onChange={event => setServiceDraft(current => ({ ...current, macroServiceId: event.target.value }))}
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              >
-                                <option value="">Selecione o macroserviço</option>
-                                {macroServices.map(item => (
-                                  <option key={item.id} value={item.id}>{item.name}</option>
-                                ))}
-                              </select>
-                              <div className="max-h-28 space-y-2 overflow-y-auto rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
-                                {materials.map(item => {
-                                  const checked = serviceDraft.suggestedMaterialIds.includes(item.id);
-                                  return (
-                                    <label key={item.id} className="flex items-center gap-2 text-xs text-roman-text-main">
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={() =>
-                                          setServiceDraft(current => ({
-                                            ...current,
-                                            suggestedMaterialIds: checked
-                                              ? current.suggestedMaterialIds.filter(id => id !== item.id)
-                                              : [...current.suggestedMaterialIds, item.id],
-                                          }))
-                                        }
-                                      />
-                                      {item.name}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                              <button
-                                onClick={() => void handleSaveService()}
-                                disabled={catalogSavingEntity === 'serviceCatalog'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {catalogSavingEntity === 'serviceCatalog' ? <Loader2 size={14} className="animate-spin" /> : null}
-                                {catalogSavingEntity === 'serviceCatalog' ? 'Salvando...' : serviceDraft.id ? 'Salvar serviço' : 'Criar serviço'}
-                              </button>
-                              {serviceDraft.id && (
-                                <button
-                                  type="button"
-                                  onClick={() => setServiceDraft({ id: '', code: '', name: '', macroServiceId: '', suggestedMaterialIds: [] })}
-                                  className="inline-flex w-full items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
-                                >
-                                  Cancelar edição
-                                </button>
-                              )}
-                            </div>
                           </section>
 
                           <section className="rounded-xl border border-roman-border bg-roman-bg p-4 space-y-4">
-                            <div>
-                              <h3 className="font-serif text-lg text-roman-text-main">Materiais</h3>
-                              <p className="text-xs text-roman-text-sub mt-1">Materiais sugeridos para padronização de orçamento.</p>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h3 className="font-serif text-lg text-roman-text-main">Materiais</h3>
+                                <p className="text-xs text-roman-text-sub mt-1">Materiais sugeridos para padronização de orçamento.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => abrirNovoItem('materials')}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-roman-border bg-roman-surface px-3 py-1.5 text-xs font-medium text-roman-text-main transition-colors hover:border-roman-primary hover:text-roman-primary"
+                              >
+                                <Plus size={13} />
+                                Novo
+                              </button>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {materials.map(item => (
@@ -1585,14 +1571,16 @@ export function SettingsView() {
                                     <div className="flex items-center gap-2 shrink-0">
                                       <button
                                         type="button"
-                                        onClick={() =>
+                                        onClick={() => {
+                                          setCatalogError(null);
                                           setMaterialDraft({
                                             id: item.id,
                                             name: item.name || '',
                                             code: item.code || '',
                                             unit: item.unit || '',
-                                          })
-                                        }
+                                          });
+                                          setCatalogModal({ entity: 'materials', editando: item.name || item.id });
+                                        }}
                                         className="inline-flex min-h-6 items-center text-xs font-medium text-roman-primary hover:underline"
                                       >
                                         Editar
@@ -1623,46 +1611,6 @@ export function SettingsView() {
                                   </div>
                                 </div>
                               ))}
-                            </div>
-                            <div className="space-y-3 border-t border-roman-border pt-4">
-                              <input
-                                type="text"
-                                value={materialDraft.name}
-                                onChange={event => setMaterialDraft(current => ({ ...current, name: event.target.value }))}
-                                placeholder="Nome do material"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <input
-                                type="text"
-                                value={materialDraft.code}
-                                onChange={event => setMaterialDraft(current => ({ ...current, code: event.target.value }))}
-                                placeholder="Código opcional"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <input
-                                type="text"
-                                value={materialDraft.unit}
-                                onChange={event => setMaterialDraft(current => ({ ...current, unit: event.target.value }))}
-                                placeholder="Unidade (ex: m², un, lata)"
-                                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
-                              />
-                              <button
-                                onClick={() => void handleSaveMaterial()}
-                                disabled={catalogSavingEntity === 'materials'}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-roman-sidebar px-4 py-2 text-sm font-medium text-white hover:text-roman-on-primary hover:bg-roman-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {catalogSavingEntity === 'materials' ? <Loader2 size={14} className="animate-spin" /> : null}
-                                {catalogSavingEntity === 'materials' ? 'Salvando...' : materialDraft.id ? 'Salvar material' : 'Criar material'}
-                              </button>
-                              {materialDraft.id && (
-                                <button
-                                  type="button"
-                                  onClick={() => setMaterialDraft({ id: '', code: '', name: '', unit: '' })}
-                                  className="inline-flex w-full items-center justify-center rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg"
-                                >
-                                  Cancelar edição
-                                </button>
-                              )}
                             </div>
                           </section>
                         </div>
@@ -2245,6 +2193,147 @@ export function SettingsView() {
           </div>
         </div>
       </div>
+
+      {catalogModal && (
+        <ModalShell
+          isOpen
+          onClose={fecharModalDeCatalogo}
+          title={tituloDoModal(catalogModal.entity, catalogModal.editando)}
+          description={descricaoDoModal(catalogModal.entity, catalogModal.editando)}
+          maxWidthClass="max-w-lg"
+          footer={
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={fecharModalDeCatalogo}
+                disabled={catalogSavingEntity === catalogModal.entity}
+                className="rounded-xl border border-roman-border px-4 py-2 text-sm font-medium text-roman-text-main hover:bg-roman-bg disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (catalogModal.entity === 'macroServices') void handleSaveMacroService();
+                  if (catalogModal.entity === 'serviceCatalog') void handleSaveService();
+                  if (catalogModal.entity === 'materials') void handleSaveMaterial();
+                }}
+                disabled={catalogSavingEntity === catalogModal.entity || !nomeDoRascunho(catalogModal.entity).trim()}
+                className="inline-flex items-center gap-2 rounded-xl bg-roman-sidebar px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-roman-primary-hover hover:text-roman-on-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {catalogSavingEntity === catalogModal.entity ? <Loader2 size={14} className="animate-spin" /> : null}
+                {catalogSavingEntity === catalogModal.entity
+                  ? 'Salvando...'
+                  : rotuloDoBotaoSalvar(catalogModal.entity, catalogModal.editando)}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {catalogError && (
+              <div className="rounded-xl border border-roman-danger/35 bg-roman-danger/10 px-3 py-2 text-xs text-roman-danger" role="alert">
+                {catalogError}
+              </div>
+            )}
+
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Nome</span>
+              <input
+                type="text"
+                value={nomeDoRascunho(catalogModal.entity)}
+                onChange={event => {
+                  const name = event.target.value;
+                  if (catalogModal.entity === 'macroServices') setMacroDraft(current => ({ ...current, name }));
+                  if (catalogModal.entity === 'serviceCatalog') setServiceDraft(current => ({ ...current, name }));
+                  if (catalogModal.entity === 'materials') setMaterialDraft(current => ({ ...current, name }));
+                }}
+                placeholder="Como aparece nos seletores da OS"
+                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Código (opcional)</span>
+              <input
+                type="text"
+                value={codigoDoRascunho(catalogModal.entity)}
+                onChange={event => {
+                  const code = event.target.value;
+                  if (catalogModal.entity === 'macroServices') setMacroDraft(current => ({ ...current, code }));
+                  if (catalogModal.entity === 'serviceCatalog') setServiceDraft(current => ({ ...current, code }));
+                  if (catalogModal.entity === 'materials') setMaterialDraft(current => ({ ...current, code }));
+                }}
+                placeholder="Sigla curta, ex.: CIV"
+                className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+              />
+              {/* ⚠️ Este campo já foi a chave primária calada: todo serviço civil ganhou
+                  código "CIV", virou o mesmo id, e cada novo renomeou o anterior — 83
+                  itens engolidos. Hoje o servidor desempata sozinho, e a tela diz isso. */}
+              <span className="mt-1.5 block text-[11px] text-roman-text-sub">
+                Só uma sigla para a lista. Pode repetir entre itens — não é o que identifica o registro.
+              </span>
+            </label>
+
+            {catalogModal.entity === 'serviceCatalog' && (
+              <>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Macroserviço</span>
+                  <select
+                    value={serviceDraft.macroServiceId}
+                    onChange={event => setServiceDraft(current => ({ ...current, macroServiceId: event.target.value }))}
+                    className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                  >
+                    <option value="">Selecione o macroserviço</option>
+                    {macroServices.map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <div>
+                  <span className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Materiais sugeridos</span>
+                  <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-roman-border bg-roman-surface px-3 py-2">
+                    {materials.length === 0 && <span className="text-xs text-roman-text-sub">Nenhum material cadastrado.</span>}
+                    {materials.map(item => {
+                      const checked = serviceDraft.suggestedMaterialIds.includes(item.id);
+                      return (
+                        <label key={item.id} className="flex items-center gap-2 text-xs text-roman-text-main">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setServiceDraft(current => ({
+                                ...current,
+                                suggestedMaterialIds: checked
+                                  ? current.suggestedMaterialIds.filter(id => id !== item.id)
+                                  : [...current.suggestedMaterialIds, item.id],
+                              }))
+                            }
+                          />
+                          {item.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {catalogModal.entity === 'materials' && (
+              <label className="block">
+                <span className="mb-1.5 block text-[11px] font-serif uppercase tracking-widest text-roman-text-sub">Unidade</span>
+                <input
+                  type="text"
+                  value={materialDraft.unit}
+                  onChange={event => setMaterialDraft(current => ({ ...current, unit: event.target.value }))}
+                  placeholder="Ex.: m², saco, unidade"
+                  className="w-full rounded-xl border border-roman-border bg-roman-surface px-3 py-2 text-sm font-medium text-roman-text-main outline-none focus:border-roman-primary"
+                />
+              </label>
+            )}
+          </div>
+        </ModalShell>
+      )}
 
       {pendingCatalogDelete && (
         <ModalShell
