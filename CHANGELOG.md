@@ -3,6 +3,53 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-14 (criar item do catálogo nunca criava quando o nome já existia)
+
+Relato do dono: *"pessoal tá criando serviços, mas não está salvando — e até aparece
+na auditoria"*. As duas metades da frase são verdade ao mesmo tempo, e é isso que
+explica o defeito.
+
+**O id do documento vinha de `slugify(code || name)` e a gravação era um
+`set(merge: true)` direto nele, sem olhar se já havia alguém lá.** O slug ignora
+acento, caixa e pontuação — medido: `"Troca de Lâmpada"`, `"Troca de lampada"`,
+`"TROCA DE LAMPADA"` e `"Troca  de  Lâmpada!"` produzem **o mesmo id**. Então criar
+um serviço cujo nome colidisse com um existente não criava nada: **renomeava o item
+antigo, calado**. A lista não crescia — "não salvou" —, e a auditoria registrava a
+escrita normalmente, porque do ponto de vista do servidor ela aconteceu.
+
+Reforçando: todos os 409 de conflito do catálogo estão no **DELETE**; a criação não
+tinha nenhum. O front até trata "código repetido" (`catalogApi.erroDoCatalogo`), mas
+o servidor nunca emitiu essa recusa — ele preferia sobrescrever.
+
+**Decisão do dono: criar assim mesmo, com id novo** (`alvenaria`, `alvenaria-2`, …)
+em vez de recusar por conflito. Quem está classificando uma OS não pode ser barrado
+no meio do caminho; o catálogo é dele para arrumar depois. O nome sai exatamente como
+foi digitado — o sufixo é só do id, que ninguém lê na tela.
+
+⚠️ **O id explícito continua sobrescrevendo, e é isso que segura o "Editar".** A tela
+de Configurações carrega o item no formulário com o `id`, e o botão de desativar manda
+`{ ...item, active }`. Sem essa distinção, a correção transformaria editar em duplicar
+e desativar em clonar — que seria pior que o defeito original. Há teste para os três
+casos.
+
+**A criação rápida da triagem engolia a recusa.** `handleQuickCreateService` e
+`handleQuickCreateMacroService` (`InboxView`) eram `try/finally` **sem `catch`**: o
+servidor recusava, o `finally` devolvia o botão ao normal e a tela não dizia nada — e
+"nada aconteceu" se lê como "salvou". Agora a recusa vira aviso, no mesmo formato das
+outras ações da tela. É a mesma família do `ui-truthfulness`: ali a interface cantava
+sucesso sem confirmação; aqui ela não cantava nada, o que dá no mesmo para quem olha.
+
+**E o painel deixou de adivinhar qual item acabou de nascer.** A triagem procurava o
+item recém-criado pelo NOME na lista devolvida (`.reverse().find(...)`). Com dois itens
+de mesmo nome — que agora podem existir — essa busca escolheria um dos dois por sorte,
+e classificaria a OS no errado sem avisar. O POST já devolvia `record` com o id que o
+servidor decidiu; passou a ser ele quem seleciona.
+
+**Teste**: `tests/unit/catalogoIdLivre.test.ts` (8 casos). Cobre o sufixo, o teto de 50
+tentativas, as quatro grafias que colidiam, e os três casos de id explícito. Confirmado
+que reprova o comportamento antigo: revertendo a linha do id, "criar sobre um slug
+ocupado nasce num documento novo" falha.
+
 ## 2026-09-11 (o gráfico de categorias parava de partir a mesma categoria em duas)
 
 Pedido: classificar as 8 OS que tinham ficado sem macroserviço enquanto o painel

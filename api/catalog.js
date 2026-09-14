@@ -266,20 +266,60 @@ function normalizeCatalogRecord(entity, record) {
   throw new HttpError(400, 'Tipo de item do catálogo inválido.');
 }
 
-async function upsertCatalogEntry(db, entity, record) {
+/**
+ * O ID DE UM ITEM NOVO — e por que ele pode sair com sufixo.
+ *
+ * ⚠️ O DEFEITO QUE ISTO CONSERTA: criar item NUNCA criava se o id já existisse.
+ *
+ * O id vem de `slugify(code || name)`, que tira acento, caixa e pontuação — então
+ * "Alvenaria", "alvenaria" e "ALVENARIA!" são o MESMO documento. E a gravação era um
+ * `set(merge: true)` direto nesse id, sem olhar se já havia alguém lá. Resultado: a
+ * pessoa criava um serviço e, em vez de nascer um item novo, o item antigo era
+ * RENOMEADO calado. A lista não crescia — "não salvou" — e a auditoria registrava a
+ * escrita normalmente, porque do ponto de vista do servidor ela aconteceu.
+ *
+ * Decisão do dono (14/09): **criar assim mesmo, com id novo**, em vez de recusar por
+ * conflito. Quem está classificando uma OS não pode ser barrado no meio do caminho; o
+ * catálogo é dele para arrumar depois. O nome sai exatamente como foi digitado — o
+ * sufixo é só do id, que ninguém lê.
+ *
+ * ⚠️ O ID EXPLÍCITO CONTINUA SOBRESCREVENDO, e é isso que mantém "Editar"
+ * funcionando: a tela de Configurações carrega o item no formulário COM o `id`
+ * (`SettingsView`, botão Editar), e o botão de desativar manda `{ ...item, active }`.
+ * Nesses dois casos a pessoa está apontando para um documento existente de propósito.
+ * Sem essa distinção, editar um serviço viraria duplicá-lo.
+ */
+const MAX_TENTATIVAS_DE_ID = 50;
+
+export async function idLivre(db, collection, idBase) {
+  let candidato = idBase;
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_DE_ID; tentativa += 1) {
+    const existente = await db.collection(collection).doc(candidato).get();
+    if (!existente.exists) return candidato;
+    candidato = `${idBase}-${tentativa + 1}`;
+  }
+  // Teto para não varrer a coleção inteira num nome repetido por engano em massa.
+  throw new HttpError(409, `Já existem ${MAX_TENTATIVAS_DE_ID} itens com esse nome. Use um nome diferente.`);
+}
+
+export async function upsertCatalogEntry(db, entity, record) {
   const collection = ENTITY_COLLECTION_MAP[entity];
   if (!collection) {
     throw new HttpError(400, 'Tipo de item do catálogo inválido.');
   }
 
   const normalized = normalizeCatalogRecord(entity, record);
-  const ref = db.collection(collection).doc(normalized.id);
+  const apontaParaDocumento = Boolean(String(record?.id || '').trim());
+  const id = apontaParaDocumento ? normalized.id : await idLivre(db, collection, normalized.id);
+  const gravado = { ...normalized, id };
+
+  const ref = db.collection(collection).doc(id);
   const snapshot = await ref.get();
   const now = new Date();
 
   await ref.set(
     {
-      ...normalized,
+      ...gravado,
       updatedAt: now,
       createdAt: snapshot.exists ? snapshot.data()?.createdAt || now : now,
     },
@@ -288,7 +328,7 @@ async function upsertCatalogEntry(db, entity, record) {
 
   return {
     before: snapshot.exists ? { id: snapshot.id, ...snapshot.data() } : null,
-    after: normalized,
+    after: gravado,
   };
 }
 

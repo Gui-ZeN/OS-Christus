@@ -717,13 +717,19 @@ export function InboxView() {
       const catalog = await saveCatalogEntry('macroServices', { name });
       setCatalogMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
-      const created = [...catalog.macroServices]
-        .reverse()
-        .find(item => String(item.name || '').trim().toLowerCase() === name.toLowerCase());
+      // O id vem do SERVIDOR, e não de procurar pelo nome na lista: dois itens podem
+      // ter o mesmo nome (o id ganha sufixo quando o slug já existe), e a busca por
+      // nome escolheria um dos dois por sorte.
+      const created = catalog.record;
       if (created?.id) {
         setTicketDetailsForm(prev => ({ ...prev, macroServiceId: created.id, serviceCatalogId: '' }));
       }
       setNewMacroServiceName('');
+    } catch (error) {
+      // ⚠️ SEM ISTO A RECUSA NÃO APARECIA EM LUGAR NENHUM. Era `try/finally` sem
+      // `catch`: o servidor recusava, o `finally` devolvia o botão ao normal e a tela
+      // não dizia nada — e "nada aconteceu" se lê como "salvou".
+      showToast(`Macroserviço não foi criado: ${mensagemDeErro(error, 'falha inesperada.')}`, 4000);
     } finally {
       setSavingQuickCatalog(false);
     }
@@ -738,17 +744,13 @@ export function InboxView() {
       const catalog = await saveCatalogEntry('serviceCatalog', { name, macroServiceId });
       setCatalogMacroServices(catalog.macroServices);
       setServiceCatalog(catalog.serviceCatalog);
-      const created = [...catalog.serviceCatalog]
-        .reverse()
-        .find(
-          item =>
-            String(item.name || '').trim().toLowerCase() === name.toLowerCase() &&
-            String(item.macroServiceId || '') === macroServiceId
-        );
+      const created = catalog.record;
       if (created?.id) {
         setTicketDetailsForm(prev => ({ ...prev, serviceCatalogId: created.id }));
       }
       setNewServiceName('');
+    } catch (error) {
+      showToast(`Serviço não foi criado: ${mensagemDeErro(error, 'falha inesperada.')}`, 4000);
     } finally {
       setSavingQuickCatalog(false);
     }

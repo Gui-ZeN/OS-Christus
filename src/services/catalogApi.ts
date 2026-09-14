@@ -106,6 +106,15 @@ export async function saveCatalogEntry(
     throw erroDoCatalogo(response.status, json, 'Falha ao salvar item do catálogo.');
   }
   return {
+    /**
+     * O item que o servidor GRAVOU — com o id que ele decidiu.
+     *
+     * ⚠️ Quem precisa selecionar o item recém-criado tem que usar isto, e não
+     * procurar pelo nome na lista: dois itens podem ter o mesmo nome (o id ganha
+     * sufixo quando o slug já existe), e aí a busca por nome escolhe um dos dois
+     * por sorte — na OS errada, silenciosamente.
+     */
+    record: (json.record || null) as { id: string; name?: string } | null,
     regions: json.regions as CatalogRegion[],
     sites: json.sites as CatalogSite[],
     macroServices: (json.macroServices || []) as CatalogMacroService[],
