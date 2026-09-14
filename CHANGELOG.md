@@ -3,6 +3,55 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-14 (restauração: 83 serviços que a sobrescrita tinha engolido)
+
+Com o defeito de id consertado, sobrou o estrago. A auditoria guarda `before` e `after`
+inteiros de cada gravação, então o que foi engolido não estava perdido — estava só fora
+do catálogo.
+
+**Medido: 12 documentos absorveram a taxonomia inteira.** A operação usava o código como
+código de CATEGORIA — "CIV" em todo serviço civil, "HID" em todo hidráulico — e o id
+saía de `slugify(code || name)`. Então cada serviço novo caía no mesmo documento e
+renomeava o anterior:
+
+```
+serviceCatalog/civ  35 trocas  → sobrou "Pergolado"
+serviceCatalog/hid  27 trocas  → sobrou "Caixa de passagem"
+serviceCatalog/cob  23 trocas  → sobrou "Cobertura de quadra"
+serviceCatalog/ele  19 trocas  → sobrou "Iluminação do letreiro"
+serviceCatalog/are   9 trocas  · ser 9 · mob 8 · pis 6 · pin 5 · esq 5 · cli 5 · sis 3
+```
+
+`scripts/infra/restaurar-catalogo-sobrescrito.mjs` (`npm run infra:catalogo:restaurar`,
+ensaio por padrão) recria cada nome como documento próprio, com o macroserviço e o
+código que ele tinha na hora em que foi digitado. **83 serviços restaurados**: o catálogo
+foi de 39 documentos (23 ativos) para 122 (106 ativos) — soma exatamente aditiva, nada
+sobrescrito.
+
+Três decisões que o script prende, com o porquê no arquivo:
+
+- ⚠️ **Renomear de propósito e criar-por-cima gravam a mesma coisa.** O critério é a
+  CADEIA: documento que troca de nome várias vezes em minutos, com nomes irmãos numa
+  taxonomia (Laje, Viga, Pilar, Parede), estava recebendo itens novos. Cadeia de **um
+  passo só fica de fora** e sai listada para decisão humana — foram 13, e todas eram
+  renomeação deliberada mesmo ("Estrutura Civil" → "Civil e Estrutural", "Móveis" →
+  "Mobiliário"…).
+- **O molde é por nome, não o último da cadeia.** Se alguém trocou o macroserviço no
+  meio, usar o molde final poria os itens anteriores na categoria errada — e
+  classificação errada é pior que ausente, porque parece certa.
+- **Dedupe pelo slug**, a mesma comparação que o catálogo usa para o id: "Forro
+  relacionado à cobertura" e "Forro relacionado a cobertura" são o mesmo item digitado
+  duas vezes.
+
+⚠️ **E lê a coleção de auditoria INTEIRA, sem `limit`.** São 2.997 entradas e 252
+`catalog.upsert`, das quais 17 ficam fora das 1.000 mais recentes — um `limit`
+confortável perderia as cadeias mais antigas em silêncio. O primeiro ensaio, com
+`limit(1000)`, achou 84 itens e estava errado nos dois sentidos.
+
+Idempotente: a segunda passada não recria nada, porque compara por nome já existente.
+E recusa escrever em id ocupado — o `set` é sem merge, e escrever por cima seria repetir
+o próprio defeito com outra roupa.
+
 ## 2026-09-14 (criar item do catálogo nunca criava quando o nome já existia)
 
 Relato do dono: *"pessoal tá criando serviços, mas não está salvando — e até aparece
