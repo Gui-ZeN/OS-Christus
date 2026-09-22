@@ -3,6 +3,44 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-22 (buscar pelo título do e-mail voltou a achar a OS)
+
+Pergunta do dono, vinda de uma thread ao vivo: *"[JV] - Instalação de shafts de
+alumínio: por que não apareceu nem sequer para aceitar a OS? Ou alguém recusou a
+criação?"*
+
+**Nenhum dos dois.** É a OS-0320, registrada por e-mail em 10/08 15:40 e **aceita** pelo
+Cezar no mesmo dia às 20:12. Ela sumiu da tela por dois motivos independentes:
+
+1. **Foi encerrada em 17/08** com o motivo "Demanda concluida", e não estava concluída —
+   a conversa seguiu com novo orçamento em 25/08 e autorização do Murilo em 03/09.
+   Encerradas ficam ocultas por padrão nas duas telas.
+2. **E a busca por título colado devolvia zero**, mesmo com "Mostrar encerradas" ligado.
+
+O defeito é o (2). `matchesSearch` exige TODAS as palavras do termo, e o assunto no
+Gmail é `Re: [JV] - Instalação de shafts de aluminio.` — o `jv` virava palavra
+obrigatória. A sede gravada na OS é **PJF**, então `jv` não aparece em campo nenhum do
+registro.
+
+⚠️ **Os testes existentes não pegavam porque todos partiam da mesma coincidência**: nos
+três pares de produção usados (`[SUL 3]`→SUL 3, `[PQL 2]`→PQL 2, `[DT]`→DT), a sigla
+entre colchetes era idêntica à sede gravada, e aí cobrá-la saía de graça. Produção não
+respeita isso — medido em 22/09: **84 das 275 threads** com `[tag]` no assunto trazem
+tag que não bate com a sede (`[PRÉ SUL]`→PSUL, `[DT1]`→DT, `[PQL 01]`→PQL1).
+
+O marcador entre colchetes **não é gravado em campo nenhum**, então nunca teve como
+distinguir uma OS de outra: exigi-lo só tinha o efeito de esconder. Agora ele sai do
+termo junto com o `Re:`, no mesmo laço e pelo mesmo motivo. Só o do começo — colchete no
+meio do termo continua sendo texto do assunto.
+
+Provado em vermelho antes. A correção derrubou um teste antigo (`searchTokens` esperava
+`['sul','3','solicitacao']` para `[SUL 3]-Solicitação`); ele guardava a regra anterior e
+foi atualizado com o porquê, em vez de o conserto recuar.
+
+Fica em aberto, para a operação decidir: **`JV` é uma sede de verdade no catálogo —
+"José Vilar", com zero OS** — e esta OS está em PJF. Ou o marcador do e-mail está
+errado, ou ela foi arquivada na sede errada.
+
 ## 2026-09-15 (guia rápido do Painel Financeiro, em markdown e PDF)
 
 `docs/guia-rapido-painel-financeiro.md` e o PDF gerado por

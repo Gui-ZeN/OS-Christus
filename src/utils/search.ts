@@ -29,6 +29,24 @@ export function normalizeSearchText(value?: string | null): string {
 const REPLY_PREFIXES = /^\s*(?:(?:re|res|enc|fw|fwd)\s*:\s*)+/i;
 
 /**
+ * O marcador de sede que a thread carrega: `[SUL 3]`, `[JV]`, `[PQL 01]`.
+ *
+ * ⚠️ ELE NÃO EXISTE EM CAMPO NENHUM DA OS, então exigi-lo só esconde. Os testes
+ * antigos não pegavam isso porque em todos eles a sigla entre colchetes era a MESMA
+ * que ficava gravada na sede — aí cobrar a palavra saía de graça.
+ *
+ * Produção não respeita essa coincidência. Medido em 22/09/2026: **84 das 275
+ * threads** com `[tag]` no assunto trazem uma tag que não bate com a sede gravada —
+ * "PRÉ SUL" para PSUL, "DT1" para DT, "PQL 01" para PQL1. O caso que motivou:
+ * OS-0320, assunto "Re: [JV] - Instalação de shafts de aluminio." e sede **PJF**
+ * (`JV` é outra sede, José Vilar). Colar o título exigia `jv` e devolvia zero, com
+ * três pessoas concluindo por e-mail que a OS não estava no sistema.
+ *
+ * Só o marcador do COMEÇO sai — no meio do termo, colchete é texto do assunto.
+ */
+const SEDE_TAG = /^\s*\[[^\]]{1,20}\]\s*[-–—:]*\s*/;
+
+/**
  * Quebra o que a pessoa digitou em palavras comparáveis. Pontuação e colchetes viram
  * separador: `[SUL 3]-Solicitação` produz `sul`, `3`, `solicitacao`.
  */
@@ -37,7 +55,7 @@ export function searchTokens(query?: string | null): string[] {
   let previous = '';
   while (text && previous !== text) {
     previous = text;
-    text = text.replace(REPLY_PREFIXES, '');
+    text = text.replace(REPLY_PREFIXES, '').replace(SEDE_TAG, '');
   }
   return normalizeSearchText(text)
     .split(/[^a-z0-9º°]+/)
