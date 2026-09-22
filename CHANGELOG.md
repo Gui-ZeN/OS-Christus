@@ -3,6 +3,32 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-15 (guia rápido do Painel Financeiro, em markdown e PDF)
+
+`docs/guia-rapido-painel-financeiro.md` e o PDF gerado por
+`scripts/generate_finance_guide_pdf.py`. Duas páginas, na paleta dos outros dois manuais
+da pasta.
+
+⚠️ **Não deu para reusar o `generate_training_guide_pdf.py`**: o conversor dele trata só
+escape e `código`. Sem **negrito**, sem tabela markdown e sem citação (`>`) — que é do
+que este guia é feito. Os asteriscos sairiam impressos e a tabela viraria um parágrafo
+de pipes.
+
+Três coisas que só apareceram ao olhar o PDF gerado, e não ao ler o código:
+
+- a capa desenhava **para fora da margem direita** — três parágrafos passados como três
+  colunas de uma linha, com um `colWidths` de um elemento só; o reportlab não reclama;
+- **cada linha do markdown virava um parágrafo**, porque o fonte quebra em ~88 colunas:
+  texto picado, e `*itálico*` que atravessa duas linhas saindo com os asteriscos, já que
+  o regex é por linha;
+- as fontes padrão do reportlab desenham **WinAnsi, não Unicode**: `→`, `−`, `⚠️` e `📎`
+  sairiam como retângulo vazio. Cada um tem substituto explícito, e o `⚠️` virou o
+  desenho da própria caixa de aviso.
+
+O guia abre explicando **o que cada número é** — orçado é a previsão, realizado é o custo
+final — e que os dois não baterem é o esperado. Sem isso, lançar dois valores parece
+burocracia.
+
 ## 2026-09-14 (a tela para de ser cúmplice: criar e editar viram modal)
 
 Do dono: *"tem que melhorar a tela, eu vou culpar a tela em vez do usuário nessa"*.
