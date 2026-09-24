@@ -51,6 +51,8 @@ describe('o solicitante acompanha o CICLO, não os degraus internos', () => {
       'Em análise': true,
       'Em orçamento': false,
       Contratação: false,
+      // Espera interna: o aviso sai quando a execução começa, não antes.
+      'Aguardando Execução': false,
       'Em execução': true,
       Concluída: true,
       Cancelada: true,

@@ -14,6 +14,7 @@ export const TICKET_STATUS = {
   WAITING_CONTRACT_UPLOAD: 'Aguardando Anexo de Contrato',
   WAITING_CONTRACT_APPROVAL: 'Aguardando aprovação do contrato',
   WAITING_PRELIM_ACTIONS: 'Aguardando Ações Preliminares',
+  WAITING_EXECUTION: 'Aguardando Execução',
   IN_PROGRESS: 'Em andamento',
   WAITING_MAINTENANCE_APPROVAL: 'Aguardando aprovação da manutenção',
   WAITING_PAYMENT: 'Aguardando pagamento',
@@ -110,7 +111,7 @@ export const MARCOS_EM_ORDEM = [
 /**
  * Até onde a etapa ATUAL diz que a OS chegou — índice do último marco ultrapassado.
  *
- * As sete etapas que não são marco também respondem, porque elas dizem posição: quem
+ * As oito etapas que não são marco também respondem, porque elas dizem posição: quem
  * está em "Aguardando pagamento" já passou do início da execução, ainda que nunca
  * tenha parado no marco "Em andamento". Sem isto, a OS que pula direto para o
  * pagamento não marcaria a execução — e é justamente ela que precisa.
@@ -124,6 +125,8 @@ const ATE_ONDE_CHEGOU = {
   [TICKET_STATUS.WAITING_CONTRACT_UPLOAD]: 3,
   [TICKET_STATUS.WAITING_CONTRACT_APPROVAL]: 3,
   [TICKET_STATUS.WAITING_PRELIM_ACTIONS]: 3,
+  // Não é marco: esperar a equipe começar não é degrau que a coordenação data.
+  [TICKET_STATUS.WAITING_EXECUTION]: 3,
   [TICKET_STATUS.IN_PROGRESS]: 4,
   [TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL]: 4,
   [TICKET_STATUS.WAITING_PAYMENT]: 4,

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * O badge de etapa agrupa os 13 status em 5 tratamentos de função. Este teste
+ * O badge de etapa agrupa os 14 status em 5 tratamentos de função. Este teste
  * garante duas coisas que dão errado em silêncio:
  *
  *  1. que TODO status do domínio cai num grupo — se alguém adicionar uma etapa
@@ -24,8 +24,8 @@ function grupoDoStatus(rotulo: string): string {
   if (n.includes('cancelada') || n.includes('reprovad')) return 'morta';
   if (n.includes('encerrada')) return 'encerrada';
   if (n.includes('nova os')) return 'triagem';
-  if (n.includes('em andamento') || n.includes('execucao')) return 'andando';
   if (n.includes('aguardando')) return 'esperando';
+  if (n.includes('em andamento') || n.includes('execucao')) return 'andando';
   return 'esperando';
 }
 
@@ -37,9 +37,9 @@ function statusDoDominio(): string[] {
 }
 
 describe('os grupos do badge de etapa', () => {
-  it('cobre os 13 status do domínio', () => {
+  it('cobre os 14 status do domínio', () => {
     const status = statusDoDominio();
-    expect(status.length, 'o domínio mudou de tamanho — reveja o agrupamento').toBe(13);
+    expect(status.length, 'o domínio mudou de tamanho — reveja o agrupamento').toBe(14);
     for (const s of status) {
       expect(['triagem', 'esperando', 'andando', 'encerrada', 'morta']).toContain(grupoDoStatus(s));
     }
@@ -52,17 +52,20 @@ describe('os grupos do badge de etapa', () => {
     expect(grupoDoStatus('Cancelada')).toBe('morta');
     // Uma OS morta não está "esperando" nada — a ordem das checagens importa.
     expect(grupoDoStatus('Orçamento Reprovado')).toBe('morta');
-    // Os oito "Aguardando…" caem juntos, que é o ponto do agrupamento.
+    // "Aguardando Execução" contém "execução" e ainda assim é espera — por isso
+    // "aguardando" é conferido antes de "execucao".
+    expect(grupoDoStatus('Aguardando Execução')).toBe('esperando');
+    // Os dez "Aguardando…" caem juntos, que é o ponto do agrupamento.
     for (const s of statusDoDominio().filter((x) => x.toLowerCase().startsWith('aguardando'))) {
       expect(grupoDoStatus(s), s).toBe('esperando');
     }
   });
 
-  it('os nove "Aguardando" são mesmo a maioria — é o que justifica destacar o resto', () => {
+  it('os dez "Aguardando" são mesmo a maioria — é o que justifica destacar o resto', () => {
     const esperando = statusDoDominio().filter((s) => grupoDoStatus(s) === 'esperando');
-    // 9 de 13. Numa tabela onde 70% das linhas dizem "Aguardando alguma coisa",
+    // 10 de 14. Numa tabela onde 70% das linhas dizem "Aguardando alguma coisa",
     // dar uma cor diferente a cada uma delas não ajuda ninguém a varrer.
-    expect(esperando.length).toBe(9);
+    expect(esperando.length).toBe(10);
   });
 
   it('os cinco grupos têm tratamentos distintos entre si', () => {

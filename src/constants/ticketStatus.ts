@@ -7,6 +7,7 @@
   WAITING_CONTRACT_UPLOAD: 'Aguardando Anexo de Contrato',
   WAITING_CONTRACT_APPROVAL: 'Aguardando aprovação do contrato',
   WAITING_PRELIM_ACTIONS: 'Aguardando Ações Preliminares',
+  WAITING_EXECUTION: 'Aguardando Execução',
   IN_PROGRESS: 'Em andamento',
   WAITING_MAINTENANCE_APPROVAL: 'Aguardando aprovação da manutenção',
   WAITING_PAYMENT: 'Aguardando pagamento',

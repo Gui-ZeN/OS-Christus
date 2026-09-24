@@ -14,7 +14,7 @@ describe('as treze do banco viram seis na tela', () => {
   it('as seis (mais Cancelada) são o vocabulário inteiro', () => {
     const alcancadas = new Set(Object.values(TICKET_STATUS).map(etapaDe));
     expect([...alcancadas].sort()).toEqual([...new Set(ORDEM_DAS_ETAPAS)].sort());
-    expect(ORDEM_DAS_ETAPAS).toHaveLength(7); // 6 de trabalho + Cancelada
+    expect(ORDEM_DAS_ETAPAS).toHaveLength(8); // 7 de trabalho + Cancelada
   });
 
   it('agrupa os dois passos de análise, orçamento e contratação', () => {
@@ -24,6 +24,15 @@ describe('as treze do banco viram seis na tela', () => {
     expect(etapaDe('Aguardando Aprovação do Orçamento')).toBe(ETAPA.ORCAMENTO);
     expect(etapaDe('Aguardando Anexo de Contrato')).toBe(ETAPA.CONTRATACAO);
     expect(etapaDe('Aguardando Ações Preliminares')).toBe(ETAPA.CONTRATACAO);
+  });
+
+  it('"Aguardando Execução" é status próprio, entre Contratação e Em execução', () => {
+    expect(etapaDe('Aguardando Execução')).toBe(ETAPA.AGUARDANDO_EXECUCAO);
+    expect(statusCanonicoDaEtapa('Aguardando Execução')).toBe('Aguardando Execução');
+    const i = ORDEM_DAS_ETAPAS.indexOf(ETAPA.AGUARDANDO_EXECUCAO);
+    expect(ORDEM_DAS_ETAPAS[i - 1]).toBe(ETAPA.CONTRATACAO);
+    expect(ORDEM_DAS_ETAPAS[i + 1]).toBe(ETAPA.EXECUCAO);
+    expect(etapaEmAberto('Aguardando Execução')).toBe(true);
   });
 
   it('"Encerrada" passou a se chamar "Concluída"', () => {

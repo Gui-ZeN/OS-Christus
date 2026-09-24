@@ -78,14 +78,15 @@ const TRATAMENTO: Record<Grupo, { fundo: string; texto: string; borda: string; p
 /**
  * Recebe o status já normalizado (minúsculo, sem acento). A ordem importa:
  * "cancelada"/"reprovada" antes de qualquer coisa, porque uma OS morta não é
- * "esperando" nada; e "aguardando" por último, já que é o caso geral.
+ * "esperando" nada; e "aguardando" antes de "execucao", porque "Aguardando Execução"
+ * é espera, não obra andando.
  */
 function grupoDoStatus(normalizado: string): Grupo {
   if (normalizado.includes('cancelada') || normalizado.includes('reprovad')) return 'morta';
   if (normalizado.includes('encerrada') || normalizado.includes('concluida')) return 'encerrada';
   if (normalizado.includes('nova os')) return 'triagem';
-  if (normalizado.includes('em andamento') || normalizado.includes('execucao')) return 'andando';
   if (normalizado.includes('aguardando')) return 'esperando';
+  if (normalizado.includes('em andamento') || normalizado.includes('execucao')) return 'andando';
   return 'esperando';
 }
 

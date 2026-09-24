@@ -71,6 +71,12 @@ const STATUS_STAGES: StatusStage[] = [
     statuses: [TICKET_STATUS.WAITING_PRELIM_ACTIONS],
   },
   {
+    id: 'waiting-execution',
+    title: 'Aguardando Execução',
+    description: 'Tudo pronto, aguardando o início da execução.',
+    statuses: [TICKET_STATUS.WAITING_EXECUTION],
+  },
+  {
     id: 'in-progress',
     title: 'Em andamento',
     description: 'Execução da obra iniciada.',
@@ -186,6 +192,8 @@ function getPublicStatusLabel(status: string) {
       return 'Planejamento administrativo';
     case TICKET_STATUS.WAITING_PRELIM_ACTIONS:
       return 'Ações preliminares';
+    case TICKET_STATUS.WAITING_EXECUTION:
+      return 'Aguardando execução';
     case TICKET_STATUS.IN_PROGRESS:
       return 'Execução iniciada';
     case TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL:

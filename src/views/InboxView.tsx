@@ -444,6 +444,7 @@ export function InboxView() {
       classification: false,
       execution: ([
         TICKET_STATUS.WAITING_PRELIM_ACTIONS,
+        TICKET_STATUS.WAITING_EXECUTION,
         TICKET_STATUS.IN_PROGRESS,
         TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL,
         TICKET_STATUS.WAITING_PAYMENT,

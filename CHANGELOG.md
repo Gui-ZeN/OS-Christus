@@ -3,6 +3,23 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-24 (nova etapa: Aguardando Execução)
+
+Pedido do dono. **Status novo no banco** (`'Aguardando Execução'`, o 14º), não
+reagrupamento: a primeira tentativa foi só traduzir "Aguardando Ações Preliminares"
+para a etapa nova, e o dono preferiu a etapa de verdade.
+
+- Fluxo: … Contratação (Ações Preliminares continua lá) → **Aguardando Execução** →
+  Em execução. Entra a partir de orçamento aprovado, contrato ou ações preliminares;
+  sai para Em andamento ou Cancelada.
+- **Não avisa o solicitante** (decisão do dono): é espera interna, e ele recebe o
+  e-mail quando a execução começa de fato. Entrou no `blockedStatuses`.
+- **Não é marco** da régua; conta como tendo passado das ações preliminares.
+- ⚠️ O badge conferia "execucao" antes de "aguardando" e pintaria a etapa como obra
+  andando. A ordem inverteu (componente e espelho do teste).
+- Página pública de acompanhamento ganhou o degrau entre ações preliminares e
+  execução; painel de execução da Caixa abre nela.
+
 ## 2026-09-22 (buscar pelo título do e-mail voltou a achar a OS)
 
 Pergunta do dono, vinda de uma thread ao vivo: *"[JV] - Instalação de shafts de

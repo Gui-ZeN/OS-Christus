@@ -21,6 +21,7 @@ export const ETAPA = {
   ANALISE: 'Em análise',
   ORCAMENTO: 'Em orçamento',
   CONTRATACAO: 'Contratação',
+  AGUARDANDO_EXECUCAO: 'Aguardando Execução',
   EXECUCAO: 'Em execução',
   CONCLUIDA: 'Concluída',
   CANCELADA: 'Cancelada',
@@ -51,6 +52,10 @@ const DE_PARA = {
   'Aguardando Anexo de Contrato': ETAPA.CONTRATACAO,
   'Aguardando aprovação do contrato': ETAPA.CONTRATACAO,
   'Aguardando Ações Preliminares': ETAPA.CONTRATACAO,
+
+  // Status próprio no banco (24/09/2026), não agrupamento: contratado e com as ações
+  // preliminares feitas, esperando a equipe começar.
+  'Aguardando Execução': ETAPA.AGUARDANDO_EXECUCAO,
 
   'Em andamento': ETAPA.EXECUCAO,
   'Aguardando aprovação da manutenção': ETAPA.EXECUCAO,
@@ -96,6 +101,7 @@ export const ORDEM_DAS_ETAPAS = [
   ETAPA.ANALISE,
   ETAPA.ORCAMENTO,
   ETAPA.CONTRATACAO,
+  ETAPA.AGUARDANDO_EXECUCAO,
   ETAPA.EXECUCAO,
   ETAPA.CONCLUIDA,
   ETAPA.CANCELADA,
@@ -156,6 +162,7 @@ const CANONICO = {
   [ETAPA.ANALISE]: 'Aguardando Parecer Técnico',
   [ETAPA.ORCAMENTO]: 'Aguardando Orçamento',
   [ETAPA.CONTRATACAO]: 'Aguardando Anexo de Contrato',
+  [ETAPA.AGUARDANDO_EXECUCAO]: 'Aguardando Execução',
   [ETAPA.EXECUCAO]: 'Em andamento',
   [ETAPA.CONCLUIDA]: 'Encerrada',
   [ETAPA.CANCELADA]: 'Cancelada',

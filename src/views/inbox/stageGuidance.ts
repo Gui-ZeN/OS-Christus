@@ -9,6 +9,7 @@ import { TICKET_STATUS } from '../../constants/ticketStatus';
 
 export function getExecutionNextActionLabel(ticket: Ticket) {
   if (ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS) return 'Concluir ações preliminares e liberar o início da execução.';
+  if (ticket.status === TICKET_STATUS.WAITING_EXECUTION) return 'Confirmar a data de início com a equipe e iniciar a execução.';
   if (ticket.status === TICKET_STATUS.IN_PROGRESS) return 'Atualizar o andamento da obra e liberar os próximos marcos.';
   if (ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL) return 'Aguardar validação do solicitante para avançar para o financeiro.';
   if (ticket.status === TICKET_STATUS.WAITING_PAYMENT) return 'Concluir lançamentos pendentes e finalizar o encerramento financeiro.';

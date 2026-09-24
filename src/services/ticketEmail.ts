@@ -93,8 +93,8 @@ async function buildVariables(ticket: Ticket, extra: Record<string, unknown> = {
  *
  * ⚠️ ESTA FUNÇÃO SÓ ESCOLHE O TEXTO. Quem decide se o solicitante recebe alguma
  * coisa é `shouldNotifyRequesterForStatus`, que bloqueia as fases administrativas
- * — orçamento, contrato, pagamento. Duas etapas das seis (Em orçamento e
- * Contratação) são silenciosas para o solicitante DE PROPÓSITO: ele não acompanha
+ * — orçamento, contrato, pagamento. Três etapas (Em orçamento, Contratação e
+ * Aguardando Execução) são silenciosas para o solicitante DE PROPÓSITO: ele não acompanha
  * degrau interno, e o risco maior deste desenho é sobrar aviso, não faltar.
  *
  * Acrescentar `case` aqui para um status bloqueado não faz e-mail nenhum sair.
@@ -257,6 +257,8 @@ export function shouldNotifyRequesterForStatus(ticket: Ticket, status: string, p
     TICKET_STATUS.WAITING_BUDGET_APPROVAL,
     TICKET_STATUS.WAITING_CONTRACT_UPLOAD,
     TICKET_STATUS.WAITING_CONTRACT_APPROVAL,
+    // Espera interna: o solicitante é avisado quando a execução começa de fato.
+    TICKET_STATUS.WAITING_EXECUTION,
     TICKET_STATUS.WAITING_PAYMENT,
   ]);
   if (blockedStatuses.has(status)) return false;
