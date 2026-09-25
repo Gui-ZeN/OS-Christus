@@ -168,6 +168,25 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const user = await requireAuthenticatedUser(req);
+
+      /**
+       * ⚠️ A SONDA: "chegou notificação nova?" custa UMA leitura.
+       *
+       * O sino relia a página inteira a cada 60s: 150 notificações + 150 estados
+       * por usuário (o getAll cobra até o doc que não existe) — ~300 leituras por
+       * minuto por aba aberta. Medido em 25/09/2026: 200 mil leituras em 24h, quase
+       * tudo daqui. Agora o poll só pergunta o carimbo da mais recente e a página
+       * só é relida quando ele muda.
+       *
+       * Devolve só a DATA, sem id nem conteúdo: a mais recente pode ser de outra
+       * audiência, e a data não diz nada sobre ela além de que existe.
+       */
+      if (req.query?.probe) {
+        const snap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(1).get();
+        const latest = snap.empty ? null : toDateOrNull(snap.docs[0].data()?.createdAt);
+        return sendJson(res, 200, { ok: true, latest: latest ? latest.toISOString() : null });
+      }
+
       const page = await readNotifications(db, user, {
         cursor: req.query?.cursor,
         limit: req.query?.limit,

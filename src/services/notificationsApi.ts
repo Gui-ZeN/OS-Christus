@@ -36,6 +36,18 @@ export async function fetchNotifications(cursor?: string | null): Promise<Notifi
   };
 }
 
+/** Carimbo da notificação mais recente (1 leitura no servidor); null se não há nenhuma. */
+export async function probeLatestNotification(): Promise<string | null> {
+  const response = await fetch('/api/notifications?probe=1', {
+    headers: await getAuthenticatedActorHeaders(),
+  });
+  const json = await expectApiJson<{ ok: boolean; latest?: string | null }>(
+    response,
+    'Falha ao consultar notificações.'
+  );
+  return typeof json.latest === 'string' ? json.latest : null;
+}
+
 export async function markNotificationReadRemote(id: string) {
   const headers = await getAuthenticatedActorHeaders();
   const response = await fetch('/api/notifications', {

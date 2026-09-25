@@ -195,6 +195,39 @@ check(
 
 await cleanupScope();
 
+// --- Sonda do sino: o poll pergunta só o carimbo da mais recente ---------------
+// O sino relia a página inteira (~300 leituras) a cada minuto por aba. A sonda
+// tem que achar a notificação nova — mesmo de OUTRA audiência — sem entregar nada
+// dela além da data.
+const PROBE_ID = 'notif-probe-test';
+const probeAt = new Date(Date.now() + 3_600_000);
+await db.collection('notifications').doc(PROBE_ID).set({
+  id: PROBE_ID,
+  type: 'info',
+  title: 'Segredo da Diretoria',
+  description: 'Teste da sonda',
+  audienceRoles: ['Diretor'],
+  time: probeAt,
+  createdAt: probeAt,
+  updatedAt: probeAt,
+});
+const probeRes = await fetch(`${API}/api/notifications?probe=1`, {
+  headers: { Authorization: `Bearer ${gestorToken}` },
+});
+const probeJson = await probeRes.json().catch(() => ({}));
+check(
+  'a sonda devolve o carimbo da notificação mais recente',
+  probeRes.ok && probeJson.latest === probeAt.toISOString(),
+  `HTTP ${probeRes.status} latest=${probeJson.latest} esperado=${probeAt.toISOString()}`
+);
+check(
+  'a sonda não vaza id nem conteúdo de notificação de outra audiência',
+  !JSON.stringify(probeJson).includes(PROBE_ID) && !JSON.stringify(probeJson).includes('Segredo'),
+  JSON.stringify(probeJson)
+);
+const probeAnon = await fetch(`${API}/api/notifications?probe=1`);
+check('a sonda exige login', probeAnon.status === 401 || probeAnon.status === 403, `HTTP ${probeAnon.status}`);
+await db.collection('notifications').doc(PROBE_ID).delete();
 
 await cleanup();
 

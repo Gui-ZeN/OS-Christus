@@ -97,7 +97,10 @@ const DIRECTORY_FETCH_FAILED = 'DIRECTORY_FETCH_FAILED';
 const OPERATIONAL_POLL_INTERVAL_MS = 30_000;
 // A cada N ms o poll faz uma carga COMPLETA (em vez de delta) para reconciliar
 // exclusões de OS — o delta por `updatedAt` não enxerga docs apagados.
-const FULL_RECONCILE_INTERVAL_MS = 5 * 60_000;
+// ⚠️ Era 5 min: cada carga completa relê TODAS as OS (~330 leituras para Admin), ou
+// ~4 mil leituras por hora por aba só para notar exclusão, que é rara. Em 30 min, a
+// OS apagada some da tela de quem já estava aberto em até meia hora (25/09/2026).
+const FULL_RECONCILE_INTERVAL_MS = 30 * 60_000;
 
 function getInitialView(): ViewState {
   if (typeof window === 'undefined') return 'landing';

@@ -3,6 +3,24 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-25 (leituras do Firestore: o sino parou de reler tudo a cada minuto)
+
+O console marcou 200 mil leituras em 24h. Contando pelo código, o grosso vinha de dois
+polls:
+
+- **Sino de notificações — ~300 leituras por minuto por aba.** Cada poll de 60s relia a
+  página inteira: 150 notificações (50 × sobra de 3) + 150 estados por usuário (o
+  `getAll` cobra até o doc que não existe) + até 150 OS para quem não é Admin. Agora o
+  poll chama `GET /api/notifications?probe=1`, que lê **1 doc** (o carimbo da mais
+  recente), e só relê a página quando o carimbo muda ou quando a pessoa abre o sino.
+  A sonda devolve só a data, nada da notificação.
+- **Carga completa das OS — de 5 em 5 min para de 30 em 30.** Ela existe só para
+  notar OS apagada (o delta por `updatedAt` não vê exclusão) e relia as ~330 OS.
+  Custo aceito: OS apagada some da tela aberta em até 30 min.
+
+Efeito colateral aceito: "lida" marcada em outro aparelho só aparece aqui quando o
+sino é aberto ou chega notificação nova.
+
 ## 2026-09-24 (nova etapa: Aguardando Execução)
 
 Pedido do dono. **Status novo no banco** (`'Aguardando Execução'`, o 14º), não

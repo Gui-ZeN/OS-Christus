@@ -7,6 +7,7 @@ import {
   fetchNotifications,
   markAllNotificationsReadRemote,
   markNotificationReadRemote,
+  probeLatestNotification,
 } from '../services/notificationsApi';
 import { AppNotification, ViewState } from '../types';
 import { formatDistanceToNowSafe } from '../utils/date';
@@ -65,12 +66,38 @@ export function NotificationsPopover({ userKey }: NotificationsPopoverProps) {
     setLoadingMore(false);
     loadedOlderRef.current = false;
     setError(null);
-    void refresh(true);
 
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refresh();
+    // ⚠️ O poll SONDA, não relê: a página completa custa ~300 leituras no servidor e
+    // era relida a cada minuto por aba. Agora só quando o carimbo da mais recente
+    // muda (ou quando a pessoa abre o sino). A sonda vem ANTES da carga para que
+    // nada que chegue no meio fique sem aviso — no pior caso, uma releitura a mais.
+    let cancelled = false;
+    let latest: string | null = null;
+    void (async () => {
+      try {
+        latest = await probeLatestNotification();
+      } catch {
+        // Sem carimbo, a próxima sonda que responder dispara a releitura.
+      }
+      if (!cancelled) void refresh(true);
+    })();
+
+    const interval = window.setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const current = await probeLatestNotification();
+        if (cancelled || current === latest) return;
+        latest = current;
+        void refresh();
+      } catch {
+        // Sonda que falha não vira erro na tela; a próxima tenta de novo, e abrir o
+        // sino relê a página e mostra o erro se ele persistir.
+      }
     }, 60_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [refresh, userKey]);
 
   useEffect(() => {
