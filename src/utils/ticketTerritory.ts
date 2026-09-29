@@ -1,37 +1,17 @@
 ﻿import type { CatalogRegion, CatalogSite } from '../services/catalogApi';
 import type { Ticket } from '../types';
+import * as compartilhado from '../../api/_lib/territorioDaOs.js';
 
-function normalizeKey(value: string | null | undefined) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
+// A resolu\u00e7\u00e3o mora em `api/_lib/territorioDaOs.js`: o Resumo Executivo agrupa por
+// sede no servidor e precisa casar a sede exatamente como a tela.
+export const resolveTicketSite: (ticket: Ticket, sites: CatalogSite[]) => CatalogSite | null =
+  compartilhado.resolveTicketSite;
 
-export function resolveTicketSite(ticket: Ticket, sites: CatalogSite[]) {
-  const rawValues = [ticket.siteId, ticket.sede].map(normalizeKey).filter(Boolean);
-
-  return (
-    sites.find(site =>
-      rawValues.some(value => [site.id, site.code, site.name].map(normalizeKey).includes(value))
-    ) || null
-  );
-}
-
-export function resolveTicketRegion(ticket: Ticket, regions: CatalogRegion[], sites: CatalogSite[]) {
-  const rawValues = [ticket.regionId, ticket.region].map(normalizeKey).filter(Boolean);
-  const directMatch =
-    regions.find(region =>
-      rawValues.some(value => [region.id, region.code, region.name].map(normalizeKey).includes(value))
-    ) || null;
-
-  if (directMatch) return directMatch;
-
-  const site = resolveTicketSite(ticket, sites);
-  if (!site) return null;
-  return regions.find(region => region.id === site.regionId) || null;
-}
+export const resolveTicketRegion: (
+  ticket: Ticket,
+  regions: CatalogRegion[],
+  sites: CatalogSite[]
+) => CatalogRegion | null = compartilhado.resolveTicketRegion;
 
 export function getTicketRegionLabel(ticket: Ticket, regions: CatalogRegion[], sites: CatalogSite[]) {
   return resolveTicketRegion(ticket, regions, sites)?.name || ticket.region || 'Não definida';

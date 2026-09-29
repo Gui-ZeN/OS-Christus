@@ -30,6 +30,7 @@ const REWRITES = {
   '/api/finance': { file: 'procurement', query: { route: 'finance' } },
   '/api/directory': { file: 'users', query: { route: 'directory' } },
   '/api/report-pdf': { file: 'tickets', query: { route: 'report-pdf' } },
+  '/api/resumo-executivo': { file: 'tickets', query: { route: 'resumo-executivo' } },
   '/api/settings': { file: 'catalog', query: { route: 'settings' } },
   '/api/attachment-security-migration': { file: 'admin-tools', query: { route: 'attachment-migration' } },
   '/api/firestore-legacy-health': { file: 'admin-tools', query: { route: 'legacy-health' } },

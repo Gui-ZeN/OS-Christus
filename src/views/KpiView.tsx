@@ -35,6 +35,7 @@ import {
   esperaDaFila,
   filaTravada,
   tempoDeResolucao,
+  fechadasNoPeriodo,
   reguaDosMarcos,
 } from './kpi/calculos';
 import { mensagemDeErro, UserFacingError } from '../utils/errorMessage';
@@ -570,16 +571,10 @@ export function KpiView() {
    * resolução, e uma aberta em janeiro e concluída ontem é justamente a notícia. É o
    * mesmo recorte que o gráfico de fluxo usa para contar saídas.
    */
-  const ticketsFechadosNoPeriodo = useMemo(() => {
-    const inicio = periodRange.start.getTime();
-    const fim = periodRange.end.getTime();
-    return ticketsDaFila.filter(ticket => {
-      if (!ticket.closedAt) return false;
-      const data = ticket.closedAt instanceof Date ? ticket.closedAt : new Date(ticket.closedAt);
-      const quando = data.getTime();
-      return !Number.isNaN(quando) && quando >= inicio && quando <= fim;
-    });
-  }, [ticketsDaFila, periodRange.start, periodRange.end]);
+  const ticketsFechadosNoPeriodo = useMemo(
+    () => fechadasNoPeriodo(ticketsDaFila, periodRange.start, periodRange.end),
+    [ticketsDaFila, periodRange.start, periodRange.end]
+  );
 
   const resolucao = useMemo(() => tempoDeResolucao(ticketsFechadosNoPeriodo), [ticketsFechadosNoPeriodo]);
   const proximaAcao = useMemo(() => coberturaDaProximaAcao(ticketsDaFila), [ticketsDaFila]);

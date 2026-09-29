@@ -53,6 +53,7 @@ import { TICKET_STATUS, addStageMarco, aplicarMarcosSemData, canTransitionStatus
 const CLOSED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
+import { handleResumoExecutivo } from './_lib/resumoExecutivo.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
 // /api/tickets?route=report-pdf, então o front continua igual.
@@ -1730,6 +1731,8 @@ export default async function handler(req, res) {
   if (route === 'commitments') return handleCommitments(req, res);
   if (route === 'confirm-visit') return handleConfirmVisit(req, res);
   if (route === 'rebuild-attention') return handleRebuildAttention(req, res);
+  // Resumo Executivo do Chromos: token próprio, só contadores. Ver api/_lib/resumoExecutivo.js.
+  if (route === 'resumo-executivo') return handleResumoExecutivo(req, res);
 
   try {
     const db = getAdminDb();

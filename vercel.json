@@ -73,6 +73,10 @@
       "destination": "/api/tickets?route=report-pdf"
     },
     {
+      "source": "/api/resumo-executivo",
+      "destination": "/api/tickets?route=resumo-executivo"
+    },
+    {
       "source": "/api/settings",
       "destination": "/api/catalog?route=settings"
     }

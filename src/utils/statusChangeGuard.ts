@@ -1,5 +1,6 @@
 import { TICKET_STATUS } from '../constants/ticketStatus';
 import type { Ticket } from '../types';
+import * as compartilhado from '../../api/_lib/indicadores.js';
 
 /**
  * Regras que dependem do CONTEÚDO da OS, não do papel de quem mexe.
@@ -29,17 +30,10 @@ import type { Ticket } from '../types';
  * silenciosa, e é por isso que isto responde "por que não anda" em vez de
  * "está classificada?".
  */
-export function bloqueioParaAvancar(
+// Mora em `api/_lib/indicadores.js`: o Resumo Executivo conta as travadas no servidor.
+export const bloqueioParaAvancar: (
   ticket: Ticket
-): { motivo: string; campo: 'classificacao' } | null {
-  if (
-    ticket.status === TICKET_STATUS.WAITING_TECH_OPINION &&
-    (!ticket.macroServiceId || !ticket.serviceCatalogId)
-  ) {
-    return { motivo: 'Falta classificar o serviço', campo: 'classificacao' };
-  }
-  return null;
-}
+) => { motivo: string; campo: 'classificacao' } | null = compartilhado.bloqueioParaAvancar;
 
 /**
  * O motivo do bloqueio para UM destino, em português (a frase vai direto para a

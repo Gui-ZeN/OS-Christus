@@ -3,6 +3,27 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-09-29 (Resumo Executivo para o Chromos)
+
+`GET /api/resumo-executivo?mes=AAAA-MM` (rewrite para `/api/tickets?route=resumo-executivo`
+— nenhuma função nova na Vercel). Números agregados por sede, por grupo e geral,
+para o hub da Infraestrutura. Token próprio (`RESUMO_EXECUTIVO_TOKEN`, comparação em
+tempo constante): sem a variável é 503, token ausente/errado 401, não-GET 405.
+
+- **Nenhuma conta nova**: `diasEntre`, `mediana`, `tempoDeResolucao`,
+  `volumeDoPeriodo`, `filaTravada`, `bloqueioParaAvancar` e a resolução de
+  sede/região saíram do front para `api/_lib/indicadores.js` e
+  `api/_lib/territorioDaOs.js`; `calculos.ts`, `statusChangeGuard.ts` e
+  `ticketTerritory.ts` reexportam com tipo. O recorte "fechadas no período", que era
+  inline na KpiView, virou `fechadasNoPeriodo` e é usado pelos dois.
+- **encerradasNoMes = fechadas no mês com status Encerrada** (decisão do dono), não a
+  regra do `volumeDoPeriodo` (abertas no mês que já encerraram). Cancelada não conta.
+- **A mediana segue o painel e inclui Cancelada** (cancelar grava `closedAt`), e vem
+  arredondada para dia inteiro.
+- Mediana de grupo e geral sobre o conjunto, nunca média das sedes.
+- Cache de 5 min por mês; `select` só dos campos usados, então dado pessoal nem entra
+  na memória da rota.
+
 ## 2026-09-25 (leituras do Firestore: o sino parou de reler tudo a cada minuto)
 
 O console marcou 200 mil leituras em 24h. Contando pelo código, o grosso vinha de dois

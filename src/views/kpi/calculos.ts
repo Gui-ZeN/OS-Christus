@@ -7,6 +7,7 @@ import { isTicketOpen } from '../../constants/ticketLifecycle';
 import { repairMojibake } from '../../utils/text';
 import { coerceDate } from '../../utils/date';
 import { ETAPA, ORDEM_DAS_ETAPAS, etapaDe } from '../../../api/_lib/etapas.js';
+import * as compartilhado from '../../../api/_lib/indicadores.js';
 
 /**
  * AS CONTAS DA TELA DE INDICADORES — puras, fora do React, testáveis.
@@ -67,9 +68,10 @@ export function media(valores: number[]): number | null {
   return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
 }
 
-export function diasEntre(inicio: Date, fim: Date) {
-  return Math.max(0, (fim.getTime() - inicio.getTime()) / 86_400_000);
-}
+// As regras que o servidor também calcula (Resumo Executivo do Chromos) moram em
+// `api/_lib/indicadores.js` e são reexportadas aqui com tipo. Os comentários de
+// porquê continuam junto de cada reexportação.
+export const diasEntre: (inicio: Date, fim: Date) => number = compartilhado.diasEntre;
 
 /** Equipe normalizada. Sem isto, "Manutenção" e "ManutenÃ§Ã£o" viram duas barras. */
 export function equipeDoTicket(ticket: Ticket) {
@@ -229,17 +231,7 @@ export type VolumeDoPeriodo = { total: number; concluidas: number; canceladas: n
  * "concluídas" — a diferença eram as canceladas, sem rótulo. Quem somava as três
  * não fechava e não sabia por quê. O PDF já trazia o campo; a tela, não.
  */
-export function volumeDoPeriodo(ticketsDoPeriodo: Ticket[]): VolumeDoPeriodo {
-  let concluidas = 0;
-  let canceladas = 0;
-  let emCurso = 0;
-  for (const ticket of ticketsDoPeriodo) {
-    if (ticket.status === TICKET_STATUS.CLOSED) concluidas += 1;
-    else if (ticket.status === TICKET_STATUS.CANCELED) canceladas += 1;
-    else if (isTicketOpen(ticket.status)) emCurso += 1;
-  }
-  return { total: ticketsDoPeriodo.length, concluidas, canceladas, emCurso };
-}
+export const volumeDoPeriodo: (ticketsDoPeriodo: Ticket[]) => VolumeDoPeriodo = compartilhado.volumeDoPeriodo;
 
 export type VolumeAgrupado = { name: string; abertas: number; concluidas: number; canceladas: number };
 
@@ -337,28 +329,16 @@ export type CustoAgrupado = { name: string; custo: number; osComValor: number; o
  * centrais: pegar o de cima devolveria 180 para [60, 180], sempre para o lado que
  * faz a operação parecer pior.
  */
-export function mediana(valores: number[]): number | null {
-  if (valores.length === 0) return null;
-  const ordenados = [...valores].sort((a, b) => a - b);
-  const meio = ordenados.length / 2;
-  return ordenados.length % 2
-    ? ordenados[(ordenados.length - 1) / 2]
-    : (ordenados[meio - 1] + ordenados[meio]) / 2;
-}
+export const mediana: (valores: number[]) => number | null = compartilhado.mediana;
 
-/**
- * A data de fechamento, venha ela como `Date` ou como texto.
+/*
+ * A data de fechamento (`dataDeFechamento`, em `api/_lib/indicadores.js`) é lida
+ * como `Date` OU como texto.
  *
  * ⚠️ O TIPO PERMITE OS DOIS (`string | Date | null`), e olhar só para `instanceof
  * Date` descartaria em silêncio toda OS cuja data veio serializada — a amostra
  * ficaria menor sem ninguém notar, que é o modo de falhar mais caro num indicador.
  */
-function dataDeFechamento(ticket: Ticket): Date | null {
-  const bruto = ticket.closedAt;
-  if (!bruto) return null;
-  const data = bruto instanceof Date ? bruto : new Date(bruto);
-  return Number.isNaN(data.getTime()) ? null : data;
-}
 
 export type TempoDeResolucao = { mediana: number | null; maisLento: number | null; amostra: number };
 
@@ -374,23 +354,16 @@ export type TempoDeResolucao = { mediana: number | null; maisLento: number | nul
  * ontem é justamente a notícia. É o mesmo recorte que o gráfico de fluxo usa para
  * contar saídas, e o oposto do que todo card de volume usa.
  */
-export function tempoDeResolucao(ticketsFechadosNoPeriodo: Ticket[]): TempoDeResolucao {
-  const duracoes = ticketsFechadosNoPeriodo
-    .map(ticket => {
-      const fim = dataDeFechamento(ticket);
-      if (!fim || !(ticket.time instanceof Date)) return null;
-      return diasEntre(ticket.time, fim);
-    })
-    .filter((dias): dias is number => dias !== null);
+// `maisLento` fica ao lado da mediana: sozinha, ela esconde a obra que travou meses.
+export const tempoDeResolucao: (ticketsFechadosNoPeriodo: Ticket[]) => TempoDeResolucao =
+  compartilhado.tempoDeResolucao;
 
-  const meio = mediana(duracoes);
-  return {
-    mediana: meio === null ? null : Math.round(meio),
-    // O pior caso ao lado da mediana: sozinha, ela esconde a obra que travou meses.
-    maisLento: duracoes.length ? Math.round(Math.max(...duracoes)) : null,
-    amostra: duracoes.length,
-  };
-}
+/**
+ * As OS com `closedAt` dentro do período — a base de `tempoDeResolucao`.
+ * ⚠️ Cancelada entra: cancelar também grava `closedAt`.
+ */
+export const fechadasNoPeriodo: (tickets: Ticket[], inicio: Date, fim: Date) => Ticket[] =
+  compartilhado.fechadasNoPeriodo;
 
 export type CoberturaDaProximaAcao = { comData: number; semData: number; vencidas: number; total: number };
 
@@ -431,22 +404,10 @@ export type FilaTravada = { travadas: number; motivos: Fatia[] };
  * existia — ele só aparecia para quem TENTAVA avançar. É o tipo de número que um
  * painel gerencial deveria gritar, e ele nem existia lá.
  */
-export function filaTravada(
+export const filaTravada: (
   ticketsDaFila: Ticket[],
   bloqueioDe: (ticket: Ticket) => { motivo: string } | null
-): FilaTravada {
-  const contagem = new Map<string, number>();
-  for (const ticket of ticketsDaFila) {
-    if (!isTicketOpen(ticket.status)) continue;
-    const bloqueio = bloqueioDe(ticket);
-    if (!bloqueio) continue;
-    contagem.set(bloqueio.motivo, (contagem.get(bloqueio.motivo) || 0) + 1);
-  }
-  const motivos = [...contagem.entries()]
-    .map(([name, total]) => ({ name, total }))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'pt-BR'));
-  return { travadas: motivos.reduce((soma, m) => soma + m.total, 0), motivos };
-}
+) => FilaTravada = compartilhado.filaTravada;
 
 export type EsperaDaFila = { suspensas: number; paradas: number; total: number };
 
