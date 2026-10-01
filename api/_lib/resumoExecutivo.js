@@ -1,7 +1,9 @@
 /**
  * RESUMO EXECUTIVO — números agregados por sede para o Chromos (hub da Infraestrutura).
  *
- * `GET /api/resumo-executivo?mes=AAAA-MM` (rewrite para `/api/tickets?route=resumo-executivo`).
+ * `GET /api/resumo-executivo?mes=AAAA-MM[&de=AAAA-MM&ate=AAAA-MM]` (rewrite para
+ * `/api/tickets?route=resumo-executivo`). Com `de`/`ate`, os contadores "NoMes" e a
+ * mediana valem para o período inteiro, os dois meses inclusive; sem eles, é o mês.
  * Só leitura, só contadores: nenhum nome, e-mail, descrição, id de OS, solicitante ou
  * responsável sai daqui. Quem consome é outro sistema, com token próprio
  * (`RESUMO_EXECUTIVO_TOKEN`) — não é usuário do Serv3, então não passa pelo login.
@@ -81,6 +83,11 @@ export function limitesDoMes(mes) {
   return { inicio, fim };
 }
 
+/** Do primeiro instante de `de` ao último de `ate` — os dois meses entram. */
+export function limitesDoPeriodo(de, ate) {
+  return { inicio: limitesDoMes(de).inicio, fim: limitesDoMes(ate).fim };
+}
+
 function carimboDeFortaleza(agora) {
   return `${new Date(agora.getTime() - FUSO_MS).toISOString().slice(0, 19)}-03:00`;
 }
@@ -106,8 +113,8 @@ function contadores(tickets, inicio, fim) {
  * O corpo da resposta, a partir das OS cruas do Firestore e do catálogo. Pura:
  * é o que os testes exercitam sem banco.
  */
-export function montarResumo({ tickets, regions, sites, mes, agora = new Date() }) {
-  const { inicio, fim } = limitesDoMes(mes);
+export function montarResumo({ tickets, regions, sites, mes, de = mes, ate = mes, agora = new Date() }) {
+  const { inicio, fim } = limitesDoPeriodo(de, ate);
   const validas = tickets
     .filter(ticket => !ticket.excludedFromMetrics)
     .map(ticket => ({ ...ticket, time: toDateOrNull(ticket.time), closedAt: toDateOrNull(ticket.closedAt) }));
@@ -143,7 +150,12 @@ export function montarResumo({ tickets, regions, sites, mes, agora = new Date() 
   return {
     versao: VERSAO,
     geradoEm: carimboDeFortaleza(agora),
-    mes,
+    // `mes` = `ate`, por compatibilidade. O Chromos só dá o período por contado
+    // quando `de` e `ate` vêm na resposta — e vêm sempre, mesmo no pedido de um
+    // mês só (aí de = ate = mes), porque é verdade: foi esse o período contado.
+    mes: ate,
+    de,
+    ate,
     porSede: [...porSede.entries()]
       .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
       .map(([sede, { grupo, tickets: daSede }]) => ({ sede, grupo, ...contadores(daSede, inicio, fim) })),
@@ -193,11 +205,32 @@ export async function handleResumoExecutivo(req, res, { db, agora = new Date() }
   if (mesPedido && !MES_VALIDO.test(mesPedido)) {
     return sendJson(res, 400, { ok: false, error: 'mes deve ser AAAA-MM.' });
   }
-  const mes = mesPedido || mesCorrenteEmFortaleza(agora);
 
-  // ~5 min por mês: cada geração relê a coleção de OS inteira, e a cota do
+  // PERÍODO (01/10/2026): `de` e `ate` chegam juntos ou não chegam. Um só é pedido
+  // malformado, não "período aberto" — adivinhar a outra ponta contaria um período
+  // que ninguém pediu. Sem os dois, é o mês de sempre (de = ate = mes).
+  const dePedido = req.query?.de ? String(req.query.de).trim() : '';
+  const atePedido = req.query?.ate ? String(req.query.ate).trim() : '';
+  let de;
+  let ate;
+  if (dePedido || atePedido) {
+    if (!MES_VALIDO.test(dePedido) || !MES_VALIDO.test(atePedido)) {
+      return sendJson(res, 400, { ok: false, error: 'de e ate devem vir juntos, como AAAA-MM.' });
+    }
+    // AAAA-MM ordena como texto na mesma ordem que no calendário.
+    if (dePedido > atePedido) {
+      return sendJson(res, 400, { ok: false, error: 'de não pode ser depois de ate.' });
+    }
+    de = dePedido;
+    ate = atePedido;
+  } else {
+    de = ate = mesPedido || mesCorrenteEmFortaleza(agora);
+  }
+
+  // ~5 min por período: cada geração relê a coleção de OS inteira, e a cota do
   // Firestore já apertou uma vez (CHANGELOG de 25/09/2026).
-  const guardado = cache.get(mes);
+  const chave = `${de}..${ate}`;
+  const guardado = cache.get(chave);
   if (guardado && guardado.expiraEm > agora.getTime()) {
     return sendJson(res, 200, guardado.corpo);
   }
@@ -209,8 +242,11 @@ export async function handleResumoExecutivo(req, res, { db, agora = new Date() }
       getCachedRegions(banco),
       getCachedSites(banco),
     ]);
-    const corpo = montarResumo({ tickets, regions, sites, mes, agora });
-    cache.set(mes, { corpo, expiraEm: agora.getTime() + CACHE_MS });
+    const corpo = montarResumo({ tickets, regions, sites, de, ate, agora });
+    // Com período, as chaves possíveis se multiplicam: o vencido sai na hora de
+    // guardar, para o Map não crescer enquanto a instância vive.
+    for (const [k, v] of cache) if (v.expiraEm <= agora.getTime()) cache.delete(k);
+    cache.set(chave, { corpo, expiraEm: agora.getTime() + CACHE_MS });
     return sendJson(res, 200, corpo);
   } catch (error) {
     return sendError(res, error, 'Falha ao montar o resumo executivo.');

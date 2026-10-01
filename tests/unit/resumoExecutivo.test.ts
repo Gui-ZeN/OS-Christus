@@ -80,8 +80,10 @@ function fakeRes() {
 
 async function chamar(
   tickets: Record<string, unknown>[],
-  { mes, token = TOKEN, method = 'GET', agora = emFortaleza('2026-09-29T11:05') } = {} as {
+  { mes, de, ate, token = TOKEN, method = 'GET', agora = emFortaleza('2026-09-29T11:05') } = {} as {
     mes?: string;
+    de?: string;
+    ate?: string;
     token?: string | null;
     method?: string;
     agora?: Date;
@@ -92,7 +94,7 @@ async function chamar(
   const req = {
     method,
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
-    query: mes ? { route: 'resumo-executivo', mes } : { route: 'resumo-executivo' },
+    query: { route: 'resumo-executivo', ...(mes ? { mes } : {}), ...(de ? { de } : {}), ...(ate ? { ate } : {}) },
   };
   await handleResumoExecutivo(req, res, { db, agora });
   return { res, leituras };
@@ -284,7 +286,7 @@ describe('nenhum dado pessoal sai', () => {
 
     const CONTADORES = ['abertas', 'urgentesAbertas', 'travadas', 'abertasNoMes', 'encerradasNoMes', 'resolucaoMedianaDias'];
     const PERMITIDAS = new Set([
-      'versao', 'geradoEm', 'mes', 'porSede', 'porGrupo', 'geral', 'semSede', 'sede', 'grupo',
+      'versao', 'geradoEm', 'mes', 'de', 'ate', 'porSede', 'porGrupo', 'geral', 'semSede', 'sede', 'grupo',
       'operacao', 'universidade', ...CONTADORES,
     ]);
     expect([...chaves].filter(chave => !PERMITIDAS.has(chave))).toEqual([]);
@@ -319,5 +321,88 @@ describe('cache de ~5 min por mês', () => {
 
     await pedir(new Date(agora.getTime() + 6 * 60_000));
     expect(leituras.tickets).toBe(3);
+  });
+});
+
+describe('período: de/ate (01/10/2026)', () => {
+  const fechada = (sede: string, abertaEm: string, dias: number) => {
+    const time = emFortaleza(abertaEm);
+    return os({ sede, status: 'Encerrada', time, closedAt: new Date(time.getTime() + dias * 86_400_000) });
+  };
+
+  it('sem de/ate continua sendo o mês, e a resposta diz de = ate = mes', async () => {
+    const { res } = await chamar([], { mes: '2026-08' });
+    expect(res.json).toMatchObject({ mes: '2026-08', de: '2026-08', ate: '2026-08' });
+  });
+
+  it('com período, mes = ate e os dois meses entram', async () => {
+    const tickets = [
+      os({ sede: 'PQL1', status: 'Nova OS', time: emFortaleza('2026-07-15T10:00') }),
+      os({ sede: 'PQL1', status: 'Nova OS', time: emFortaleza('2026-08-01T00:30') }),
+      os({ sede: 'PQL1', status: 'Nova OS', time: emFortaleza('2026-09-30T23:30') }),
+      os({ sede: 'PQL1', status: 'Nova OS', time: emFortaleza('2026-10-01T00:30') }),
+    ];
+    const { res } = await chamar(tickets, { mes: '2026-09', de: '2026-08', ate: '2026-09' });
+    expect(res.json).toMatchObject({ mes: '2026-09', de: '2026-08', ate: '2026-09' });
+    expect(res.json.geral.abertasNoMes).toBe(2);
+  });
+
+  it('as pontas do período são as de Fortaleza, não as de UTC', async () => {
+    // 31/07 22h em Fortaleza já é 01/08 em UTC — e fica fora de agosto.
+    const { res } = await chamar([os({ sede: 'PQL1', status: 'Nova OS', time: emFortaleza('2026-07-31T22:00') })], {
+      de: '2026-08',
+      ate: '2026-09',
+    });
+    expect(res.json.geral.abertasNoMes).toBe(0);
+  });
+
+  it('encerradas somam o período; a mediana é sobre TODAS, não a média das mensais', async () => {
+    // Agosto: [1] → mediana 1. Setembro: [10, 20] → mediana 15. Média das mensais
+    // seria 8; a mediana de [1, 10, 20] é 10.
+    const tickets = [
+      fechada('DT', '2026-08-05T10:00', 1),
+      fechada('DT', '2026-09-02T10:00', 10),
+      fechada('DT', '2026-09-03T10:00', 20),
+    ];
+    const { res } = await chamar(tickets, { de: '2026-08', ate: '2026-09' });
+    expect(res.json.porSede[0]).toMatchObject({ sede: 'DT', encerradasNoMes: 3, resolucaoMedianaDias: 10 });
+    expect(res.json.porGrupo.operacao.resolucaoMedianaDias).toBe(10);
+    expect(res.json.geral.resolucaoMedianaDias).toBe(10);
+  });
+
+  it('abertas, urgentes e travadas continuam o retrato de agora', async () => {
+    const tickets = [os({ sede: 'PQL1', status: 'Em andamento', priority: 'Urgente', time: emFortaleza('2025-01-10T10:00') })];
+    const { res } = await chamar(tickets, { de: '2026-08', ate: '2026-09' });
+    expect(res.json.geral).toMatchObject({ abertas: 1, urgentesAbertas: 1, abertasNoMes: 0 });
+  });
+
+  it('de e ate no mesmo mês é um período válido', async () => {
+    const { res } = await chamar([], { de: '2026-09', ate: '2026-09' });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it.each([
+    ['só de', { de: '2026-08' }],
+    ['só ate', { ate: '2026-09' }],
+    ['de inválido', { de: '2026-8', ate: '2026-09' }],
+    ['ate inválido', { de: '2026-08', ate: '2026-13' }],
+    ['de depois de ate', { de: '2026-10', ate: '2026-09' }],
+  ])('%s é 400', async (_nome, periodo) => {
+    const { res } = await chamar([], periodo);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('o cache separa períodos diferentes', async () => {
+    const tickets = [os({ sede: 'PQL1', status: 'Nova OS', time: emFortaleza('2026-08-10T10:00') })];
+    const { db, leituras } = fakeDb(tickets);
+    const agora = emFortaleza('2026-09-29T11:05');
+    const pedir = async (query: Record<string, string>) => {
+      const res = fakeRes();
+      await handleResumoExecutivo({ method: 'GET', headers: { authorization: `Bearer ${TOKEN}` }, query }, res, { db, agora });
+      return res.json;
+    };
+    expect((await pedir({ mes: '2026-09' })).geral.abertasNoMes).toBe(0);
+    expect((await pedir({ mes: '2026-09', de: '2026-08', ate: '2026-09' })).geral.abertasNoMes).toBe(1);
+    expect(leituras.tickets).toBe(2);
   });
 });

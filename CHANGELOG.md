@@ -3,6 +3,20 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-01 (Resumo Executivo aceita período)
+
+`/api/resumo-executivo` aceita `de=AAAA-MM&ate=AAAA-MM`, os dois meses inclusive, no
+fuso de Fortaleza. `abertasNoMes`, `encerradasNoMes` e a mediana passam a valer para o
+período inteiro — a mediana sobre TODAS as OS fechadas nele, nunca a média das
+mensais. `abertas`, `urgentesAbertas` e `travadas` seguem o retrato de agora.
+
+- A resposta ganha `de` e `ate`; `mes` vira sinônimo de `ate`. Os dois vêm sempre,
+  inclusive no pedido de um mês só (de = ate = mes): o Chromos só dá o período por
+  contado quando eles aparecem, e é verdade que foi esse o período.
+- Só um dos dois, mês malformado ou `de` depois de `ate`: 400. Sem nenhum dos dois,
+  igual a antes.
+- Cache por período (`de..ate`), com limpeza dos vencidos ao guardar.
+
 ## 2026-09-29 (Resumo Executivo para o Chromos)
 
 `GET /api/resumo-executivo?mes=AAAA-MM` (rewrite para `/api/tickets?route=resumo-executivo`
