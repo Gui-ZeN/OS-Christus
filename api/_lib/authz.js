@@ -37,10 +37,23 @@ async function resolveAuthenticatedUser(req) {
     }
   }
 
-  if (!userDoc && decoded.email) {
+  /**
+   * ⚠️ PELO E-MAIL, SÓ COM E-MAIL VERIFICADO E CADASTRO SEM DONO (14/10/2026).
+   *
+   * Este caminho existe para cadastro antigo sem `authUid`. Ele aceitava qualquer
+   * token com aquele e-mail: quem criasse uma conta no Firebase com o endereço de
+   * um funcionário herdaria o papel dele. O que segurava era só a configuração do
+   * projeto (cadastro público desligado), não o código — auditoria de segurança.
+   *
+   * Conta de senha criada pelo painel tem `emailVerified` false, mas grava o
+   * `authUid` no cadastro e entra pelo caminho de cima. Login Google vem verificado.
+   */
+  if (!userDoc && decoded.email && decoded.email_verified === true) {
     const byEmail = await db.collection('users').where('email', '==', String(decoded.email).toLowerCase()).limit(1).get();
-    if (!byEmail.empty) {
-      userDoc = byEmail.docs[0].data();
+    const candidato = byEmail.empty ? null : byEmail.docs[0].data();
+    // Cadastro que já pertence a OUTRA conta não é herdado por e-mail.
+    if (candidato && (!candidato.authUid || candidato.authUid === decoded.uid)) {
+      userDoc = candidato;
       userDocId = byEmail.docs[0].id;
     }
   }

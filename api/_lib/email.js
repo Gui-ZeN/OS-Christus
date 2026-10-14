@@ -1,9 +1,29 @@
 // Helpers de e-mail compartilhados pelo backend (antes duplicados em vários arquivos).
 
-/** Extrai o primeiro e-mail válido de um texto, em minúsculas, ou null. */
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+/**
+ * O endereço de um cabeçalho ou texto, em minúsculas, ou null.
+ *
+ * ⚠️ O ENDEREÇO É O QUE ESTÁ ENTRE `<>`, NÃO O PRIMEIRO TEXTO COM ARROBA (14/10/2026).
+ * Pegar o primeiro deixava o NOME DE EXIBIÇÃO decidir quem mandou:
+ * `"qualquer@christus.com.br" <atacante@evil>` virava `qualquer@christus.com.br`, e o
+ * estranho passava pela checagem de remetente da OS (`remetenteDaOs.js`) mandando
+ * do próprio domínio, com SPF/DKIM válidos. Numa lista de cópia, o mesmo defeito
+ * mandava a mensagem para o endereço do nome, não para o real.
+ *
+ * Por isso nome entre aspas e comentário entre parênteses saem antes de procurar, e
+ * o `<...>` manda quando existe. Sem `<>`, o texto inteiro é o endereço.
+ */
 export function firstEmail(raw) {
   if (!raw) return null;
-  const match = String(raw).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const texto = String(raw);
+  const semNomes = texto.replace(/"(?:[^"\\]|\\.)*"/g, ' ').replace(/\([^()]*\)/g, ' ');
+  const entreSinais = semNomes.match(/<\s*([^<>\s]+)\s*>/);
+  const match =
+    (entreSinais ? entreSinais[1] : semNomes).match(EMAIL_RE) ||
+    // Endereço sozinho entre aspas (sem `<>`): não há nome para confundir.
+    (texto.includes('<') ? null : texto.match(EMAIL_RE));
   return match ? match[0].toLowerCase() : null;
 }
 

@@ -13,6 +13,9 @@ export interface DroppedInboundItem {
   subject: string;
   text: string;
   attachmentCount: number;
+  /** Por que caiu na fila; `remetente-desconhecido` vem com a OS citada. */
+  reason?: string | null;
+  citedTicketId?: string | null;
   /** Anexos já guardados (mensagens novas). Vazio = entrou antes da fila guardar. */
   attachments?: Array<{ id: string; name: string; contentType?: string | null }>;
   receivedAt: string | null;

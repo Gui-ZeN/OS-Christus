@@ -3,6 +3,46 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-14 (auditoria de segurança — primeira leva)
+
+Uma auditoria apontou sete achados; todos se confirmaram no código (o repositório é
+público, o que agrava dois deles). Esta leva fecha o ALTO e os rápidos; o link de
+acompanhamento sem validade e o segredo do cron em `?secret=` ficam para a próxima.
+
+- **ALTO — e-mail de fora entrava na OS.** "OS-0331" no assunto bastava para injetar
+  mensagem e anexo e TROCAR o CC da conversa, que os envios seguintes usam: quem
+  atacasse passava a receber as atualizações. Agora quem cita uma OS precisa fazer
+  parte dela (`api/_lib/remetenteDaOs.js`: solicitante, cópias, diretores,
+  participantes das conversas, equipe ativa, domínio christus.com.br); quem não faz
+  vai para a fila de soltas com motivo `remetente-desconhecido` e a OS citada.
+  Vincular pela fila aprova o remetente para as próximas.
+- **Revisão do agente `seguranca` (BLOQUEIA → corrigido):**
+  - o endereço era o primeiro texto com arroba, então o NOME de exibição decidia quem
+    mandou (`"x@christus.com.br" <atacante@evil>`). `firstEmail` passou a respeitar
+    `<...>` e ignorar nome entre aspas e comentário — vale para o backend inteiro, e
+    conserta também lista de cópia que mandava para o endereço do nome;
+  - a cópia da conversa só muda (e só vira participante) quem é da OS, por qualquer
+    caminho — References e thread do Gmail incluídos;
+  - a fila de soltas filtra pelo território da OS citada e diz o motivo na tela.
+- **Segunda revisão (LIBERA COM RESSALVAS → ressalvas feitas):**
+  - só o DONO da OS (solicitante, cópias da OS, diretores) TROCA a cópia da conversa;
+    domínio da casa, equipe e participante aprovado só ACRESCENTAM — senão um
+    funcionário de outra unidade redirecionaria a OS por cima do escopo territorial;
+  - descartar e "criar OS" pela fila também conferem o território da OS citada.
+- **Login:** o caminho pelo e-mail (cadastro sem `authUid`) exige e-mail verificado e
+  recusa cadastro que já pertence a outra conta.
+- Anti-clickjacking (`X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`).
+- `api.py` (script solto com a chave da OpenWeather) saiu do repositório — a chave
+  continua no histórico e precisa ser revogada pelo dono.
+- `npm audit fix` sem `--force`: 25 → 14 vulnerabilidades, 0 críticas.
+- Testes: `remetenteDaOs`, `firstEmail`, `authzEmailVerificado` (unitários) e
+  `tests/integration/remetente-de-fora.mjs` (16 verificações; com cada correção
+  desligada, a verificação dela falha — sem a primeira, o CC vira o do atacante).
+
+⚠️ `npm run test:integration` está quebrado desde 10/09 (`bb21389` apagou
+`api/procurement.js` e quatro testes e o adaptador de dev ainda apontam para ele).
+Não é desta leva; ficou como tarefa separada.
+
 ## 2026-10-01 (Resumo Executivo aceita período)
 
 `/api/resumo-executivo` aceita `de=AAAA-MM&ate=AAAA-MM`, os dois meses inclusive, no

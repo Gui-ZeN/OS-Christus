@@ -150,6 +150,13 @@ export function DroppedInboundQueue({ onLinked }: { onLinked?: (ticketId: string
           {itens.map(item => (
             <div key={item.id} className="rounded-sm border border-roman-primary/35 bg-roman-surface p-2">
               <div className="text-[11px] text-roman-text-sub">{item.fromEmail || 'remetente desconhecido'}</div>
+              {/* Quem vincula torna o remetente participante da OS para sempre — precisa
+                  saber que ele NÃO fazia parte dela antes de aprovar. */}
+              {item.reason === 'remetente-desconhecido' && item.citedTicketId && (
+                <p className="mt-0.5 text-[11px] font-medium text-roman-danger">
+                  Cita a {item.citedTicketId}, mas este remetente não faz parte dela. Confira antes de vincular.
+                </p>
+              )}
               <div className="mt-0.5 text-xs font-medium text-roman-text-main">
                 {repairMojibake(item.subject) || '(sem assunto)'}
               </div>

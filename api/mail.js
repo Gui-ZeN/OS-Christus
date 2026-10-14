@@ -6,6 +6,7 @@ import { buildAllowedScope, canUserAccessTicket, readTerritoryCatalog } from './
 import { logEmailEvent } from './_lib/emailLogs.js';
 import { writeAuditLog } from './_lib/auditLogs.js';
 import { getCachedSites, getCachedRegions, getCachedUsers } from './_lib/refCache.js';
+import { remetenteDonoDaOs, remetenteReconhecido } from './_lib/remetenteDaOs.js';
 import { buildNoticeEmailTemplate, buildTicketEmailTemplate, renderTemplateString } from './_lib/emailTemplates.js';
 import { diaEmFortaleza, ehCoordenadorDaSede, horaEmFortaleza, montarAgendaDoDia } from './_lib/agendaDoDia.js';
 import { cobreASede, donoDoAlertaDeFalta, precisaDeAlertaDeFalta, precisaDeChecagem } from './_lib/checagemDaVisita.js';
@@ -855,6 +856,31 @@ async function handleBounceNotice(db, message) {
   return true;
 }
 
+/**
+ * O remetente já faz parte da OS? Ver `api/_lib/remetenteDaOs.js` — o número no
+ * assunto deixou de ser credencial em 14/10/2026. `dono` (solicitante, cópias,
+ * diretores) pode trocar a cópia da conversa; `reconhecido` só acrescenta.
+ */
+async function remetenteConheceAOs(db, ticketId, fromEmail) {
+  const [ticketSnap, threadsSnap, usuarios] = await Promise.all([
+    db.collection('tickets').doc(ticketId).get(),
+    db.collection('emailThreads').where('ticketId', '==', ticketId).limit(20).get(),
+    getCachedUsers(db),
+  ]);
+  const ticket = ticketSnap.exists ? ticketSnap.data() : null;
+  return {
+    reconhecido: remetenteReconhecido({
+      fromEmail,
+      ticket,
+      threads: threadsSnap.docs.map(doc => doc.data()),
+      emailsDaEquipe: usuarios
+        .filter(usuario => usuario.status === 'Ativo' && usuario.active !== false)
+        .map(usuario => usuario.email),
+    }),
+    dono: remetenteDonoDaOs({ fromEmail, ticket }),
+  };
+}
+
 async function processGmailInboundMessage(db, msg, source) {
   // Trava o tamanho do corpo ANTES de qualquer persistência: e-mail com corpo
   // gigante (thread reencaminhada N vezes) estouraria o teto de 1 MiB/doc do
@@ -896,6 +922,11 @@ async function processGmailInboundMessage(db, msg, source) {
 
   try {
     const explicitTicketId = msg.ticketId || parseTicketId(msg.subject) || parseTicketId(msg.text);
+    // ⚠️ Quem cita uma OS sem fazer parte dela vai para a fila, não para a OS. Antes,
+    // "OS-0331" no assunto bastava para injetar mensagem e anexo e trocar o CC da
+    // conversa — e o CC trocado passava a receber as atualizações da OS.
+    const conheceACitada = explicitTicketId ? await remetenteConheceAOs(db, explicitTicketId, fromEmail) : null;
+    const remetenteDeFora = conheceACitada ? !conheceACitada.reconhecido : false;
     let referencedTicketId = explicitTicketId
       ? null
       : (await resolveTicketIdByThreadReferences(db, msg.inReplyTo, msg.references))
@@ -923,7 +954,7 @@ async function processGmailInboundMessage(db, msg, source) {
 
     const createdTicket =
       explicitTicketId || referencedTicketId || lapide ? null : await createTicketFromInbound(db, msg);
-    const ticketId = explicitTicketId || referencedTicketId || createdTicket?.id;
+    const ticketId = remetenteDeFora ? null : explicitTicketId || referencedTicketId || createdTicket?.id;
     if (!ticketId) {
       // Antes isto era um descarte MUDO: e-mail com [SEDE] desconhecida (ou sem
       // colchete) sumia sem log nenhum e ninguém percebia a OS perdida. Agora
@@ -935,9 +966,11 @@ async function processGmailInboundMessage(db, msg, source) {
         fromEmail: fromEmail || null,
         subject: msg.subject || '',
         messageId,
-        error: lapide
-          ? `A OS desta conversa (${lapide.ticketId}) foi apagada — a resposta não virou OS nova.`
-          : 'Nenhuma OS: assunto sem [SEDE] reconhecida e sem vínculo com OS existente.',
+        error: remetenteDeFora
+          ? `Cita a ${explicitTicketId}, mas o remetente não faz parte dela — foi para a fila de mensagens soltas.`
+          : lapide
+            ? `A OS desta conversa (${lapide.ticketId}) foi apagada — a resposta não virou OS nova.`
+            : 'Nenhuma OS: assunto sem [SEDE] reconhecida e sem vínculo com OS existente.',
       });
       // ...e também numa coleção PRÓPRIA. Pescar isto de dentro de emailEvents não
       // funciona: são 8,7 mil eventos, dominados por `sync`, e qualquer consulta com
@@ -967,8 +1000,9 @@ async function processGmailInboundMessage(db, msg, source) {
             attachments: anexosGuardados,
             // O motivo importa para quem resolve a fila: "sem sede" pede triagem,
             // "OS apagada" pede decisão sobre reabrir um assunto encerrado de propósito.
-            reason: lapide ? 'os-apagada' : 'sem-sede-e-sem-vinculo',
+            reason: remetenteDeFora ? 'remetente-desconhecido' : lapide ? 'os-apagada' : 'sem-sede-e-sem-vinculo',
             deletedTicketId: lapide ? lapide.ticketId : null,
+            citedTicketId: remetenteDeFora ? explicitTicketId : null,
             status: 'pendente',
             receivedAt: msg.internalDate || new Date(),
             createdAt: new Date(),
@@ -1004,6 +1038,19 @@ async function processGmailInboundMessage(db, msg, source) {
       .filter(Boolean);
     const mergedReferences = limitarReferencias([...references, msg.inReplyTo, messageId]);
     const participants = [fromEmail, toEmail, ...ccRecipients].filter(Boolean);
+    // ⚠️ A CÓPIA DA CONVERSA SÓ MUDA PELA MÃO DE QUEM É DA OS (14/10/2026). O `ccEmail`
+    // daqui é juntado aos envios seguintes: quem o troca passa a receber a OS. A trava
+    // do número no assunto fechava uma porta só; quem chegasse por References ou
+    // thread do Gmail ainda trocava a cópia. Mensagem de quem não é da OS entra, mas
+    // não mexe em quem recebe — nem vira participante, que é o que reconhece depois.
+    // Dono da OS TROCA a cópia (pode tirar alguém); reconhecido só ACRESCENTA — ver
+    // `remetenteDonoDaOs`. A OS que nasce deste e-mail é do remetente.
+    const conhece = createdTicket ? null : conheceACitada || (await remetenteConheceAOs(db, ticketId, fromEmail));
+    const trocaACopia = Boolean(createdTicket) || Boolean(conhece?.dono);
+    const podeMexerNaCopia = trocaACopia || Boolean(conhece?.reconhecido);
+    const copiaDaConversa = !podeMexerNaCopia || trocaACopia
+      ? ccRecipients
+      : mergeEmailLists((await threadRef.get()).data()?.ccEmail || '', ccRecipients);
 
     await threadRef.set(
       {
@@ -1016,8 +1063,8 @@ async function processGmailInboundMessage(db, msg, source) {
         updatedAt: now,
         references: mergedReferences,
         gmailThreadId: msg.threadId || null,
-        ...(ccRecipients.length > 0 ? { ccEmail: ccRecipients.join(', ') } : {}),
-        ...(participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
+        ...(podeMexerNaCopia && ccRecipients.length > 0 ? { ccEmail: copiaDaConversa.join(', ') } : {}),
+        ...(podeMexerNaCopia && participants.length > 0 ? { participants: FieldValue.arrayUnion(...participants) } : {}),
       },
       { merge: true }
     );
@@ -2317,9 +2364,12 @@ async function varrerIrmasDaThread(db, col, { item, exceto, ticketId, user }) {
  * Id determinístico: reanexar a mesma conversa reescreve o mesmo documento em vez
  * de acumular vínculos concorrentes. A última decisão humana é a que vale.
  */
-async function registrarThreadDaFila(db, { threadId, messageId, ticketId }) {
+async function registrarThreadDaFila(db, { threadId, messageId, ticketId, fromEmail }) {
   const thread = String(threadId || '').trim();
   if (!thread || !ticketId) return false;
+  // Quem triou aprovou também o REMETENTE: sem isto, a próxima resposta dele, com o
+  // número da OS no assunto, cairia de novo na fila (`remetenteDaOs.js`).
+  const remetente = firstEmail(fromEmail);
   await db
     .collection('emailThreads')
     .doc(`thread-${thread}`)
@@ -2331,6 +2381,7 @@ async function registrarThreadDaFila(db, { threadId, messageId, ticketId }) {
         // procura por ele: resposta que cite só esta mensagem casa sem depender de
         // o Gmail mandar o mesmo threadId.
         ...(messageId ? { references: FieldValue.arrayUnion(String(messageId)) } : {}),
+        ...(remetente ? { participants: FieldValue.arrayUnion(remetente) } : {}),
         origem: 'fila-de-mensagens-soltas',
         updatedAt: new Date(),
       },
@@ -2379,15 +2430,37 @@ async function handleDroppedInbound(req, res) {
       // Gestor vê o que chegou na caixa da operação, o mesmo universo que já recebe
       // por e-mail — mas o que ja foi resolvido sai da lista.
       const snap = await col.orderBy('createdAt', 'desc').limit(60).get();
-      const items = snap.docs
+      const pendentes = snap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(item => item.status !== 'resolvido')
+        .filter(item => item.status !== 'resolvido');
+
+      // ⚠️ MENSAGEM QUE CITA UMA OS TEM TERRITÓRIO (14/10/2026). "Sem OS, sem
+      // território" deixou de valer quando quem cita uma OS sem ser dela passou a cair
+      // aqui (`remetente-desconhecido`): antes essa mensagem ia para a OS e só o
+      // território dela via. Agora só vê quem consegue abrir a OS citada.
+      const citadas = [...new Set(pendentes.map(item => item.citedTicketId).filter(Boolean))];
+      let visivel = () => true;
+      if (citadas.length > 0 && user.role !== 'Admin') {
+        const territory = await readTerritoryCatalog(db);
+        const docs = await db.getAll(...citadas.map(id => db.collection('tickets').doc(String(id))));
+        const acessiveis = new Set(
+          docs
+            .filter(doc => doc.exists && canUserAccessTicket(user, { id: doc.id, ...doc.data() }, territory.regions, territory.sites))
+            .map(doc => doc.id)
+        );
+        visivel = item => !item.citedTicketId || acessiveis.has(String(item.citedTicketId));
+      }
+
+      const items = pendentes
+        .filter(visivel)
         .map(item => ({
           id: item.id,
           fromEmail: item.fromEmail || null,
           subject: item.subject || '',
           text: String(item.text || '').slice(0, 4000),
           attachmentCount: Number(item.attachmentCount || 0),
+          reason: item.reason || null,
+          citedTicketId: item.citedTicketId || null,
           receivedAt: toDateOrNull(item.receivedAt || item.createdAt)?.toISOString() || null,
           createdAt: toDateOrNull(item.createdAt)?.toISOString() || null,
         }));
@@ -2410,6 +2483,19 @@ async function handleDroppedInbound(req, res) {
     const item = snap.data() || {};
     if (item.status === 'resolvido') {
       return sendJson(res, 409, { ok: false, error: 'Esta mensagem já foi resolvida.' });
+    }
+
+    // Mesma regra do GET: mensagem que cita uma OS é do território dela. Sem isto,
+    // um Gestor de outra unidade que tivesse o id descartaria a mensagem — ou, com
+    // "criar", abriria OS na sede dele com o corpo e os anexos copiados.
+    if (item.citedTicketId && user.role !== 'Admin') {
+      const citada = await db.collection('tickets').doc(String(item.citedTicketId)).get();
+      if (citada.exists) {
+        const territory = await readTerritoryCatalog(db);
+        if (!canUserAccessTicket(user, { id: citada.id, ...citada.data() }, territory.regions, territory.sites)) {
+          return sendJson(res, 403, { ok: false, error: 'Sem acesso à OS citada nesta mensagem.' });
+        }
+      }
     }
 
     if (acao === 'descartar') {
@@ -2474,6 +2560,7 @@ async function handleDroppedInbound(req, res) {
       await registrarThreadDaFila(db, {
         threadId: item.threadId,
         messageId: item.messageId,
+        fromEmail: item.fromEmail,
         ticketId: criada.id,
       });
 
@@ -2510,6 +2597,7 @@ async function handleDroppedInbound(req, res) {
     await registrarThreadDaFila(db, {
       threadId: item.threadId,
       messageId: item.messageId,
+      fromEmail: item.fromEmail,
       ticketId,
     });
     const irmas = await varrerIrmasDaThread(db, col, { item, exceto: id, ticketId, user });
