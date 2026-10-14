@@ -37,6 +37,7 @@ import { getTicketRegionLabel, getTicketSiteLabel } from '../utils/ticketTerrito
 import { DateTimePicker } from './inbox/DateTimePicker';
 import { parseInputDateTime } from '../utils/date';
 import { NextActionStrip } from './inbox/NextActionStrip';
+import { responsavelAoAceitar } from './inbox/responsavelAoAceitar';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { TicketHistory } from './inbox/TicketHistory';
 import { mensagemDeErro } from '../utils/errorMessage';
@@ -945,10 +946,13 @@ export function InboxView() {
     const nextClassification = resolveClassificationSelection();
     const nextSector = ticketDetailsForm.sector.trim() || activeTicket.sector || 'Email';
     const nextLocation = ticketDetailsForm.location.trim() || activeTicket.location || '';
+    // Quem aceita vira responsável, se a OS ainda não tem um — ver responsavelAoAceitar.
+    const responsavel = responsavelAoAceitar(activeTicket, currentUser);
     setIsSending(true);
     try {
       const persisted = await updateTicket(activeTicket.id, {
         status: TICKET_STATUS.WAITING_TECH_OPINION,
+        ...(responsavel ? { responsible: responsavel } : {}),
         priority: ticketPriority,
         assignedTeam: techTeam,
         assignedEmail: nextAssignedEmail,
@@ -987,6 +991,16 @@ export function InboxView() {
                 sender: displayActorLabel,
                 time: new Date(),
                 text: `Motivo da transição: ${statusReason}.`,
+                visibility: 'internal' as const,
+              }]
+            : []),
+          ...(responsavel
+            ? [{
+                id: crypto.randomUUID(),
+                type: 'system' as const,
+                sender: displayActorLabel,
+                time: new Date(),
+                text: `Responsável pela OS: ${responsavel.name} (${responsavel.email}), ao aceitar.`,
                 visibility: 'internal' as const,
               }]
             : []),

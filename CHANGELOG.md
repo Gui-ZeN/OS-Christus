@@ -3,6 +3,20 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-14 (quem aceita a OS vira responsável)
+
+A coluna "Responsável" da Gestão ficava em "definir": aceitar a OS gravava etapa,
+equipe e urgência, mas ninguém como responsável — só o modal da Gestão gravava.
+
+- O botão **"Aceitar OS"** passa a gravar quem aceitou como responsável, se a OS ainda
+  não tiver um (`src/views/inbox/responsavelAoAceitar.ts`), com entrada interna no
+  histórico. Só o botão, por decisão do dono: seletor de etapa e lote não gravam.
+- **Backfill em produção** (`scripts/infra/backfill-responsavel-pela-triagem.mjs`): as
+  14 OS vivas sem responsável receberam quem fez a triagem (casado pelo nome do
+  "Triagem concluída…" com Admin/Gestor ativo; nenhuma ambígua). `setAt` = data do
+  backfill, não da triagem, para ninguém ser cobrado no dia seguinte por OS parada há
+  semanas. Releitura depois: 0 vivas sem responsável.
+
 ## 2026-10-14 (auditoria de segurança — segunda leva)
 
 - **Link de acompanhamento vence.** Antes valia para sempre: um e-mail encaminhado
