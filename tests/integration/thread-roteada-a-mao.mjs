@@ -209,7 +209,7 @@ caixaDeEntrada.push({
     body: { data: b64url('Catarina, orçamento pedido.') },
   },
 });
-await chamar('gmail-sync', { query: { secret: 'segredo-de-teste' } });
+await chamar('gmail-sync', { token: 'segredo-de-teste' });
 
 const caiuNaFila = await db.collection('inboundDropped').where('messageId', '==', RESPOSTA).get();
 check(
@@ -252,7 +252,7 @@ caixaDeEntrada.push({
   },
 });
 await db.collection('config').doc('gmailSync').delete().catch(() => {});
-await chamar('gmail-sync', { query: { secret: 'segredo-de-teste' } });
+await chamar('gmail-sync', { token: 'segredo-de-teste' });
 
 const orfa = await db.collection('inboundDropped').where('messageId', '==', RESPOSTA_ORFA).get();
 check(

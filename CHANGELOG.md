@@ -3,6 +3,28 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-14 (auditoria de segurança — segunda leva)
+
+- **Link de acompanhamento vence.** Antes valia para sempre: um e-mail encaminhado
+  abria a OS indefinidamente, inclusive as ações do solicitante. Agora vale com a OS
+  aberta e por mais 30 dias depois de Encerrada ou Cancelada; depois disso, leitura e
+  ações respondem 410 com "link expirado" (`api/_lib/validadeDoAcompanhamento.js`).
+  Vale para os links já enviados — a regra olha a OS, não o link.
+  - **Sem hash, por decisão do dono:** os e-mails de cada etapa, a tela e o cabeçalho
+    `X-OS-Tracking-Token` remontam o link a partir do token em texto. Guardar só o
+    hash pediria um segredo novo para proteger contra quem lê o banco — que já vê a
+    OS inteira.
+- **Segredo na URL só no push do Gmail.** `?secret=` era aceito em todas as rotas de
+  automação do Gmail e para os três segredos, `CRON_SECRET` incluído — e URL vai para
+  o log da Vercel. Agora `CRON_SECRET` e `GMAIL_SYNC_SECRET` só por cabeçalho. O push
+  continua aceitando a URL porque o Pub/Sub não manda cabeçalho, mas só com o
+  `GMAIL_PUSH_SECRET`. Os crons do GitHub já usavam `Authorization`.
+  - Revisão do `seguranca`: o `GMAIL_PUSH_SECRET` (que fica no log, por ir na URL)
+    ainda abria `gmail-sync` e `gmail-watch` pelo cabeçalho — e o watch reescreve o
+    ponteiro da caixa. Agora ele vale só no push.
+- Testes: `validadeDoAcompanhamento` (unitário), quatro checagens novas em
+  `rastreio-publico` e `tests/integration/segredo-na-url.mjs`.
+
 ## 2026-10-14 (auditoria de segurança — primeira leva)
 
 Uma auditoria apontou sete achados; todos se confirmaram no código (o repositório é

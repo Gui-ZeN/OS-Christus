@@ -740,16 +740,32 @@ async function authorizeEmailOutboxWorker(req) {
 // cron/Pub-Sub continua sendo o segredo compartilhado. Default Admin: só o
 // gmail-sync (que o InboxView dispara sozinho) abre para Gestor — o gmail-watch
 // reconfigura o watch do Gmail e fica restrito.
-async function authorizeGmailAutomation(req, allowedRoles = ['Admin']) {
+/**
+ * ⚠️ SEGREDO NA URL, SÓ NO PUSH E SÓ O DO PUSH (auditoria de segurança, 14/10/2026).
+ *
+ * `?secret=` era aceito em todas estas rotas e para os três segredos — inclusive o
+ * `CRON_SECRET`, que abre o resto dos agendados. URL vai parar no log da Vercel e no
+ * histórico de quem testa à mão. Os crons do GitHub já mandavam `Authorization`.
+ *
+ * O push do Gmail é a exceção porque não tem escolha: a assinatura de push do
+ * Pub/Sub só manda o segredo na URL. Por isso lá (`aceitaSegredoNaUrl`) a URL
+ * aceita o `GMAIL_PUSH_SECRET` e mais nenhum. E ele vale SÓ no push, por URL ou por
+ * cabeçalho: como fica gravado no log, não pode abrir o `gmail-watch`, que reinicia o
+ * watch e reescreve o `lastHistoryId` (revisão de segurança, 14/10/2026).
+ */
+async function authorizeGmailAutomation(req, allowedRoles = ['Admin'], { aceitaSegredoNaUrl = false } = {}) {
   const watchSecret = process.env.GMAIL_PUSH_SECRET;
   const syncSecret = process.env.GMAIL_SYNC_SECRET;
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization || '';
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const provided = req.query?.secret || req.headers['x-sync-secret'] || req.headers['x-gmail-push-secret'] || bearer;
-  const validSecrets = [watchSecret, syncSecret, cronSecret].filter(Boolean);
+  const provided = req.headers['x-sync-secret'] || req.headers['x-gmail-push-secret'] || bearer;
+  const validSecrets = [aceitaSegredoNaUrl ? watchSecret : null, syncSecret, cronSecret].filter(Boolean);
 
   if (provided && matchesAnySecret(provided, validSecrets)) {
+    return;
+  }
+  if (aceitaSegredoNaUrl && watchSecret && req.query?.secret && secretsMatch(String(req.query.secret), watchSecret)) {
     return;
   }
 
@@ -4331,7 +4347,7 @@ async function handleGmailPush(req, res) {
       return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
     }
 
-    await authorizeGmailAutomation(req);
+    await authorizeGmailAutomation(req, ['Admin'], { aceitaSegredoNaUrl: true });
 
     const body = await readJsonBody(req);
     const envelope = body?.message;

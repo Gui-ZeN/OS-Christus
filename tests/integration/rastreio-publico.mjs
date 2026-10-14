@@ -221,6 +221,26 @@ async function main() {
   const semToken = await fetch(`${API}/api/tickets?tracking=token-que-nao-existe`);
   check('token inexistente responde 404', semToken.status === 404, `HTTP ${semToken.status}`);
 
+  // ── O link vence 30 dias depois de a OS fechar (auditoria de 14/10/2026). ──
+  // Antes ele valia para sempre: um e-mail encaminhado abria a OS indefinidamente.
+  const ref = db.collection('tickets').doc(ID);
+  await ref.set({ status: 'Encerrada', closedAt: dias(-10) }, { merge: true });
+  const recente = await fetch(`${API}/api/tickets?tracking=${encodeURIComponent(TOKEN)}`);
+  check('encerrada há 10 dias: o link ainda abre', recente.status === 200, `HTTP ${recente.status}`);
+
+  await ref.set({ status: 'Encerrada', closedAt: dias(-31) }, { merge: true });
+  const vencido = await fetch(`${API}/api/tickets?tracking=${encodeURIComponent(TOKEN)}`);
+  const vencidoJson = await vencido.json().catch(() => ({}));
+  check('encerrada há 31 dias: o link responde 410', vencido.status === 410, `HTTP ${vencido.status}`);
+  check('e não devolve a OS', !vencidoJson.ticket, JSON.stringify(Object.keys(vencidoJson)));
+
+  const acaoVencida = await fetch(`${API}/api/tickets`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingToken: TOKEN, publicMessage: 'mensagem por link vencido' }),
+  });
+  check('as ações pelo link vencem junto (PATCH 410)', acaoVencida.status === 410, `HTTP ${acaoVencida.status}`);
+
   await limpar();
 
   const falhas = results.filter(item => !item.pass).length;

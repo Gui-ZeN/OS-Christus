@@ -4,7 +4,10 @@ Gmail API é o único provedor de e-mail do sistema — envio e importação de 
 
 ## Endpoints
 - `POST /api/email/send`
-- `POST /api/email/gmail-sync?secret=...` para importar respostas da caixa
+- `POST /api/email/gmail-sync` com `Authorization: Bearer <segredo>` para importar respostas da caixa
+  (o segredo na URL deixou de valer em 14/10/2026: URL vai para o log da Vercel)
+- `POST /api/email/gmail-push?secret=<GMAIL_PUSH_SECRET>` — push do Pub/Sub; é a única rota que aceita
+  segredo na URL, e só o `GMAIL_PUSH_SECRET`, porque a assinatura de push não manda cabeçalho
 - `GET /api/email/health` para monitoramento (últimas 24h)
 
 ## Variáveis necessárias (Vercel)

@@ -131,7 +131,7 @@ async function sincronizar(msg) {
   caixaDeEntrada.length = 0;
   caixaDeEntrada.push(msg);
   await db.collection('config').doc('gmailSync').delete().catch(() => {});
-  await chamar('gmail-sync', { query: { secret: 'segredo-de-teste' } });
+  await chamar('gmail-sync', { token: 'segredo-de-teste' });
 }
 
 async function textosDaOs() {
@@ -272,7 +272,7 @@ caixaDeEntrada.push({
   },
 });
 await db.collection('config').doc('gmailSync').delete().catch(() => {});
-await chamar('gmail-sync', { query: { secret: 'segredo-de-teste' } });
+await chamar('gmail-sync', { token: 'segredo-de-teste' });
 check(
   'a mensagem por References chega à OS (senão as duas checagens abaixo passariam à toa)',
   (await textosDaOs()).includes('Resposta do intruso por References')
@@ -367,7 +367,7 @@ caixaDeEntrada.push({
   },
 });
 await db.collection('config').doc('gmailSync').delete().catch(() => {});
-await chamar('gmail-sync', { query: { secret: 'segredo-de-teste' } });
+await chamar('gmail-sync', { token: 'segredo-de-teste' });
 
 const filaDoAdmin = await chamar('dropped-inbound', { method: 'GET', token });
 const doAdmin = (filaDoAdmin.json.items || []).find(item => item.citedTicketId === OS_SUL);

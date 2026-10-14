@@ -54,6 +54,7 @@ const CLOSED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 import { handleResumoExecutivo } from './_lib/resumoExecutivo.js';
+import { MENSAGEM_DE_LINK_EXPIRADO, acompanhamentoExpirado } from './_lib/validadeDoAcompanhamento.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
 // /api/tickets?route=report-pdf, então o front continua igual.
@@ -1756,6 +1757,10 @@ export default async function handler(req, res) {
         }
 
         const trackingDoc = trackingSnap.docs[0];
+        // 410, não 404: o link existiu e venceu — ver validadeDoAcompanhamento.js.
+        if (acompanhamentoExpirado(trackingDoc.data())) {
+          return sendJson(res, 410, { ok: false, error: MENSAGEM_DE_LINK_EXPIRADO });
+        }
         const hydratedTicket = await hydrateTicketHistoryForRead({
           id: trackingDoc.id,
           ...trackingDoc.data(),
@@ -1998,6 +2003,10 @@ export default async function handler(req, res) {
 
         const trackingDoc = trackingSnap.docs[0];
         const beforeData = trackingDoc.data() || {};
+        // As ações do solicitante pelo link vencem junto com a leitura.
+        if (acompanhamentoExpirado(beforeData)) {
+          return sendJson(res, 410, { ok: false, error: MENSAGEM_DE_LINK_EXPIRADO });
+        }
         const publicMessage = String(body?.publicMessage || '').trim().slice(0, 3000);
         if (publicMessage) {
           const currentStatus = String(beforeData.status || '');

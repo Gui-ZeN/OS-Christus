@@ -200,7 +200,7 @@ caixaDeEntrada.push({
     body: { data: b64url('Obrigada, aguardo.') },
   },
 });
-await chamar('gmail-sync', { query: { secret: 'segredo-de-teste' } });
+await chamar('gmail-sync', { token: 'segredo-de-teste' });
 
 // 4. a equipe responde de volta
 await chamar('send', {
