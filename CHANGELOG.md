@@ -3,6 +3,19 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-15 (fotos do orçamento reduzidas antes de subir)
+
+- **Storage medido em produção:** bucket `os-christus.firebasestorage.app`, 57 arquivos,
+  **8,3 MB (~0,2% dos 5 GB grátis)**, nenhum acima de 3 MB. O arquivamento no Drive
+  nunca foi ligado (só a leitura existe), então tudo acumula no Firebase — mas não há
+  pressa.
+- Mesmo assim, com vários anexos por OS, a foto passa a ser **reduzida no navegador**
+  antes de subir (`src/utils/reduzirFoto.ts`): lado maior em 1600 px, JPEG 0,82. Só no
+  upload do orçamento. PDF sobe como está. Na dúvida sobe o original: HEIC, GIF, SVG,
+  foto que o navegador não lê, ou resultado maior que o original.
+- Conferido num navegador de verdade: 11,6 MB 4000×3000 → 679 KB 1600×1200; PNG
+  transparente vira JPEG com fundo branco (não preto); foto pequena não é tocada.
+
 ## 2026-10-15 (orçamento aceita vários PDFs e fotos)
 
 O modal de orçamento do painel financeiro aceitava **um** anexo (`orcamento.anexo`) — a

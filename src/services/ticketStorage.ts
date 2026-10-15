@@ -1,4 +1,5 @@
 import type { TicketAttachment } from '../types';
+import { reduzirFoto } from '../utils/reduzirFoto';
 import { getAuthenticatedActorHeaders } from './actorHeaders';
 import { expectApiJson } from './apiClient';
 import { UserFacingError } from '../utils/errorMessage';
@@ -111,10 +112,11 @@ export async function uploadMessageAttachment(
  *
  * Pasta própria (`attachments/tickets/orcamentos/`) e não `messages/`: o arquivo
  * pertence ao valor da OS, não a uma conversa. O servidor recusa o que não for PDF
- * ou imagem.
+ * ou imagem. Foto é reduzida no navegador antes de subir (`reduzirFoto`); PDF vai
+ * como está.
  */
 export async function uploadOrcamentoAttachment(ticketId: string, file: File): Promise<TicketAttachment> {
-  return uploadProtectedAttachment(ticketId, 'orcamento', file);
+  return uploadProtectedAttachment(ticketId, 'orcamento', await reduzirFoto(file));
 }
 
 export async function deleteTicketAttachment(path: string) {
