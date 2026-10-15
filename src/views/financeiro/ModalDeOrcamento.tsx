@@ -4,8 +4,8 @@ import { ModalShell } from '../../components/ui/ModalShell';
 import { formatCurrency, sanitizeCurrencyTypingInput } from '../../utils/currency';
 import { mensagemDeErro } from '../../utils/errorMessage';
 import { uploadOrcamentoAttachment } from '../../services/ticketStorage';
-import { totalDosItens, valorDe } from './orcamento';
-import type { ItemDoOrcamento, OrcamentoDaOs, Ticket } from '../../types';
+import { anexosDoOrcamento, totalDosItens, valorDe } from './orcamento';
+import type { ItemDoOrcamento, Ticket, TicketAttachment } from '../../types';
 
 /**
  * O ORÇAMENTO DE UMA OS — o PDF do fornecedor, as linhas à mão, ou os dois.
@@ -39,12 +39,12 @@ export function ModalDeOrcamento({
   onSalvar: (entrada: {
     previsto: string;
     itens: ItemDoOrcamento[];
-    anexo: OrcamentoDaOs['anexo'];
+    anexos: TicketAttachment[];
   }) => Promise<void>;
 }) {
   const [itens, setItens] = useState<ItemDoOrcamento[]>([]);
   const [total, setTotal] = useState('');
-  const [anexo, setAnexo] = useState<OrcamentoDaOs['anexo']>(null);
+  const [anexos, setAnexos] = useState<TicketAttachment[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -55,7 +55,7 @@ export function ModalDeOrcamento({
     const o = ticket.orcamento;
     setItens(o?.itens?.length ? o.itens : [novaLinha()]);
     setTotal(o?.previsto ?? '');
-    setAnexo(o?.anexo ?? null);
+    setAnexos(anexosDoOrcamento(o));
     setErro('');
   }, [ticket]);
 
@@ -64,22 +64,33 @@ export function ModalDeOrcamento({
   const soma = totalDosItens(itens);
   const temLinhas = soma !== null;
 
-  const anexar = async (arquivo: File) => {
+  /**
+   * Vários de uma vez (15/10/2026): proposta, segunda proposta, fotos do serviço.
+   *
+   * ⚠️ UM POR VEZ, E O QUE SUBIU FICA. Se o terceiro de cinco falhar, os dois
+   * primeiros já estão na lista e o erro diz qual faltou — perder tudo por causa de
+   * um arquivo obrigaria a escolher os cinco de novo.
+   */
+  const anexar = async (arquivos: File[]) => {
     setEnviando(true);
     setErro('');
-    try {
-      setAnexo(await uploadOrcamentoAttachment(ticket.id, arquivo));
-    } catch (e) {
-      setErro(mensagemDeErro(e, 'Falha ao anexar o arquivo.'));
-    } finally {
-      setEnviando(false);
+    const falharam: string[] = [];
+    for (const arquivo of arquivos) {
+      try {
+        const novo = await uploadOrcamentoAttachment(ticket.id, arquivo);
+        setAnexos(lista => [...lista, novo]);
+      } catch (e) {
+        falharam.push(`${arquivo.name}: ${mensagemDeErro(e, 'falha ao enviar')}`);
+      }
     }
+    if (falharam.length) setErro(`Não foi possível anexar — ${falharam.join(' · ')}`);
+    setEnviando(false);
   };
 
   const salvar = async () => {
     setSalvando(true);
     try {
-      await onSalvar({ previsto: total, itens, anexo });
+      await onSalvar({ previsto: total, itens, anexos });
       onFechar();
     } catch (e) {
       setErro(mensagemDeErro(e, 'Falha ao salvar o orçamento.'));
@@ -125,32 +136,42 @@ export function ModalDeOrcamento({
 
       {/* ── A proposta do fornecedor ───────────────────────────── */}
       <section className="mb-4">
-        <h3 className="mb-1.5 text-[11px] uppercase tracking-widest text-roman-text-sub">Proposta do fornecedor</h3>
-        {anexo ? (
-          <div className="flex items-center justify-between gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-roman-text-main">
-              <FileText size={14} className="shrink-0 text-roman-text-sub" />
-              <span className="truncate">{anexo.name}</span>
-            </span>
-            {/* Só tira daqui: o arquivo em si continua no Storage, e apagá-lo de
-                dentro de um modal de valor seria uma exclusão sem confirmação. */}
-            <button type="button" onClick={() => setAnexo(null)} className="shrink-0 text-roman-text-sub hover:text-roman-danger" title="Remover do orçamento">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ) : (
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-sm border border-dashed border-roman-border px-3 py-2 text-sm text-roman-text-sub hover:border-roman-primary/50 hover:text-roman-text-main">
-            {enviando ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
-            {enviando ? 'Enviando…' : 'Anexar PDF ou foto do orçamento'}
-            <input
-              type="file"
-              accept="application/pdf,image/*"
-              className="hidden"
-              disabled={enviando}
-              onChange={e => { const f = e.target.files?.[0]; if (f) anexar(f); e.target.value = ''; }}
-            />
-          </label>
+        <h3 className="mb-1.5 text-[11px] uppercase tracking-widest text-roman-text-sub">Propostas e fotos</h3>
+        {anexos.length > 0 && (
+          <ul className="mb-2 space-y-1.5">
+            {anexos.map(item => (
+              <li key={item.id || item.path} className="flex items-center justify-between gap-2 rounded-sm border border-roman-border bg-roman-bg px-3 py-2">
+                <span className="flex min-w-0 items-center gap-2 text-sm text-roman-text-main">
+                  <FileText size={14} className="shrink-0 text-roman-text-sub" />
+                  <span className="truncate">{item.name}</span>
+                </span>
+                {/* Só tira daqui: o arquivo em si continua no Storage, e apagá-lo de
+                    dentro de um modal de valor seria uma exclusão sem confirmação. */}
+                <button
+                  type="button"
+                  onClick={() => setAnexos(lista => lista.filter(x => x !== item))}
+                  className="shrink-0 text-roman-text-sub hover:text-roman-danger"
+                  title="Remover do orçamento"
+                  aria-label={`Remover ${item.name} do orçamento`}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-sm border border-dashed border-roman-border px-3 py-2 text-sm text-roman-text-sub hover:border-roman-primary/50 hover:text-roman-text-main">
+          {enviando ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+          {enviando ? 'Enviando…' : anexos.length > 0 ? 'Anexar mais PDFs ou fotos' : 'Anexar PDFs ou fotos do orçamento'}
+          <input
+            type="file"
+            multiple
+            accept="application/pdf,image/*"
+            className="hidden"
+            disabled={enviando}
+            onChange={e => { const lista = Array.from(e.target.files || []); if (lista.length) anexar(lista); e.target.value = ''; }}
+          />
+        </label>
       </section>
 
       {/* ── As linhas, à mão ───────────────────────────────────── */}

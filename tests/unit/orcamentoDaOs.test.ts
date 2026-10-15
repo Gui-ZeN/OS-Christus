@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  anexosDoOrcamento,
   estadoDoOrcamento,
   orcamentoParaGravar,
   resumoDoOrcamento,
@@ -211,14 +212,42 @@ describe('o que o modal grava', () => {
     expect(g.itens).toHaveLength(1);
   });
 
-  it('o anexo entra e sai sem levar o resto junto', () => {
+  it('os anexos entram e saem sem levar o resto junto', () => {
     const pdf = { id: 'a1', name: 'proposta.pdf', path: 'attachments/tickets/orcamentos/OS-1/x.pdf' } as never;
-    const comAnexo = orcamentoParaGravar({ previsto: '900' }, { anexo: pdf }, 'Thais');
-    expect(comAnexo.anexo).toBe(pdf);
-    expect(comAnexo.previsto).toBe('900');
+    const foto = { id: 'a2', name: 'foto.jpg', path: 'attachments/tickets/orcamentos/OS-1/y.jpg' } as never;
+    const comAnexos = orcamentoParaGravar({ previsto: '900' }, { anexos: [pdf, foto] }, 'Thais');
+    expect(comAnexos.anexos).toEqual([pdf, foto]);
+    expect(comAnexos.previsto).toBe('900');
 
-    const semAnexo = orcamentoParaGravar(comAnexo, { anexo: null }, 'Thais');
-    expect(semAnexo.anexo).toBeNull();
-    expect(semAnexo.previsto).toBe('900');
+    const semAnexos = orcamentoParaGravar(comAnexos, { anexos: [] }, 'Thais');
+    expect(semAnexos.anexos).toEqual([]);
+    expect(semAnexos.previsto).toBe('900');
+  });
+
+  it('salvar só o valor não apaga os anexos', () => {
+    const pdf = { id: 'a1', name: 'proposta.pdf', path: 'p' } as never;
+    const g = orcamentoParaGravar({ anexos: [pdf] }, { realizado: '1.000' }, 'Thais');
+    expect(g.anexos).toEqual([pdf]);
+  });
+});
+
+describe('anexo único de antes de 15/10 vira lista de um', () => {
+  const antigo = { id: 'a0', name: 'proposta-antiga.pdf', path: 'p0' } as never;
+
+  it('o campo antigo é lido como lista', () => {
+    expect(anexosDoOrcamento({ anexo: antigo })).toEqual([antigo]);
+    expect(anexosDoOrcamento({})).toEqual([]);
+    expect(anexosDoOrcamento(null)).toEqual([]);
+  });
+
+  it('ao salvar, o anexo antigo passa para a lista e o campo velho zera — nada some', () => {
+    const g = orcamentoParaGravar({ anexo: antigo, previsto: '500' }, { realizado: '480' }, 'Thais');
+    expect(g.anexos).toEqual([antigo]);
+    expect(g.anexo).toBeNull();
+  });
+
+  it('a lista nova manda sobre o campo antigo', () => {
+    const novo = { id: 'a3', name: 'nova.pdf', path: 'p3' } as never;
+    expect(anexosDoOrcamento({ anexo: antigo, anexos: [novo] })).toEqual([novo]);
   });
 });

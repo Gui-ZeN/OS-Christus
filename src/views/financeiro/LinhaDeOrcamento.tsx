@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Loader2, Paperclip } from 'lucide-react';
 import { formatCurrency, sanitizeCurrencyTypingInput } from '../../utils/currency';
-import { previstoEfetivo, valorDe, variacaoDe } from './orcamento';
+import { anexosDoOrcamento, previstoEfetivo, valorDe, variacaoDe } from './orcamento';
 import type { OrcamentoDaOs } from '../../types';
 
 /**
@@ -101,7 +101,7 @@ export function BotaoDeOrcado({ orcamento, onAbrir }: { orcamento?: OrcamentoDaO
       {/* Os dois sinais do que existe atrás do número, sem abrir: quantas linhas
           foram lançadas e se a proposta está anexada. */}
       {linhas > 0 && <span className="text-[10px] text-roman-text-sub">{linhas} ln</span>}
-      {orcamento?.anexo && <Paperclip size={11} className="text-roman-text-sub" />}
+      {anexosDoOrcamento(orcamento).length > 0 && <Paperclip size={11} className="text-roman-text-sub" />}
     </button>
   );
 }

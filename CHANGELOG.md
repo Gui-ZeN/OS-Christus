@@ -3,6 +3,24 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-15 (orçamento aceita vários PDFs e fotos)
+
+O modal de orçamento do painel financeiro aceitava **um** anexo (`orcamento.anexo`) — a
+proposta do fornecedor —, e quem precisava juntar uma segunda proposta ou fotos do
+serviço não tinha onde. Agora é a lista `orcamento.anexos`.
+
+- Escolher vários arquivos de uma vez; cada um sobe separado e **o que subiu fica** — se
+  um falhar, a mensagem diz qual, e os outros não precisam ser escolhidos de novo.
+  Remover é um por um.
+- **Nada some:** o anexo único antigo é lido como lista de um (`anexosDoOrcamento`) e
+  passa para a lista na primeira gravação. Em produção eram 0 anexos, mas a leitura
+  cobre o que entrar até o deploy.
+- O servidor não mudou: a autorização de download (`findAttachmentReference`) procura o
+  arquivo em qualquer lugar da OS, listas incluídas.
+- Testes: `orcamentoDaOs` (lista, salvar valor sem apagar anexos, legado). Conferido no
+  navegador contra o emulador com Storage: 3 arquivos (2 PDFs + 1 foto) subiram,
+  remover 1 + salvar + recarregar deixou os 2 certos, e o download dos dois é liberado.
+
 ## 2026-10-14 (quem aceita a OS vira responsável)
 
 A coluna "Responsável" da Gestão ficava em "definir": aceitar a OS gravava etapa,

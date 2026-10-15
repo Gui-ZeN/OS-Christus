@@ -272,12 +272,15 @@ export interface OrcamentoDaOs {
   /** O orçamento digitado linha a linha. Vazio quando veio só o PDF ou só o total. */
   itens?: ItemDoOrcamento[];
   /**
-   * A proposta do fornecedor, em PDF ou foto.
+   * Os PDFs e fotos do orçamento — a proposta do fornecedor, uma segunda proposta,
+   * fotos do serviço. Vários desde 15/10/2026.
    *
-   * ⚠️ NÃO É LIDO PELO SISTEMA. O arquivo fica anexado para quem quiser conferir; o
-   * número que entra na conta continua sendo o que alguém digitou. Extrair valor de
-   * PDF e apresentar como dado seria inventar precisão.
+   * ⚠️ NÃO SÃO LIDOS PELO SISTEMA. Os arquivos ficam anexados para quem quiser
+   * conferir; o número que entra na conta continua sendo o que alguém digitou.
+   * Extrair valor de PDF e apresentar como dado seria inventar precisão.
    */
+  anexos?: TicketAttachment[];
+  /** LEGADO: era um anexo só. Lido como lista de um (`anexosDoOrcamento`); salvar zera. */
   anexo?: TicketAttachment | null;
   /** O que se gastou de fato. */
   realizado?: string | null;

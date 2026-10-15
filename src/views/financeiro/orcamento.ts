@@ -1,5 +1,5 @@
 import { parseCurrencyOrNull } from '../../../api/_lib/currency.js';
-import type { ItemDoOrcamento, OrcamentoDaOs, Ticket } from '../../types';
+import type { ItemDoOrcamento, OrcamentoDaOs, Ticket, TicketAttachment } from '../../types';
 
 /**
  * A CONTA DO ORÇAMENTO — orçado, realizado, e a diferença entre os dois.
@@ -139,6 +139,18 @@ export function resumoDoOrcamento(tickets: Array<Pick<Ticket, 'orcamento'>>): Re
 }
 
 /**
+ * Os anexos do orçamento, venham do campo novo ou do antigo.
+ *
+ * ⚠️ ERA UM ANEXO SÓ (`anexo`) ATÉ 15/10/2026 — a proposta do fornecedor —, e quem
+ * precisava juntar fotos ou uma segunda proposta não tinha onde. Agora é a lista
+ * `anexos`. O campo velho é lido como lista de um, para nada anexado antes sumir.
+ */
+export function anexosDoOrcamento(orcamento?: OrcamentoDaOs | null): TicketAttachment[] {
+  if (Array.isArray(orcamento?.anexos)) return orcamento.anexos;
+  return orcamento?.anexo ? [orcamento.anexo] : [];
+}
+
+/**
  * O que vai gravado quando alguém salva.
  *
  * ⚠️ CAMPO APAGADO VIRA `null`, e não some do objeto. `{...antigo, ...novo}` no
@@ -151,7 +163,7 @@ export function orcamentoParaGravar(
     previsto?: string | null;
     realizado?: string | null;
     itens?: ItemDoOrcamento[] | null;
-    anexo?: OrcamentoDaOs['anexo'];
+    anexos?: TicketAttachment[] | null;
   },
   quem: string,
   agora: Date = new Date()
@@ -173,7 +185,9 @@ export function orcamentoParaGravar(
     previsto: 'previsto' in entrada ? limpo(entrada.previsto) : (atual?.previsto ?? null),
     realizado: 'realizado' in entrada ? limpo(entrada.realizado) : (atual?.realizado ?? null),
     itens,
-    anexo: 'anexo' in entrada ? (entrada.anexo ?? null) : (atual?.anexo ?? null),
+    anexos: 'anexos' in entrada ? (entrada.anexos || []) : anexosDoOrcamento(atual),
+    // O campo antigo sai na primeira gravação: a lista já carrega o que ele tinha.
+    anexo: null,
     atualizadoEm: agora.toISOString(),
     atualizadoPor: quem || null,
   };

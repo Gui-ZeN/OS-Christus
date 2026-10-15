@@ -17,7 +17,7 @@ import { passaNoRecorte } from './osboard/recorte';
 import { BotaoDeOrcado, CampoDeValor, Variacao } from './financeiro/LinhaDeOrcamento';
 import { ModalDeOrcamento } from './financeiro/ModalDeOrcamento';
 import { orcamentoParaGravar, resumoDoOrcamento } from './financeiro/orcamento';
-import type { ItemDoOrcamento, OrcamentoDaOs, Ticket } from '../types';
+import type { ItemDoOrcamento, Ticket, TicketAttachment } from '../types';
 
 /**
  * PAINEL FINANCEIRO — o que cada OS custou.
@@ -124,7 +124,7 @@ export function FinanceView() {
 
   const gravar = async (
     ticket: Ticket,
-    entrada: { previsto?: string; realizado?: string; itens?: ItemDoOrcamento[]; anexo?: OrcamentoDaOs['anexo'] }
+    entrada: { previsto?: string; realizado?: string; itens?: ItemDoOrcamento[]; anexos?: TicketAttachment[] }
   ) => {
     const quem = currentUser?.name || currentUser?.email || '';
     const orcamento = orcamentoParaGravar(ticket.orcamento, entrada, quem);
