@@ -15,6 +15,12 @@ nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
   foto que o navegador não lê, ou resultado maior que o original.
 - Conferido num navegador de verdade: 11,6 MB 4000×3000 → 679 KB 1600×1200; PNG
   transparente vira JPEG com fundo branco (não preto); foto pequena não é tocada.
+- Estendido às **fotos anexadas nas mensagens** (Caixa e modal de conversa da Gestão),
+  que é por onde entram hoje as fotos de serviço e de fechamento. Arquivo que não é
+  foto (PDF, planilha) vai como está.
+  - `uploadClosureDocument` foi **apagado**: era código morto desde `573034a` (o painel
+    financeiro refeito tirou o único chamador). Não há mais envio separado de "foto de
+    fechamento" no cliente; o servidor continua aceitando o escopo `closure`.
 
 ## 2026-10-15 (orçamento aceita vários PDFs e fotos)
 

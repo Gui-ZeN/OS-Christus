@@ -24,7 +24,7 @@ function resolveContentType(file: File, fallback = 'application/octet-stream') {
   return fallback;
 }
 
-type AttachmentUploadScope = 'closure' | 'payment' | 'measurement' | 'quote' | 'contract' | 'message' | 'orcamento';
+type AttachmentUploadScope = 'payment' | 'measurement' | 'quote' | 'contract' | 'message' | 'orcamento';
 
 interface AttachmentUploadOptions {
   paymentId?: string;
@@ -74,10 +74,6 @@ async function uploadProtectedAttachment(
   };
 }
 
-export async function uploadClosureDocument(ticketId: string, file: File): Promise<TicketAttachment> {
-  return uploadProtectedAttachment(ticketId, 'closure', file);
-}
-
 export async function uploadPaymentAttachment(ticketId: string, paymentId: string, file: File): Promise<TicketAttachment> {
   return uploadProtectedAttachment(ticketId, 'payment', file, { paymentId });
 }
@@ -104,7 +100,8 @@ export async function uploadMessageAttachment(
   channel: 'internal' | 'public' | 'director',
   file: File
 ): Promise<TicketAttachment> {
-  return uploadProtectedAttachment(ticketId, 'message', file, { channel });
+  // Foto da conversa é reduzida antes de subir (`reduzirFoto`); o resto vai como está.
+  return uploadProtectedAttachment(ticketId, 'message', await reduzirFoto(file), { channel });
 }
 
 /**
