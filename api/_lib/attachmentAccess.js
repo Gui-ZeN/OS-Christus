@@ -69,6 +69,73 @@ export function canRoleReadAttachmentPath(role, path) {
   return allowed.has(folder);
 }
 
+// Campos de um anexo que só o SERVIDOR grava (o job de arquivamento no Drive).
+// O download confia em `driveFileId` como o ponteiro do arquivo: se o cliente
+// pudesse escrevê-lo, um Gestor plantaria numa OS DELE o id de um arquivo de outra
+// OS (outra região) e o proxy entregaria — a service account lê o Drive inteiro.
+const SERVER_ONLY_ATTACHMENT_FIELDS = ['driveFileId', 'archived', 'archivedAt'];
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+// Identidade do anexo = TODAS as chaves de path juntas, não uma delas. Casar por
+// qualquer uma deixava o cliente montar `{ path: <messages>, attachmentPath:
+// <payments> }`: o pin colava o driveFileId do pagamento, a matriz de papel olhava
+// só `messages` e o Diretor baixava o comprovante.
+function attachmentIdentityOf(value) {
+  return [...ATTACHMENT_PATH_KEYS]
+    .map(key => [key, String(value[key] || '').trim()])
+    .filter(([, path]) => path)
+    .map(([key, path]) => `${key}=${path}`)
+    .join('\n');
+}
+
+function indexServerOnlyAttachmentFields(value, index, seen) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return;
+  seen.add(value);
+  if (!Array.isArray(value)) {
+    const stored = {};
+    for (const field of SERVER_ONLY_ATTACHMENT_FIELDS) {
+      if (value[field] !== undefined) stored[field] = value[field];
+    }
+    const identity = attachmentIdentityOf(value);
+    if (identity && Object.keys(stored).length > 0 && !index.has(identity)) {
+      index.set(identity, stored);
+    }
+  }
+  for (const child of Array.isArray(value) ? value : Object.values(value)) {
+    indexServerOnlyAttachmentFields(child, index, seen);
+  }
+}
+
+function pinValue(value, index) {
+  if (Array.isArray(value)) return value.map(item => pinValue(item, index));
+  if (!isPlainObject(value)) return value;
+  const next = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (SERVER_ONLY_ATTACHMENT_FIELDS.includes(key)) continue;
+    next[key] = pinValue(entry, index);
+  }
+  const identity = attachmentIdentityOf(value);
+  const stored = identity ? index.get(identity) : undefined;
+  return stored ? { ...next, ...stored } : next;
+}
+
+/**
+ * Descarta `driveFileId`/`archived`/`archivedAt` vindos do cliente em qualquer
+ * profundidade do PATCH e devolve, para cada anexo, o valor que JÁ estava gravado
+ * na OS para o mesmo conjunto de paths. Anexo arquivado reenviado pela tela continua
+ * arquivado; anexo novo nunca nasce apontando para o Drive.
+ */
+export function pinServerOnlyAttachmentFields(updates, storedTicket) {
+  const index = new Map();
+  indexServerOnlyAttachmentFields(storedTicket, index, new Set());
+  return pinValue(updates, index);
+}
+
 export function findAttachmentReference(value, locator, seen = new Set()) {
   if (!value || typeof value !== 'object') return null;
   if (seen.has(value)) return null;

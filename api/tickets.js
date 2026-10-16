@@ -52,6 +52,7 @@ import { TICKET_STATUS, addStageMarco, aplicarMarcosSemData, canTransitionStatus
 /** As duas saídas da fila. Cancelada conta: a OS deixa de ser pendência do mesmo jeito. */
 const CLOSED_STATUSES = new Set([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED]);
 import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
+import { pinServerOnlyAttachmentFields } from './_lib/attachmentAccess.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 import { handleResumoExecutivo } from './_lib/resumoExecutivo.js';
 import { MENSAGEM_DE_LINK_EXPIRADO, acompanhamentoExpirado } from './_lib/validadeDoAcompanhamento.js';
@@ -2172,6 +2173,12 @@ export default async function handler(req, res) {
         if (!canUserAccessTicket(user, { id: snap.id, ...data }, territory.regions, territory.sites)) {
           return { forbidden: true };
         }
+
+        // ⚠️ `driveFileId`/`archived`/`archivedAt` de anexo são do SERVIDOR: o download
+        // entrega o arquivo do Drive pelo `driveFileId` gravado na OS. Vindos do cliente,
+        // um Gestor apontaria um anexo da OS dele para o arquivo de outra OS. Descarta o
+        // do cliente e repõe o já gravado para o mesmo `path` (relido nesta transação).
+        Object.assign(updates, pinServerOnlyAttachmentFields(updates, data));
 
         const freshHistory = Array.isArray(data.history) ? data.history : [];
         const subcollectionReady = data.historySubcollectionReady === true;

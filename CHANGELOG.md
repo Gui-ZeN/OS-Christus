@@ -3,6 +3,34 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-16 (segurança: `driveFileId` de anexo deixa de vir do cliente)
+
+- **Achado (anterior às mudanças do dia):** o PATCH de OS gravava os objetos de anexo
+  como vinham do cliente (`attachments`, `orcamento.anexos[]`, `orcamento.notas[].anexo`,
+  entradas novas de `history`), inclusive `driveFileId`. O download só confere se o id
+  pedido é o que está na OS e entrega qualquer arquivo que a service account lê. Um
+  Gestor da região X plantava numa OS dele o `driveFileId` de um arquivo arquivado de
+  uma OS da região Y e baixava. Limite: precisava conhecer o id. O job de arquivamento
+  nunca foi ligado, então não havia arquivo no Drive para roubar — mas a porta existia.
+- **Correção:** `pinServerOnlyAttachmentFields` (`api/_lib/attachmentAccess.js`), chamada
+  dentro da transação do PATCH: descarta `driveFileId`/`archived`/`archivedAt` do cliente
+  em qualquer profundidade e repõe, por `path`, o que já estava gravado na OS. Anexo
+  arquivado reenviado pela tela continua arquivado; anexo novo nunca nasce no Drive.
+  Não depende de configuração do Drive.
+  - A identidade do anexo é o conjunto de TODAS as chaves de path (`path`,
+    `attachmentPath`, `signedFilePath`). Achado da revisão: casando por qualquer uma, um
+    Diretor montaria `{ path: <messages>, attachmentPath: <payments> }`, ganharia o
+    `driveFileId` do comprovante e furaria a matriz de pastas por papel.
+- **Pendente (dono):** o pin preserva o que já está gravado. Como nenhum código grava
+  `driveFileId` hoje, qualquer ocorrência em produção seria forjada antes do fix — vale
+  uma varredura só-leitura em `tickets`, `historyEntries` e subcoleções de compras.
+- **Provas:** 5 testes unitários e `tests/integration/drive-file-id-forjado.mjs` (no
+  `test:integration`). Sem a correção a integração fica 1/5 (o id alheio é gravado em 5
+  lugares e o download chega ao Drive); com ela, 5/5 e o download dá 404.
+- ⚠️ Pré-existente, sem relação: `finance-progress-command`, `authz-negativa`,
+  `matriz-de-autorizacao` e `contrato-compras` falham no emulador porque chamam
+  `/api/procurement`, apagado em `bb21389`.
+
 ## 2026-10-16 (realizado com notas fiscais; data em toda mudança de etapa)
 
 Três pedidos do dono: "o Realizado não pede nada", "ao encerrar não pede a data de
