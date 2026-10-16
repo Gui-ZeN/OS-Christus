@@ -260,6 +260,16 @@ export interface ItemDoOrcamento {
   valor: string;
 }
 
+export interface NotaFiscalDaOs {
+  id: string;
+  /** Como a pessoa digitou ("1.250,00"); lido por `valorDe`. */
+  valor: string;
+  /** AAAA-MM-DD — é o que fecha o custo por mês contra o teto. */
+  pagoEm?: string | null;
+  /** O PDF ou a foto da nota. */
+  anexo?: TicketAttachment | null;
+}
+
 export interface OrcamentoDaOs {
   /**
    * O total esperado, como a pessoa digitou.
@@ -282,8 +292,13 @@ export interface OrcamentoDaOs {
   anexos?: TicketAttachment[];
   /** LEGADO: era um anexo só. Lido como lista de um (`anexosDoOrcamento`); salvar zera. */
   anexo?: TicketAttachment | null;
-  /** O que se gastou de fato. */
+  /**
+   * O que se gastou de fato, DIGITADO. Desde 16/10/2026 só vale quando não há `notas`:
+   * com notas, o realizado é a soma delas (`realizadoEfetivo`).
+   */
   realizado?: string | null;
+  /** As notas fiscais do que se pagou — valor, data do pagamento e o arquivo. */
+  notas?: NotaFiscalDaOs[];
   /** ISO. String e não `Date` de propósito: campo aninhado não passa pelo
    *  desserializador de datas do ticket, e um `Date` aqui chegaria como texto na
    *  metade dos caminhos. */

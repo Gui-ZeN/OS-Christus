@@ -24,11 +24,17 @@ export const DIAS_DEPOIS_DE_FECHAR = 30;
  */
 export function acompanhamentoExpirado(ticket, agora = new Date()) {
   if (isTicketOpen(ticket?.status)) return false;
-  // OS antiga pode ter fechado antes de `closedAt` existir: a entrada na etapa final
-  // e a última alteração são a melhor data que sobra. Sem data nenhuma, FECHADO —
-  // link eterno é justamente o defeito.
+  // ⚠️ CONTA DO REGISTRO, não da data informada (16/10/2026): desde que a data da
+  // conclusão pode ser retroativa, encerrar hoje com "concluída em 01/09" venceria o
+  // link no mesmo instante em que o solicitante recebe o aviso de encerramento.
+  // OS antiga pode ter fechado antes desses campos: a entrada na etapa final e a
+  // última alteração são a melhor data que sobra. Sem data nenhuma, FECHADO — link
+  // eterno é justamente o defeito.
   const fechouEm =
-    toDateOrNull(ticket?.closedAt) || toDateOrNull(ticket?.stageEnteredAt) || toDateOrNull(ticket?.updatedAt);
+    toDateOrNull(ticket?.closedRegisteredAt) ||
+    toDateOrNull(ticket?.closedAt) ||
+    toDateOrNull(ticket?.stageEnteredAt) ||
+    toDateOrNull(ticket?.updatedAt);
   if (!fechouEm) return true;
   return agora.getTime() > fechouEm.getTime() + DIAS_DEPOIS_DE_FECHAR * 86_400_000;
 }

@@ -3,6 +3,37 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-16 (realizado com notas fiscais; data em toda mudança de etapa)
+
+Três pedidos do dono: "o Realizado não pede nada", "ao encerrar não pede a data de
+conclusão — estão colocando na observação" e "coloca data para todas as etapas".
+
+- **Realizado com notas fiscais.** A célula do realizado abre um modal de notas: cada
+  uma com valor, **data do pagamento** (fecha o custo por mês contra o teto) e o PDF ou
+  foto. O realizado passa a ser a **soma das notas** (`realizadoEfetivo`); as 19 OS com
+  valor digitado antes continuam mostrando esse valor ("sem NF") até ganharem notas, e
+  salvar notas o substitui. Nota preenchida exige valor e data; sem arquivo, salva, mas
+  a célula mostra "N sem arquivo".
+- **Data em que a OS entrou na etapa**, com hoje preenchido, em toda mudança: aceitar,
+  trocar etapa e reabrir na Caixa, cancelar, e o "Trocar etapa" da Gestão. É a **data
+  oficial**: o servidor confere (não futuro, não antes da abertura — `time`) e grava em
+  `stageEnteredAt`, `closedAt` e no marco da etapa (`api/_lib/dataDaEtapa.js`). Sem
+  data, vale o clique, como antes.
+  - O prazo de 30 dias do link público passa a contar do **registro** do encerramento
+    (`closedRegisteredAt`), não da conclusão informada — senão encerrar hoje com
+    "concluída em 01/09" venceria o link na hora.
+  - Data informada **sobrescreve** o marco da etapa (encerrar por engano, reabrir e
+    encerrar com a data real deixa marco e `closedAt` iguais).
+- **Revisão:** `auditor` REPROVADO (data velha vindo preenchida na etapa seguinte,
+  limite de abertura diferente entre tela e servidor, modal fechando ao falhar, nota
+  sem valor contando como NF, marco divergente, link vencendo na hora) → corrigido →
+  APROVADO COM RESSALVAS. `seguranca`: LIBERA COM RESSALVAS; o achado sério
+  (`driveFileId` do cliente no download do Drive) é anterior a esta entrega e virou
+  tarefa à parte.
+- Testes: `dataDaEtapa`, `orcamentoDaOs` (notas), `validadeDoAcompanhamento` e
+  `tests/integration/data-da-etapa.mjs` (12 verificações no emulador; cada correção do
+  servidor desligada derruba a sua). Conferido no navegador contra o emulador.
+
 ## 2026-10-15 (fotos do orçamento reduzidas antes de subir)
 
 - **Storage medido em produção:** bucket `os-christus.firebasestorage.app`, 57 arquivos,

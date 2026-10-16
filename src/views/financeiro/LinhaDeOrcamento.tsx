@@ -1,82 +1,37 @@
-import React, { useEffect, useState } from 'react';
-import { Check, Loader2, Paperclip } from 'lucide-react';
-import { formatCurrency, sanitizeCurrencyTypingInput } from '../../utils/currency';
-import { anexosDoOrcamento, previstoEfetivo, valorDe, variacaoDe } from './orcamento';
+import React from 'react';
+import { Paperclip } from 'lucide-react';
+import { formatCurrency } from '../../utils/currency';
+import { anexosDoOrcamento, previstoEfetivo, realizadoEfetivo, valorDe, variacaoDe } from './orcamento';
 import type { OrcamentoDaOs } from '../../types';
 
 /**
- * OS DOIS CAMPOS DE DINHEIRO DE UMA OS, editáveis na própria linha.
+ * AS CÉLULAS DE DINHEIRO DE UMA OS — orçado e realizado abrem o detalhamento.
  *
- * Sem modal: o painel existe para preencher MUITAS OS, e um modal por linha
- * transforma "lançar o orçamento da semana" em vinte aberturas e vinte fechamentos.
- *
- * ⚠️ SALVA AO SAIR DO CAMPO, não a cada tecla. Gravar por tecla mandaria "2", "24",
- * "240" ao servidor — e a OS ficaria, por um instante, valendo R$ 2,00 para quem
- * abrisse a lista ao lado.
- *
- * ⚠️ E SÓ SALVA SE MUDOU. Passar pelo campo com Tab não é edição; sem esta guarda,
- * navegar pela tabela carimbaria `atualizadoPor` em toda OS que o cursor tocasse.
+ * ⚠️ O REALIZADO ERA DIGITADO NA LINHA ATÉ 16/10/2026 — sem nota fiscal nenhuma: 19
+ * OS tinham valor e nenhuma tinha comprovante. Agora ele abre o modal das notas
+ * (valor, data do pagamento, arquivo) e a célula mostra a soma (`realizadoEfetivo`).
  */
 
-const CAMPO =
-  'w-28 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-right text-sm ' +
-  'text-roman-text-main outline-none focus:border-roman-primary';
-
-export function CampoDeValor({
-  valor,
-  aoSalvar,
-  rotulo,
-}: {
-  valor?: string | null;
-  aoSalvar: (novo: string) => Promise<void>;
-  rotulo: string;
-}) {
-  const [texto, setTexto] = useState(valor ?? '');
-  const [salvando, setSalvando] = useState(false);
-  const [salvo, setSalvo] = useState(false);
-
-  // O valor pode mudar por fora (outra pessoa gravou, o poll trouxe). Enquanto o
-  // campo não está sendo editado, ele acompanha.
-  useEffect(() => {
-    if (!salvando) setTexto(valor ?? '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valor]);
-
-  const sair = async () => {
-    const novo = texto.trim();
-    if (novo === String(valor ?? '').trim()) return;
-    setSalvando(true);
-    try {
-      await aoSalvar(novo);
-      setSalvo(true);
-      window.setTimeout(() => setSalvo(false), 1200);
-    } finally {
-      setSalvando(false);
-    }
-  };
-
+/** A CÉLULA DO REALIZADO — a soma das notas (ou o valor digitado antes delas). */
+export function BotaoDeRealizado({ orcamento, onAbrir }: { orcamento?: OrcamentoDaOs | null; onAbrir: () => void }) {
+  const valor = realizadoEfetivo(orcamento);
+  const notas = orcamento?.notas?.length || 0;
+  const semArquivo = orcamento?.notas?.filter(n => !n.anexo).length || 0;
+  const semNota = valor !== null && notas === 0;
   return (
-    <span className="relative inline-flex items-center gap-1">
-      <input
-        aria-label={rotulo}
-        value={texto}
-        disabled={salvando}
-        onChange={e => setTexto(sanitizeCurrencyTypingInput(e.target.value))}
-        onBlur={sair}
-        onKeyDown={e => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          // Esc desfaz: quem digitou errado precisa de uma saída que não grave.
-          if (e.key === 'Escape') {
-            setTexto(valor ?? '');
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-        placeholder="—"
-        className={CAMPO}
-      />
-      {salvando && <Loader2 size={12} className="animate-spin text-roman-text-sub" />}
-      {salvo && !salvando && <Check size={12} className="text-roman-success" />}
-    </span>
+    <button
+      type="button"
+      onClick={onAbrir}
+      className="inline-flex items-center gap-1.5 rounded-sm border border-roman-border bg-roman-surface px-2 py-1 text-sm text-roman-text-main hover:border-roman-primary/50"
+      title="Abrir as notas fiscais desta OS"
+    >
+      <span className={valor === null ? 'text-roman-text-sub' : ''}>{valor === null ? '—' : formatCurrency(valor)}</span>
+      {notas > 0 && <span className="text-[10px] text-roman-text-sub">{notas} NF</span>}
+      {/* Nota lançada sem o arquivo: o valor conta, mas o comprovante falta. */}
+      {semArquivo > 0 && <span className="text-[10px] text-roman-danger">{semArquivo} sem arquivo</span>}
+      {/* Valor de antes das notas: aparece, mas avisa que não tem comprovante. */}
+      {semNota && <span className="text-[10px] text-roman-danger">sem NF</span>}
+    </button>
   );
 }
 

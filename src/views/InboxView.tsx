@@ -38,6 +38,7 @@ import { DateTimePicker } from './inbox/DateTimePicker';
 import { parseInputDateTime } from '../utils/date';
 import { NextActionStrip } from './inbox/NextActionStrip';
 import { responsavelAoAceitar } from './inbox/responsavelAoAceitar';
+import { CampoDataDaEtapa, aberturaDaOs, hojeEmFortaleza, problemaNaDataDaEtapa } from '../components/ui/CampoDataDaEtapa';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { TicketHistory } from './inbox/TicketHistory';
 import { mensagemDeErro } from '../utils/errorMessage';
@@ -345,6 +346,40 @@ export function InboxView() {
    */
   const stageLocked = !hasTickets;
   const hasStageChangePending = Boolean(statusDraft) && statusDraft !== activeTicket.status;
+
+  /**
+   * O DIA EM QUE A OS ENTROU NA ETAPA (16/10/2026). Padrão hoje: quem registra na hora
+   * não mexe; quem registra atrasado corrige. A data real da conclusão ia parar na
+   * observação, onde nenhum indicador lê. O servidor confere (api/_lib/dataDaEtapa.js)
+   * e é ela que vira `stageEnteredAt`, `closedAt` e o marco da etapa.
+   *
+   * ⚠️ VOLTA PARA HOJE a cada nova decisão (auditor, 16/10): ao trocar de OS, ao abrir o
+   * seletor de etapa, ao abrir o cancelamento e depois de cada gravação. Sem isso, a
+   * data escolhida para uma etapa vinha preenchida na próxima — e virava, sem ninguém
+   * escolher, a data oficial do encerramento. Também envelheceria de um dia para o outro.
+   */
+  const [dataDaEtapa, setDataDaEtapa] = useState(hojeEmFortaleza);
+  const voltarDataParaHoje = () => setDataDaEtapa(hojeEmFortaleza());
+  useEffect(() => {
+    setDataDaEtapa(hojeEmFortaleza());
+  }, [activeTicket.id, hasStageChangePending]);
+  // O mesmo limite do servidor: `time` é a abertura que a tela mostra.
+  const aberturaEmFortaleza = aberturaDaOs(activeTicket.time);
+  /** Avisa NA HORA o que o servidor recusaria (lá a recusa chega como "verifique a conexão"). */
+  const dataDaEtapaOk = () => {
+    const problema = problemaNaDataDaEtapa(dataDaEtapa, aberturaEmFortaleza);
+    if (problema) showToast(problema, 4000);
+    return !problema;
+  };
+  const campoDataDaEtapa = (rotulo: string) => (
+    <CampoDataDaEtapa
+      rotulo={rotulo}
+      valor={dataDaEtapa}
+      aoMudar={setDataDaEtapa}
+      abertura={aberturaEmFortaleza}
+      desabilitado={isSending}
+    />
+  );
   const canEditQuickPanel = canManageStatus || activeTicket.status === TICKET_STATUS.NEW;
   const actorRole = resolveActorRole(currentUser?.role);
   /**
@@ -946,6 +981,7 @@ export function InboxView() {
     const nextClassification = resolveClassificationSelection();
     const nextSector = ticketDetailsForm.sector.trim() || activeTicket.sector || 'Email';
     const nextLocation = ticketDetailsForm.location.trim() || activeTicket.location || '';
+    if (!dataDaEtapaOk()) return;
     // Quem aceita vira responsável, se a OS ainda não tem um — ver responsavelAoAceitar.
     const responsavel = responsavelAoAceitar(activeTicket, currentUser);
     setIsSending(true);
@@ -1005,13 +1041,14 @@ export function InboxView() {
               }]
             : []),
         ],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      }, { sendEmailUpdate: sendStatusEmailUpdate, statusDate: dataDaEtapa });
 
       if (!persisted) {
         showToast('A OS não foi aceita — verifique a conexão e tente de novo.', 5000);
         return;
       }
       setStatusDraft(TICKET_STATUS.WAITING_TECH_OPINION);
+      voltarDataParaHoje();
       showToast('Triagem concluída e OS aceita.', 2500);
     } finally {
       window.setTimeout(() => setIsSending(false), 600);
@@ -1158,6 +1195,7 @@ export function InboxView() {
         }
 
         if (items.length > 0 || newStatus !== activeTicket.status) {
+          if (newStatus !== activeTicket.status && !dataDaEtapaOk()) return;
           const persisted = await updateTicket(activeTicket.id, {
             status: newStatus,
             priority: ticketPriority || activeTicket.priority,
@@ -1173,13 +1211,14 @@ export function InboxView() {
                 ? [...(activeTicket.attachments || []), ...uploadedReplyAttachments]
                 : activeTicket.attachments,
             history: [...activeTicket.history, ...items],
-          }, newStatus !== activeTicket.status ? { sendEmailUpdate: notifyRequesterOfStatus } : undefined);
+          }, newStatus !== activeTicket.status ? { sendEmailUpdate: notifyRequesterOfStatus, statusDate: dataDaEtapa } : undefined);
           // Não persistiu: preserva o texto digitado e avisa (o retorno pula a
           // limpeza do composer no fim; o finally reseta isSending).
           if (!persisted) {
             showToast('Não foi possível salvar a atualização — verifique a conexão e tente de novo. Seu texto foi mantido.', 5000);
             return;
           }
+          if (newStatus !== activeTicket.status) voltarDataParaHoje();
 
           /*
            * DIZER QUE DEU CERTO.
@@ -1755,6 +1794,7 @@ export function InboxView() {
   const handleCancelTicket = () => {
     if (activeTicket.status === TICKET_STATUS.CANCELED) return;
     setPendingCancelTicketUpdates({ status: TICKET_STATUS.CANCELED });
+    voltarDataParaHoje();
     setShowActionsMenu(false);
     setShowCancelTicketModal(true);
   };
@@ -1763,6 +1803,7 @@ export function InboxView() {
     if (activeTicket.status === TICKET_STATUS.CANCELED) return;
     const reasonText = String(reason || '').trim();
     if (!reasonText) return;
+    if (!dataDaEtapaOk()) return;
     const updates = pendingCancelTicketUpdates || { status: TICKET_STATUS.CANCELED };
     try {
       const persisted = await updateTicket(activeTicket.id, {
@@ -1788,13 +1829,14 @@ export function InboxView() {
             visibility: 'internal' as const,
           },
         ],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      }, { sendEmailUpdate: sendStatusEmailUpdate, statusDate: dataDaEtapa });
       if (!persisted) {
         // O usuário PRECISA saber que a OS continua ativa. Modal aberto preserva
         // o motivo digitado para ele tentar de novo.
         showToast('A OS não foi cancelada — verifique a conexão e tente de novo.', 5000);
         return;
       }
+      voltarDataParaHoje();
       setPendingCancelTicketUpdates(null);
       setShowCancelTicketModal(false);
       setShowActionsMenu(false);
@@ -1817,6 +1859,7 @@ export function InboxView() {
       showToast('Informe o motivo para reabrir a OS.', 3000);
       return;
     }
+    if (!dataDaEtapaOk()) return;
     const nextStatus = resolveReopenStatus();
     try {
       const persisted = await updateTicket(activeTicket.id, {
@@ -1833,11 +1876,12 @@ export function InboxView() {
             visibility: 'internal',
           },
         ],
-      }, { sendEmailUpdate: sendStatusEmailUpdate });
+      }, { sendEmailUpdate: sendStatusEmailUpdate, statusDate: dataDaEtapa });
       if (!persisted) {
         showToast('A OS não foi reaberta — verifique a conexão e tente de novo.', 5000);
         return;
       }
+      voltarDataParaHoje();
       // statusDraft só acompanha DEPOIS da confirmação: antes, o seletor mostrava
       // o novo status mesmo quando a OS continuava encerrada no servidor.
       setStatusDraft(nextStatus);
@@ -2518,6 +2562,7 @@ export function InboxView() {
                               autoFocus
                             />
                           )}
+                          {hasStageChange && campoDataDaEtapa('Data em que entrou nesta etapa')}
                         </div>
                       )}
                     </div>
@@ -2773,6 +2818,7 @@ export function InboxView() {
                     </div>
                     {activeTicket.status === TICKET_STATUS.NEW ? (
                       <>
+                        {campoDataDaEtapa('Data da triagem')}
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -3078,6 +3124,7 @@ export function InboxView() {
 
                   {activeTicket.status === TICKET_STATUS.NEW ? (
                     <div className="grid grid-cols-1 gap-2">
+                      {campoDataDaEtapa('Data da triagem')}
                       <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={handleAcceptTicket}
@@ -3119,6 +3166,8 @@ export function InboxView() {
                           Salvar painel
                         </button>
                       )}
+                      {canManageStatus && ([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED] as Ticket['status'][]).includes(activeTicket.status) &&
+                        campoDataDaEtapa('Data da reabertura')}
                       {canManageStatus && ([TICKET_STATUS.CLOSED, TICKET_STATUS.CANCELED] as Ticket['status'][]).includes(activeTicket.status) && (
                         <button
                           onClick={handleReopenTicket}
@@ -3284,7 +3333,9 @@ export function InboxView() {
         isDestructive
         requireReason
         isLoading={isSending}
-      />
+      >
+        {campoDataDaEtapa('Data do cancelamento')}
+      </ConfirmModal>
 
       {/* Delete Modal */}
       {showDeleteTicketModal && (

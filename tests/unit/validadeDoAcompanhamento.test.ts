@@ -35,6 +35,13 @@ describe('validade do link de acompanhamento', () => {
     expect(acompanhamentoExpirado({ status: 'Encerrada', updatedAt: diasAtras(90) }, agora)).toBe(true);
   });
 
+  it('conclusão retroativa não vence o link: conta do REGISTRO do encerramento', () => {
+    // Concluída em 01/09 (closedAt), mas encerrada no sistema hoje.
+    const ticket = { status: 'Encerrada', closedAt: diasAtras(45), closedRegisteredAt: diasAtras(0) };
+    expect(acompanhamentoExpirado(ticket, agora)).toBe(false);
+    expect(acompanhamentoExpirado({ ...ticket, closedRegisteredAt: diasAtras(31) }, agora)).toBe(true);
+  });
+
   it('fechada sem data nenhuma: FECHADO — link eterno é o defeito', () => {
     expect(acompanhamentoExpirado({ status: 'Encerrada' }, agora)).toBe(true);
   });

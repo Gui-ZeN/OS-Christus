@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { ModalShell } from '../../components/ui/ModalShell';
+import { CampoDataDaEtapa, aberturaDaOs, hojeEmFortaleza, problemaNaDataDaEtapa } from '../../components/ui/CampoDataDaEtapa';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useApp } from '../../context/AppContext';
 import { getAllowedNextStatuses, type AppActorRole } from '../../constants/statusFlow';
@@ -38,6 +39,9 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
 
   const [destino, setDestino] = useState<TicketStatus | ''>('');
   const [motivo, setMotivo] = useState('');
+  // Dia em que a OS entrou na nova etapa (16/10/2026) — o mesmo campo da Caixa.
+  // O modal nasce a cada abertura, então começa sempre em hoje.
+  const [dataDaEtapa, setDataDaEtapa] = useState(hojeEmFortaleza);
   const [avisarSolicitante, setAvisarSolicitante] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -98,6 +102,11 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
 
   const salvar = async () => {
     if (!podeSalvar || !destino) return;
+    const problemaNaData = problemaNaDataDaEtapa(dataDaEtapa, aberturaDaOs(ticket.time));
+    if (problemaNaData) {
+      setErro(problemaNaData);
+      return;
+    }
     setSalvando(true);
     setErro('');
     try {
@@ -122,7 +131,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
       const ok = await updateTicket(
         ticket.id,
         { ...classificacao, status: destino, history: [...(ticket.history || []), entrada] },
-        { sendEmailUpdate: avisarSolicitante && avisoChegaAoSolicitante }
+        { sendEmailUpdate: avisarSolicitante && avisoChegaAoSolicitante, statusDate: dataDaEtapa }
       );
       // `updateTicket` reverte o otimista sozinho e não lança — o modal fica aberto
       // com o texto digitado em vez de fechar fingindo que salvou.
@@ -240,6 +249,14 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
             className="w-full resize-y rounded-sm border border-roman-border bg-roman-surface px-3 py-2 text-sm text-roman-text-main outline-none focus:border-roman-primary"
           />
         </label>
+
+        <CampoDataDaEtapa
+          rotulo="Data em que entrou nesta etapa"
+          valor={dataDaEtapa}
+          aoMudar={setDataDaEtapa}
+          abertura={aberturaDaOs(ticket.time)}
+          desabilitado={salvando}
+        />
 
         {/* Desmarcado por padrão: avisar o solicitante é decisão, não rotina. Cada
             troca de etapa vira e-mail para a sede se ninguém pensar a respeito. */}

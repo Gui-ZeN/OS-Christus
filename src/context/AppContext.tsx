@@ -25,6 +25,8 @@ interface TicketUpdateOptions {
    *  (o servidor aplica só o `time` da entrada; o array em `updates.history` é
    *  usado apenas para o update otimista local). */
   historyTimeEdit?: { id: string; time: string };
+  /** Dia (AAAA-MM-DD) em que a OS entrou na nova etapa; sem ele, vale o clique. */
+  statusDate?: string;
 }
 
 interface AppContextType {
@@ -565,7 +567,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // digitada em silêncio e podia notificar o solicitante de algo que não gravou.
     return (async () => {
       try {
-        await patchTicketInApi(id, updates, options?.historyTimeEdit ? { historyTimeEdit: options.historyTimeEdit } : undefined);
+        await patchTicketInApi(id, updates, {
+          ...(options?.historyTimeEdit ? { historyTimeEdit: options.historyTimeEdit } : {}),
+          ...(updates.status && options?.statusDate ? { statusDate: options.statusDate } : {}),
+        });
         confirmPendingTicketUpdate(id);
       } catch (error) {
         clearPendingTicketUpdate(id);

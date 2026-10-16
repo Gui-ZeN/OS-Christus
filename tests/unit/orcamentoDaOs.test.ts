@@ -6,6 +6,9 @@ import {
   resumoDoOrcamento,
   variacaoDe,
   previstoEfetivo,
+  problemasNasNotas,
+  realizadoEfetivo,
+  totalDasNotas,
   totalDosItens,
 } from '../../src/views/financeiro/orcamento';
 
@@ -249,5 +252,75 @@ describe('anexo único de antes de 15/10 vira lista de um', () => {
   it('a lista nova manda sobre o campo antigo', () => {
     const novo = { id: 'a3', name: 'nova.pdf', path: 'p3' } as never;
     expect(anexosDoOrcamento({ anexo: antigo, anexos: [novo] })).toEqual([novo]);
+  });
+});
+
+describe('realizado com notas fiscais (16/10/2026)', () => {
+  const nota = (valor: string, pagoEm: string | null = '2026-10-10') => ({ id: valor, valor, pagoEm, anexo: null });
+
+  it('com notas, o realizado é a soma delas', () => {
+    expect(realizadoEfetivo({ notas: [nota('1.000,00'), nota('250,50')] })).toBeCloseTo(1250.5);
+  });
+
+  it('as notas ganham do realizado digitado antes', () => {
+    expect(realizadoEfetivo({ realizado: '9.999', notas: [nota('100')] })).toBe(100);
+  });
+
+  it('sem notas, vale o realizado digitado (as 19 OS antigas)', () => {
+    expect(realizadoEfetivo({ realizado: '480' })).toBe(480);
+    expect(realizadoEfetivo({})).toBeNull();
+  });
+
+  it('nota sem valor legível não zera a soma', () => {
+    expect(totalDasNotas([nota('300'), nota('')])).toBe(300);
+    expect(totalDasNotas([nota('')])).toBeNull();
+  });
+
+  it('a variação usa a soma das notas', () => {
+    const v = variacaoDe({ previsto: '1.000', notas: [nota('600'), nota('500')] });
+    expect(v?.diferenca).toBe(100);
+  });
+
+  it('o resumo do painel conta a OS que só tem notas', () => {
+    const r = resumoDoOrcamento([{ orcamento: { notas: [nota('200')] } }, { orcamento: {} }]);
+    expect(r.comRegistro).toBe(1);
+    expect(r.realizado).toBe(200);
+  });
+
+  it('gravar descarta a nota em branco e guarda as preenchidas, com a data', () => {
+    const g = orcamentoParaGravar(undefined, { notas: [nota('150', '2026-10-01'), { id: 'x', valor: '', pagoEm: null, anexo: null }] }, 'Thais');
+    expect(g.notas).toEqual([{ id: '150', valor: '150', pagoEm: '2026-10-01', anexo: null }]);
+  });
+
+  it('salvar o orçado não apaga as notas', () => {
+    const g = orcamentoParaGravar({ notas: [nota('150')] }, { previsto: '200' }, 'Thais');
+    expect(g.notas).toHaveLength(1);
+  });
+});
+
+describe('o que o auditor achou nas notas (16/10/2026)', () => {
+  const pdf = { id: 'a', name: 'nf.pdf', path: 'p' } as never;
+
+  it('nota preenchida sem valor ou sem data não pode ser salva', () => {
+    expect(problemasNasNotas([{ id: '1', valor: '', pagoEm: '2026-10-10', anexo: pdf }])).toEqual(['Nota 1: falta valor.']);
+    expect(problemasNasNotas([{ id: '1', valor: '100', pagoEm: null, anexo: null }])).toEqual(['Nota 1: falta data do pagamento.']);
+    expect(problemasNasNotas([{ id: '1', valor: '', pagoEm: null, anexo: pdf }])).toEqual(['Nota 1: falta valor e data do pagamento.']);
+  });
+
+  it('a linha em branco e a nota sem arquivo não travam o salvar', () => {
+    expect(problemasNasNotas([{ id: '1', valor: '', pagoEm: null, anexo: null }])).toEqual([]);
+    expect(problemasNasNotas([{ id: '1', valor: '100', pagoEm: '2026-10-10', anexo: null }])).toEqual([]);
+  });
+
+  it('salvar notas substitui o realizado digitado antes — apagar as notas não o ressuscita', () => {
+    const comNotas = orcamentoParaGravar({ realizado: '500' }, { notas: [{ id: '1', valor: '100', pagoEm: '2026-10-10', anexo: null }] }, 'T');
+    expect(comNotas.realizado).toBeNull();
+    expect(realizadoEfetivo(comNotas)).toBe(100);
+    const semNotas = orcamentoParaGravar(comNotas, { notas: [] }, 'T');
+    expect(realizadoEfetivo(semNotas)).toBeNull();
+  });
+
+  it('salvar só o orçado não mexe no realizado digitado antes', () => {
+    expect(orcamentoParaGravar({ realizado: '500' }, { previsto: '600' }, 'T').realizado).toBe('500');
   });
 });

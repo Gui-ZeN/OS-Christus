@@ -371,6 +371,8 @@ export async function createTicketWithFilesInApi(ticket: Partial<Ticket>, files:
 export interface TicketPatchExtras {
   /** Edição pontual do horário de UMA entrada de histórico já existente. */
   historyTimeEdit?: { id: string; time: string };
+  /** Dia (AAAA-MM-DD) em que a OS entrou na nova etapa — o servidor confere. */
+  statusDate?: string;
 }
 
 export async function patchTicketInApi(id: string, updates: Partial<Ticket>, extras?: TicketPatchExtras) {
@@ -378,7 +380,12 @@ export async function patchTicketInApi(id: string, updates: Partial<Ticket>, ext
   const response = await fetch('/api/tickets', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify({ id, updates, ...(extras?.historyTimeEdit ? { historyTimeEdit: extras.historyTimeEdit } : {}) }),
+    body: JSON.stringify({
+      id,
+      updates,
+      ...(extras?.historyTimeEdit ? { historyTimeEdit: extras.historyTimeEdit } : {}),
+      ...(extras?.statusDate ? { statusDate: extras.statusDate } : {}),
+    }),
   });
   await expectApiJson(response, 'Falha ao atualizar ticket na API.');
 }

@@ -12,6 +12,8 @@ interface ConfirmModalProps {
   isDestructive?: boolean;
   requireReason?: boolean;
   isLoading?: boolean;
+  /** Campos extras abaixo do motivo (ex.: a data em que a OS entrou na etapa). */
+  children?: React.ReactNode;
 }
 
 export function ConfirmModal({
@@ -24,7 +26,8 @@ export function ConfirmModal({
   cancelText = 'Cancelar',
   isDestructive = false,
   requireReason = false,
-  isLoading = false
+  isLoading = false,
+  children,
 }: ConfirmModalProps) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -158,6 +161,10 @@ export function ConfirmModal({
                   {error && <p className="text-xs text-roman-danger mt-1">{error}</p>}
                 </div>
               )}
+
+              {/* Depois do motivo: o foco inicial cai no primeiro campo, e o motivo é o
+                  que a pessoa sempre precisa digitar. */}
+              {children && <div className="mt-3">{children}</div>}
             </div>
           </div>
         </div>

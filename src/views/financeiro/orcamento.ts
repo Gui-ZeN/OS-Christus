@@ -1,5 +1,5 @@
 import { parseCurrencyOrNull } from '../../../api/_lib/currency.js';
-import type { ItemDoOrcamento, OrcamentoDaOs, Ticket, TicketAttachment } from '../../types';
+import type { ItemDoOrcamento, NotaFiscalDaOs, OrcamentoDaOs, Ticket, TicketAttachment } from '../../types';
 
 /**
  * A CONTA DO ORÇAMENTO — orçado, realizado, e a diferença entre os dois.
@@ -45,6 +45,49 @@ export function previstoEfetivo(orcamento?: OrcamentoDaOs | null): number | null
   return daSoma !== null ? daSoma : valorDe(orcamento?.previsto);
 }
 
+/** A soma das notas fiscais. `null` quando nenhuma nota tem valor legível. */
+export function totalDasNotas(notas?: NotaFiscalDaOs[] | null): number | null {
+  const valores = (Array.isArray(notas) ? notas : [])
+    .map(nota => valorDe(nota?.valor))
+    .filter((v): v is number => v !== null);
+  if (valores.length === 0) return null;
+  return valores.reduce((soma, v) => soma + v, 0);
+}
+
+/** A nota foi tocada? A linha em branco do modal não conta. */
+const notaPreenchida = (n?: NotaFiscalDaOs | null) => Boolean(String(n?.valor ?? '').trim() || n?.pagoEm || n?.anexo);
+
+/**
+ * O que falta em cada nota preenchida para poder salvar. Vazio = pode.
+ *
+ * ⚠️ VALOR E DATA SÃO OBRIGATÓRIOS (auditor, 16/10): nota só com arquivo era gravada
+ * com valor vazio, a célula mostrava "1 NF" e o realizado caía no valor digitado
+ * antes — dois números misturados. O ARQUIVO não trava o salvar (a nota chega depois
+ * do pagamento, às vezes), mas a nota sem ele aparece como "sem arquivo".
+ */
+export function problemasNasNotas(notas?: NotaFiscalDaOs[] | null): string[] {
+  return (Array.isArray(notas) ? notas : []).flatMap((nota, i) => {
+    if (!notaPreenchida(nota)) return [];
+    const falta = [
+      valorDe(nota.valor) === null ? 'valor' : null,
+      /^\d{4}-\d{2}-\d{2}$/.test(String(nota.pagoEm || '')) ? null : 'data do pagamento',
+    ].filter(Boolean);
+    return falta.length ? [`Nota ${i + 1}: falta ${falta.join(' e ')}.`] : [];
+  });
+}
+
+/**
+ * O REALIZADO QUE VALE — a soma das notas quando elas existem, senão o digitado.
+ *
+ * ⚠️ MESMA REGRA DO ORÇADO (`previstoEfetivo`): o detalhamento ganha do número solto.
+ * Até 16/10/2026 o realizado era só um valor digitado, sem nota nenhuma; as 19 OS que
+ * têm esse valor continuam mostrando ele até ganharem notas.
+ */
+export function realizadoEfetivo(orcamento?: OrcamentoDaOs | null): number | null {
+  const daSoma = totalDasNotas(orcamento?.notas);
+  return daSoma !== null ? daSoma : valorDe(orcamento?.realizado);
+}
+
 export interface Variacao {
   /** Realizado menos orçado. Negativo = gastou menos que o previsto. */
   diferenca: number;
@@ -67,7 +110,7 @@ export interface Variacao {
  */
 export function variacaoDe(orcamento?: OrcamentoDaOs | null): Variacao | null {
   const previsto = previstoEfetivo(orcamento);
-  const realizado = valorDe(orcamento?.realizado);
+  const realizado = realizadoEfetivo(orcamento);
   if (previsto === null || realizado === null) return null;
   return {
     diferenca: realizado - previsto,
@@ -80,7 +123,7 @@ export type EstadoDoOrcamento = 'vazio' | 'so-previsto' | 'so-realizado' | 'comp
 
 export function estadoDoOrcamento(orcamento?: OrcamentoDaOs | null): EstadoDoOrcamento {
   const temPrevisto = previstoEfetivo(orcamento) !== null;
-  const temRealizado = valorDe(orcamento?.realizado) !== null;
+  const temRealizado = realizadoEfetivo(orcamento) !== null;
   if (temPrevisto && temRealizado) return 'completo';
   if (temPrevisto) return 'so-previsto';
   if (temRealizado) return 'so-realizado';
@@ -122,7 +165,7 @@ export function resumoDoOrcamento(tickets: Array<Pick<Ticket, 'orcamento'>>): Re
   for (const ticket of tickets) {
     // O mesmo orçado que a linha mostra: a soma das linhas quando elas existem.
     const previsto = previstoEfetivo(ticket.orcamento);
-    const realizado = valorDe(ticket.orcamento?.realizado);
+    const realizado = realizadoEfetivo(ticket.orcamento);
     if (previsto === null && realizado === null) {
       resumo.semRegistro += 1;
       continue;
@@ -164,6 +207,7 @@ export function orcamentoParaGravar(
     realizado?: string | null;
     itens?: ItemDoOrcamento[] | null;
     anexos?: TicketAttachment[] | null;
+    notas?: NotaFiscalDaOs[] | null;
   },
   quem: string,
   agora: Date = new Date()
@@ -177,15 +221,31 @@ export function orcamentoParaGravar(
    * em branco para haver onde digitar; sem esta limpeza, abrir e fechar sem escrever
    * nada gravaria uma linha fantasma que aparece vazia toda vez que alguém reabre.
    */
+  const notasGravadas = 'notas' in entrada
+    ? (entrada.notas || [])
+        .filter(notaPreenchida)
+        .map(n => ({ id: n.id, valor: String(n.valor ?? '').trim(), pagoEm: n.pagoEm || null, anexo: n.anexo ?? null }))
+    : (atual?.notas ?? []);
+  /**
+   * ⚠️ SALVAR NOTAS SUBSTITUI O REALIZADO DIGITADO ANTES (auditor, 16/10). Sem isso,
+   * apagar todas as notas ressuscitava o número antigo, sem comprovante.
+   */
+  const realizadoDigitado = 'realizado' in entrada
+    ? limpo(entrada.realizado)
+    : 'notas' in entrada && notasGravadas.length > 0
+      ? null
+      : (atual?.realizado ?? null);
   const itens = 'itens' in entrada
     ? (entrada.itens || []).filter(i => String(i?.descricao ?? '').trim() || String(i?.valor ?? '').trim())
     : (atual?.itens ?? []);
 
   return {
     previsto: 'previsto' in entrada ? limpo(entrada.previsto) : (atual?.previsto ?? null),
-    realizado: 'realizado' in entrada ? limpo(entrada.realizado) : (atual?.realizado ?? null),
+    realizado: realizadoDigitado,
     itens,
     anexos: 'anexos' in entrada ? (entrada.anexos || []) : anexosDoOrcamento(atual),
+    // Nota sem valor, sem data e sem arquivo é a linha em branco do modal: não grava.
+    notas: notasGravadas,
     // O campo antigo sai na primeira gravação: a lista já carrega o que ele tinha.
     anexo: null,
     atualizadoEm: agora.toISOString(),

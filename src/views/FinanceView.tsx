@@ -14,10 +14,11 @@ import { formatCurrency } from '../utils/currency';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { etapaDe as etapaDoStatus, ORDEM_DAS_ETAPAS } from '../../api/_lib/etapas.js';
 import { passaNoRecorte } from './osboard/recorte';
-import { BotaoDeOrcado, CampoDeValor, Variacao } from './financeiro/LinhaDeOrcamento';
+import { BotaoDeOrcado, BotaoDeRealizado, Variacao } from './financeiro/LinhaDeOrcamento';
+import { ModalDeRealizado } from './financeiro/ModalDeRealizado';
 import { ModalDeOrcamento } from './financeiro/ModalDeOrcamento';
-import { orcamentoParaGravar, resumoDoOrcamento } from './financeiro/orcamento';
-import type { ItemDoOrcamento, Ticket, TicketAttachment } from '../types';
+import { estadoDoOrcamento, orcamentoParaGravar, resumoDoOrcamento } from './financeiro/orcamento';
+import type { ItemDoOrcamento, NotaFiscalDaOs, Ticket, TicketAttachment } from '../types';
 
 /**
  * PAINEL FINANCEIRO — o que cada OS custou.
@@ -61,6 +62,7 @@ export function FinanceView() {
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   /** A OS cujo orçamento está aberto. Um modal para a tabela inteira. */
   const [orcamentoDe, setOrcamentoDe] = useState<Ticket | null>(null);
+  const [realizadoDe, setRealizadoDe] = useState<Ticket | null>(null);
 
   const podeAcessar = currentUser?.role === 'Admin' || currentUser?.role === 'Gestor';
 
@@ -113,7 +115,8 @@ export function FinanceView() {
         if (!mostrarEncerradas && etapa.length === 0 && !isTicketOpen(d.ticket.status)) return false;
         // ⚠️ O ATALHO QUE FAZ O PAINEL SER USADO: "o que ainda não tem valor". Sem
         // ele, achar as OS por preencher é rolar a lista inteira procurando traço.
-        if (soSemRegistro && (d.ticket.orcamento?.previsto || d.ticket.orcamento?.realizado)) return false;
+        // "Tem valor" segue a mesma conta da tabela: linhas do orçado e notas do realizado contam.
+        if (soSemRegistro && estadoDoOrcamento(d.ticket.orcamento) !== 'vazio') return false;
         const palheiro = `${d.ticket.id} ${repairMojibake(d.ticket.subject)} ${d.siteLabel} ${d.ticket.sede || ''}`;
         return matchesSearch(palheiro, busca);
       })
@@ -124,8 +127,8 @@ export function FinanceView() {
 
   const gravar = async (
     ticket: Ticket,
-    entrada: { previsto?: string; realizado?: string; itens?: ItemDoOrcamento[]; anexos?: TicketAttachment[] }
-  ) => {
+    entrada: { previsto?: string; itens?: ItemDoOrcamento[]; anexos?: TicketAttachment[]; notas?: NotaFiscalDaOs[] }
+  ): Promise<boolean> => {
     const quem = currentUser?.name || currentUser?.email || '';
     const orcamento = orcamentoParaGravar(ticket.orcamento, entrada, quem);
     try {
@@ -134,9 +137,21 @@ export function FinanceView() {
       // e ver o campo continuar vazio na tela pareceria sucesso — e o número velho
       // voltaria no próximo carregamento.
       if (!salvou) showToast(`Não foi possível salvar o valor da ${ticket.id}. Verifique a conexão.`, 5000);
+      return salvou;
     } catch (erro) {
       showToast(mensagemDeErro(erro, `Falha ao salvar o valor da ${ticket.id}.`), 5000);
+      return false;
     }
+  };
+
+  /**
+   * ⚠️ O MODAL SÓ FECHA SE GRAVOU (auditor, 16/10). `gravar` não lança, e os modais
+   * fechavam em qualquer caso: sem rede, as notas digitadas sumiam e o arquivo já
+   * enviado ficava órfão no Storage. Lançar aqui mantém o modal aberto com o que foi
+   * digitado.
+   */
+  const gravarOuFalhar = async (ticket: Ticket, entrada: Parameters<typeof gravar>[1]) => {
+    if (!(await gravar(ticket, entrada))) throw new Error('Não foi possível salvar. Verifique a conexão e tente de novo.');
   };
 
   if (!podeAcessar) {
@@ -275,7 +290,7 @@ export function FinanceView() {
                     <BotaoDeOrcado orcamento={ticket.orcamento} onAbrir={() => setOrcamentoDe(ticket)} />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <CampoDeValor rotulo={`Valor realizado da ${ticket.id}`} valor={ticket.orcamento?.realizado} aoSalvar={v => gravar(ticket, { realizado: v })} />
+                    <BotaoDeRealizado orcamento={ticket.orcamento} onAbrir={() => setRealizadoDe(ticket)} />
                   </td>
                   <td className="whitespace-nowrap px-3 py-2"><Variacao orcamento={ticket.orcamento} /></td>
                 </tr>
@@ -293,7 +308,14 @@ export function FinanceView() {
           ticket={orcamentoDe}
           onFechar={() => setOrcamentoDe(null)}
           onSalvar={async entrada => {
-            if (orcamentoDe) await gravar(orcamentoDe, entrada);
+            if (orcamentoDe) await gravarOuFalhar(orcamentoDe, entrada);
+          }}
+        />
+        <ModalDeRealizado
+          ticket={realizadoDe}
+          onFechar={() => setRealizadoDe(null)}
+          onSalvar={async entrada => {
+            if (realizadoDe) await gravarOuFalhar(realizadoDe, entrada);
           }}
         />
       </div>

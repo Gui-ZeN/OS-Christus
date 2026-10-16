@@ -55,6 +55,7 @@ import { filterTicketPatchFields } from './_lib/ticketPatchScope.js';
 import { notificationTtlAt } from './_lib/notificationState.js';
 import { handleResumoExecutivo } from './_lib/resumoExecutivo.js';
 import { MENSAGEM_DE_LINK_EXPIRADO, acompanhamentoExpirado } from './_lib/validadeDoAcompanhamento.js';
+import { resolverDataDaEtapa } from './_lib/dataDaEtapa.js';
 // A rota /api/report-pdf vive AQUI (relatório gerencial DAS OS). Limite de 12
 // Serverless Functions no plano Hobby: o vercel.json reescreve /api/report-pdf ->
 // /api/tickets?route=report-pdf, então o front continua igual.
@@ -1630,8 +1631,14 @@ async function handleRevisaoSemanal(req, res) {
         const extrasDoDesfazer = {};
         if (efeito.status && efeito.status !== ticket.status) {
           extrasDoDesfazer.stageEnteredAt = agora;
-          if (CLOSED_STATUSES.has(efeito.status)) extrasDoDesfazer.closedAt = agora;
-          else if (CLOSED_STATUSES.has(String(ticket.status || ''))) extrasDoDesfazer.closedAt = null;
+          // `closedRegisteredAt` anda junto: o prazo do link público conta dele.
+          if (CLOSED_STATUSES.has(efeito.status)) {
+            extrasDoDesfazer.closedAt = agora;
+            extrasDoDesfazer.closedRegisteredAt = agora;
+          } else if (CLOSED_STATUSES.has(String(ticket.status || ''))) {
+            extrasDoDesfazer.closedAt = null;
+            extrasDoDesfazer.closedRegisteredAt = null;
+          }
         }
         await ref.update({
           ...efeito,
@@ -1664,8 +1671,13 @@ async function handleRevisaoSemanal(req, res) {
       const extras = {};
       if (efeito.status && efeito.status !== ticket.status) {
         extras.stageEnteredAt = agora;
-        if (CLOSED_STATUSES.has(efeito.status)) extras.closedAt = agora;
-        else if (CLOSED_STATUSES.has(String(ticket.status || ''))) extras.closedAt = null;
+        if (CLOSED_STATUSES.has(efeito.status)) {
+          extras.closedAt = agora;
+          extras.closedRegisteredAt = agora;
+        } else if (CLOSED_STATUSES.has(String(ticket.status || ''))) {
+          extras.closedAt = null;
+          extras.closedRegisteredAt = null;
+        }
         const marcos = addStageMarco(ticket.marcos, efeito.status, agora);
         if (marcos) extras.marcos = marcos;
         const semData = aplicarMarcosSemData(marcos || ticket.marcos, ticket.marcosSemData, efeito.status);
@@ -2191,7 +2203,21 @@ export default async function handler(req, res) {
           // Existe porque cada regra precisa do SEU relógio: "parada" e "parada nesta
           // etapa" são perguntas diferentes, e responder as duas com o mesmo carimbo
           // dá precisão aparente com semântica errada.
-          payload.stageEnteredAt = new Date();
+          //
+          // ⚠️ DESDE 16/10/2026 A DATA PODE SER INFORMADA (`body.statusDate`): a operação
+          // registra atrasado, e a data real da conclusão ia para a observação. O
+          // servidor continua decidindo — recusa futuro e data anterior à abertura —,
+          // e sem a data vale o clique, como antes. Ver api/_lib/dataDaEtapa.js.
+          // Limite = `time`, a abertura que a TELA mostra e usa como mínimo do campo.
+          // Com `createdAt` primeiro, OS registrada hoje com data retroativa (o caso
+          // de registrar atrasado) era recusada com o campo dizendo que podia.
+          const registradoAgora = new Date();
+          const dataDaEtapa = resolverDataDaEtapa(body?.statusDate, {
+            agora: registradoAgora,
+            abertaEm: toDateOrNull(data.time) || toDateOrNull(data.createdAt),
+          });
+          if (dataDaEtapa.erro) return { invalidStatusDate: dataDaEtapa.erro };
+          payload.stageEnteredAt = dataDaEtapa.data;
 
           // Quando a OS SAIU da fila. Carimbado aqui pela mesma razão do
           // `stageEnteredAt`: sair da fila é um evento, e evento que depende de a
@@ -2207,8 +2233,13 @@ export default async function handler(req, res) {
           // tela e morta no gráfico.
           if (CLOSED_STATUSES.has(updates.status)) {
             payload.closedAt = payload.stageEnteredAt;
+            // Quando o encerramento foi REGISTRADO, separado da data informada: o prazo
+            // do link público conta daqui (validadeDoAcompanhamento.js). Encerrar hoje
+            // com a conclusão de 01/09 não pode vencer o link do solicitante na hora.
+            payload.closedRegisteredAt = registradoAgora;
           } else if (CLOSED_STATUSES.has(data.status)) {
             payload.closedAt = null;
+            payload.closedRegisteredAt = null;
           }
 
           // O marco PERMANENTE da etapa, ao lado do relógio que é sobrescrito.
@@ -2216,7 +2247,14 @@ export default async function handler(req, res) {
           // numa segunda escrita ele poderia falhar sozinho e a linha do tempo ficaria
           // com buraco justamente na OS que se moveu. `marcos` não está na allow-list
           // do PATCH (`ticketPatchScope.js`), então é campo só-servidor por construção.
-          const marcos = addStageMarco(data.marcos, updates.status, payload.stageEnteredAt);
+          // ⚠️ DATA INFORMADA SOBRESCREVE O MARCO (auditor, 16/10). `addStageMarco` guarda
+          // a PRIMEIRA vez e não sobrescreve — certo para o clique, errado quando a
+          // pessoa diz a data oficial: encerrar por engano, reabrir e encerrar com a data
+          // real deixaria o marco no engano e o `closedAt` na data real.
+          const dataFoiInformada = payload.stageEnteredAt !== registradoAgora;
+          const marcos = dataFoiInformada
+            ? { ...(data.marcos && typeof data.marcos === 'object' ? data.marcos : {}), [updates.status]: payload.stageEnteredAt }
+            : addStageMarco(data.marcos, updates.status, payload.stageEnteredAt);
           if (marcos) payload.marcos = marcos;
           // Os marcos ANTERIORES que a OS ultrapassou sem carimbo — "aconteceu, o
           // sistema não sabe quando". Mesma transação, mesmo motivo do comentário
@@ -2333,6 +2371,7 @@ export default async function handler(req, res) {
       const recusa =
         (txResult.retiredStatus && { motivo: 'etapa-aposentada', detalhe: txResult.retiredStatus }) ||
         (txResult.invalidStatus && { motivo: 'status-invalido', detalhe: txResult.invalidStatus }) ||
+        (txResult.invalidStatusDate && { motivo: 'data-da-etapa-invalida', detalhe: String(body?.statusDate || '').slice(0, 40) }) ||
         (txResult.invalidTransition && {
           motivo: 'transicao-nao-permitida',
           detalhe: `${txResult.invalidTransition.from} -> ${txResult.invalidTransition.to}`,
@@ -2364,6 +2403,9 @@ export default async function handler(req, res) {
       }
       if (txResult.invalidStatus) {
         return sendJson(res, 400, { ok: false, error: `Status inválido: "${txResult.invalidStatus}".` });
+      }
+      if (txResult.invalidStatusDate) {
+        return sendJson(res, 400, { ok: false, error: txResult.invalidStatusDate });
       }
       if (txResult.invalidTransition) {
         return sendJson(res, 409, {
