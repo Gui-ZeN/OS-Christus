@@ -4,6 +4,7 @@ import {
   canRoleReadAttachmentPath,
   findAttachmentReference,
   isAttachmentPathInTicketScope,
+  pinServerOnlyAttachmentFields,
 } from '../../api/_lib/attachmentAccess.js';
 
 describe('canRoleReadAttachmentPath (escopo de leitura por papel)', () => {
@@ -122,3 +123,65 @@ describe('attachment access', () => {
   });
 });
 
+
+describe('pinServerOnlyAttachmentFields (driveFileId é só do servidor)', () => {
+  const pathA = 'attachments/tickets/pdfs/OS-A/orcamento.pdf';
+  const stored = {
+    attachments: [{ name: 'orcamento.pdf', path: pathA, archived: true, driveFileId: 'drive-A', archivedAt: 'quando' }],
+  };
+
+  it('descarta driveFileId forjado em anexo novo, em qualquer profundidade', () => {
+    const forged = { path: 'attachments/tickets/quotes/OS-A/x.pdf', driveFileId: 'drive-B', archived: true, archivedAt: 'x' };
+    const pinned = pinServerOnlyAttachmentFields(
+      {
+        attachments: [forged],
+        orcamento: { anexos: [forged], notas: [{ texto: 'n', anexo: forged }] },
+        history: [{ id: 'h1', attachments: [forged] }],
+      },
+      stored
+    );
+    const json = JSON.stringify(pinned);
+    expect(json).not.toContain('drive-B');
+    expect(json).not.toContain('archived');
+    expect(pinned.orcamento.notas[0].anexo).toEqual({ path: forged.path });
+  });
+
+  it('troca o driveFileId forjado de um anexo existente pelo que estava gravado', () => {
+    const pinned = pinServerOnlyAttachmentFields(
+      { attachments: [{ name: 'orcamento.pdf', path: pathA, driveFileId: 'drive-B', archived: false }] },
+      stored
+    );
+    expect(pinned.attachments[0]).toEqual(stored.attachments[0]);
+  });
+
+  it('anexo arquivado reenviado SEM os campos continua arquivado', () => {
+    const pinned = pinServerOnlyAttachmentFields({ attachments: [{ name: 'orcamento.pdf', path: pathA }] }, stored);
+    expect(pinned.attachments[0].driveFileId).toBe('drive-A');
+    expect(pinned.attachments[0].archived).toBe(true);
+  });
+
+  it('NÃO repõe quando outra chave de path diverge (Diretor puxando o driveFileId do pagamento)', () => {
+    const payments = 'attachments/tickets/payments/OS-A/recibo.pdf';
+    const pinned = pinServerOnlyAttachmentFields(
+      { history: [{ id: 'h', attachments: [{ path: 'attachments/tickets/messages/OS-A/x.pdf', attachmentPath: payments }] }] },
+      { pagamento: { attachmentPath: payments, driveFileId: 'D-PAG', archived: true } }
+    );
+    expect(JSON.stringify(pinned)).not.toContain('D-PAG');
+  });
+
+  it('preserva Date e o resto do payload', () => {
+    const time = new Date('2026-10-16T12:00:00Z');
+    const pinned = pinServerOnlyAttachmentFields({ status: 'X', history: [{ id: 'h', time }] }, {});
+    expect(pinned.status).toBe('X');
+    expect(pinned.history[0].time).toBe(time);
+  });
+
+  it('com o PATCH fixado, o download não acha o driveFileId forjado (404)', () => {
+    const pinned = pinServerOnlyAttachmentFields(
+      { attachments: [{ path: 'attachments/tickets/quotes/OS-A/x.pdf', driveFileId: 'drive-B' }] },
+      {}
+    );
+    const ref = findAttachmentReference(pinned, { path: 'attachments/tickets/quotes/OS-A/x.pdf', driveFileId: 'drive-B' });
+    expect(ref).toBeNull();
+  });
+});
