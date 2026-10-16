@@ -24,10 +24,10 @@ export function diaEmFortaleza(instante) {
 
 /**
  * @param {string|null|undefined} statusDate  o que a tela mandou
- * @param {{ agora: Date, abertaEm?: Date|null }} contexto
+ * @param {{ agora: Date, abertaEm?: Date|null, entrouNaAtualEm?: Date|null }} contexto
  * @returns {{ data: Date } | { erro: string }}
  */
-export function resolverDataDaEtapa(statusDate, { agora, abertaEm = null }) {
+export function resolverDataDaEtapa(statusDate, { agora, abertaEm = null, entrouNaAtualEm = null }) {
   const informada = String(statusDate || '').trim();
   if (!informada) return { data: agora };
   if (!DATA_VALIDA.test(informada) || Number.isNaN(new Date(`${informada}T12:00:00Z`).getTime())) {
@@ -41,6 +41,13 @@ export function resolverDataDaEtapa(statusDate, { agora, abertaEm = null }) {
 
   if (abertaEm && informada < diaEmFortaleza(abertaEm)) {
     return { erro: 'A data da etapa não pode ser anterior à abertura da OS.' };
+  }
+  // ⚠️ NEM ANTES DA ETAPA ATUAL (decisão do dono, 16/10/2026). Sem esta trava, encerrar
+  // com "01/09" uma OS que entrou em execução hoje deixava o encerramento antes da
+  // execução — e o tempo por etapa saía NEGATIVO nos relatórios e no resumo executivo.
+  if (entrouNaAtualEm && informada < diaEmFortaleza(entrouNaAtualEm)) {
+    const [ano, mes, dia] = diaEmFortaleza(entrouNaAtualEm).split('-');
+    return { erro: `A data não pode ser anterior à entrada na etapa atual (${dia}/${mes}/${ano}).` };
   }
   // Dia passado: meio-dia em Fortaleza, longe das duas viradas de dia.
   return { data: new Date(`${informada}T12:00:00-03:00`) };

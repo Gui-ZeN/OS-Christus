@@ -38,7 +38,7 @@ import { DateTimePicker } from './inbox/DateTimePicker';
 import { parseInputDateTime } from '../utils/date';
 import { NextActionStrip } from './inbox/NextActionStrip';
 import { responsavelAoAceitar } from './inbox/responsavelAoAceitar';
-import { CampoDataDaEtapa, aberturaDaOs, hojeEmFortaleza, problemaNaDataDaEtapa } from '../components/ui/CampoDataDaEtapa';
+import { CampoDataDaEtapa, hojeEmFortaleza, limitesDaData, problemaNaDataDaEtapa } from '../components/ui/CampoDataDaEtapa';
 import { ThirdPartyModal } from './inbox/ThirdPartyModal';
 import { TicketHistory } from './inbox/TicketHistory';
 import { mensagemDeErro } from '../utils/errorMessage';
@@ -363,11 +363,11 @@ export function InboxView() {
   useEffect(() => {
     setDataDaEtapa(hojeEmFortaleza());
   }, [activeTicket.id, hasStageChangePending]);
-  // O mesmo limite do servidor: `time` é a abertura que a tela mostra.
-  const aberturaEmFortaleza = aberturaDaOs(activeTicket.time);
+  // Os mesmos limites do servidor: a abertura (`time`) e a entrada na etapa atual.
+  const limitesDaDataDaEtapa = limitesDaData(activeTicket);
   /** Avisa NA HORA o que o servidor recusaria (lá a recusa chega como "verifique a conexão"). */
   const dataDaEtapaOk = () => {
-    const problema = problemaNaDataDaEtapa(dataDaEtapa, aberturaEmFortaleza);
+    const problema = problemaNaDataDaEtapa(dataDaEtapa, limitesDaDataDaEtapa);
     if (problema) showToast(problema, 4000);
     return !problema;
   };
@@ -376,7 +376,7 @@ export function InboxView() {
       rotulo={rotulo}
       valor={dataDaEtapa}
       aoMudar={setDataDaEtapa}
-      abertura={aberturaEmFortaleza}
+      limites={limitesDaDataDaEtapa}
       desabilitado={isSending}
     />
   );

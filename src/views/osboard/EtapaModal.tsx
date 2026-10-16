@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { ModalShell } from '../../components/ui/ModalShell';
-import { CampoDataDaEtapa, aberturaDaOs, hojeEmFortaleza, problemaNaDataDaEtapa } from '../../components/ui/CampoDataDaEtapa';
+import { CampoDataDaEtapa, hojeEmFortaleza, limitesDaData, problemaNaDataDaEtapa } from '../../components/ui/CampoDataDaEtapa';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useApp } from '../../context/AppContext';
 import { getAllowedNextStatuses, type AppActorRole } from '../../constants/statusFlow';
@@ -102,7 +102,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
 
   const salvar = async () => {
     if (!podeSalvar || !destino) return;
-    const problemaNaData = problemaNaDataDaEtapa(dataDaEtapa, aberturaDaOs(ticket.time));
+    const problemaNaData = problemaNaDataDaEtapa(dataDaEtapa, limitesDaData(ticket));
     if (problemaNaData) {
       setErro(problemaNaData);
       return;
@@ -254,7 +254,7 @@ export function EtapaModal({ ticketId, onClose }: { ticketId: string; onClose: (
           rotulo="Data em que entrou nesta etapa"
           valor={dataDaEtapa}
           aoMudar={setDataDaEtapa}
-          abertura={aberturaDaOs(ticket.time)}
+          limites={limitesDaData(ticket)}
           desabilitado={salvando}
         />
 

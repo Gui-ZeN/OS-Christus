@@ -45,3 +45,22 @@ describe('data da etapa', () => {
     expect('erro' in resolver('2026-13-01')).toBe(true);
   });
 });
+
+describe('trava: não antes da entrada na etapa atual (16/10/2026)', () => {
+  const entrouNaAtualEm = new Date('2026-10-12T10:00:00-03:00');
+  const r = (d: string) => resolverDataDaEtapa(d, { agora, abertaEm, entrouNaAtualEm });
+
+  it('o dia em que entrou na etapa atual é aceito; depois também', () => {
+    expect('data' in r('2026-10-12')).toBe(true);
+    expect('data' in r('2026-10-14')).toBe(true);
+  });
+
+  it('antes dele, não — o tempo por etapa sairia negativo', () => {
+    expect(r('2026-10-11')).toEqual({ erro: 'A data não pode ser anterior à entrada na etapa atual (12/10/2026).' });
+  });
+
+  it('a abertura continua valendo quando a etapa atual é mais antiga', () => {
+    const antiga = resolverDataDaEtapa('2026-09-30', { agora, abertaEm, entrouNaAtualEm: new Date('2026-09-01T10:00:00-03:00') });
+    expect(antiga).toEqual({ erro: 'A data da etapa não pode ser anterior à abertura da OS.' });
+  });
+});

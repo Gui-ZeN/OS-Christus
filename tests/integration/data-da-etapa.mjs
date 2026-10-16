@@ -107,6 +107,13 @@ check('e a etapa não muda', t.status === 'Aguardando Parecer Técnico', t.statu
 r = await patch(token, { id: OS, updates: { status: 'Em andamento' }, statusDate: dia(-11) });
 check('data anterior à abertura é recusada com 400', r.status === 400, `HTTP ${r.status} ${r.json?.error || ''}`);
 
+// 3b. TRAVA (decisão do dono, 16/10): antes da entrada na etapa atual, não — o tempo
+// por etapa sairia negativo. A OS entrou na etapa atual em dia(-7).
+r = await patch(token, { id: OS, updates: { status: 'Encerrada' }, statusDate: dia(-8) });
+t = await ler();
+check('data anterior à entrada na etapa atual é recusada com 400', r.status === 400, `HTTP ${r.status} ${r.json?.error || ''}`);
+check('e a OS continua aberta', t.status === 'Aguardando Parecer Técnico', t.status);
+
 // 4. Conclusão registrada atrasada: a data vira o closedAt (o que os indicadores leem).
 r = await patch(token, { id: OS, updates: { status: 'Encerrada' }, statusDate: dia(-2) });
 t = await ler();
@@ -122,7 +129,13 @@ const segundos = (Date.now() - diaDe(t.stageEnteredAt).getTime()) / 1000;
 check('sem statusDate vale o clique', r.status === 200 && segundos >= 0 && segundos < 60, `${segundos.toFixed(1)}s atrás`);
 check('reabrir limpa o closedAt e o registro', !t.closedAt && !t.closedRegisteredAt);
 
-// 6. Encerrou por engano, reabriu, encerra de novo com a data real: o marco acompanha.
+// 6. Encerrou por engano HOJE. A trava impede encerrar de novo com data anterior sem
+// antes reabrir; a correção é REABRIR informando a data real (reabrir não trava pela
+// etapa atual) e encerrar com a data real. O marco acompanha.
+r = await patch(token, { id: OS, updates: { status: 'Encerrada' } });
+check('encerramento por engano, hoje', r.status === 200, `HTTP ${r.status}`);
+r = await patch(token, { id: OS, updates: { status: 'Aguardando Parecer Técnico' }, statusDate: dia(-3) });
+check('reabrir com data anterior ao encerramento errado é aceito', r.status === 200, `HTTP ${r.status} ${r.json?.error || ''}`);
 r = await patch(token, { id: OS, updates: { status: 'Encerrada' }, statusDate: dia(-1) });
 t = await ler();
 check(

@@ -2215,6 +2215,9 @@ export default async function handler(req, res) {
           const dataDaEtapa = resolverDataDaEtapa(body?.statusDate, {
             agora: registradoAgora,
             abertaEm: toDateOrNull(data.time) || toDateOrNull(data.createdAt),
+            // Reabrir é a exceção: é por ali que se corrige um encerramento com a data
+            // errada (reabre informando a data real anterior, encerra de novo).
+            entrouNaAtualEm: CLOSED_STATUSES.has(data.status) ? null : toDateOrNull(data.stageEnteredAt),
           });
           if (dataDaEtapa.erro) return { invalidStatusDate: dataDaEtapa.erro };
           payload.stageEnteredAt = dataDaEtapa.data;

@@ -24,6 +24,10 @@ conclusão — estão colocando na observação" e "coloca data para todas as et
     "concluída em 01/09" venceria o link na hora.
   - Data informada **sobrescreve** o marco da etapa (encerrar por engano, reabrir e
     encerrar com a data real deixa marco e `closedAt` iguais).
+  - **Trava (decisão do dono):** a data também não pode ser anterior à entrada na etapa
+    atual — senão o tempo por etapa saía negativo nos relatórios. **Reabrir é a
+    exceção**, porque é por ali que se corrige um encerramento com data errada: reabre
+    informando a data real anterior e encerra de novo.
 - **Revisão:** `auditor` REPROVADO (data velha vindo preenchida na etapa seguinte,
   limite de abertura diferente entre tela e servidor, modal fechando ao falhar, nota
   sem valor contando como NF, marco divergente, link vencendo na hora) → corrigido →
