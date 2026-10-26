@@ -16,6 +16,8 @@ export interface KpiReportData {
   encerradas: number;
   canceladas: number;
   urgentesAbertas: number;
+  /** Suspensas vigentes do recorte — ficam fora de todos os outros números (26/10/2026). */
+  suspensas?: number;
   osMaisAntigaDias: number | null;
   /**
    * ⚠️ "Encerradas" DEIXOU DE INCLUIR CANCELADA. A série somava as duas e a legenda

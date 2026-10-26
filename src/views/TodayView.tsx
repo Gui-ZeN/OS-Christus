@@ -285,7 +285,7 @@ export function TodayView() {
     setOsBoardFilter({
       search: '', sede: [], macroService: [], service: [], team: [],
       status: [], responsible: [], showClosed: false, bloqueadas: false,
-      agua: true, ordem: 'parada',
+      agua: true, suspensas: false, ordem: 'parada',
     });
     navigateTo('os-board');
   }, [navigateTo, setOsBoardFilter]);

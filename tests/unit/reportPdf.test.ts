@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildReportPdf } from '../../api/_lib/reportPdf.js';
+import { textoDoPdf } from '../pdfTexto';
 
 /** Payload mínimo válido; cada teste troca só o recorte. */
 const BASE = {
@@ -68,5 +69,14 @@ describe('buildReportPdf', () => {
   it('sem recorte nenhum ainda produz PDF, em vez de estourar', async () => {
     const pdf = await buildReportPdf({ ...BASE, filtros: [] });
     expect(ehPdf(pdf)).toBe(true);
+  });
+
+  // Os números já chegam sem as suspensas (26/10/2026). Sem a linha, "10 em aberto"
+  // num papel que sai da empresa esconderia as 2 que ficaram de fora.
+  it("diz quantas suspensas ficaram fora dos números", async () => {
+    const com = textoDoPdf(await buildReportPdf({ ...BASE, filtros: [], suspensas: 2 }));
+    expect(com).toContain("+2 suspensas à parte");
+    const sem = textoDoPdf(await buildReportPdf({ ...BASE, filtros: [], suspensas: 0 }));
+    expect(sem).not.toContain("à parte");
   });
 });

@@ -45,6 +45,7 @@ import {
   volumeDoPeriodo,
 } from './indicadores.js';
 import { resolveTicketRegion, resolveTicketSite } from './territorioDaOs.js';
+import { suspensaVigente } from './estadoDaOs.js';
 
 export const VERSAO = 1;
 
@@ -69,6 +70,10 @@ const CAMPOS = [
   'region',
   'macroServiceId',
   'serviceCatalogId',
+  // Só para saber se está suspensa. SUBCAMPOS, não `attention` inteiro: ele traz
+  // `setBy`/`setByName` (e-mail e nome de quem suspendeu), e dado pessoal não entra aqui.
+  'attention.state',
+  'attention.reviewAt',
 ];
 
 export function mesCorrenteEmFortaleza(agora = new Date()) {
@@ -92,7 +97,13 @@ function carimboDeFortaleza(agora) {
   return `${new Date(agora.getTime() - FUSO_MS).toISOString().slice(0, 19)}-03:00`;
 }
 
-function contadores(tickets, inicio, fim) {
+/**
+ * ⚠️ SUSPENSA VIGENTE FICA FORA DE TODO CONTADOR (decisão do dono, 26/10/2026) e é
+ * contada à parte em `suspensas`, como na Home e nos Indicadores. Vencida volta a
+ * contar (`suspensaVigente`). Campo novo: não quebra quem já lê a versão 1.
+ */
+function contadores(todos, inicio, fim, agora) {
+  const tickets = todos.filter(ticket => !suspensaVigente(ticket, agora));
   const abertas = tickets.filter(ticket => isTicketOpen(ticket.status));
   const criadasNoMes = tickets.filter(ticket => {
     const quando = ticket.time?.getTime();
@@ -106,6 +117,7 @@ function contadores(tickets, inicio, fim) {
     abertasNoMes: volumeDoPeriodo(criadasNoMes).total,
     encerradasNoMes: fechadas.filter(ticket => ticket.status === TICKET_STATUS.CLOSED).length,
     resolucaoMedianaDias: tempoDeResolucao(fechadas).mediana,
+    suspensas: todos.length - tickets.length,
   };
 }
 
@@ -158,12 +170,12 @@ export function montarResumo({ tickets, regions, sites, mes, de = mes, ate = mes
     ate,
     porSede: [...porSede.entries()]
       .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
-      .map(([sede, { grupo, tickets: daSede }]) => ({ sede, grupo, ...contadores(daSede, inicio, fim) })),
+      .map(([sede, { grupo, tickets: daSede }]) => ({ sede, grupo, ...contadores(daSede, inicio, fim, agora) })),
     porGrupo: Object.fromEntries(
-      [...porGrupo.entries()].map(([grupo, doGrupo]) => [grupo, contadores(doGrupo, inicio, fim)])
+      [...porGrupo.entries()].map(([grupo, doGrupo]) => [grupo, contadores(doGrupo, inicio, fim, agora)])
     ),
-    geral: contadores(validas, inicio, fim),
-    semSede: contadores(semSede, inicio, fim),
+    geral: contadores(validas, inicio, fim, agora),
+    semSede: contadores(semSede, inicio, fim, agora),
   };
 }
 

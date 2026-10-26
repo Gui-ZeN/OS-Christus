@@ -160,7 +160,10 @@ export async function buildReportPdf(data) {
     // ── Banda de KPIs ─────────────────────────────────────────
     const stats = [
       { label: 'Total de OS', value: data.totalOs },
-      { label: 'Em aberto', value: data.abertas },
+      // Os números já vêm sem as suspensas (26/10/2026); sem a dica, o PDF encolheria a
+      // fila sem dizer por quê. Mora aqui e não na Leitura rápida porque aquela linha não
+      // quebra: com números de três dígitos ela já passaria da margem.
+      { label: 'Em aberto', value: data.abertas, hint: data.suspensas ? `+${data.suspensas} suspensa${data.suspensas > 1 ? 's' : ''} à parte` : '' },
       { label: 'Encerradas', value: data.encerradas },
       { label: 'Urgentes / Altas', value: data.urgentesAbertas, hint: 'em aberto' },
       { label: 'OS mais antiga', value: data.osMaisAntigaDias == null ? '—' : `${data.osMaisAntigaDias}d`, hint: data.osMaisAntigaDias == null ? '' : 'em aberto' },

@@ -81,6 +81,7 @@ const DEFAULT_OS_BOARD_FILTER: OsBoardFilter = {
   showClosed: false,
   bloqueadas: false,
   agua: false,
+  suspensas: false,
   // A fila abre pela OS mais parada. A ordem anterior vinha da API e não
   // significava nada — com 97 OS na mesma etapa, sem ordenação não havia como
   // perguntar "qual ataco primeiro".

@@ -42,13 +42,15 @@ function os(campos: Record<string, unknown>) {
   return { ...PESSOAL, priority: 'Alta', macroServiceId: 'm', serviceCatalogId: 's', ...campos };
 }
 
+const camposPedidos: string[] = [];
+
 function fakeDb(tickets: Record<string, unknown>[]) {
   const leituras = { tickets: 0 };
   const colecoes: Record<string, Record<string, unknown>[]> = { tickets, regions, sites };
   const db = {
     collection(nome: string) {
       const consulta = {
-        select: () => consulta,
+        select: (...campos: string[]) => { camposPedidos.push(...campos); return consulta; },
         get: async () => {
           if (nome === 'tickets') leituras.tickets += 1;
           return { docs: (colecoes[nome] || []).map((data, i) => ({ id: `${nome}-${i}`, data: () => data })) };
@@ -284,7 +286,7 @@ describe('nenhum dado pessoal sai', () => {
     };
     visitar(res.json);
 
-    const CONTADORES = ['abertas', 'urgentesAbertas', 'travadas', 'abertasNoMes', 'encerradasNoMes', 'resolucaoMedianaDias'];
+    const CONTADORES = ['abertas', 'urgentesAbertas', 'travadas', 'abertasNoMes', 'encerradasNoMes', 'resolucaoMedianaDias', 'suspensas'];
     const PERMITIDAS = new Set([
       'versao', 'geradoEm', 'mes', 'de', 'ate', 'porSede', 'porGrupo', 'geral', 'semSede', 'sede', 'grupo',
       'operacao', 'universidade', ...CONTADORES,
@@ -404,5 +406,46 @@ describe('período: de/ate (01/10/2026)', () => {
     expect((await pedir({ mes: '2026-09' })).geral.abertasNoMes).toBe(0);
     expect((await pedir({ mes: '2026-09', de: '2026-08', ate: '2026-09' })).geral.abertasNoMes).toBe(1);
     expect(leituras.tickets).toBe(2);
+  });
+});
+
+describe('suspensas ficam fora dos contadores e são contadas à parte (26/10/2026)', () => {
+  const suspensa = (diasAteRevisao: number, extra: Record<string, unknown> = {}) =>
+    os({
+      sede: 'PQL1',
+      status: 'Em andamento',
+      priority: 'Urgente',
+      time: emFortaleza('2026-09-10T10:00'),
+      attention: {
+        state: 'suspensa',
+        reason: 'outro',
+        reviewAt: new Date(emFortaleza('2026-09-29T11:05').getTime() + diasAteRevisao * 86_400_000),
+        setBy: 'gestora@christus.com.br',
+        setByName: 'Gestora',
+      },
+      ...extra,
+    });
+
+  it('suspensa vigente sai de abertas, urgentes e abertas no mês, e aparece em `suspensas`', async () => {
+    const { res } = await chamar([
+      suspensa(5),
+      os({ sede: 'PQL1', status: 'Em andamento', time: emFortaleza('2026-09-11T10:00') }),
+    ]);
+    expect(res.json.porSede[0]).toMatchObject({ sede: 'PQL1', abertas: 1, urgentesAbertas: 0, abertasNoMes: 1, suspensas: 1 });
+    expect(res.json.porGrupo.operacao).toMatchObject({ abertas: 1, suspensas: 1 });
+    expect(res.json.geral).toMatchObject({ abertas: 1, suspensas: 1 });
+  });
+
+  it('suspensa com revisão vencida VOLTA a contar como aberta', async () => {
+    const { res } = await chamar([suspensa(-1)]);
+    expect(res.json.geral).toMatchObject({ abertas: 1, urgentesAbertas: 1, suspensas: 0 });
+  });
+
+  it('a consulta pede só o estado e a revisão — nunca `attention` inteiro, que traz nome e e-mail', async () => {
+    camposPedidos.length = 0;
+    await chamar([suspensa(5)]);
+    expect(camposPedidos).toContain('attention.state');
+    expect(camposPedidos).toContain('attention.reviewAt');
+    expect(camposPedidos).not.toContain('attention');
   });
 });

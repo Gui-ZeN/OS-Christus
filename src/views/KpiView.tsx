@@ -7,6 +7,7 @@ import { PeriodPicker, type PeriodMode } from './kpi/PeriodPicker';
 import { PainelDeCobranca } from './kpi/PainelDeCobranca';
 import { usePaletaDeGraficos } from './kpi/paletaDeGraficos';
 import { useApp } from '../context/AppContext';
+import { useAgora } from '../hooks/useAgora';
 import { EmptyState } from '../components/ui/EmptyState';
 import {
   fetchCatalog,
@@ -42,6 +43,7 @@ import { mensagemDeErro, UserFacingError } from '../utils/errorMessage';
 import { repairMojibake } from '../utils/text';
 import { bloqueioParaAvancar } from '../utils/statusChangeGuard';
 import { activeSuspension } from '../utils/agenda';
+import { suspensaVigente } from '../../api/_lib/estadoDaOs.js';
 import { lerMarcos } from '../utils/marcos';
 
 /**
@@ -94,10 +96,17 @@ export function KpiView() {
    *
    * Só o painel. A Inbox e a Gestão continuam mostrando essas OS, porque lá elas são
    * registro do que aconteceu; aqui elas seriam trabalho que não houve.
+   *
+   * ⚠️ SUSPENSA VIGENTE TAMBÉM FICA FORA, de TODO número (decisão do dono, 26/10/2026):
+   * é espera declarada, não trabalho. O card "Suspensas" mostra quantas são, à parte.
+   * Vencida volta a contar — ver `suspensaVigente`.
    */
+  // O MESMO relógio para os números e para o card: com dois, uma suspensa que venceu
+  // no meio saía dos dois ao mesmo tempo.
+  const agora = useAgora();
   const tickets = useMemo(
-    () => todasAsTickets.filter(ticket => !ticket.excludedFromMetrics),
-    [todasAsTickets]
+    () => todasAsTickets.filter(ticket => !ticket.excludedFromMetrics && !suspensaVigente(ticket, agora)),
+    [todasAsTickets, agora]
   );
   // Mesma fonte que acende o ícone na barra lateral: duas listas escritas à mão
   // divergiam em silêncio, e o sintoma era ver o ícone e levar "acesso restrito".
@@ -377,6 +386,14 @@ export function KpiView() {
    */
   const ticketsDaFila = useMemo(() => tickets.filter(passaNosFiltros), [passaNosFiltros, tickets]);
 
+  /** As suspensas que ficaram fora dos números — no mesmo recorte de sede/etapa/equipe. */
+  const suspensasNoRecorte = useMemo(
+    () => todasAsTickets.filter(
+      ticket => !ticket.excludedFromMetrics && suspensaVigente(ticket, agora) && passaNosFiltros(ticket)
+    ).length,
+    [passaNosFiltros, todasAsTickets, agora]
+  );
+
   /**
    * As OS do recorte SEM o corte de período, para o quadro de cobrança.
    *
@@ -645,6 +662,7 @@ export function KpiView() {
       encerradas,
       canceladas,
       urgentesAbertas: urgentOpenCount,
+      suspensas: suspensasNoRecorte,
       osMaisAntigaDias: esperaAberta?.dias ?? null,
       osPorSede,
       backlogPorEtapa,
@@ -654,7 +672,7 @@ export function KpiView() {
       distribuicaoUrgencia,
       backlogPorEquipe: backlogPorEquipe.itens,
     };
-  }, [filteredTickets, volume, periodLabel, selectedSite, selectedRegion, selectedStatus, selectedPriority, selectedTeam, urgentOpenCount, esperaAberta, osPorSede, backlogPorEtapa, agingBuckets, esperaPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
+  }, [filteredTickets, volume, periodLabel, selectedSite, selectedRegion, selectedStatus, selectedPriority, selectedTeam, urgentOpenCount, suspensasNoRecorte, esperaAberta, osPorSede, backlogPorEtapa, agingBuckets, esperaPorEtapa, tendenciaMensal, distribuicaoUrgencia, backlogPorEquipe]);
 
   const handleExportPdf = async () => {
     if (generating) return;
@@ -1024,12 +1042,12 @@ export function KpiView() {
               </div>
 
               <div className="bg-roman-surface border border-roman-border rounded-sm p-6 shadow-sm">
-                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Esperando com data</h3>
-                {/* Suspensa com motivo e revisão marcada é gestão, não falha — e no
-                    envelhecimento as duas contavam igual. */}
-                <div className="text-2xl font-medium text-roman-text-main mb-1">{espera.suspensas}</div>
+                <h3 className="text-xs font-serif uppercase tracking-widest text-roman-text-sub mb-2">Suspensas</h3>
+                {/* Suspensa com motivo e revisão marcada é gestão, não falha — e fica FORA
+                    de todos os outros números desta tela (26/10/2026). */}
+                <div className="text-2xl font-medium text-roman-text-main mb-1">{suspensasNoRecorte}</div>
                 <div className="text-sm text-roman-text-sub">
-                  Suspensas com motivo e data de revisão
+                  Com motivo e data de revisão — fora dos demais números deste painel
                 </div>
                 <div className="mt-3 flex items-center gap-2 text-xs font-medium text-roman-text-main bg-roman-bg w-fit px-2 py-1 rounded-sm border border-roman-border">
                   Paradas sem previsão: {espera.paradas}

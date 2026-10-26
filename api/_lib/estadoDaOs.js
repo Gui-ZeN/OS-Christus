@@ -22,6 +22,8 @@
  * esconde atraso. O prazo é o que separa os dois, e o motivo vira descrição.
  */
 
+import { isTicketOpen } from './statusFlow.js';
+
 export const ESTADO = {
   /** A organização está gastando capacidade nela agora. */
   ATIVA: 'ativa',
@@ -76,6 +78,23 @@ export function estadoDaOs(ticket, now = new Date()) {
  */
 export function esperaDeclarada(ticket, now = new Date()) {
   return estadoDaOs(ticket, now) !== ESTADO.ATIVA;
+}
+
+/**
+ * SUSPENSA VIGENTE — fica FORA dos números dos painéis (decisão do dono, 26/10/2026).
+ *
+ * "Não entrar em dash": suspensa com motivo e revisão no futuro é espera declarada,
+ * não trabalho, e contá-la como aberta inflava backlog, envelhecimento e volume. Sai
+ * de TODOS os números (fila e histórico) dos Indicadores, da Home e do Resumo
+ * Executivo — e cada um mostra à parte QUANTAS estão suspensas.
+ *
+ * ⚠️ VENCIDA VOLTA A CONTAR (é `IMPEDIDA`): senão suspender viraria jeito de sumir
+ * com OS dos números. E OS fechada nunca é "suspensa": o campo pode ter ficado do
+ * tempo em que ela estava aberta.
+ */
+export function suspensaVigente(ticket, now = new Date()) {
+  if (!isTicketOpen(ticket?.status)) return false;
+  return estadoDaOs(ticket, now) === ESTADO.ESPERANDO;
 }
 
 /** Precisa de alguém para remover o bloqueio agora. */

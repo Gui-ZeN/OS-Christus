@@ -144,6 +144,8 @@ export interface OsBoardFilter {
    * para abrir — número que não vira porta é o enfeite que saiu do Início.
    */
   agua: boolean;
+  /** Só as suspensas vigentes (motivo + revisão no futuro). Elas ficam fora dos painéis. */
+  suspensas?: boolean;
   /** `parada` = mais tempo na etapa atual primeiro. `recentes` = mais novas primeiro. */
   ordem: 'parada' | 'recentes';
 }

@@ -3,6 +3,35 @@
 Registro consolidado das mudanças. O histórico granular (com o "porquê") está
 nas mensagens de commit; este arquivo agrupa por tema para leitura rápida.
 
+## 2026-10-26 (OS suspensa fica fora dos painéis)
+
+Pedido do dono: "suspensa não entra em dash; e no dash mostrar quantas suspensas tem".
+A suspensão continua NÃO sendo etapa (a OS segue na etapa em que parou); o que muda é
+onde ela conta.
+
+- Regra única `suspensaVigente` (`api/_lib/estadoDaOs.js`): OS **aberta**, suspensa e com
+  revisão **no futuro**. Vencida volta a contar (é "Impedida") — senão suspender viraria
+  jeito de sumir com OS dos números. OS fechada nunca conta como suspensa.
+- **Indicadores:** suspensa vigente fora de **todos** os números (fila e histórico,
+  decisão do dono); o card "Suspensas" mostra quantas são, no mesmo recorte de filtros.
+- **Início:** fora dos números (gargalos, próximas decisões, entregas); cartão
+  "Suspensas" que abre a Gestão filtrada. As listas do solicitante continuam com todas.
+- **Gestão:** a coluna da etapa mostra "Suspensa" e, embaixo, "estava em X · até dd/mm"
+  (motivo e detalhe no `title`); atalho "Suspensas (N)". A lista em PDF diz o mesmo.
+- **Suspender pede detalhe:** campo de texto opcional, **obrigatório** com o motivo "Outro"
+  (vai em `attention.note`).
+- **Relógio que anda (`src/hooks/useAgora.ts`):** Início, Indicadores e o contador da
+  Gestão usavam `new Date()` dentro do `useMemo`, que só recalcula quando a lista muda — e
+  o polling preserva a lista quando nada mudou. A suspensão que vencia com a tela aberta
+  continuava fora dos números (achado do auditor). Conferido no navegador: com a página
+  aberta, a OS voltou a contar um minuto depois de `reviewAt`.
+- **PDF dos Indicadores:** "Em aberto" ganhou a dica "+N suspensas à parte" — os números
+  já vêm sem elas e o papel não dizia.
+- **Resumo Executivo (Chromos):** suspensas fora dos contadores e campo novo `suspensas`
+  por sede, grupo, geral e semSede (campo novo não quebra a versão 1). O `select` pede só
+  `attention.state` e `attention.reviewAt` — o mapa inteiro traz nome e e-mail de quem
+  suspendeu.
+
 ## 2026-10-16 (segurança: `driveFileId` de anexo deixa de vir do cliente)
 
 - **Achado (anterior às mudanças do dia):** o PATCH de OS gravava os objetos de anexo

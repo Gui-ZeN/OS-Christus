@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RecurrencePanel } from './RecurrencePanel';
-import { ArrowRightLeft, Droplets, FileDown, MessageSquare, Search, SlidersHorizontal, TriangleAlert, UserRound, X, CalendarClock } from 'lucide-react';
+import { ArrowRightLeft, Droplets, FileDown, MessageSquare, Search, SlidersHorizontal, TriangleAlert, UserRound, X, CalendarClock, PauseCircle } from 'lucide-react';
+import { suspensaVigente } from '../../api/_lib/estadoDaOs.js';
+import { useAgora } from '../hooks/useAgora';
+import { SUSPENSION_REASON_LABEL } from '../constants/agenda';
 import { useApp } from '../context/AppContext';
 import { fetchCatalog, type CatalogSite } from '../services/catalogApi';
 import { baixarPdfDaLista } from '../services/ticketsApi';
@@ -166,6 +169,35 @@ function AcoesDaOs({ ticketId, podeTrocarEtapa, onConversa, onEtapa, onProximaAc
   );
 }
 
+/** "dd/mm" da revisão da suspensão. */
+const ateQuando = (reviewAt: Date) =>
+  new Date(reviewAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Fortaleza' });
+
+/**
+ * A ETAPA — ou "Suspensa", quando ela está (decisão do dono, 26/10/2026).
+ *
+ * A suspensão não é etapa: a OS continua na etapa em que parou, e é para ela que
+ * volta. Mas na lista ela tem que LER como suspensa, porque fica fora dos painéis e
+ * quem olha precisa saber por quê. Então "Suspensa" toma o lugar do selo de etapa, e
+ * a etapa de verdade vem logo embaixo — trocar uma pela outra perderia onde ela parou.
+ */
+function EtapaOuSuspensa({ ticket }: { ticket: Ticket }) {
+  const suspensa = suspensaVigente(ticket, new Date()) ? ticket.attention : null;
+  if (!suspensa) return <StatusBadge status={ticket.status} />;
+  const motivo = SUSPENSION_REASON_LABEL[suspensa.reason] || 'Suspensa';
+  return (
+    <div title={`${motivo}${suspensa.note ? ` — ${suspensa.note}` : ''}. Fica fora dos painéis até a revisão.`}>
+      <span className="inline-flex items-center gap-1 rounded-full border border-roman-border bg-roman-bg px-2 py-0.5 text-[11px] font-medium text-roman-text-main">
+        <PauseCircle size={12} />
+        Suspensa
+      </span>
+      <div className="mt-1 text-[11px] leading-tight text-roman-text-sub">
+        estava em {etapaDoStatus(ticket.status)} · até {ateQuando(suspensa.reviewAt)}
+      </div>
+    </div>
+  );
+}
+
 /** O selo de bloqueio — o motivo de a OS não andar, visível sem tentar movê-la. */
 function SeloDeBloqueio({ ticket }: { ticket: Ticket }) {
   const bloqueio = bloqueioParaAvancar(ticket);
@@ -208,7 +240,7 @@ export function OsBoardView() {
 
   // O filtro mora no CONTEXTO, não em estado local: esta view desmonta ao abrir
   // uma OS, e com `useState` a seleção se perdia toda vez que a pessoa voltava.
-  const { search, sede, macroService, service, team, status, responsible, showClosed, bloqueadas, agua, ordem } = osBoardFilter;
+  const { search, sede, macroService, service, team, status, responsible, showClosed, bloqueadas, agua, suspensas, ordem } = osBoardFilter;
   const setFilter = (patch: Partial<typeof osBoardFilter>) => setOsBoardFilter({ ...osBoardFilter, ...patch });
 
   useEffect(() => {
@@ -271,6 +303,9 @@ export function OsBoardView() {
     return [...conhecidas, ...estranhas];
   }, [tickets]);
 
+  // Um relógio só para o filtro e para o contador: a suspensa que vence com a tela
+  // aberta sai dos dois no mesmo minuto.
+  const agora = useAgora();
   const filtered = useMemo(() => {
     const escolhas = { sede, macroService, service, team, status, responsible };
 
@@ -298,6 +333,7 @@ export function OsBoardView() {
       // Chuva vira goteira: é por aqui que o bloco de tempo da tela Hoje entrega uma
       // lista em vez de só um termômetro.
       if (agua && !entry.ticket.waterIssue) return false;
+      if (suspensas && !suspensaVigente(entry.ticket, agora)) return false;
       return matchesSearch(haystack, search);
     })
       .sort((a, b) => {
@@ -307,13 +343,19 @@ export function OsBoardView() {
         const quando = (t: Ticket) => coerceDate(t.stageEnteredAt, t.time).getTime();
         return ordem === 'parada' ? quando(a.ticket) - quando(b.ticket) : quando(b.ticket) - quando(a.ticket);
       });
-  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed, bloqueadas, agua, ordem]);
+  }, [decorated, sede, macroService, service, team, status, responsible, search, showClosed, bloqueadas, agua, suspensas, ordem, agora]);
 
   // Conta sobre as OS VIVAS do escopo, não sobre o recorte filtrado: o atalho
   // precisa dizer quantas existem, e não quantas sobraram do filtro atual.
   const totalBloqueadas = useMemo(
     () => decorated.filter(e => isTicketOpen(e.ticket.status) && bloqueioParaAvancar(e.ticket)).length,
     [decorated]
+  );
+
+  /** As suspensas vigentes do escopo — o número que os painéis mostram à parte. */
+  const totalSuspensas = useMemo(
+    () => decorated.filter(e => suspensaVigente(e.ticket, agora)).length,
+    [decorated, agora]
   );
 
   /** Conta na hora, como o de travadas: número fixo mente na semana seguinte. */
@@ -387,7 +429,9 @@ export function OsBoardView() {
         ticket.responsible?.name || '—',
         // A trava vai junto porque está na tela e é o motivo de a OS não andar —
         // uma lista de cobrança sem ela manda cobrar quem não pode fazer nada.
-        travada ? `${etapaDoStatus(ticket.status)} · travada` : etapaDoStatus(ticket.status),
+        suspensaVigente(ticket, new Date())
+          ? `Suspensa (estava em ${etapaDoStatus(ticket.status)})`
+          : travada ? `${etapaDoStatus(ticket.status)} · travada` : etapaDoStatus(ticket.status),
         // Mesmo número da tela, incluindo o asterisco: papel e tela discordando sobre
         // o andamento da mesma OS é como nasce "o sistema está errado".
         `${contarAcontecidos(ticket)}/6${contarAcontecidos(ticket) > contarMarcos(ticket) ? '*' : ''}`,
@@ -457,9 +501,10 @@ export function OsBoardView() {
     showClosed,
     bloqueadas,
     agua,
+    suspensas,
   ].filter(Boolean).length;
   const clearFilters = () =>
-    setOsBoardFilter({ search: '', sede: [], macroService: [], service: [], team: [], status: [], responsible: [], showClosed: false, bloqueadas: false, agua: false, ordem });
+    setOsBoardFilter({ search: '', sede: [], macroService: [], service: [], team: [], status: [], responsible: [], showClosed: false, bloqueadas: false, agua: false, suspensas: false, ordem });
 
   const selectClass =
     'rounded-sm border border-roman-border bg-roman-surface px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary';
@@ -562,6 +607,20 @@ export function OsBoardView() {
         >
           <TriangleAlert size={14} />
           Travadas ({totalBloqueadas})
+        </button>
+        {/* Suspensas ficam FORA dos painéis (26/10/2026); daqui é onde se vê quais são. */}
+        <button
+          type="button"
+          onClick={() => setFilter({ suspensas: !suspensas })}
+          className={`inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-sm transition-colors ${
+            suspensas
+              ? 'border-roman-primary/35 bg-roman-primary/12 text-roman-text-main'
+              : 'border-roman-border bg-roman-surface text-roman-text-sub hover:border-roman-primary/40 hover:text-roman-text-main'
+          }`}
+          title="OS suspensas com motivo e data de revisão — fora dos números dos painéis"
+        >
+          <PauseCircle size={14} />
+          Suspensas ({totalSuspensas})
         </button>
         {/* Visível mesmo quando ligado de fora (pelo bloco de tempo da tela Hoje):
             chegar numa lista recortada sem enxergar o recorte é como a pessoa conclui
@@ -685,7 +744,7 @@ export function OsBoardView() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-xs font-medium text-roman-text-main">{ticket.id}</span>
-                      <StatusBadge status={ticket.status} />
+                      <EtapaOuSuspensa ticket={ticket} />
                     </div>
 
                     <div className="mt-1.5 font-medium text-roman-text-main">
@@ -909,7 +968,7 @@ export function OsBoardView() {
                     </button>
                   </td>
                   <td className="px-3 py-2.5">
-                    <StatusBadge status={ticket.status} />
+                    <EtapaOuSuspensa ticket={ticket} />
                     {/* O bloqueio deixa de ser invisível: até agora ele só aparecia
                         para quem TENTAVA avançar, e por isso 88 OS estavam paradas
                         por um motivo que ninguém sabia que existia. */}

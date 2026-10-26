@@ -88,6 +88,9 @@ export function EditorDeAcao({
   const [motivo, setMotivo] = useState<SuspensionReason>(
     suspensao?.reason || SUSPENSION_REASON.WAITING_MATERIAL
   );
+  // O porquê em texto (26/10/2026). O motivo em lista é o que se conta; o detalhe é o
+  // que se lê — e com "Outro" ele é a única explicação que existe, então é obrigatório.
+  const [detalhe, setDetalhe] = useState(suspensao?.note || '');
   const [voltaEm, setVoltaEm] = useState(
     paraCampoLocal(suspensao?.reviewAt || emDias(agora, DEFAULT_SUSPENSION_DAYS, 9))
   );
@@ -146,11 +149,15 @@ export function EditorDeAcao({
     const data = new Date(voltaEm);
     if (Number.isNaN(data.getTime())) return setErro('Data de revisão inválida.');
     if (data.getTime() <= agora.getTime()) return setErro('A revisão precisa ser no futuro.');
+    if (motivo === SUSPENSION_REASON.OTHER && !detalhe.trim()) {
+      return setErro('Com o motivo "Outro", escreva o detalhe.');
+    }
     setErro('');
     setSalvando(true);
     const ok = await onSuspender({
       state: ATTENTION_STATE.SUSPENDED,
       reason: motivo,
+      note: detalhe.trim(),
       reviewAt: data,
       setBy: autorEmail,
       setByName: autorNome,
@@ -175,6 +182,7 @@ export function EditorDeAcao({
           {dataCurta(suspensao.reviewAt)}
           {suspensao.setByName ? ` · por ${suspensao.setByName}` : ''}
         </p>
+        {suspensao.note && <p className="mt-1 text-sm text-roman-text-main">{suspensao.note}</p>}
         <p className="mt-1 text-xs text-roman-text-sub">
           Na data da revisão ela volta sozinha para "sem próxima ação" — ninguém precisa
           lembrar de retomar.
@@ -219,6 +227,18 @@ export function EditorDeAcao({
             </option>
           ))}
         </select>
+        <label className="mt-2 block text-xs text-roman-text-sub" htmlFor="detalhe-suspensao">
+          Detalhe {motivo === SUSPENSION_REASON.OTHER ? '(obrigatório)' : '(opcional)'}
+        </label>
+        <input
+          id="detalhe-suspensao"
+          type="text"
+          value={detalhe}
+          onChange={event => setDetalhe(event.target.value)}
+          maxLength={140}
+          placeholder="Ex.: aguardando a reforma do bloco B terminar"
+          className="mt-1 w-full rounded-sm border border-roman-border bg-roman-bg px-2.5 py-1.5 text-sm text-roman-text-main outline-none focus:border-roman-primary"
+        />
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-roman-text-sub">Rever em</span>
           {[7, 15, 30].map(dias => (

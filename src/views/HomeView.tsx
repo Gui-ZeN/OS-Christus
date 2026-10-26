@@ -1,6 +1,8 @@
 ﻿
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BarChart2, Plus, Users } from 'lucide-react';
+import { suspensaVigente } from '../../api/_lib/estadoDaOs.js';
+import { useAgora } from '../hooks/useAgora';
 import { StatCard } from '../components/ui/StatCard';
 import { isTicketOpen } from '../constants/ticketLifecycle';
 import { TICKET_STATUS } from '../constants/ticketStatus';
@@ -73,6 +75,7 @@ export function HomeView() {
       showClosed: false,
       bloqueadas: false,
       agua: false,
+      suspensas: false,
       ordem: 'parada',
       ...patch,
     });
@@ -151,20 +154,32 @@ export function HomeView() {
    *
    * Todos contam na hora, sobre o escopo territorial de quem está olhando.
    */
+  /**
+   * ⚠️ OS NÚMEROS DO INÍCIO NÃO CONTAM SUSPENSA VIGENTE (decisão do dono, 26/10/2026):
+   * é espera declarada, não trabalho. O cartão "Suspensas" mostra quantas são. As
+   * listas do solicitante (abaixo) continuam com todas — lá é acompanhamento, não painel.
+   */
+  const agora = useAgora();
+  const ticketsDosNumeros = useMemo(
+    () => scopedTickets.filter(ticket => !suspensaVigente(ticket, agora)),
+    [scopedTickets, agora]
+  );
+  const totalSuspensas = scopedTickets.length - ticketsDosNumeros.length;
+
   const stats = useMemo(() => ({
-    novas: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.NEW).length,
-    aguardandoParecer: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_TECH_OPINION).length,
-    travadas: scopedTickets.filter(ticket => isTicketOpen(ticket.status) && bloqueioParaAvancar(ticket)).length,
-    semResponsavel: scopedTickets.filter(ticket => isTicketOpen(ticket.status) && !ticket.responsible?.email).length,
-  }), [scopedTickets]);
+    novas: ticketsDosNumeros.filter(ticket => ticket.status === TICKET_STATUS.NEW).length,
+    aguardandoParecer: ticketsDosNumeros.filter(ticket => ticket.status === TICKET_STATUS.WAITING_TECH_OPINION).length,
+    travadas: ticketsDosNumeros.filter(ticket => isTicketOpen(ticket.status) && bloqueioParaAvancar(ticket)).length,
+    semResponsavel: ticketsDosNumeros.filter(ticket => isTicketOpen(ticket.status) && !ticket.responsible?.email).length,
+  }), [ticketsDosNumeros]);
 
   /** O trio de entrega, pela mesma regra: cartão zerado não aparece, e trio vazio some. */
   const entregas = useMemo(() => {
-    const aguardandoAceite = scopedTickets.filter(t => t.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length;
-    const emCampo = scopedTickets.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length;
-    const finalizadas = scopedTickets.filter(t => t.status === TICKET_STATUS.CLOSED).length;
+    const aguardandoAceite = ticketsDosNumeros.filter(t => t.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL).length;
+    const emCampo = ticketsDosNumeros.filter(t => t.status === TICKET_STATUS.IN_PROGRESS).length;
+    const finalizadas = ticketsDosNumeros.filter(t => t.status === TICKET_STATUS.CLOSED).length;
     return { aguardandoAceite, emCampo, finalizadas, total: aguardandoAceite + emCampo + finalizadas };
-  }, [scopedTickets]);
+  }, [ticketsDosNumeros]);
 
   /** Quantos gargalos têm o que mostrar. Zero em todos = a fileira inteira some. */
   const gargalosVisiveis = [
@@ -172,6 +187,7 @@ export function HomeView() {
     stats.travadas,
     stats.semResponsavel,
     stats.novas,
+    totalSuspensas,
   ].filter(quantidade => quantidade > 0).length;
 
   const executiveNextActions = useMemo(() => {
@@ -183,21 +199,21 @@ export function HomeView() {
         // registra, não cobra"). O cartão constata; quem cobra é gente.
         title: 'Aguardando orçamento',
         subtitle: 'esperando composição financeira.',
-        count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
+        count: ticketsDosNumeros.filter(ticket => ticket.status === TICKET_STATUS.WAITING_BUDGET).length,
         action: () => abrirGestao({ status: [ETAPA.ORCAMENTO] }),
       } : null,
       canOperate ? {
         key: 'payment',
         title: 'Liberar pagamentos',
         subtitle: 'Lançamento ou quitação pendente.',
-        count: scopedTickets.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
+        count: ticketsDosNumeros.filter(ticket => ticket.status === TICKET_STATUS.WAITING_PAYMENT).length,
         action: () => navigateTo('finance'),
       } : null,
       canOperate ? {
         key: 'execution',
         title: 'Em execução',
         subtitle: 'obra ativa ou aguardando fechamento.',
-        count: scopedTickets.filter(ticket =>
+        count: ticketsDosNumeros.filter(ticket =>
           ticket.status === TICKET_STATUS.WAITING_PRELIM_ACTIONS ||
           ticket.status === TICKET_STATUS.IN_PROGRESS ||
           ticket.status === TICKET_STATUS.WAITING_MAINTENANCE_APPROVAL
@@ -208,7 +224,7 @@ export function HomeView() {
       .filter((item): item is NonNullable<typeof item> => Boolean(item) && item.count > 0)
       .sort((a, b) => b.count - a.count)
       .slice(0, 4);
-  }, [canApprove, canOperate, hasOperationalActions, navigateTo, openInboxWithStatus, scopedTickets]);
+  }, [canApprove, canOperate, hasOperationalActions, navigateTo, openInboxWithStatus, ticketsDosNumeros]);
 
   const requesterOpenTickets = useMemo(
     () => (isRequester ? scopedTickets.filter(ticket => isTicketOpen(ticket.status)).sort((a, b) => b.time.getTime() - a.time.getTime()) : []),
@@ -318,6 +334,14 @@ export function HomeView() {
                 value={String(stats.novas)}
                 subtitle="ainda não triadas"
                 onClick={canOperate ? () => abrirGestao({ status: [ETAPA.NOVA] }) : undefined}
+              />
+            )}
+            {totalSuspensas > 0 && (
+              <StatCard
+                title="Suspensas"
+                value={String(totalSuspensas)}
+                subtitle="com motivo e revisão — fora dos números acima"
+                onClick={canOperate ? () => abrirGestao({ suspensas: true }) : undefined}
               />
             )}
           </div>
