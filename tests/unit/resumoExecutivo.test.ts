@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   handleResumoExecutivo,
   limitesDoMes,
@@ -13,7 +13,7 @@ import { invalidateRefCache } from '../../api/_lib/refCache.js';
  * olham as definições, não só o formato.
  */
 
-const TOKEN = 'token-de-teste-do-resumo';
+const TOKEN = 'chave-do-cromos-de-teste-com-32-caracteres';
 
 const regions = [
   { id: 'r-col', name: 'Colégio Centro', group: 'operacao' },
@@ -103,18 +103,18 @@ async function chamar(
 }
 
 beforeEach(() => {
-  process.env.RESUMO_EXECUTIVO_TOKEN = TOKEN;
+  process.env.CHAVE_CROMOS = TOKEN;
   limparCacheDoResumo();
   invalidateRefCache();
 });
 
 afterEach(() => {
-  delete process.env.RESUMO_EXECUTIVO_TOKEN;
+  delete process.env.CHAVE_CROMOS;
 });
 
 describe('a porta: token próprio, fechada por padrão', () => {
   it('sem a variável configurada responde 503, mesmo com cabeçalho', async () => {
-    delete process.env.RESUMO_EXECUTIVO_TOKEN;
+    delete process.env.CHAVE_CROMOS;
     const { res } = await chamar([], { token: '' });
     expect(res.statusCode).toBe(503);
   });
@@ -133,6 +133,56 @@ describe('a porta: token próprio, fechada por padrão', () => {
     const { res } = await chamar([]);
     expect(res.statusCode).toBe(200);
     expect(res.json.versao).toBe(1);
+  });
+
+  // Casos do revisor de segurança para as chaves entre sistemas (28/10/2026).
+  describe('a chave do Chromos', () => {
+    const ANT = 'chave-ANTERIOR-do-cromos-com-32-caracteres';
+    const comCabecalho = async (authorization: string) => {
+      const res = fakeRes();
+      const { db } = fakeDb([]);
+      await handleResumoExecutivo({ method: 'GET', headers: { authorization }, query: { route: 'resumo-executivo' } }, res, { db, agora: emFortaleza('2026-09-29T11:05') });
+      return res.statusCode;
+    };
+    afterEach(() => {
+      delete process.env.CHAVE_CROMOS_ANTERIOR;
+      delete process.env.CRON_SECRET;
+      vi.restoreAllMocks();
+    });
+
+    it('E3 chave de 31 caracteres vale como ausente: 503', async () => {
+      process.env.CHAVE_CROMOS = 'a'.repeat(31);
+      expect((await chamar([], { token: 'a'.repeat(31) })).res.statusCode).toBe(503);
+    });
+
+    it('S2 o CRON_SECRET não abre; igual à chave: 503', async () => {
+      process.env.CRON_SECRET = 'cron-de-teste-com-32-caracteres-ou-mais';
+      expect((await chamar([], { token: process.env.CRON_SECRET })).res.statusCode).toBe(401);
+      process.env.CRON_SECRET = TOKEN;
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      expect((await chamar([], { token: TOKEN })).res.statusCode).toBe(503);
+    });
+
+    it('C3/C4/C6 Basic, duas chaves juntas, espaço duplo: 401; `bearer` minúsculo vale', async () => {
+      for (const a of [`Basic ${TOKEN}`, `Bearer ${TOKEN},${ANT}`, `Bearer  ${TOKEN}`, TOKEN]) {
+        expect(await comCabecalho(a)).toBe(401);
+      }
+      expect(await comCabecalho(`bearer ${TOKEN}`)).toBe(200);
+    });
+
+    it('C9 sem chave e com mês inválido: 401, não 400', async () => {
+      expect((await chamar([], { token: null, mes: 'lixo' })).res.statusCode).toBe(401);
+    });
+
+    it('S1/E11 a anterior abre e sai no log; sozinha não vale', async () => {
+      process.env.CHAVE_CROMOS_ANTERIOR = ANT;
+      const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect((await chamar([], { token: ANT })).res.statusCode).toBe(200);
+      expect(aviso.mock.calls.flat().join(' ')).toContain('ANTERIOR');
+      expect(aviso.mock.calls.flat().join(' ')).not.toContain(ANT);
+      delete process.env.CHAVE_CROMOS;
+      expect((await chamar([], { token: ANT })).res.statusCode).toBe(503);
+    });
   });
 
   it('POST é 405, antes de olhar o token', async () => {

@@ -5,8 +5,8 @@
  * `/api/tickets?route=resumo-executivo`). Com `de`/`ate`, os contadores "NoMes" e a
  * mediana valem para o período inteiro, os dois meses inclusive; sem eles, é o mês.
  * Só leitura, só contadores: nenhum nome, e-mail, descrição, id de OS, solicitante ou
- * responsável sai daqui. Quem consome é outro sistema, com token próprio
- * (`RESUMO_EXECUTIVO_TOKEN`) — não é usuário do Serv3, então não passa pelo login.
+ * responsável sai daqui. Quem consome é outro sistema, com a chave dele
+ * (`CHAVE_CROMOS`) — não é usuário do Serv3, então não passa pelo login.
  *
  * ⚠️ NENHUMA CONTA NOVA. Cada número reusa a regra que os Indicadores já mostram
  * (`api/_lib/indicadores.js`, reexportada por `src/views/kpi/calculos.ts`). Se o
@@ -37,6 +37,43 @@ import { getAdminDb } from './firebaseAdmin.js';
 import { sendError, sendJson } from './http.js';
 import { getCachedRegions, getCachedSites } from './refCache.js';
 import { TICKET_STATUS, isTicketOpen } from './statusFlow.js';
+
+/**
+ * A CHAVE DO CHROMOS (28/10/2026) — uma chave por sistema que chama, o mesmo
+ * valor com o mesmo nome em toda Vercel onde mora (só Production). Mapa no
+ * vault: "Integrações e Segredos". Risco aceito (Guilherme, ADR no vault): quem
+ * recebe guarda a chave crua de quem chama.
+ *
+ * Sem a chave, ou com menos de 32 caracteres, FECHADO (503): um token vazio não
+ * pode casar com cabeçalho vazio. `CHAVE_CROMOS_ANTERIOR` vale junto na troca,
+ * SÓ com uma atual válida, e sai no log quando casa. Igual ao `CRON_SECRET`:
+ * 503 — o Chromos abriria os agendados daqui.
+ */
+const CHAVE_MINIMA = 32;
+const chaveValida = (v) => {
+  const t = String(v || '').trim();
+  return t.length >= CHAVE_MINIMA ? t : '';
+};
+
+export function recusaSeNaoForOChromos(authorization) {
+  const atual = chaveValida(process.env.CHAVE_CROMOS);
+  if (!atual) return { status: 503, error: 'Resumo executivo não configurado.' };
+  const anterior = chaveValida(process.env.CHAVE_CROMOS_ANTERIOR);
+  const aceitas = anterior ? [atual, anterior] : [atual];
+  const cron = String(process.env.CRON_SECRET || '').trim();
+  if (cron && aceitas.some((c) => secretsMatch(c, cron))) {
+    console.error('[resumo-executivo] a CHAVE_CROMOS é igual ao CRON_SECRET');
+    return { status: 503, error: 'Resumo executivo mal configurado.' };
+  }
+  // O esquema não diferencia maiúsculas (RFC 7235), como no Chromos.
+  const [tipo, valor, ...resto] = String(authorization || '').split(' ');
+  const bearer = tipo.toLowerCase() === 'bearer' && valor && !resto.length ? valor : '';
+  // Confere as duas (sem parar na primeira): o tempo não diz se há anterior.
+  const casou = aceitas.map((c) => secretsMatch(bearer, c));
+  if (!casou.some(Boolean)) return { status: 401, error: 'Não autorizado.' };
+  if (!casou[0]) console.warn('[resumo-executivo] chamada com a CHAVE_CROMOS_ANTERIOR');
+  return null;
+}
 import {
   bloqueioParaAvancar,
   fechadasNoPeriodo,
@@ -202,16 +239,8 @@ export async function handleResumoExecutivo(req, res, { db, agora = new Date() }
     return sendJson(res, 405, { ok: false, error: 'Método não permitido.' });
   }
 
-  // Sem a variável, FECHADO: um token vazio não pode casar com cabeçalho vazio.
-  const esperado = process.env.RESUMO_EXECUTIVO_TOKEN;
-  if (!esperado) {
-    return sendJson(res, 503, { ok: false, error: 'Resumo executivo não configurado.' });
-  }
-  const header = String(req.headers?.authorization || '');
-  const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (!secretsMatch(bearer, esperado)) {
-    return sendJson(res, 401, { ok: false, error: 'Não autorizado.' });
-  }
+  const recusa = recusaSeNaoForOChromos(req.headers?.authorization);
+  if (recusa) return sendJson(res, recusa.status, { ok: false, error: recusa.error });
 
   const mesPedido = req.query?.mes ? String(req.query.mes).trim() : '';
   if (mesPedido && !MES_VALIDO.test(mesPedido)) {
